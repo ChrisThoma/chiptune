@@ -65,9 +65,17 @@ struct KeyboardView: View {
 
             Spacer()
 
-            Text(NoteName.label(studio.selectedNote))
-                .chipFont(15, weight: .bold)
-                .foregroundStyle(Theme.color(for: studio.selectedChannel))
+            // Which track a tap lands on matters more now that a song can hold
+            // several of the same kind, so the target is named here.
+            VStack(spacing: 1) {
+                Text(NoteName.label(studio.selectedNote))
+                    .chipFont(15, weight: .bold)
+                    .foregroundStyle(Theme.color(for: studio.selectedKind))
+                Text(studio.song.label(for: studio.selectedTrack))
+                    .chipFont(9)
+                    .foregroundStyle(Theme.dim)
+            }
+            .accessibilityElement(children: .combine)
 
             Spacer()
 
@@ -86,7 +94,7 @@ struct KeyboardView: View {
     private func key(midi: Int, black: Bool) -> some View {
         let note = Int8(clamping: midi)
         let selected = studio.selectedNote == note
-        let accent = Theme.color(for: studio.selectedChannel)
+        let accent = Theme.color(for: studio.selectedKind)
 
         return RoundedRectangle(cornerRadius: 5)
             .fill(selected ? accent : (black ? Color(white: 0.13) : Color(white: 0.88)))

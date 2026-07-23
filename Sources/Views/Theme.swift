@@ -8,7 +8,8 @@ enum Theme {
     static let text = Color(red: 0.88, green: 0.90, blue: 0.96)
     static let dim = Color(red: 0.50, green: 0.52, blue: 0.62)
 
-    /// One accent per channel, in channel order.
+    /// One accent per channel kind. Tracks are coloured by the sound they make,
+    /// so two triangle tracks share a colour and are told apart by their number.
     static let channelColors: [Color] = [
         Color(red: 1.00, green: 0.35, blue: 0.45),   // pulse 1 — red
         Color(red: 1.00, green: 0.78, blue: 0.25),   // pulse 2 — amber
@@ -16,8 +17,8 @@ enum Theme {
         Color(red: 0.70, green: 0.55, blue: 1.00),   // noise — violet
     ]
 
-    static func color(for channel: Int) -> Color {
-        channelColors[min(max(channel, 0), channelColors.count - 1)]
+    static func color(for kind: ChannelKind) -> Color {
+        channelColors[min(max(kind.rawValue, 0), channelColors.count - 1)]
     }
 
     /// Every 4th step is a beat, so it gets a brighter lane.

@@ -1,10 +1,14 @@
 import Foundation
 
 /// Fixed limits shared by the DSP core and the UI. The audio thread indexes
-/// into a flat buffer of `channelCount * maxSteps` bytes, so these must not
+/// into a flat buffer of `maxTracks * maxSteps` bytes, so these must not
 /// change at runtime.
+///
+/// A song uses 1...`maxTracks` tracks and picks a channel kind per track, so
+/// the same kind can appear more than once — two triangles, three pulses, and
+/// so on. A track index is *not* a `ChannelKind`; the track carries its kind.
 enum Chip {
-    static let channelCount = 4
+    static let maxTracks = 8
     static let maxSteps = 64
     static let emptyNote: Int8 = -1
 }
@@ -59,7 +63,10 @@ struct Instrument: Codable, Equatable {
     }
 }
 
-struct Track: Codable, Equatable {
+struct Track: Codable, Equatable, Identifiable {
+    /// Stable across insertion and deletion so per-track view state (an open
+    /// editor sheet, say) doesn't jump to a neighbour when a track is removed.
+    var id: UUID = UUID()
     var kind: ChannelKind
     var instrument: Instrument
     var muted: Bool = false
@@ -70,6 +77,18 @@ struct Track: Codable, Equatable {
         self.kind = kind
         self.instrument = .default(for: kind)
         self.notes = Array(repeating: Chip.emptyNote, count: Chip.maxSteps)
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, kind, instrument, muted, notes }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        // Songs saved before tracks were addable have no id of their own.
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        kind = try c.decode(ChannelKind.self, forKey: .kind)
+        instrument = try c.decode(Instrument.self, forKey: .instrument)
+        muted = try c.decodeIfPresent(Bool.self, forKey: .muted) ?? false
+        notes = try c.decode([Int8].self, forKey: .notes)
     }
 
     /// Pads or trims a decoded note array so older/corrupt files can't crash the
@@ -102,17 +121,44 @@ struct Song: Codable, Equatable, Identifiable {
     mutating func normalize() {
         length = min(max(length, 4), Chip.maxSteps)
         tempo = min(max(tempo, 40), 300)
-        // Guarantee exactly one track per channel, in channel order.
-        var rebuilt: [Track] = []
-        for kind in ChannelKind.allCases {
-            if var existing = tracks.first(where: { $0.kind == kind }) {
-                existing.normalizeNotes()
-                rebuilt.append(existing)
-            } else {
-                rebuilt.append(Track(kind: kind))
-            }
-        }
-        tracks = rebuilt
+        // Any mix of kinds is legal now; only the count and the note arrays are
+        // load-bearing for the audio thread's fixed-size buffers.
+        if tracks.isEmpty { tracks = ChannelKind.allCases.map { Track(kind: $0) } }
+        if tracks.count > Chip.maxTracks { tracks = Array(tracks.prefix(Chip.maxTracks)) }
+        for i in tracks.indices { tracks[i].normalizeNotes() }
+    }
+
+    var canAddTrack: Bool { tracks.count < Chip.maxTracks }
+
+    /// Short column name. Duplicated kinds get a letter — "TRI", or "TRI A" and
+    /// "TRI B". Letters rather than numbers, because "PU1 1" is a riddle.
+    func label(for index: Int) -> String {
+        guard let track = tracks[safe: index] else { return "" }
+        guard let suffix = duplicateSuffix(for: index) else { return track.kind.name }
+        return "\(track.kind.name) \(suffix)"
+    }
+
+    /// Spoken/title name — "Triangle B".
+    func fullLabel(for index: Int) -> String {
+        guard let track = tracks[safe: index] else { return "" }
+        guard let suffix = duplicateSuffix(for: index) else { return track.kind.fullName }
+        return "\(track.kind.fullName) \(suffix)"
+    }
+
+    /// "A", "B", "C"… by position among tracks of the same kind, or nil when
+    /// it's the only one of its kind and needs no suffix.
+    private func duplicateSuffix(for index: Int) -> String? {
+        guard let track = tracks[safe: index] else { return nil }
+        let sameKind = tracks.indices.filter { tracks[$0].kind == track.kind }
+        guard sameKind.count > 1, let position = sameKind.firstIndex(of: index) else { return nil }
+        // maxTracks is 8, so this never runs past "H".
+        return String(UnicodeScalar(UInt8(65 + min(position, 25))))
+    }
+}
+
+extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }
 

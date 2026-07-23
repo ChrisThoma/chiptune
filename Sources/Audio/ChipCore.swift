@@ -12,6 +12,9 @@ final class ChipCore {
     // MARK: Shared parameter blocks
 
     struct VoiceParams {
+        /// `ChannelKind.rawValue`. A voice's waveform travels with its params
+        /// because several voices can share one kind.
+        var kind: Int32 = 0
         var duty: Double = 0.5
         var volume: Double = 0.8
         /// Per-sample multiplier for the amplitude envelope.
@@ -46,6 +49,11 @@ final class ChipCore {
         var arpIndex: Int32 = 0
         var arpCounter: Int32 = 0
         var active: Bool = false
+        /// Samples left before a keyboard preview releases. 0 means "not a
+        /// bounded preview" — sequencer notes are cut by the pattern instead.
+        var previewSamples: Int32 = 0
+        /// Set when a preview's time is up; overrides the sustain flag.
+        var releasing: Bool = false
     }
 
     /// Special pattern value meaning "cut the sustaining note".
@@ -53,7 +61,7 @@ final class ChipCore {
 
     // MARK: Storage
 
-    /// `channelCount * maxSteps` note bytes, laid out channel-major.
+    /// `maxTracks * maxSteps` note bytes, laid out track-major.
     private let pattern: UnsafeMutablePointer<Int8>
     private let params: UnsafeMutablePointer<VoiceParams>
     private let voices: UnsafeMutablePointer<VoiceState>
@@ -63,6 +71,8 @@ final class ChipCore {
     // Transport — written by the main thread, read by the audio thread.
     var tempo: Double = 120
     var length: Int32 = 16
+    /// How many of the `maxTracks` voices the song actually uses.
+    var trackCount: Int32 = 4
     var playing: Bool = false
     var masterVolume: Double = 0.9
 
@@ -78,15 +88,21 @@ final class ChipCore {
     private var dcX: Double = 0
     private var dcY: Double = 0
 
+    /// How long a sustaining instrument rings when auditioned from the keyboard.
+    private static let previewSeconds = 0.9
+    /// Per-sample multiplier that takes a released preview to silence in ~15 ms.
+    private let releaseCoeff: Double
+
     init(sampleRate: Double = 44100) {
         self.sampleRate = sampleRate
-        let cells = Chip.channelCount * Chip.maxSteps
+        releaseCoeff = pow(0.001, 1.0 / (0.015 * sampleRate))
+        let cells = Chip.maxTracks * Chip.maxSteps
         pattern = .allocate(capacity: cells)
         pattern.initialize(repeating: Chip.emptyNote, count: cells)
-        params = .allocate(capacity: Chip.channelCount)
-        params.initialize(repeating: VoiceParams(), count: Chip.channelCount)
-        voices = .allocate(capacity: Chip.channelCount)
-        voices.initialize(repeating: VoiceState(), count: Chip.channelCount)
+        params = .allocate(capacity: Chip.maxTracks)
+        params.initialize(repeating: VoiceParams(), count: Chip.maxTracks)
+        voices = .allocate(capacity: Chip.maxTracks)
+        voices.initialize(repeating: VoiceState(), count: Chip.maxTracks)
     }
 
     deinit {
@@ -97,25 +113,35 @@ final class ChipCore {
 
     // MARK: Main-thread writes
 
-    func setNote(channel: Int, step: Int, note: Int8) {
-        guard channel >= 0, channel < Chip.channelCount, step >= 0, step < Chip.maxSteps else { return }
-        pattern[channel * Chip.maxSteps + step] = note
+    func setNote(track: Int, step: Int, note: Int8) {
+        guard track >= 0, track < Chip.maxTracks, step >= 0, step < Chip.maxSteps else { return }
+        pattern[track * Chip.maxSteps + step] = note
     }
 
     func load(song: Song) {
         tempo = song.tempo
         length = Int32(min(max(song.length, 4), Chip.maxSteps))
-        for (i, track) in song.tracks.enumerated() where i < Chip.channelCount {
+        let count = min(song.tracks.count, Chip.maxTracks)
+        for (i, track) in song.tracks.enumerated() where i < Chip.maxTracks {
             for step in 0..<Chip.maxSteps {
                 pattern[i * Chip.maxSteps + step] = step < track.notes.count ? track.notes[step] : Chip.emptyNote
             }
-            setInstrument(track.instrument, kind: track.kind, channel: i, muted: track.muted)
+            setInstrument(track.instrument, kind: track.kind, track: i, muted: track.muted)
         }
+        // Silence anything the song no longer uses before the render loop can
+        // stop looking at it, so a deleted track can't be left ringing.
+        for c in count..<Chip.maxTracks {
+            voices[c].active = false
+            voices[c].env = 0
+            for step in 0..<Chip.maxSteps { pattern[c * Chip.maxSteps + step] = Chip.emptyNote }
+        }
+        trackCount = Int32(max(count, 1))
     }
 
-    func setInstrument(_ inst: Instrument, kind: ChannelKind, channel: Int, muted: Bool) {
-        guard channel >= 0, channel < Chip.channelCount else { return }
-        var p = params[channel]
+    func setInstrument(_ inst: Instrument, kind: ChannelKind, track: Int, muted: Bool) {
+        guard track >= 0, track < Chip.maxTracks else { return }
+        var p = params[track]
+        p.kind = Int32(kind.rawValue)
         p.duty = kind.hasDuty ? Instrument.dutyCycles[min(max(inst.duty, 0), 3)] : 0.5
         p.volume = min(max(inst.volume, 0), 1)
         p.muted = muted ? 1 : 0
@@ -139,11 +165,11 @@ final class ChipCore {
             default: p.arp3 = Int32(semi)
             }
         }
-        params[channel] = p
+        params[track] = p
     }
 
     func start() {
-        for c in 0..<Chip.channelCount { voices[c].env = 0; voices[c].active = false }
+        for c in 0..<Chip.maxTracks { voices[c].env = 0; voices[c].active = false }
         currentStep = 0
         sampleCounter = 0
         lpState = 0
@@ -154,13 +180,25 @@ final class ChipCore {
 
     func stop() {
         playing = false
-        for c in 0..<Chip.channelCount { voices[c].active = false; voices[c].env = 0 }
+        for c in 0..<Chip.maxTracks {
+            voices[c].active = false
+            voices[c].env = 0
+            voices[c].previewSamples = 0
+            voices[c].releasing = false
+        }
     }
 
     /// Plays a single note immediately, for keyboard previews.
-    func audition(channel: Int, note: Int8) {
-        guard channel >= 0, channel < Chip.channelCount, note >= 0 else { return }
-        trigger(channel: channel, note: note)
+    ///
+    /// A sustaining instrument (the triangle ships that way) has no pattern step
+    /// to cut it here, so the preview gets its own fixed lifetime. Decaying
+    /// instruments are left alone and preview exactly as they'll sound.
+    func audition(track: Int, note: Int8) {
+        guard track >= 0, track < Chip.maxTracks, note >= 0 else { return }
+        trigger(track: track, note: note)
+        if params[track].sustain == 1 {
+            voices[track].previewSamples = Int32(sampleRate * ChipCore.previewSeconds)
+        }
     }
 
     // MARK: Audio thread
@@ -170,29 +208,31 @@ final class ChipCore {
         return Int32((sampleRate * 60.0 / (bpm * 4.0)).rounded())
     }
 
-    private func trigger(channel: Int, note: Int8) {
-        var v = voices[channel]
+    private func trigger(track: Int, note: Int8) {
+        var v = voices[track]
         v.baseFreq = NoteName.frequency(note)
         v.inc = v.baseFreq / sampleRate
         v.env = 1.0
         v.active = true
         v.arpIndex = 0
         v.arpCounter = 0
+        v.previewSamples = 0
+        v.releasing = false
         // Noise keeps its shift register running; retriggering it sounds worse.
-        if channel != ChannelKind.noise.rawValue { v.phase = 0 }
+        if params[track].kind != Int32(ChannelKind.noise.rawValue) { v.phase = 0 }
         if v.lfsr == 0 { v.lfsr = 1 }
-        voices[channel] = v
+        voices[track] = v
     }
 
-    private func triggerStep(_ step: Int32) {
+    private func triggerStep(_ step: Int32, tracks: Int) {
         let s = Int(step)
-        for c in 0..<Chip.channelCount {
+        for c in 0..<tracks {
             let note = pattern[c * Chip.maxSteps + s]
             if note == ChipCore.noteOff {
                 voices[c].active = false
                 voices[c].env = 0
             } else if note >= 0 {
-                trigger(channel: c, note: note)
+                trigger(track: c, note: note)
             }
         }
     }
@@ -218,7 +258,7 @@ final class ChipCore {
         }
 
         var out: Double
-        switch ChannelKind(rawValue: c) ?? .pulse1 {
+        switch ChannelKind(rawValue: Int(p.kind)) ?? .pulse1 {
         case .pulse1, .pulse2:
             v.phase += v.inc
             if v.phase >= 1 { v.phase -= 1 }
@@ -244,7 +284,13 @@ final class ChipCore {
             out = v.noiseLevel
         }
 
-        if p.sustain == 0 {
+        if v.previewSamples > 0 {
+            v.previewSamples -= 1
+            if v.previewSamples == 0 { v.releasing = true }
+        }
+        if v.releasing {
+            v.env *= releaseCoeff
+        } else if p.sustain == 0 {
             v.env *= p.decayCoeff
         }
         out *= v.env * p.volume
@@ -258,11 +304,15 @@ final class ChipCore {
     func render(frames: Int, into out: UnsafeMutablePointer<Float>) {
         let sps = samplesPerStep()
         let len = min(max(length, 1), Int32(Chip.maxSteps))
+        let tracks = Int(min(max(trackCount, 1), Int32(Chip.maxTracks)))
+        // Four tracks keep the level they always had; beyond that the mix is
+        // pulled down so eight voices at once don't ride the soft clipper.
+        let gain = 0.32 * (4.0 / Double(max(tracks, 4))).squareRoot()
 
         for i in 0..<frames {
             if playing {
                 if sampleCounter <= 0 {
-                    triggerStep(currentStep)
+                    triggerStep(currentStep, tracks: tracks)
                     sampleCounter = sps
                 }
                 sampleCounter -= 1
@@ -272,8 +322,8 @@ final class ChipCore {
             }
 
             var mix = 0.0
-            for c in 0..<Chip.channelCount { mix += voiceSample(c) }
-            mix *= 0.32 * masterVolume
+            for c in 0..<tracks { mix += voiceSample(c) }
+            mix *= gain * masterVolume
 
             // Gentle lowpass, DC blocker, then a soft clip so stacked channels
             // never crack.
