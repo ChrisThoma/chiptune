@@ -118,8 +118,10 @@ struct PadStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(active ? Color.black : Theme.text)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 14)
+            // Meets the 44pt minimum touch target on its own.
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
             .background(
                 RoundedRectangle(cornerRadius: 7)
                     .fill(active ? Theme.text : Theme.panelHigh)

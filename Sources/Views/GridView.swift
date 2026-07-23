@@ -4,7 +4,7 @@ import SwiftUI
 struct GridView: View {
     @Bindable var studio: Studio
 
-    private let rowHeight: CGFloat = 34
+    private let rowHeight: CGFloat = 40
     private let gutterWidth: CGFloat = 28
 
     var body: some View {
@@ -93,58 +93,71 @@ struct GridView: View {
     }
 }
 
-/// Channel name, mute toggle and a tap target for the instrument editor.
+/// Channel name and mute toggle.
+///
+/// These were three overlapping tap targets in one thumb-width box, which made
+/// them almost impossible to hit. Now there are exactly two, stacked and
+/// full-width: the name selects the channel (and reopens its sound editor once
+/// selected), and the speaker row below it mutes.
 private struct ChannelHeader: View {
     @Bindable var studio: Studio
     let channel: Int
     @State private var showingEditor = false
+
+    private var kind: ChannelKind? { ChannelKind(rawValue: channel) }
 
     var body: some View {
         let accent = Theme.color(for: channel)
         let muted = studio.song.tracks[channel].muted
         let selected = studio.selectedChannel == channel
 
-        VStack(spacing: 3) {
-            Text(ChannelKind(rawValue: channel)?.name ?? "")
-                .chipFont(12)
+        VStack(spacing: 4) {
+            Button {
+                // Already selected? The second tap opens the sound editor.
+                if selected { showingEditor = true } else { studio.selectedChannel = channel }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(kind?.name ?? "").chipFont(13)
+                    if selected {
+                        Image(systemName: "slider.horizontal.3").font(.system(size: 9))
+                    }
+                }
                 .foregroundStyle(muted ? Theme.dim : accent)
-
-            HStack(spacing: 6) {
-                Button {
-                    studio.song.tracks[channel].muted.toggle()
-                    studio.pushInstrument(channel)
-                } label: {
-                    Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(muted ? Theme.dim : Theme.text)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(muted ? "Unmute \(ChannelKind(rawValue: channel)?.fullName ?? "")"
-                                          : "Mute \(ChannelKind(rawValue: channel)?.fullName ?? "")")
-
-                Button {
-                    showingEditor = true
-                } label: {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Theme.text)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Edit \(ChannelKind(rawValue: channel)?.fullName ?? "") sound")
+                .frame(maxWidth: .infinity)
+                .frame(height: 38)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(kind?.fullName ?? "")
+            .accessibilityHint(selected ? "Opens sound settings" : "Selects this channel")
+
+            Button {
+                studio.song.tracks[channel].muted.toggle()
+                studio.pushInstrument(channel)
+            } label: {
+                Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                    .font(.system(size: 13))
+                    .foregroundStyle(muted ? Theme.dim : Theme.text)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 34)
+                    .contentShape(Rectangle())
+                    .background(
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(muted ? Color.black.opacity(0.35) : Theme.panelHigh)
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(muted ? "Unmute \(kind?.fullName ?? "")" : "Mute \(kind?.fullName ?? "")")
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 6)
+        .padding(5)
         .background(
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: 8)
                 .fill(selected ? accent.opacity(0.18) : Theme.panel)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: 8)
                 .stroke(selected ? accent : Color.clear, lineWidth: 1.5)
         )
-        .contentShape(Rectangle())
-        .onTapGesture { studio.selectedChannel = channel }
         .sheet(isPresented: $showingEditor) {
             InstrumentEditor(studio: studio, channel: channel)
         }

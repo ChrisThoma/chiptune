@@ -117,7 +117,9 @@ struct TransportBar: View {
     private func stepper(label: String, value: Int, onChange: @escaping (Int) -> Void) -> some View {
         HStack(spacing: 0) {
             Button { onChange(-1) } label: {
-                Image(systemName: "minus").chipFont(12).frame(width: 30, height: 40)
+                Image(systemName: "minus").chipFont(13)
+                    .frame(width: 44, height: 46)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(Theme.text)
@@ -127,10 +129,14 @@ struct TransportBar: View {
                 Text("\(value)").chipFont(15, weight: .bold).foregroundStyle(Theme.text)
                 Text(label).chipFont(8).foregroundStyle(Theme.dim)
             }
-            .frame(minWidth: 40)
+            .frame(minWidth: 36)
+            // Not a control itself, so it must not swallow taps meant for +/-.
+            .allowsHitTesting(false)
 
             Button { onChange(1) } label: {
-                Image(systemName: "plus").chipFont(12).frame(width: 30, height: 40)
+                Image(systemName: "plus").chipFont(13)
+                    .frame(width: 44, height: 46)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(Theme.text)
