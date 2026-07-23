@@ -4,18 +4,22 @@ import Foundation
 enum WavExport {
     static let sampleRate = 44100.0
 
-    /// - Parameter repeats: how many times the pattern loops in the file.
+    /// Renders the whole arrangement. A song that is still a single pattern
+    /// loops a few times so the file isn't two seconds long.
+    ///
     /// - Returns: the URL of the written file, or nil if writing failed.
-    static func render(song: Song, repeats: Int = 4) -> URL? {
+    static func render(song: Song) -> URL? {
         var song = song
         song.normalize()
 
         let core = ChipCore(sampleRate: sampleRate)
         core.load(song: song)
+        core.setSongMode(true)
         core.start()
 
+        let passes = song.chain.count > 1 ? 1 : 4
         let samplesPerStep = Int((sampleRate * 60.0 / (song.tempo * 4.0)).rounded())
-        let loopSamples = samplesPerStep * song.length * max(repeats, 1)
+        let loopSamples = samplesPerStep * song.arrangementSteps * passes
         // Extra second so the final note's decay isn't clipped off.
         let tail = Int(sampleRate)
         let total = loopSamples + tail

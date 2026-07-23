@@ -2,9 +2,72 @@ import SwiftUI
 
 @main
 struct ChiptuneApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+    /// Built after the first frame so the splash is on screen while the audio
+    /// engine spins up and the last song is read back off disk.
+    @State private var studio: Studio?
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ZStack {
+                Theme.background.ignoresSafeArea()
+                if let studio {
+                    ContentView(studio: studio)
+                        .transition(.opacity)
+                } else {
+                    SplashView()
+                        .transition(.opacity)
+                }
+            }
+            .preferredColorScheme(.dark)
+            .task {
+                guard studio == nil else { return }
+                // Let the splash paint before the main thread goes away to
+                // build the audio engine and read the last song back.
+                try? await Task.sleep(nanoseconds: 40_000_000)
+                let studio = Studio()
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                withAnimation(.easeOut(duration: 0.28)) { self.studio = studio }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                // Backgrounding is the one moment autosave's debounce might not
+                // have fired yet.
+                if phase != .active { studio?.saveNow() }
+            }
         }
+    }
+}
+
+/// Shown while the app boots. Four bars, one per starting channel.
+struct SplashView: View {
+    @State private var animating = false
+
+    private let heights: [CGFloat] = [46, 28, 52, 34]
+
+    var body: some View {
+        VStack(spacing: 22) {
+            HStack(alignment: .bottom, spacing: 7) {
+                ForEach(0..<4, id: \.self) { i in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Theme.channelColors[i])
+                        .frame(width: 11, height: animating ? heights[i] : 12)
+                        .animation(
+                            .easeInOut(duration: 0.42)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(i) * 0.09),
+                            value: animating
+                        )
+                }
+            }
+            .frame(height: 52, alignment: .bottom)
+
+            Text("CHIPTUNE")
+                .chipFont(20, weight: .bold)
+                .foregroundStyle(Theme.text)
+                .tracking(6)
+        }
+        .onAppear { animating = true }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Chiptune, loading")
     }
 }

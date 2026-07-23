@@ -75,7 +75,7 @@ struct GridView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 2) {
-                    ForEach(0..<studio.song.length, id: \.self) { step in
+                    ForEach(0..<studio.patternLength, id: \.self) { step in
                         row(step: step, columnWidth: columnWidth)
                             .id(step)
                     }
@@ -83,12 +83,23 @@ struct GridView: View {
                 .padding(.vertical, 4)
             }
             .onChange(of: studio.playhead) { _, step in
-                guard studio.isPlaying, studio.song.length > 16 else { return }
+                guard showsPlayhead, studio.patternLength > 16 else { return }
                 withAnimation(.easeOut(duration: 0.15)) {
                     proxy.scrollTo(step, anchor: .center)
                 }
             }
+            // A pattern switch (yours, or the arrangement's) should put you at
+            // the top of the new block rather than wherever you last scrolled.
+            .onChange(of: studio.selectedPattern) { _, _ in
+                proxy.scrollTo(0, anchor: .top)
+            }
         }
+    }
+
+    /// In SONG mode the sequencer can be somewhere else entirely, so the
+    /// highlight only runs when the pattern on screen is the one sounding.
+    private var showsPlayhead: Bool {
+        studio.isPlaying && studio.playingPattern == studio.selectedPattern
     }
 
     private func row(step: Int, columnWidth: CGFloat) -> some View {
@@ -109,7 +120,7 @@ struct GridView: View {
         .padding(.horizontal, 6)
         .frame(height: rowHeight)
         .background(
-            studio.isPlaying && studio.playhead == step
+            showsPlayhead && studio.playhead == step
                 ? Color.white.opacity(0.14)
                 : Color.clear
         )

@@ -3,3 +3,4 @@ DerivedData/
 Chiptune.xcodeproj/
 .DS_Store
 *.wav
+Sources/Info.plist

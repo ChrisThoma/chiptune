@@ -92,7 +92,9 @@ struct InstrumentEditor: View {
                     }
                     .disabled(!studio.song.canAddTrack)
 
-                    Button("Clear this track", role: .destructive) {
+                    // Notes live in patterns, so this only empties the one on
+                    // screen — the other patterns keep their part.
+                    Button("Clear this track in pattern \(studio.pattern.name)", role: .destructive) {
                         studio.clearTrack(index)
                     }
 

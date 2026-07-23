@@ -1,12 +1,16 @@
 import Foundation
 
-/// A 4-channel chiptune synthesiser and step sequencer.
+/// A chiptune synthesiser and pattern sequencer.
 ///
 /// Everything the render callback touches lives in manually allocated memory so
 /// the audio thread never allocates, locks, or triggers copy-on-write. The main
 /// thread writes parameters field-by-field; each field is word-sized and
 /// independently meaningful, so a torn read is impossible and a stale read is
 /// harmless (it lasts one buffer at most).
+///
+/// The core holds every pattern in the song plus the flattened chain, so
+/// following an arrangement costs the audio thread one extra index lookup at
+/// each pattern boundary and never a trip back to the main thread.
 final class ChipCore {
 
     // MARK: Shared parameter blocks
@@ -52,8 +56,26 @@ final class ChipCore {
         /// Samples left before a keyboard preview releases. 0 means "not a
         /// bounded preview" — sequencer notes are cut by the pattern instead.
         var previewSamples: Int32 = 0
-        /// Set when a preview's time is up; overrides the sustain flag.
+        /// Set when a preview's time is up, or when a note-off cuts a note;
+        /// overrides the sustain flag.
         var releasing: Bool = false
+        /// Samples of ramp left before the envelope reaches full level. Every
+        /// note starts with one so the waveform is never switched on mid-swing.
+        var attack: Int32 = 0
+        var attackInc: Double = 0
+        /// Samples of fade-out left before `pendingNote` is triggered. Retriggering
+        /// a voice that is still ringing goes through this, otherwise the jump in
+        /// both amplitude and phase is a click — very audible on a run of the
+        /// same note, where the level is still near 1.0 when the next one lands.
+        var declick: Int32 = 0
+        /// Per-sample amount to subtract during the fade. Linear rather than
+        /// exponential: an exponential short enough to finish in a couple of
+        /// milliseconds sheds >10% of the level per sample at the top, which is
+        /// its own audible step.
+        var declickDec: Double = 0
+        var pendingNote: Int8 = -1
+        /// Preview lifetime to apply once `pendingNote` starts.
+        var pendingPreview: Int32 = 0
     }
 
     /// Special pattern value meaning "cut the sustaining note".
@@ -61,8 +83,11 @@ final class ChipCore {
 
     // MARK: Storage
 
-    /// `maxTracks * maxSteps` note bytes, laid out track-major.
+    /// `maxPatterns * maxTracks * maxSteps` note bytes, pattern-major then track-major.
     private let pattern: UnsafeMutablePointer<Int8>
+    private let patternLengths: UnsafeMutablePointer<Int32>
+    /// Pattern slots to play in order, already expanded by section repeats.
+    private let chain: UnsafeMutablePointer<Int32>
     private let params: UnsafeMutablePointer<VoiceParams>
     private let voices: UnsafeMutablePointer<VoiceState>
 
@@ -70,15 +95,22 @@ final class ChipCore {
 
     // Transport — written by the main thread, read by the audio thread.
     var tempo: Double = 120
-    var length: Int32 = 16
     /// How many of the `maxTracks` voices the song actually uses.
     var trackCount: Int32 = 4
+    var patternCount: Int32 = 1
+    var chainCount: Int32 = 1
+    /// When false the sequencer loops `focusPattern` — the pattern being edited.
+    /// When true it walks the chain.
+    var songMode: Bool = false
+    var focusPattern: Int32 = 0
     var playing: Bool = false
     var masterVolume: Double = 0.9
 
-    /// Advances on the audio thread; the UI polls it to draw the playhead.
+    /// Advance on the audio thread; the UI polls them to draw the playhead.
     private(set) var currentStep: Int32 = 0
+    private(set) var currentPattern: Int32 = 0
 
+    private var chainPos: Int32 = 0
     private var sampleCounter: Int32 = 0
     /// One-pole lowpass state, just enough to take the fizz off the aliasing.
     private var lpState: Double = 0
@@ -92,13 +124,25 @@ final class ChipCore {
     private static let previewSeconds = 0.9
     /// Per-sample multiplier that takes a released preview to silence in ~15 ms.
     private let releaseCoeff: Double
+    /// ~2.5 ms of fade before a retrigger, then ~1.2 ms ramping the new note up.
+    /// Short enough that the attack still reads as instant, long enough that
+    /// neither edge is a step.
+    private let declickSamples: Int32
+    private let attackSamples: Int32
 
     init(sampleRate: Double = 44100) {
         self.sampleRate = sampleRate
         releaseCoeff = pow(0.001, 1.0 / (0.015 * sampleRate))
-        let cells = Chip.maxTracks * Chip.maxSteps
+        declickSamples = max(Int32(sampleRate * 0.0025), 8)
+        attackSamples = max(Int32(sampleRate * 0.0012), 8)
+
+        let cells = Chip.maxPatterns * Chip.maxTracks * Chip.maxSteps
         pattern = .allocate(capacity: cells)
         pattern.initialize(repeating: Chip.emptyNote, count: cells)
+        patternLengths = .allocate(capacity: Chip.maxPatterns)
+        patternLengths.initialize(repeating: 16, count: Chip.maxPatterns)
+        chain = .allocate(capacity: Chip.maxChain)
+        chain.initialize(repeating: 0, count: Chip.maxChain)
         params = .allocate(capacity: Chip.maxTracks)
         params.initialize(repeating: VoiceParams(), count: Chip.maxTracks)
         voices = .allocate(capacity: Chip.maxTracks)
@@ -107,25 +151,46 @@ final class ChipCore {
 
     deinit {
         pattern.deallocate()
+        patternLengths.deallocate()
+        chain.deallocate()
         params.deallocate()
         voices.deallocate()
     }
 
+    private func cell(_ pat: Int, _ track: Int, _ step: Int) -> Int {
+        ((pat * Chip.maxTracks) + track) * Chip.maxSteps + step
+    }
+
     // MARK: Main-thread writes
 
-    func setNote(track: Int, step: Int, note: Int8) {
-        guard track >= 0, track < Chip.maxTracks, step >= 0, step < Chip.maxSteps else { return }
-        pattern[track * Chip.maxSteps + step] = note
+    func setNote(pattern pat: Int, track: Int, step: Int, note: Int8) {
+        guard pat >= 0, pat < Chip.maxPatterns,
+              track >= 0, track < Chip.maxTracks,
+              step >= 0, step < Chip.maxSteps else { return }
+        pattern[cell(pat, track, step)] = note
+    }
+
+    func setLength(pattern pat: Int, length: Int) {
+        guard pat >= 0, pat < Chip.maxPatterns else { return }
+        patternLengths[pat] = Int32(min(max(length, 1), Chip.maxSteps))
     }
 
     func load(song: Song) {
         tempo = song.tempo
-        length = Int32(min(max(song.length, 4), Chip.maxSteps))
         let count = min(song.tracks.count, Chip.maxTracks)
-        for (i, track) in song.tracks.enumerated() where i < Chip.maxTracks {
-            for step in 0..<Chip.maxSteps {
-                pattern[i * Chip.maxSteps + step] = step < track.notes.count ? track.notes[step] : Chip.emptyNote
+
+        for (p, pat) in song.patterns.enumerated() where p < Chip.maxPatterns {
+            patternLengths[p] = Int32(min(max(pat.length, 1), Chip.maxSteps))
+            for track in 0..<Chip.maxTracks {
+                let row = track < count ? pat.rows[safe: track] : nil
+                for step in 0..<Chip.maxSteps {
+                    pattern[cell(p, track, step)] = row?[safe: step] ?? Chip.emptyNote
+                }
             }
+        }
+        patternCount = Int32(max(min(song.patterns.count, Chip.maxPatterns), 1))
+
+        for (i, track) in song.tracks.enumerated() where i < Chip.maxTracks {
             setInstrument(track.instrument, kind: track.kind, track: i, muted: track.muted)
         }
         // Silence anything the song no longer uses before the render loop can
@@ -133,9 +198,44 @@ final class ChipCore {
         for c in count..<Chip.maxTracks {
             voices[c].active = false
             voices[c].env = 0
-            for step in 0..<Chip.maxSteps { pattern[c * Chip.maxSteps + step] = Chip.emptyNote }
+            voices[c].declick = 0
         }
         trackCount = Int32(max(count, 1))
+
+        setChain(song.chain)
+        if focusPattern >= patternCount { focusPattern = 0 }
+        if currentPattern >= patternCount { currentPattern = 0 }
+    }
+
+    /// Replaces the play order. Writes the count last so the audio thread never
+    /// walks entries that haven't been written yet.
+    func setChain(_ slots: [Int]) {
+        let clamped = slots.prefix(Chip.maxChain)
+        for (i, slot) in clamped.enumerated() {
+            chain[i] = Int32(min(max(slot, 0), Chip.maxPatterns - 1))
+        }
+        let count = Int32(max(clamped.count, 1))
+        if chainPos >= count { chainPos = 0 }
+        chainCount = count
+    }
+
+    /// Points pattern-mode playback at the pattern being edited.
+    func focus(pattern index: Int) {
+        let slot = Int32(min(max(index, 0), Chip.maxPatterns - 1))
+        focusPattern = slot
+        if !songMode { currentPattern = slot }
+    }
+
+    /// Switches between looping one pattern and following the arrangement,
+    /// restarting the chain so SONG always begins at the top.
+    func setSongMode(_ on: Bool) {
+        songMode = on
+        if on {
+            chainPos = 0
+            currentPattern = chain[0]
+        } else {
+            currentPattern = focusPattern
+        }
     }
 
     func setInstrument(_ inst: Instrument, kind: ChannelKind, track: Int, muted: Bool) {
@@ -169,7 +269,14 @@ final class ChipCore {
     }
 
     func start() {
-        for c in 0..<Chip.maxTracks { voices[c].env = 0; voices[c].active = false }
+        for c in 0..<Chip.maxTracks {
+            voices[c].env = 0
+            voices[c].active = false
+            voices[c].declick = 0
+            voices[c].pendingNote = Chip.emptyNote
+        }
+        chainPos = 0
+        currentPattern = songMode ? chain[0] : focusPattern
         currentStep = 0
         sampleCounter = 0
         lpState = 0
@@ -180,11 +287,13 @@ final class ChipCore {
 
     func stop() {
         playing = false
+        // Release rather than cut: a hard stop mid-waveform is a click.
         for c in 0..<Chip.maxTracks {
-            voices[c].active = false
-            voices[c].env = 0
             voices[c].previewSamples = 0
-            voices[c].releasing = false
+            voices[c].declick = 0
+            voices[c].pendingNote = Chip.emptyNote
+            voices[c].attack = 0
+            if voices[c].active { voices[c].releasing = true }
         }
     }
 
@@ -196,8 +305,13 @@ final class ChipCore {
     func audition(track: Int, note: Int8) {
         guard track >= 0, track < Chip.maxTracks, note >= 0 else { return }
         trigger(track: track, note: note)
-        if params[track].sustain == 1 {
-            voices[track].previewSamples = Int32(sampleRate * ChipCore.previewSeconds)
+        let preview = params[track].sustain == 1 ? Int32(sampleRate * ChipCore.previewSeconds) : 0
+        // A retrigger defers the note past its de-click fade, so the preview
+        // lifetime has to wait with it.
+        if voices[track].declick > 0 {
+            voices[track].pendingPreview = preview
+        } else {
+            voices[track].previewSamples = preview
         }
     }
 
@@ -208,29 +322,53 @@ final class ChipCore {
         return Int32((sampleRate * 60.0 / (bpm * 4.0)).rounded())
     }
 
-    private func trigger(track: Int, note: Int8) {
-        var v = voices[track]
+    /// Starts a note on a voice that is already at silence.
+    private func begin(_ v: inout VoiceState, kind: Int32, note: Int8) {
         v.baseFreq = NoteName.frequency(note)
         v.inc = v.baseFreq / sampleRate
-        v.env = 1.0
+        v.env = 0
+        v.attack = attackSamples
+        v.attackInc = 1.0 / Double(attackSamples)
         v.active = true
         v.arpIndex = 0
         v.arpCounter = 0
-        v.previewSamples = 0
         v.releasing = false
+        v.declick = 0
+        v.pendingNote = Chip.emptyNote
+        v.previewSamples = v.pendingPreview
+        v.pendingPreview = 0
         // Noise keeps its shift register running; retriggering it sounds worse.
-        if params[track].kind != Int32(ChannelKind.noise.rawValue) { v.phase = 0 }
+        if kind != Int32(ChannelKind.noise.rawValue) { v.phase = 0 }
         if v.lfsr == 0 { v.lfsr = 1 }
+    }
+
+    private func trigger(track: Int, note: Int8) {
+        var v = voices[track]
+        if v.active && v.env > 0.002 {
+            // Still ringing — fade it out first and start the new note from the
+            // far side of the fade.
+            v.pendingNote = note
+            v.pendingPreview = 0
+            v.declick = declickSamples
+            v.declickDec = v.env / Double(declickSamples)
+            v.attack = 0
+            v.releasing = false
+        } else {
+            v.pendingPreview = 0
+            begin(&v, kind: params[track].kind, note: note)
+        }
         voices[track] = v
     }
 
-    private func triggerStep(_ step: Int32, tracks: Int) {
+    private func triggerStep(_ pat: Int32, _ step: Int32, tracks: Int) {
         let s = Int(step)
+        let p = Int(pat)
         for c in 0..<tracks {
-            let note = pattern[c * Chip.maxSteps + s]
+            let note = pattern[cell(p, c, s)]
             if note == ChipCore.noteOff {
-                voices[c].active = false
-                voices[c].env = 0
+                if voices[c].active { voices[c].releasing = true }
+                voices[c].declick = 0
+                voices[c].pendingNote = Chip.emptyNote
             } else if note >= 0 {
                 trigger(track: c, note: note)
             }
@@ -240,8 +378,9 @@ final class ChipCore {
     /// Produces one sample for a voice, advancing its oscillator state.
     private func voiceSample(_ c: Int) -> Double {
         var v = voices[c]
-        guard v.active, v.env > 0.0001 else {
-            if v.active && v.env <= 0.0001 { v.active = false; voices[c] = v }
+        // A voice mid-attack sits at env 0 and must not be culled here.
+        guard v.active, v.env > 0.0001 || v.attack > 0 || v.declick > 0 else {
+            if v.active { v.active = false; v.env = 0; voices[c] = v }
             return 0
         }
         let p = params[c]
@@ -288,11 +427,30 @@ final class ChipCore {
             v.previewSamples -= 1
             if v.previewSamples == 0 { v.releasing = true }
         }
-        if v.releasing {
+
+        // Envelope. The order matters: a pending retrigger owns the voice until
+        // its fade completes, and the note that follows starts in attack.
+        if v.declick > 0 {
+            v.declick -= 1
+            v.env = max(0, v.env - v.declickDec)
+            if v.declick == 0 {
+                let note = v.pendingNote
+                if note >= 0 {
+                    begin(&v, kind: p.kind, note: note)
+                } else {
+                    v.env = 0
+                    v.active = false
+                }
+            }
+        } else if v.attack > 0 {
+            v.attack -= 1
+            v.env = min(1.0, v.env + v.attackInc)
+        } else if v.releasing {
             v.env *= releaseCoeff
         } else if p.sustain == 0 {
             v.env *= p.decayCoeff
         }
+
         out *= v.env * p.volume
         if p.muted == 1 { out = 0 }
         voices[c] = v
@@ -303,7 +461,8 @@ final class ChipCore {
     /// the offline WAV exporter.
     func render(frames: Int, into out: UnsafeMutablePointer<Float>) {
         let sps = samplesPerStep()
-        let len = min(max(length, 1), Int32(Chip.maxSteps))
+        let patterns = Int32(min(max(patternCount, 1), Int32(Chip.maxPatterns)))
+        let links = Int32(min(max(chainCount, 1), Int32(Chip.maxChain)))
         let tracks = Int(min(max(trackCount, 1), Int32(Chip.maxTracks)))
         // Four tracks keep the level they always had; beyond that the mix is
         // pulled down so eight voices at once don't ride the soft clipper.
@@ -311,13 +470,28 @@ final class ChipCore {
 
         for i in 0..<frames {
             if playing {
+                if currentPattern >= patterns { currentPattern = 0 }
+                let len = min(max(patternLengths[Int(currentPattern)], 1), Int32(Chip.maxSteps))
+                // The edited pattern can shrink under the playhead, and a mode
+                // switch can move it to a shorter pattern mid-bar.
+                if currentStep >= len { currentStep = 0 }
+
                 if sampleCounter <= 0 {
-                    triggerStep(currentStep, tracks: tracks)
+                    triggerStep(currentPattern, currentStep, tracks: tracks)
                     sampleCounter = sps
                 }
                 sampleCounter -= 1
                 if sampleCounter <= 0 {
-                    currentStep = (currentStep + 1) % len
+                    currentStep += 1
+                    if currentStep >= len {
+                        currentStep = 0
+                        if songMode {
+                            chainPos = (chainPos + 1) % links
+                            currentPattern = min(chain[Int(chainPos)], patterns - 1)
+                        } else {
+                            currentPattern = min(focusPattern, patterns - 1)
+                        }
+                    }
                 }
             }
 

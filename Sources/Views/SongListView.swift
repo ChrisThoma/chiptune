@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Browse, open and delete saved songs.
+/// Browse, open, duplicate and delete saved songs. Everything is autosaved, so
+/// this is the whole library rather than a list of things you remembered to save.
 struct SongListView: View {
     @Bindable var studio: Studio
     @Environment(\.dismiss) private var dismiss
@@ -10,23 +11,13 @@ struct SongListView: View {
         NavigationStack {
             Group {
                 if songs.isEmpty {
-                    ContentUnavailableView("No saved songs",
+                    ContentUnavailableView("No songs yet",
                                            systemImage: "waveform",
-                                           description: Text("Save the current song from the ••• menu."))
+                                           description: Text("Start writing and this one shows up here — songs save themselves as you go."))
                 } else {
                     List {
                         ForEach(songs) { song in
-                            Button {
-                                studio.open(song)
-                                dismiss()
-                            } label: {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(song.name).font(.headline)
-                                    Text("\(Int(song.tempo)) BPM · \(song.length) steps · \(song.modified.formatted(date: .abbreviated, time: .shortened))")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
+                            row(song)
                         }
                         .onDelete { offsets in
                             for index in offsets { SongStore.shared.delete(songs[index]) }
@@ -41,8 +32,60 @@ struct SongListView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
                 }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        studio.newSong()
+                        dismiss()
+                    } label: {
+                        Label("New song", systemImage: "plus")
+                    }
+                }
             }
         }
         .onAppear { songs = SongStore.shared.loadAll() }
+    }
+
+    private func row(_ song: Song) -> some View {
+        let isOpen = song.id == studio.song.id
+
+        return Button {
+            if !isOpen { studio.open(song) }
+            dismiss()
+        } label: {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(song.name).font(.headline)
+                    Text(detail(song))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if isOpen {
+                    Text("OPEN")
+                        .font(.caption2.monospaced().bold())
+                        .foregroundStyle(.green)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .swipeActions(edge: .leading) {
+            Button {
+                var copy = song
+                copy.id = UUID()
+                copy.name = song.name + " copy"
+                SongStore.shared.save(copy)
+                songs = SongStore.shared.loadAll()
+            } label: {
+                Label("Duplicate", systemImage: "plus.square.on.square")
+            }
+            .tint(.indigo)
+        }
+    }
+
+    private func detail(_ song: Song) -> String {
+        let patterns = song.patterns.count
+        let seconds = song.arrangementDuration
+        let time = String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
+        return "\(Int(song.tempo)) BPM · \(patterns) pattern\(patterns == 1 ? "" : "s") · \(time) · \(song.modified.formatted(date: .abbreviated, time: .shortened))"
     }
 }
