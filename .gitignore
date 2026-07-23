@@ -1,0 +1,5 @@
+build/
+DerivedData/
+Chiptune.xcodeproj/
+.DS_Store
+*.wav
