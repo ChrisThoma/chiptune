@@ -102,7 +102,8 @@ struct KeyboardView: View {
                 if !black {
                     Text(NoteName.label(note))
                         .chipFont(9)
-                        .foregroundStyle(selected ? Color.black.opacity(0.7) : Color.black.opacity(0.45))
+                        // 0.45 over an 0.88 key cap only reaches 3.2:1 at 9pt.
+                        .foregroundStyle(selected ? Theme.onLight.opacity(0.7) : Theme.onLight.opacity(0.62))
                         .padding(.bottom, 5)
                 }
             }
@@ -125,7 +126,7 @@ struct PadStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(active ? Color.black : Theme.text)
+            .foregroundStyle(active ? Theme.onLight : Theme.text)
             .padding(.horizontal, 14)
             // Meets the 44pt minimum touch target on its own.
             .frame(minWidth: 44, minHeight: 44)

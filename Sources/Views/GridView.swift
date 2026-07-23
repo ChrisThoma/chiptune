@@ -131,18 +131,23 @@ struct GridView: View {
         let filled = note != Chip.emptyNote
         let accent = Theme.color(for: studio.song.tracks[track].kind)
         let isOff = note == ChipCore.noteOff
+        let muted = studio.song.tracks[track].muted
 
         return Button {
             studio.toggleCell(track: track, step: step)
         } label: {
             Text(isOff ? "OFF" : (filled ? NoteName.label(note) : "·"))
                 .chipFont(filled ? 12 : 14)
-                .foregroundStyle(filled ? Color.black.opacity(0.85) : Theme.dim.opacity(0.6))
+                // Muting fades the fill to 35% over near-black, so the dark
+                // note text has to flip light or it scores under 2.6:1.
+                .foregroundStyle(filled
+                                 ? (muted ? Theme.text.opacity(0.85) : Theme.onLight.opacity(0.85))
+                                 : Theme.dim.opacity(0.6))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(
                     RoundedRectangle(cornerRadius: 5)
                         .fill(filled
-                              ? (isOff ? Theme.dim : accent).opacity(studio.song.tracks[track].muted ? 0.35 : 1.0)
+                              ? (isOff ? Theme.dim : accent).opacity(muted ? 0.35 : 1.0)
                               : Theme.rowTint(step: step))
                 )
                 .overlay(

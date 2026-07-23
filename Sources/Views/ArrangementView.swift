@@ -47,6 +47,7 @@ struct ArrangementView: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .preferredColorScheme(.dark)
     }
 
     private var summary: String {

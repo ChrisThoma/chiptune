@@ -46,11 +46,10 @@ struct ContentView: View {
                 showingSongs = true
             } label: {
                 Image(systemName: "music.note.list")
-                    .font(.system(size: 17))
+                    .font(.system(size: 19))
                     .foregroundStyle(Theme.text)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
-                    .background(RoundedRectangle(cornerRadius: 9).fill(Theme.panel))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Songs")
@@ -62,12 +61,6 @@ struct ContentView: View {
                 .submitLabel(.done)
 
             Menu {
-                Button {
-                    studio.saveNow()
-                    showingSongs = true
-                } label: {
-                    Label("Songs…", systemImage: "music.note.list")
-                }
                 Button {
                     studio.newSong()
                 } label: {
@@ -94,9 +87,9 @@ struct ContentView: View {
                 }
             } label: {
                 Image(systemName: "ellipsis.circle.fill")
-                    .font(.system(size: 22))
+                    .font(.system(size: 19))
                     .foregroundStyle(Theme.text)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("Song menu")
@@ -116,45 +109,55 @@ struct TransportBar: View {
 
     var body: some View {
         HStack(spacing: 8) {
+            // The only saturated fill in the chrome, and the biggest target, so
+            // the eye lands here first.
             Button {
                 studio.togglePlay()
             } label: {
                 Image(systemName: studio.isPlaying ? "stop.fill" : "play.fill")
                     .font(.system(size: 18))
-                    .foregroundStyle(.black)
-                    .frame(width: 50, height: 44)
+                    .foregroundStyle(Theme.onLight)
+                    .frame(width: 56, height: Theme.trayHeight)
                     .background(
-                        RoundedRectangle(cornerRadius: 9)
-                            .fill(studio.isPlaying ? Color(red: 1, green: 0.4, blue: 0.45) : Color(red: 0.4, green: 0.95, blue: 0.6))
+                        RoundedRectangle(cornerRadius: Theme.trayRadius)
+                            .fill(studio.isPlaying ? Theme.accentRed : Theme.accentGreen)
                     )
             }
             .buttonStyle(.plain)
             .accessibilityLabel(studio.isPlaying ? "Stop" : "Play")
 
-            // The value is a button as well as a readout — nudging from 120 to
-            // 174 four BPM at a time is nobody's idea of a good afternoon.
-            ChipStepper(label: "BPM",
-                        value: Int(studio.song.tempo),
-                        onChange: { studio.setTempo(studio.song.tempo + Double($0) * 4) },
-                        onTapValue: {
-                            tempoText = String(Int(studio.song.tempo))
-                            editingTempo = true
-                        })
+            // Tempo, mode and arrangement share one panel with hairlines between
+            // them; as separate pills they read as four unrelated buttons.
+            HStack(spacing: 0) {
+                // The value is a button as well as a readout — nudging from 120
+                // to 174 four BPM at a time is nobody's idea of a good afternoon.
+                ChipStepper(label: "BPM",
+                            value: Int(studio.song.tempo),
+                            onChange: { studio.setTempo(studio.song.tempo + Double($0) * 4) },
+                            onTapValue: {
+                                tempoText = String(Int(studio.song.tempo))
+                                editingTempo = true
+                            })
 
-            modeToggle
+                TrayDivider()
 
-            Button {
-                showingArrangement = true
-            } label: {
-                Image(systemName: "list.number")
-                    .chipFont(14)
-                    .foregroundStyle(Theme.text)
-                    .frame(width: 44, height: 46)
-                    .contentShape(Rectangle())
-                    .background(RoundedRectangle(cornerRadius: 9).fill(Theme.panel))
+                modeToggle
+
+                TrayDivider()
+
+                Button {
+                    showingArrangement = true
+                } label: {
+                    Text("ARR")
+                        .chipFont(11, weight: .semibold)
+                        .foregroundStyle(Theme.text)
+                        .frame(width: 48, height: Theme.trayHeight)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Arrangement")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Arrangement")
+            .chipTray()
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
@@ -179,20 +182,19 @@ struct TransportBar: View {
             segment("PATT", on: !studio.songMode) { studio.setSongMode(false) }
             segment("SONG", on: studio.songMode) { studio.setSongMode(true) }
         }
-        .background(RoundedRectangle(cornerRadius: 9).fill(Theme.panel))
     }
 
     private func segment(_ title: String, on: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .chipFont(11, weight: on ? .bold : .semibold)
-                .foregroundStyle(on ? Color.black : Theme.dim)
-                .frame(width: 48, height: 42)
+                .foregroundStyle(on ? Theme.onLight : Theme.dim)
+                .frame(width: 52, height: Theme.trayHeight)
                 .contentShape(Rectangle())
                 .background(
-                    RoundedRectangle(cornerRadius: 7)
+                    RoundedRectangle(cornerRadius: Theme.innerRadius)
                         .fill(on ? Theme.text : Color.clear)
-                        .padding(2)
+                        .padding(4)
                 )
         }
         .buttonStyle(.plain)
@@ -209,7 +211,7 @@ struct PatternBar: View {
     var body: some View {
         HStack(spacing: 8) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
+                HStack(spacing: 4) {
                     ForEach(Array(studio.song.patterns.enumerated()), id: \.element.id) { index, pattern in
                         chip(index: index, pattern: pattern)
                     }
@@ -220,20 +222,30 @@ struct PatternBar: View {
                             Image(systemName: "plus")
                                 .chipFont(13)
                                 .foregroundStyle(Theme.text)
-                                .frame(width: 38, height: 40)
+                                // 36pt of fill, but the whole tray height stays
+                                // tappable.
+                                .frame(width: 38, height: Theme.trayHeight)
                                 .contentShape(Rectangle())
-                                .background(RoundedRectangle(cornerRadius: 8).fill(Theme.panel))
+                                .background(
+                                    RoundedRectangle(cornerRadius: Theme.innerRadius)
+                                        .fill(Theme.panelHigh)
+                                        .padding(.vertical, 4)
+                                )
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Add pattern")
                     }
                 }
-                .padding(.horizontal, 2)
+                .padding(.horizontal, 4)
             }
+            .chipTray()
 
+            // Deliberately a separate tray: STEPS belongs to the pattern, not to
+            // the strip of chips beside it, and the gap is what says so.
             ChipStepper(label: "STEPS",
                         value: studio.patternLength,
                         onChange: { studio.setPatternLength(studio.patternLength + $0 * 4) })
+                .chipTray()
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 6)
@@ -257,20 +269,24 @@ struct PatternBar: View {
         } label: {
             HStack(spacing: 4) {
                 if playing {
+                    // A selected chip fills with near-white, where the usual
+                    // bright green scores 1.1:1 and vanishes.
                     Circle()
-                        .fill(Color(red: 0.4, green: 0.95, blue: 0.6))
+                        .fill(selected ? Theme.onLightGreen : Theme.accentGreen)
                         .frame(width: 5, height: 5)
                 }
                 Text(pattern.name)
                     .chipFont(13, weight: selected ? .bold : .semibold)
-                    .foregroundStyle(selected ? Color.black : (pattern.isEmpty ? Theme.dim : Theme.text))
+                    .foregroundStyle(selected ? Theme.onLight : (pattern.isEmpty ? Theme.dim : Theme.text))
             }
             .padding(.horizontal, 12)
-            .frame(minWidth: 40, minHeight: 40)
+            .frame(minWidth: 40)
+            .frame(height: Theme.trayHeight)
             .contentShape(Rectangle())
             .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(selected ? Theme.text : Theme.panel)
+                RoundedRectangle(cornerRadius: Theme.innerRadius)
+                    .fill(selected ? Theme.text : Theme.panelHigh)
+                    .padding(.vertical, 4)
             )
         }
         .buttonStyle(.plain)
@@ -306,6 +322,9 @@ struct PatternBar: View {
 }
 
 /// −/value/+ control. The value is tappable when `onTapValue` is supplied.
+///
+/// Draws no background of its own so it can sit inside a shared `chipTray`
+/// alongside other controls; standalone uses apply `.chipTray()` themselves.
 struct ChipStepper: View {
     let label: String
     let value: Int
@@ -316,7 +335,7 @@ struct ChipStepper: View {
         HStack(spacing: 0) {
             Button { onChange(-1) } label: {
                 Image(systemName: "minus").chipFont(13)
-                    .frame(width: 38, height: 46)
+                    .frame(width: 38, height: Theme.trayHeight)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -335,14 +354,13 @@ struct ChipStepper: View {
 
             Button { onChange(1) } label: {
                 Image(systemName: "plus").chipFont(13)
-                    .frame(width: 38, height: 46)
+                    .frame(width: 38, height: Theme.trayHeight)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(Theme.text)
             .accessibilityLabel("Increase \(label)")
         }
-        .background(RoundedRectangle(cornerRadius: 9).fill(Theme.panel))
     }
 
     private var readout: some View {
@@ -351,7 +369,7 @@ struct ChipStepper: View {
             Text(label).chipFont(8).foregroundStyle(Theme.dim)
         }
         .frame(minWidth: 38)
-        .frame(height: 46)
+        .frame(height: Theme.trayHeight)
         .contentShape(Rectangle())
     }
 }
@@ -361,7 +379,11 @@ struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        // UIKit-presented, so it doesn't inherit the app's forced dark scheme
+        // and would otherwise flash white on a light-mode device.
+        controller.overrideUserInterfaceStyle = .dark
+        return controller
     }
 
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}

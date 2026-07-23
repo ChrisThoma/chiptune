@@ -118,6 +118,7 @@ struct InstrumentEditor: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .preferredColorScheme(.dark)
     }
 
     private func slider(title: String,

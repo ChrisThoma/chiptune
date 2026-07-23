@@ -7,6 +7,23 @@ enum Theme {
     static let grid = Color(red: 0.20, green: 0.20, blue: 0.30)
     static let text = Color(red: 0.88, green: 0.90, blue: 0.96)
     static let dim = Color(red: 0.50, green: 0.52, blue: 0.62)
+    static let divider = grid.opacity(0.8)
+
+    /// Selected states fill with `text`, so anything drawn on top of them needs
+    /// a dark foreground rather than the usual light-on-near-black pair.
+    static let onLight = Color(red: 0.06, green: 0.06, blue: 0.10)
+    /// `accentGreen` scores 1.1:1 on a `text` fill — invisible. This is the
+    /// version for a playing dot sitting on a selected chip.
+    static let onLightGreen = Color(red: 0.05, green: 0.45, blue: 0.25)
+
+    static let accentGreen = Color(red: 0.40, green: 0.95, blue: 0.60)
+    static let accentRed = Color(red: 1.00, green: 0.40, blue: 0.45)
+
+    /// One height and radius rhythm for the chrome above the grid.
+    static let trayRadius: CGFloat = 10
+    static let innerRadius: CGFloat = 7
+    static let trayHeight: CGFloat = 44
+    static let innerHeight: CGFloat = 36
 
     /// One accent per channel kind. Tracks are coloured by the sound they make,
     /// so two triangle tracks share a colour and are told apart by their number.
@@ -30,5 +47,22 @@ enum Theme {
 extension View {
     func chipFont(_ size: CGFloat, weight: Font.Weight = .semibold) -> some View {
         font(.system(size: size, weight: weight, design: .monospaced))
+    }
+
+    /// Groups related controls onto one panel so a row of them reads as a
+    /// single object rather than a scatter of identical pills.
+    func chipTray() -> some View {
+        frame(height: Theme.trayHeight)
+            .background(RoundedRectangle(cornerRadius: Theme.trayRadius).fill(Theme.panel))
+    }
+}
+
+/// Hairline between segments inside a `chipTray`.
+struct TrayDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Theme.divider)
+            .frame(width: 1)
+            .padding(.vertical, 8)
     }
 }

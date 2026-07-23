@@ -11,21 +11,31 @@ struct SongListView: View {
         NavigationStack {
             Group {
                 if songs.isEmpty {
-                    ContentUnavailableView("No songs yet",
-                                           systemImage: "waveform",
-                                           description: Text("Start writing and this one shows up here — songs save themselves as you go."))
+                    ContentUnavailableView {
+                        Label("No songs yet", systemImage: "waveform")
+                            .foregroundStyle(Theme.text)
+                    } description: {
+                        Text("Start writing and this one shows up here — songs save themselves as you go.")
+                            .foregroundStyle(Theme.dim)
+                    }
                 } else {
                     List {
                         ForEach(songs) { song in
                             row(song)
+                                .listRowBackground(Theme.background)
                         }
                         .onDelete { offsets in
                             for index in offsets { SongStore.shared.delete(songs[index]) }
                             songs.remove(atOffsets: offsets)
                         }
                     }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                    .listRowSeparatorTint(Theme.grid)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Theme.background.ignoresSafeArea())
             .navigationTitle("Songs")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -41,7 +51,9 @@ struct SongListView: View {
                     }
                 }
             }
+            .tint(Theme.text)
         }
+        .preferredColorScheme(.dark)
         .onAppear { songs = SongStore.shared.loadAll() }
     }
 
@@ -54,20 +66,25 @@ struct SongListView: View {
         } label: {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(song.name).font(.headline)
+                    Text(song.name)
+                        .font(.headline)
+                        .foregroundStyle(Theme.text)
                     Text(detail(song))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .chipFont(11)
+                        .foregroundStyle(Theme.dim)
                 }
                 Spacer()
                 if isOpen {
                     Text("OPEN")
-                        .font(.caption2.monospaced().bold())
-                        .foregroundStyle(.green)
+                        .chipFont(11, weight: .bold)
+                        .foregroundStyle(Theme.accentGreen)
                 }
             }
             .contentShape(Rectangle())
         }
+        // Without this the List tints the whole label with the accent colour and
+        // every song title renders blue.
+        .buttonStyle(.plain)
         .swipeActions(edge: .leading) {
             Button {
                 var copy = song
@@ -78,7 +95,7 @@ struct SongListView: View {
             } label: {
                 Label("Duplicate", systemImage: "plus.square.on.square")
             }
-            .tint(.indigo)
+            .tint(Theme.panelHigh)
         }
     }
 
@@ -86,6 +103,8 @@ struct SongListView: View {
         let patterns = song.patterns.count
         let seconds = song.arrangementDuration
         let time = String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
-        return "\(Int(song.tempo)) BPM · \(patterns) pattern\(patterns == 1 ? "" : "s") · \(time) · \(song.modified.formatted(date: .abbreviated, time: .shortened))"
+        // Monospace is wider than the proportional caption this used to be, so
+        // the clock is dropped to keep the line from wrapping.
+        return "\(Int(song.tempo)) BPM · \(patterns) pattern\(patterns == 1 ? "" : "s") · \(time) · \(song.modified.formatted(date: .abbreviated, time: .omitted))"
     }
 }
