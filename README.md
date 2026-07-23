@@ -2,14 +2,16 @@
 
 A small iOS step sequencer for writing chiptune songs. Four channels to start
 with, NES-style: two pulses, a triangle and a noise channel, all synthesised
-from scratch — no samples, no audio files.
+from scratch: no samples, no audio files.
 
 Notes live in *patterns*; the *arrangement* chains patterns into a song, so a
 piece can have an intro, a verse and a chorus rather than being one loop.
 
 ## Build and run
 
-The Xcode project is generated, so it isn't checked in:
+The Xcode project is generated, so it isn't checked in. Signing is set to
+automatic with no team, so pick your own under Signing & Capabilities the first
+time you build to a device. The simulator needs no team at all.
 
 ```sh
 brew install xcodegen        # once
@@ -34,7 +36,7 @@ xcrun simctl launch booted me.christhoma.chiptune
   Tapping a filled cell clears it.
 - The column headers select a channel, mute it, and open its sound settings
   (volume, decay, pulse width, arpeggio).
-- `OFF` writes a note-off, which cuts a sustaining note — mainly useful on the
+- `OFF` writes a note-off, which cuts a sustaining note, mainly useful on the
   triangle channel, which holds by default.
 - Tap the BPM readout to type a tempo, or use −/+ to nudge it.
 - The lettered chips under the transport are the patterns. Tap to edit one, `+`
@@ -52,15 +54,15 @@ xcrun simctl launch booted me.christhoma.chiptune
 
 `Sources/Audio/ChipCore.swift` is the whole synth: oscillators, envelopes and
 the step sequencer. It runs inside an `AVAudioSourceNode` render callback, so it
-never allocates, locks, or copies during playback — every pattern, the flattened
+never allocates, locks, or copies during playback: every pattern, the flattened
 play order, and the per-channel parameters live in manually allocated buffers
 that the main thread writes into field by field. Following the arrangement costs
 the audio thread one array lookup at each pattern boundary and never a trip back
 to the main thread.
 
-- **Pulse 1 / 2** — variable duty (12/25/50/75%)
-- **Triangle** — quantised to 16 steps per half cycle, like the NES channel
-- **Noise** — 15-bit LFSR clocked at a multiple of the note frequency, so it's
+- **Pulse 1 / 2:** variable duty (12/25/50/75%)
+- **Triangle:** quantised to 16 steps per half cycle, like the NES channel
+- **Noise:** 15-bit LFSR clocked at a multiple of the note frequency, so it's
   pitched rather than flat hiss
 
 The master chain is a gentle lowpass, a ~10 Hz DC blocker (narrow pulse duties
@@ -75,3 +77,7 @@ what a run of the same note used to sound like.
 
 `WavExport` reuses the same core to render offline, so an exported file is
 sample-identical to what you hear.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
