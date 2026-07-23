@@ -9,9 +9,17 @@ piece can have an intro, a verse and a chorus rather than being one loop.
 
 ## Build and run
 
-The Xcode project is generated, so it isn't checked in. Signing is set to
-automatic with no team, so pick your own under Signing & Capabilities the first
-time you build to a device. The simulator needs no team at all.
+The Xcode project is generated, so it isn't checked in. The simulator needs no
+signing team at all. To build to a device, export your team ID before
+generating and it gets baked into the project:
+
+```sh
+export CHIPTUNE_TEAM_ID=XXXXXXXXXX
+```
+
+Leave it unset and signing stays automatic with no team, which is fine for the
+simulator; picking a team under Signing & Capabilities instead works too, but
+the next `xcodegen generate` throws it away.
 
 ```sh
 brew install xcodegen        # once
@@ -27,7 +35,7 @@ xcodebuild -project Chiptune.xcodeproj -scheme Chiptune \
   -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -derivedDataPath build build
 xcrun simctl install booted build/Build/Products/Debug-iphonesimulator/Chiptune.app
-xcrun simctl launch booted me.christhoma.chiptune
+xcrun simctl launch booted dev.individuation.chiptune
 ```
 
 ## Using it
