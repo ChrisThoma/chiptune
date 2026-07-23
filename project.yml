@@ -21,6 +21,9 @@ targets:
         # flash white before the splash view takes over.
         UILaunchScreen:
           UIColorName: LaunchBackground
+        # Nothing here encrypts anything. Declaring it up front skips the
+        # export-compliance question on every App Store Connect upload.
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.individuation.chiptune
