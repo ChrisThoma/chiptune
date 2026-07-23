@@ -54,6 +54,9 @@ extension View {
     func chipTray() -> some View {
         frame(height: Theme.trayHeight)
             .background(RoundedRectangle(cornerRadius: Theme.trayRadius).fill(Theme.panel))
+            // Clipping matters for the scrolling pattern strip: without it the
+            // chips slide out over the tray's rounded corners.
+            .clipShape(RoundedRectangle(cornerRadius: Theme.trayRadius))
     }
 }
 

@@ -126,21 +126,8 @@ struct TransportBar: View {
             .buttonStyle(.plain)
             .accessibilityLabel(studio.isPlaying ? "Stop" : "Play")
 
-            // Tempo, mode and arrangement share one panel with hairlines between
-            // them; as separate pills they read as four unrelated buttons.
+            // What plays: the mode you're in and the arrangement behind it.
             HStack(spacing: 0) {
-                // The value is a button as well as a readout — nudging from 120
-                // to 174 four BPM at a time is nobody's idea of a good afternoon.
-                ChipStepper(label: "BPM",
-                            value: Int(studio.song.tempo),
-                            onChange: { studio.setTempo(studio.song.tempo + Double($0) * 4) },
-                            onTapValue: {
-                                tempoText = String(Int(studio.song.tempo))
-                                editingTempo = true
-                            })
-
-                TrayDivider()
-
                 modeToggle
 
                 TrayDivider()
@@ -158,6 +145,22 @@ struct TransportBar: View {
                 .accessibilityLabel("Arrangement")
             }
             .chipTray()
+
+            Spacer(minLength: 12)
+
+            // Trails the row so it lines up with STEPS below — the two steppers
+            // read as a pair rather than as more transport buttons.
+            //
+            // The value is a button as well as a readout — nudging from 120 to
+            // 174 four BPM at a time is nobody's idea of a good afternoon.
+            ChipStepper(label: "BPM",
+                        value: Int(studio.song.tempo),
+                        onChange: { studio.setTempo(studio.song.tempo + Double($0) * 4) },
+                        onTapValue: {
+                            tempoText = String(Int(studio.song.tempo))
+                            editingTempo = true
+                        })
+                .chipTray()
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
@@ -202,43 +205,57 @@ struct TransportBar: View {
     }
 }
 
+/// Where the pattern strip is scrolled to, and how much of it there is.
+struct StripMetrics: Equatable {
+    var offset: CGFloat = 0
+    var content: CGFloat = 0
+}
+
+private struct StripMetricsKey: PreferenceKey {
+    static let defaultValue = StripMetrics()
+    static func reduce(value: inout StripMetrics, nextValue: () -> StripMetrics) {
+        value = nextValue()
+    }
+}
+
+private struct StripViewportKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 /// The patterns strip: pick which block the grid is editing, and set its length.
 struct PatternBar: View {
     @Bindable var studio: Studio
     @State private var renaming: Int?
     @State private var renameText = ""
+    @State private var strip = StripMetrics()
+    @State private var stripViewport: CGFloat = 0
 
     var body: some View {
         HStack(spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
-                    ForEach(Array(studio.song.patterns.enumerated()), id: \.element.id) { index, pattern in
-                        chip(index: index, pattern: pattern)
-                    }
-                    if studio.song.canAddPattern {
-                        Button {
-                            studio.addPattern()
-                        } label: {
-                            Image(systemName: "plus")
-                                .chipFont(13)
-                                .foregroundStyle(Theme.text)
-                                // 36pt of fill, but the whole tray height stays
-                                // tappable.
-                                .frame(width: 38, height: Theme.trayHeight)
-                                .contentShape(Rectangle())
-                                .background(
-                                    RoundedRectangle(cornerRadius: Theme.innerRadius)
-                                        .fill(Theme.panelHigh)
-                                        .padding(.vertical, 4)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Add pattern")
-                    }
+            // The tray sits *inside* here rather than around the whole row, so
+            // it hugs the chips and grows with them instead of stretching an
+            // empty panel across the row. `+` is pinned outside the scrolling
+            // part so it can't be scrolled out of reach.
+            HStack(spacing: 0) {
+                ViewThatFits(in: .horizontal) {
+                    chips
+                    scrollingChips
                 }
-                .padding(.horizontal, 4)
+
+                if studio.song.canAddPattern {
+                    TrayDivider()
+                    addButton
+                }
             }
             .chipTray()
+
+            // Now that the chip tray hugs its contents, STEPS would drift left
+            // with it; this keeps it pinned under BPM so the two steppers line
+            // up as a column down the right edge.
+            Spacer(minLength: 12)
 
             // Deliberately a separate tray: STEPS belongs to the pattern, not to
             // the strip of chips beside it, and the gap is what says so.
@@ -258,6 +275,70 @@ struct PatternBar: View {
                 renaming = nil
             }
         }
+    }
+
+    private var chips: some View {
+        HStack(spacing: 4) {
+            ForEach(Array(studio.song.patterns.enumerated()), id: \.element.id) { index, pattern in
+                chip(index: index, pattern: pattern)
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+
+    /// The overflow case. Fades whichever edge still has chips behind it, so a
+    /// half-cut chip isn't the only clue that the strip scrolls.
+    private var scrollingChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            chips
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(
+                            key: StripMetricsKey.self,
+                            value: StripMetrics(offset: geo.frame(in: .named("patternStrip")).minX,
+                                                content: geo.size.width))
+                    }
+                )
+        }
+        .coordinateSpace(name: "patternStrip")
+        .background(
+            GeometryReader { geo in
+                Color.clear.preference(key: StripViewportKey.self, value: geo.size.width)
+            }
+        )
+        .onPreferenceChange(StripMetricsKey.self) { strip = $0 }
+        .onPreferenceChange(StripViewportKey.self) { stripViewport = $0 }
+        .mask(edgeFade)
+    }
+
+    private var edgeFade: some View {
+        // A point of slack keeps the fade from flickering on at the extremes.
+        let leading = strip.offset < -1
+        let trailing = strip.content + strip.offset > stripViewport + 1
+        return LinearGradient(
+            stops: [
+                .init(color: leading ? .clear : .black, location: 0),
+                .init(color: .black, location: leading ? 0.07 : 0),
+                .init(color: .black, location: trailing ? 0.93 : 1),
+                .init(color: trailing ? .clear : .black, location: 1),
+            ],
+            startPoint: .leading,
+            endPoint: .trailing)
+    }
+
+    private var addButton: some View {
+        Button {
+            studio.addPattern()
+        } label: {
+            Image(systemName: "plus")
+                .chipFont(13)
+                .foregroundStyle(Theme.text)
+                // 36pt of fill, but the whole tray height stays tappable.
+                .frame(width: 42, height: Theme.trayHeight)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add pattern")
     }
 
     private func chip(index: Int, pattern: Pattern) -> some View {
