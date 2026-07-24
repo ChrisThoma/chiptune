@@ -5,10 +5,10 @@ synthesised as you play it: four channels modelled on the NES, no samples, no
 audio files anywhere in the app.
 
 <p>
-  <img src="AppStore/screenshots/iphone-6.9/1-grid.png" width="24%" alt="Pattern grid">
-  <img src="AppStore/screenshots/iphone-6.9/2-arrangement.png" width="24%" alt="Arrangement">
-  <img src="AppStore/screenshots/iphone-6.9/3-editor.png" width="24%" alt="Instrument editor">
-  <img src="AppStore/screenshots/iphone-6.9/4-library.png" width="24%" alt="Song library">
+  <img src="docs/screenshots/1-grid.png" width="24%" alt="Pattern grid">
+  <img src="docs/screenshots/2-arrangement.png" width="24%" alt="Arrangement">
+  <img src="docs/screenshots/3-editor.png" width="24%" alt="Instrument editor">
+  <img src="docs/screenshots/4-library.png" width="24%" alt="Song library">
 </p>
 
 ## Writing a song
