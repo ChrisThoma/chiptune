@@ -1,90 +1,85 @@
 # Chiptune
 
-A small iOS step sequencer for writing chiptune songs. Four channels to start
-with, NES-style: two pulses, a triangle and a noise channel, all synthesised
-from scratch: no samples, no audio files.
+A step sequencer for iOS that writes NES-style chiptune music. Every sound is
+synthesised as you play it: four channels modelled on the NES, no samples, no
+audio files anywhere in the app.
 
-Notes live in *patterns*; the *arrangement* chains patterns into a song, so a
-piece can have an intro, a verse and a chorus rather than being one loop.
+<p>
+  <img src="AppStore/screenshots/iphone-6.9/1-grid.png" width="24%" alt="Pattern grid">
+  <img src="AppStore/screenshots/iphone-6.9/2-arrangement.png" width="24%" alt="Arrangement">
+  <img src="AppStore/screenshots/iphone-6.9/3-editor.png" width="24%" alt="Instrument editor">
+  <img src="AppStore/screenshots/iphone-6.9/4-library.png" width="24%" alt="Song library">
+</p>
 
-## Build and run
+## Writing a song
 
-The Xcode project is generated, so it isn't checked in. The simulator needs no
-signing team at all. To build to a device, export your team ID before
-generating and it gets baked into the project:
+You work at two levels. A **pattern** is a grid of steps and notes: pick a note
+on the keyboard, tap a cell to place it, tap a filled cell to clear it. A
+pattern is 4 to 64 steps long, and patterns can differ in length.
+
+An **arrangement** chains patterns into a full song. Each section names a
+pattern and a repeat count, and the sections play in order, so a piece can have
+an intro, a verse and a chorus rather than a single loop. `PATT` auditions the
+pattern you're editing; `SONG` plays the whole arrangement.
+
+Songs save as you work and the app reopens the last one you edited. The library
+holds everything you've written, and any song exports to a WAV that renders the
+entire arrangement.
+
+## The four channels
+
+The layout follows the NES sound hardware:
+
+- **Pulse 1 and 2:** square waves with selectable duty (12/25/50/75%)
+- **Triangle:** quantised to 16 steps per half cycle, like the real channel
+- **Noise:** a 15-bit shift register clocked at a multiple of the note
+  frequency, so it comes out pitched rather than as flat hiss
+
+Each channel has its own volume, decay, pulse width and arpeggio, edited from
+the column header. A note-off cuts a sustaining note, which matters most on the
+triangle, since it holds by default. When four channels aren't enough you can
+add more tracks of the same kind.
+
+## How the synth works
+
+`Sources/Audio/ChipCore.swift` is the whole engine: oscillators, amplitude
+envelopes and the step sequencer, running inside an `AVAudioSourceNode` render
+callback.
+
+The design rule is that the audio thread never allocates, locks, or triggers a
+copy-on-write. Every pattern in the song, the flattened play order, and the
+per-channel parameters live in manually allocated buffers. The main thread
+writes into them field by field; each field is word-sized and independently
+meaningful, so a torn read is impossible and a stale read is harmless (it lasts
+one buffer at most). Following an arrangement then costs the audio thread one
+index lookup at each pattern boundary and never a hop back to the main thread.
+
+Two details that make it sound right:
+
+- **Retriggering.** Playing a voice that is still ringing doesn't restart it on
+  the spot. The envelope ramps down over ~2.5 ms, then the new note ramps up
+  over ~1.2 ms. Snapping the level and phase back to zero mid-ring is a step
+  discontinuity, which is what a run of the same note used to sound like.
+- **Master chain.** A gentle lowpass, a ~10 Hz DC blocker (narrow pulse duties
+  are strongly asymmetric and would otherwise eat headroom and click), and a
+  `tanh` soft clip.
+
+`Sources/Audio/WavExport.swift` drives the same core offline, so an exported
+file is sample-identical to what you hear in the app.
+
+## Building
+
+Needs iOS 17+, Xcode 16, and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+The Xcode project is generated from `project.yml`, so it isn't checked in.
 
 ```sh
-export CHIPTUNE_TEAM_ID=XXXXXXXXXX
-```
-
-Leave it unset and signing stays automatic with no team, which is fine for the
-simulator; picking a team under Signing & Capabilities instead works too, but
-the next `xcodegen generate` throws it away.
-
-```sh
-brew install xcodegen        # once
+brew install xcodegen
 xcodegen generate
 open Chiptune.xcodeproj
 ```
 
-Or straight to a simulator:
-
-```sh
-xcodegen generate
-xcodebuild -project Chiptune.xcodeproj -scheme Chiptune \
-  -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -derivedDataPath build build
-xcrun simctl install booted build/Build/Products/Debug-iphonesimulator/Chiptune.app
-xcrun simctl launch booted dev.individuation.chiptune
-```
-
-## Using it
-
-- Pick a note on the keyboard at the bottom, then tap a grid cell to place it.
-  Tapping a filled cell clears it.
-- The column headers select a channel, mute it, and open its sound settings
-  (volume, decay, pulse width, arpeggio).
-- `OFF` writes a note-off, which cuts a sustaining note, mainly useful on the
-  triangle channel, which holds by default.
-- Tap the BPM readout to type a tempo, or use −/+ to nudge it.
-- The lettered chips under the transport are the patterns. Tap to edit one, `+`
-  to add, long-press to rename, duplicate, clear or delete. `STEPS` sets the
-  length of the pattern on screen (4–64), and patterns can differ in length.
-- `PATT` loops the pattern you're editing. `SONG` plays the arrangement.
-- The list button opens the arrangement: a play order of sections, each naming a
-  pattern and a repeat count, reorderable and deletable.
-- Songs save themselves as you edit, and the app reopens the last one. The
-  music-note button in the title bar is the library.
-- The ••• menu makes a new song, duplicates one, and exports a WAV. Exporting
-  renders the whole arrangement.
-
-## How it works
-
-`Sources/Audio/ChipCore.swift` is the whole synth: oscillators, envelopes and
-the step sequencer. It runs inside an `AVAudioSourceNode` render callback, so it
-never allocates, locks, or copies during playback: every pattern, the flattened
-play order, and the per-channel parameters live in manually allocated buffers
-that the main thread writes into field by field. Following the arrangement costs
-the audio thread one array lookup at each pattern boundary and never a trip back
-to the main thread.
-
-- **Pulse 1 / 2:** variable duty (12/25/50/75%)
-- **Triangle:** quantised to 16 steps per half cycle, like the NES channel
-- **Noise:** 15-bit LFSR clocked at a multiple of the note frequency, so it's
-  pitched rather than flat hiss
-
-The master chain is a gentle lowpass, a ~10 Hz DC blocker (narrow pulse duties
-are strongly asymmetric and would otherwise eat headroom and click), and a
-`tanh` soft clip.
-
-Retriggering a voice that is still ringing does not restart it on the spot: the
-envelope is ramped down over ~2.5 ms first, then the new note ramps up over
-~1.2 ms. Snapping the level back to 1.0 and the phase back to 0 while the
-previous note is still near full amplitude is a step discontinuity, which is
-what a run of the same note used to sound like.
-
-`WavExport` reuses the same core to render offline, so an exported file is
-sample-identical to what you hear.
+The simulator needs no signing team. To build to a device, set
+`CHIPTUNE_TEAM_ID` before generating and it's baked into the project.
 
 ## License
 
