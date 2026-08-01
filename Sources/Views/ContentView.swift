@@ -5,6 +5,8 @@ struct ContentView: View {
     @State private var showingSongs = false
     @State private var showingArrangement = false
     @State private var showingShare = false
+    @State private var confirmingClearPattern = false
+    @State private var showingExport = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,16 +32,64 @@ struct ContentView: View {
         .sheet(isPresented: $showingArrangement) {
             ArrangementView(studio: studio)
         }
+        .sheet(isPresented: $showingExport) {
+            ExportSheet(studio: studio)
+        }
         .sheet(isPresented: $showingShare) {
             if let url = studio.exportURL {
+                ShareSheet(items: [url])
+            }
+        }
+        // Sharing the .chipsong is immediate — the file is just the song's
+        // JSON — so it needs no render and no progress.
+        .sheet(isPresented: Binding(get: { studio.shareURL != nil },
+                                    set: { if !$0 { studio.shareURL = nil } })) {
+            if let url = studio.shareURL {
                 ShareSheet(items: [url])
             }
         }
         // Export renders off the main thread; the share sheet waits for the
         // URL to land rather than racing the render.
         .onChange(of: studio.exportURL) { _, url in
-            if url != nil { showingShare = true }
+            guard url != nil else { return }
+            // The options sheet gets out of the way before the share sheet
+            // arrives; two sheets at once is a no-op on iOS.
+            showingExport = false
+            showingShare = true
         }
+        .confirmationDialog("Clear pattern \(studio.pattern.name)?",
+                            isPresented: $confirmingClearPattern,
+                            titleVisibility: .visible) {
+            Button("Clear pattern", role: .destructive) { studio.clearPattern() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Every track's notes in this pattern are erased.")
+        }
+        // Three things that used to fail without saying so. The save one
+        // matters most: there's no Save button to retry with, so a write that
+        // fails quietly is work quietly lost.
+        .errorAlert("Save failed", message: $studio.storageError)
+        .errorAlert("Export failed", message: $studio.exportError)
+        .errorAlert("Audio unavailable", message: $studio.audioError)
+        .errorAlert("Import failed", message: $studio.importError)
+    }
+
+    /// Narrower than the 44pt targets either side of them — two more of those
+    /// would squeeze the song name to nothing. Still comfortably tappable, and
+    /// dimmed rather than hidden when there's nothing to undo, so the row
+    /// doesn't reflow as you edit.
+    private func historyButton(_ symbol: String, label: String, enabled: Bool,
+                               action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(enabled ? Theme.text : Theme.dim.opacity(0.4))
+                .frame(width: 34, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .accessibilityLabel(label)
     }
 
     private var titleBar: some View {
@@ -65,6 +115,11 @@ struct ContentView: View {
                 .textInputAutocapitalization(.words)
                 .submitLabel(.done)
 
+            historyButton("arrow.uturn.backward", label: "Undo",
+                          enabled: studio.canUndo) { studio.undo() }
+            historyButton("arrow.uturn.forward", label: "Redo",
+                          enabled: studio.canRedo) { studio.redo() }
+
             Menu {
                 Button {
                     studio.newSong()
@@ -78,7 +133,12 @@ struct ContentView: View {
                 }
                 Divider()
                 Button {
-                    studio.export()
+                    studio.share(studio.song)
+                } label: {
+                    Label("Share song file", systemImage: "square.and.arrow.up")
+                }
+                Button {
+                    showingExport = true
                 } label: {
                     Label(studio.isExporting ? "Exporting…" : "Export WAV",
                           systemImage: "square.and.arrow.up")
@@ -86,7 +146,7 @@ struct ContentView: View {
                 .disabled(studio.isExporting)
                 Divider()
                 Button(role: .destructive) {
-                    studio.clearPattern()
+                    confirmingClearPattern = true
                 } label: {
                     Label("Clear pattern \(studio.pattern.name)", systemImage: "trash")
                 }
@@ -235,6 +295,10 @@ struct PatternBar: View {
     @Bindable var studio: Studio
     @State private var renaming: Int?
     @State private var renameText = ""
+    /// Pattern indices queued behind a confirmation. Both erase work with no
+    /// way back, so neither happens straight off a context-menu tap.
+    @State private var clearing: Int?
+    @State private var deleting: Int?
     @State private var strip = StripMetrics()
     @State private var stripViewport: CGFloat = 0
 
@@ -280,6 +344,37 @@ struct PatternBar: View {
                 renaming = nil
             }
         }
+        .confirmationDialog("Clear pattern \(name(clearing))?",
+                            isPresented: Binding(get: { clearing != nil },
+                                                 set: { if !$0 { clearing = nil } }),
+                            titleVisibility: .visible) {
+            Button("Clear pattern", role: .destructive) {
+                if let index = clearing {
+                    studio.selectPattern(index)
+                    studio.clearPattern()
+                }
+                clearing = nil
+            }
+            Button("Cancel", role: .cancel) { clearing = nil }
+        } message: {
+            Text("Every track's notes in this pattern are erased.")
+        }
+        .confirmationDialog("Delete pattern \(name(deleting))?",
+                            isPresented: Binding(get: { deleting != nil },
+                                                 set: { if !$0 { deleting = nil } }),
+                            titleVisibility: .visible) {
+            Button("Delete pattern", role: .destructive) {
+                if let index = deleting { studio.removePattern(at: index) }
+                deleting = nil
+            }
+            Button("Cancel", role: .cancel) { deleting = nil }
+        } message: {
+            Text("It's removed from the arrangement too. This can't be undone.")
+        }
+    }
+
+    private func name(_ index: Int?) -> String {
+        index.flatMap { studio.song.patterns[safe: $0]?.name } ?? ""
     }
 
     private var chips: some View {
@@ -392,13 +487,12 @@ struct PatternBar: View {
             }
             .disabled(!studio.song.canAddPattern)
             Button(role: .destructive) {
-                studio.selectPattern(index)
-                studio.clearPattern()
+                clearing = index
             } label: {
                 Label("Clear", systemImage: "eraser")
             }
             Button(role: .destructive) {
-                studio.removePattern(at: index)
+                deleting = index
             } label: {
                 Label("Delete", systemImage: "trash")
             }
@@ -457,6 +551,107 @@ struct ChipStepper: View {
         .frame(minWidth: 38)
         .frame(height: Theme.trayHeight)
         .contentShape(Rectangle())
+    }
+}
+
+extension View {
+    /// Presents `message` as a one-button alert and clears it on dismissal, so
+    /// the same failure happening twice shows twice.
+    func errorAlert(_ title: String, message: Binding<String?>) -> some View {
+        alert(title, isPresented: Binding(get: { message.wrappedValue != nil },
+                                          set: { if !$0 { message.wrappedValue = nil } })) {
+            Button("OK", role: .cancel) { message.wrappedValue = nil }
+        } message: {
+            Text(message.wrappedValue ?? "")
+        }
+    }
+}
+
+/// Export options, and the progress of the render they kick off.
+///
+/// A sheet rather than more items in the ••• menu: the render can take real
+/// time on a long arrangement, and it needs somewhere to show how far along it
+/// is and a way to stop it.
+struct ExportSheet: View {
+    @Bindable var studio: Studio
+    @Environment(\.dismiss) private var dismiss
+    @State private var options = ExportOptions()
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Stepper(value: $options.loopCount, in: 1...ExportOptions.maxLoopCount) {
+                        HStack {
+                            Text("Repeats")
+                            Spacer()
+                            Text("\(options.loopCount)×")
+                                .chipFont(15, weight: .bold)
+                                .foregroundStyle(Theme.dim)
+                        }
+                    }
+                } footer: {
+                    Text("The whole arrangement, \(options.loopCount) time\(options.loopCount == 1 ? "" : "s") — \(duration).")
+                }
+
+                Section {
+                    Picker("Ending", selection: $options.tailMode) {
+                        Text("Seamless loop").tag(ExportOptions.TailMode.seamlessLoop)
+                        Text("Ring out").tag(ExportOptions.TailMode.ringOut)
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                } header: {
+                    Text("Ending")
+                } footer: {
+                    Text(options.tailMode == .seamlessLoop
+                         ? "The last notes ring on into the start, so the file loops with no gap. Best for dropping into something else."
+                         : "The last notes fade out past the end and the file finishes in silence. Best when the file is the finished thing.")
+                }
+
+                Section {
+                    if studio.isExporting {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ProgressView(value: studio.exportProgress)
+                                .tint(Theme.accentGreen)
+                            Text("Rendering… \(Int(studio.exportProgress * 100))%")
+                                .chipFont(11)
+                                .foregroundStyle(Theme.dim)
+                        }
+                        Button("Cancel export", role: .destructive) {
+                            studio.cancelExport()
+                        }
+                    } else {
+                        Button {
+                            studio.export(options: options)
+                        } label: {
+                            Label("Export WAV", systemImage: "square.and.arrow.up")
+                        }
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background.ignoresSafeArea())
+            .navigationTitle("Export")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        studio.cancelExport()
+                        dismiss()
+                    }
+                }
+            }
+            .tint(Theme.text)
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    /// Rough length of the file, so the repeat count means something.
+    private var duration: String {
+        var seconds = studio.song.arrangementDuration * Double(options.loopCount)
+        if options.tailMode == .ringOut { seconds += 1 }
+        return String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
     }
 }
 

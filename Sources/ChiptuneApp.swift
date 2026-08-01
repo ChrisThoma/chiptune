@@ -6,6 +6,8 @@ struct ChiptuneApp: App {
     /// Built after the first frame so the splash is on screen while the audio
     /// engine spins up and the last song is read back off disk.
     @State private var studio: Studio?
+    /// A file opened before the studio finished loading.
+    @State private var pendingImport: URL?
 
     var body: some Scene {
         WindowGroup {
@@ -28,11 +30,28 @@ struct ChiptuneApp: App {
                 let studio = Studio()
                 try? await Task.sleep(nanoseconds: 250_000_000)
                 withAnimation(.easeOut(duration: 0.28)) { self.studio = studio }
+                if let pendingImport {
+                    studio.importSong(from: pendingImport)
+                    self.pendingImport = nil
+                }
+            }
+            // A .chipsong tapped in Mail or Files arrives here. The studio may
+            // not exist yet — the splash is still up for the first frame — so
+            // the URL waits until it does.
+            .onOpenURL { url in
+                if let studio {
+                    studio.importSong(from: url)
+                } else {
+                    pendingImport = url
+                }
             }
             .onChange(of: scenePhase) { _, phase in
                 // Backgrounding is the one moment autosave's debounce might not
                 // have fired yet.
-                if phase != .active { studio?.saveNow() }
+                if phase != .active {
+                    studio?.saveNow()
+                    studio?.stopEngineIfIdle()
+                }
             }
         }
     }

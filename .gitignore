@@ -3,4 +3,7 @@ DerivedData/
 Chiptune.xcodeproj/
 .DS_Store
 *.wav
+# …except the golden render the DSP suite compares against. Without this the
+# rule above silently swallows the fixture and the test skips on a fresh clone.
+!Tests/Fixtures/*.wav
 Sources/Info.plist
