@@ -35,6 +35,11 @@ struct ContentView: View {
                 ShareSheet(items: [url])
             }
         }
+        // Export renders off the main thread; the share sheet waits for the
+        // URL to land rather than racing the render.
+        .onChange(of: studio.exportURL) { _, url in
+            if url != nil { showingShare = true }
+        }
     }
 
     private var titleBar: some View {
@@ -74,11 +79,11 @@ struct ContentView: View {
                 Divider()
                 Button {
                     studio.export()
-                    // Only offer the share sheet once a file actually exists.
-                    if studio.exportURL != nil { showingShare = true }
                 } label: {
-                    Label("Export WAV", systemImage: "square.and.arrow.up")
+                    Label(studio.isExporting ? "Exporting…" : "Export WAV",
+                          systemImage: "square.and.arrow.up")
                 }
+                .disabled(studio.isExporting)
                 Divider()
                 Button(role: .destructive) {
                     studio.clearPattern()

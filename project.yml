@@ -5,7 +5,33 @@ options:
     iOS: "17.0"
   createIntermediateGroups: true
 
+schemes:
+  Chiptune:
+    build:
+      targets:
+        Chiptune: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - ChiptuneTests
+    archive:
+      config: Release
+
 targets:
+  ChiptuneTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests
+    dependencies:
+      - target: Chiptune
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"
+
   Chiptune:
     type: application
     platform: iOS
@@ -38,5 +64,7 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "5.0"
-        TARGETED_DEVICE_FAMILY: "1,2"
+        # iPhone-only for 1.0. It still runs on iPad in compatibility mode; a
+        # native iPad layout is a later release, not a launch blocker.
+        TARGETED_DEVICE_FAMILY: "1"
         ENABLE_PREVIEWS: YES

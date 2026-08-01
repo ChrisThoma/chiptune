@@ -152,6 +152,15 @@ struct Pattern: Codable, Equatable, Identifiable {
             } else if rows[i].count > Chip.maxSteps {
                 rows[i] = Array(rows[i].prefix(Chip.maxSteps))
             }
+            // Cell values too: anything that isn't a rest, a note-off, or a
+            // MIDI note would draw as a filled cell with a garbage label while
+            // the audio engine ignores it.
+            for s in rows[i].indices {
+                let n = rows[i][s]
+                if n != Chip.emptyNote, n != ChipCore.noteOff, !(0...127).contains(n) {
+                    rows[i][s] = Chip.emptyNote
+                }
+            }
         }
     }
 }

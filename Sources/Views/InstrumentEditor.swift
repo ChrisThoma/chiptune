@@ -20,6 +20,20 @@ struct InstrumentEditor: View {
 
     var body: some View {
         NavigationStack {
+            // The track can vanish while the sheet is up — deleted here, or
+            // removed elsewhere while this was open. Rendering the form against
+            // a dead index would trap in the bindings below.
+            if studio.song.tracks.indices.contains(index) {
+                editor
+            } else {
+                Color.clear.onAppear { dismiss() }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .preferredColorScheme(.dark)
+    }
+
+    private var editor: some View {
             Form {
                 Section("Channel") {
                     Picker("Waveform", selection: Binding(
@@ -39,26 +53,19 @@ struct InstrumentEditor: View {
 
                 Section("Level") {
                     slider(title: "Volume",
-                           value: Binding(
-                               get: { studio.song.tracks[index].instrument.volume },
-                               set: { studio.song.tracks[index].instrument.volume = $0; studio.pushInstrument(index) }),
+                           value: instrument(\.volume, default: 0.5),
                            range: 0...1,
                            display: { "\(Int($0 * 100))%" })
 
                     slider(title: "Decay",
-                           value: Binding(
-                               get: { studio.song.tracks[index].instrument.decay },
-                               set: { studio.song.tracks[index].instrument.decay = $0; studio.pushInstrument(index) }),
+                           value: instrument(\.decay, default: 0.3),
                            range: 0.03...4.0,
                            display: { $0 >= 3.99 ? "hold" : String(format: "%.2fs", $0) })
                 }
 
                 if kind.hasDuty {
                     Section("Pulse width") {
-                        Picker("Duty", selection: Binding(
-                            get: { studio.song.tracks[index].instrument.duty },
-                            set: { studio.song.tracks[index].instrument.duty = $0; studio.pushInstrument(index) })
-                        ) {
+                        Picker("Duty", selection: instrument(\.duty, default: 0)) {
                             ForEach(0..<Instrument.dutyLabels.count, id: \.self) { i in
                                 Text(Instrument.dutyLabels[i]).tag(i)
                             }
@@ -68,10 +75,7 @@ struct InstrumentEditor: View {
                 }
 
                 Section("Arpeggio") {
-                    Picker("Shape", selection: Binding(
-                        get: { studio.song.tracks[index].instrument.arpeggio },
-                        set: { studio.song.tracks[index].instrument.arpeggio = $0; studio.pushInstrument(index) })
-                    ) {
+                    Picker("Shape", selection: instrument(\.arpeggio, default: [])) {
                         ForEach(arps, id: \.name) { arp in
                             Text(arp.name).tag(arp.offsets)
                         }
@@ -99,8 +103,12 @@ struct InstrumentEditor: View {
                     }
 
                     Button("Delete track", role: .destructive) {
-                        studio.removeTrack(at: index)
+                        // Dismiss first and remove on the next main-actor turn,
+                        // so SwiftUI never re-renders this sheet's bindings
+                        // against the deleted index.
                         dismiss()
+                        let i = index
+                        DispatchQueue.main.async { studio.removeTrack(at: i) }
                     }
                     .disabled(studio.song.tracks.count <= 1)
                 } footer: {
@@ -109,6 +117,10 @@ struct InstrumentEditor: View {
                     }
                 }
             }
+            // Without these the Form keeps its translucent system background
+            // and the grid shows through the sheet. SongListView does the same.
+            .scrollContentBackground(.hidden)
+            .background(Theme.background.ignoresSafeArea())
             .navigationTitle(studio.song.fullLabel(for: index))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -116,9 +128,20 @@ struct InstrumentEditor: View {
                     Button("Done") { dismiss() }.tint(accent)
                 }
             }
-        }
-        .presentationDetents([.medium, .large])
-        .preferredColorScheme(.dark)
+    }
+
+    /// Binding into the edited track's instrument that survives the track
+    /// disappearing mid-render: reads fall back to a placeholder, writes on a
+    /// stale index are dropped.
+    private func instrument<T>(_ keyPath: WritableKeyPath<Instrument, T>,
+                               default fallback: T) -> Binding<T> {
+        Binding(
+            get: { studio.song.tracks[safe: index]?.instrument[keyPath: keyPath] ?? fallback },
+            set: { newValue in
+                guard studio.song.tracks.indices.contains(index) else { return }
+                studio.song.tracks[index].instrument[keyPath: keyPath] = newValue
+                studio.pushInstrument(index)
+            })
     }
 
     private func slider(title: String,

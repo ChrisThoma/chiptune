@@ -27,6 +27,8 @@ final class Studio {
     /// the one being edited.
     var playingPattern: Int = 0
     var exportURL: URL?
+    /// True while a WAV render is running off the main thread.
+    var isExporting = false
 
     @ObservationIgnored private let engine = AudioEngine()
     @ObservationIgnored private var timer: Timer?
@@ -383,8 +385,22 @@ final class Studio {
         open(copy)
     }
 
+    /// Renders the WAV off the main thread; a long arrangement can take a
+    /// while, and the render must not freeze the UI. `exportURL` clears at the
+    /// start so observers see a fresh value when the file is ready.
     func export() {
-        exportURL = WavExport.render(song: song)
+        guard !isExporting else { return }
+        isExporting = true
+        exportURL = nil
+        let song = song
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let url = WavExport.render(song: song)
+            await MainActor.run {
+                guard let self else { return }
+                self.exportURL = url
+                self.isExporting = false
+            }
+        }
     }
 
     /// A short riff so the app makes noise the moment it opens.
