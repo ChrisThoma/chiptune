@@ -1,0 +1,150 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Unit tests
+    # Pinned rather than macos-latest: a runner image rolling forward under us
+    # would change the Xcode and simulator set without a commit to blame.
+    runs-on: macos-15
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned so a runner image rolling its default Xcode forward can't change
+      # the compiler under us without a commit. If the pin ever stops existing,
+      # this says so and lists what's there rather than failing later with an
+      # inscrutable toolchain error.
+      - name: Select Xcode
+        run: |
+          XCODE=/Applications/Xcode_16.4.app
+          if [ ! -d "$XCODE" ]; then
+            echo "::error::$XCODE is not installed on this runner. Available:"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          sudo xcode-select -switch "$XCODE"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      # Fresh runners don't necessarily have any particular device, so the
+      # destination is discovered rather than hardcoded — `name=iPhone 15` is a
+      # build failure the day the image drops that model.
+      - name: Resolve simulator destination
+        id: sim
+        run: |
+          udid=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          runtimes = json.load(sys.stdin)['devices']
+          ios = sorted((k for k in runtimes if 'iOS' in k), reverse=True)
+          for runtime in ios:
+              for device in runtimes[runtime]:
+                  if device.get('isAvailable') and 'iPhone' in device['name']:
+                      print(device['udid']); sys.exit(0)
+          sys.exit('no available iPhone simulator')
+          ")
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          echo "Using simulator $udid"
+
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project Chiptune.xcodeproj \
+            -scheme Chiptune \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -resultBundlePath TestResults.xcresult \
+            -enableCodeCoverage YES \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty && exit ${PIPESTATUS[0]}
+
+      - name: Coverage summary
+        if: always()
+        run: xcrun xccov view --report --only-targets TestResults.xcresult || true
+
+      - name: Upload result bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults.xcresult
+          retention-days: 7
+
+  thread-sanitizer:
+    name: Thread Sanitizer (concurrency)
+    runs-on: macos-15
+    timeout-minutes: 30
+    # Non-blocking, and expected to report.
+    #
+    # `ChipCore` is deliberately lock-free: the main thread writes word-sized
+    # parameter fields while the audio thread reads them, on the argument that a
+    # torn read is impossible and a stale one lasts a single buffer. TSan has no
+    # way to know that argument and flags every one of those writes — so this
+    # job's output is a *record* of where the unsynchronised accesses are, not a
+    # pass/fail signal. Read the report; don't read the red cross.
+    #
+    # What would be worth acting on is a race somewhere new: outside
+    # ChipCore's parameter fields, or on something bigger than a word.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned so a runner image rolling its default Xcode forward can't change
+      # the compiler under us without a commit. If the pin ever stops existing,
+      # this says so and lists what's there rather than failing later with an
+      # inscrutable toolchain error.
+      - name: Select Xcode
+        run: |
+          XCODE=/Applications/Xcode_16.4.app
+          if [ ! -d "$XCODE" ]; then
+            echo "::error::$XCODE is not installed on this runner. Available:"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          sudo xcode-select -switch "$XCODE"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Resolve simulator destination
+        id: sim
+        run: |
+          udid=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          runtimes = json.load(sys.stdin)['devices']
+          ios = sorted((k for k in runtimes if 'iOS' in k), reverse=True)
+          for runtime in ios:
+              for device in runtimes[runtime]:
+                  if device.get('isAvailable') and 'iPhone' in device['name']:
+                      print(device['udid']); sys.exit(0)
+          sys.exit('no available iPhone simulator')
+          ")
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      - name: Test with TSan
+        run: |
+          xcodebuild test \
+            -project Chiptune.xcodeproj \
+            -scheme Chiptune \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -enableThreadSanitizer YES \
+            -only-testing:ChiptuneTests/ChipCoreConcurrencyTests \
+            CODE_SIGNING_ALLOWED=NO

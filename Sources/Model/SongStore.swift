@@ -7,13 +7,30 @@ struct SongStore {
 
     private let currentKey = "currentSongID"
 
-    private var directory: URL {
+    /// Where songs live and where "which song was open" is remembered. Both are
+    /// injectable so a test can point at a temp directory and its own defaults
+    /// suite rather than the real Documents folder — otherwise any test that
+    /// saves a song leaks into every other test's `loadAll`.
+    private let root: URL
+    private let defaults: UserDefaults
+
+    init(directory: URL, defaults: UserDefaults = .standard) {
+        self.root = directory
+        self.defaults = defaults
+    }
+
+    /// The app's store: `Documents/Songs` and the standard defaults.
+    init() {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let dir = docs.appendingPathComponent("Songs", isDirectory: true)
-        if !FileManager.default.fileExists(atPath: dir.path) {
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        self.init(directory: docs.appendingPathComponent("Songs", isDirectory: true))
+    }
+
+    /// Creates the directory lazily, so constructing a store never touches disk.
+    private var directory: URL {
+        if !FileManager.default.fileExists(atPath: root.path) {
+            try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         }
-        return dir
+        return root
     }
 
     private func url(for id: UUID) -> URL {
@@ -21,22 +38,26 @@ struct SongStore {
     }
 
     /// - Parameter makeCurrent: also record this as the song to reopen on launch.
-    func save(_ song: Song, makeCurrent: Bool = false) {
+    ///
+    /// Throws rather than failing quietly. Autosave is the app's entire
+    /// persistence story — there is no Save button to try again with — so a
+    /// write that fails and says nothing is the failure mode that loses work.
+    func save(_ song: Song, makeCurrent: Bool = false) throws {
         var song = song
         song.modified = Date()
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
-        guard let data = try? encoder.encode(song) else { return }
-        try? data.write(to: url(for: song.id), options: .atomic)
+        let data = try encoder.encode(song)
+        try data.write(to: url(for: song.id), options: .atomic)
         if makeCurrent {
-            UserDefaults.standard.set(song.id.uuidString, forKey: currentKey)
+            defaults.set(song.id.uuidString, forKey: currentKey)
         }
     }
 
     func delete(_ song: Song) {
         try? FileManager.default.removeItem(at: url(for: song.id))
-        if UserDefaults.standard.string(forKey: currentKey) == song.id.uuidString {
-            UserDefaults.standard.removeObject(forKey: currentKey)
+        if defaults.string(forKey: currentKey) == song.id.uuidString {
+            defaults.removeObject(forKey: currentKey)
         }
     }
 
@@ -50,7 +71,7 @@ struct SongStore {
     /// The song that was open when the app last ran, falling back to the most
     /// recently modified one if that file is gone.
     func loadLast() -> Song? {
-        if let raw = UserDefaults.standard.string(forKey: currentKey),
+        if let raw = defaults.string(forKey: currentKey),
            let id = UUID(uuidString: raw),
            let song = load(id: id) {
             return song

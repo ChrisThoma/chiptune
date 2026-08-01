@@ -171,6 +171,7 @@ private struct TrackHeader: View {
     @Bindable var studio: Studio
     let index: Int
     @State private var showingEditor = false
+    @State private var confirmingDelete = false
 
     var body: some View {
         let track = studio.song.tracks[safe: index]
@@ -200,6 +201,7 @@ private struct TrackHeader: View {
             .accessibilityHint(selected ? "Opens sound settings" : "Selects this track")
 
             Button {
+                studio.checkpoint()
                 studio.song.tracks[index].muted.toggle()
                 studio.pushInstrument(index)
             } label: {
@@ -237,7 +239,7 @@ private struct TrackHeader: View {
             .disabled(!studio.song.canAddTrack)
 
             Button(role: .destructive) {
-                studio.removeTrack(at: index)
+                confirmingDelete = true
             } label: {
                 Label("Delete", systemImage: "trash")
             }
@@ -245,6 +247,15 @@ private struct TrackHeader: View {
         }
         .sheet(isPresented: $showingEditor) {
             InstrumentEditor(studio: studio, index: index)
+        }
+        // A track carries its notes in every pattern, so this is the most
+        // expensive thing a context menu in this app can do.
+        .confirmationDialog("Delete \(name)?", isPresented: $confirmingDelete,
+                            titleVisibility: .visible) {
+            Button("Delete track", role: .destructive) { studio.removeTrack(at: index) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Its notes in every pattern go with it. This can't be undone.")
         }
     }
 }

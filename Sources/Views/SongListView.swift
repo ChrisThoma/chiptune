@@ -6,6 +6,11 @@ struct SongListView: View {
     @Bindable var studio: Studio
     @Environment(\.dismiss) private var dismiss
     @State private var songs: [Song] = []
+    /// Song queued for deletion, held while the confirmation is up.
+    @State private var pendingDelete: Song?
+    @State private var renaming: Song?
+    @State private var renameText = ""
+    @State private var showingImporter = false
 
     var body: some View {
         NavigationStack {
@@ -24,9 +29,11 @@ struct SongListView: View {
                             row(song)
                                 .listRowBackground(Theme.background)
                         }
+                        // Deliberately not `.onDelete`: swipe-to-delete removes
+                        // the song the moment the swipe completes, and a song
+                        // is not recoverable. The swipe now only asks.
                         .onDelete { offsets in
-                            for index in offsets { SongStore.shared.delete(songs[index]) }
-                            songs.remove(atOffsets: offsets)
+                            pendingDelete = offsets.first.map { songs[$0] }
                         }
                     }
                     .listStyle(.plain)
@@ -43,18 +50,71 @@ struct SongListView: View {
                     Button("Close") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button {
-                        studio.newSong()
-                        dismiss()
+                    Menu {
+                        Button {
+                            studio.newSong()
+                            dismiss()
+                        } label: {
+                            Label("New song", systemImage: "doc.badge.plus")
+                        }
+                        Button {
+                            showingImporter = true
+                        } label: {
+                            Label("Import song…", systemImage: "square.and.arrow.down")
+                        }
                     } label: {
-                        Label("New song", systemImage: "plus")
+                        Label("Add", systemImage: "plus")
                     }
                 }
             }
             .tint(Theme.text)
         }
         .preferredColorScheme(.dark)
-        .onAppear { songs = SongStore.shared.loadAll() }
+        .onAppear { reload() }
+        .confirmationDialog("Delete “\(pendingDelete?.name ?? "")”?",
+                            isPresented: Binding(get: { pendingDelete != nil },
+                                                 set: { if !$0 { pendingDelete = nil } }),
+                            titleVisibility: .visible) {
+            Button("Delete song", role: .destructive) {
+                if let song = pendingDelete { studio.delete(song) }
+                pendingDelete = nil
+                reload()
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+        } message: {
+            Text("This can't be undone.")
+        }
+        .fileImporter(isPresented: $showingImporter,
+                      allowedContentTypes: [SongDocument.contentType, .json],
+                      allowsMultipleSelection: false) { result in
+            switch result {
+            case .success(let urls):
+                if let url = urls.first, studio.importSong(from: url) { dismiss() }
+            case .failure(let error):
+                studio.importError = error.localizedDescription
+            }
+        }
+        .sheet(isPresented: Binding(get: { studio.shareURL != nil },
+                                    set: { if !$0 { studio.shareURL = nil } })) {
+            if let url = studio.shareURL {
+                ShareSheet(items: [url])
+            }
+        }
+        .errorAlert("Import failed", message: $studio.importError)
+        .alert("Rename song", isPresented: Binding(get: { renaming != nil },
+                                                   set: { if !$0 { renaming = nil } })) {
+            TextField("Name", text: $renameText)
+            Button("Cancel", role: .cancel) { renaming = nil }
+            Button("Rename") {
+                if let song = renaming { studio.rename(song, to: renameText) }
+                renaming = nil
+                reload()
+            }
+        }
+    }
+
+    private func reload() {
+        songs = studio.store.loadAll()
     }
 
     private func row(_ song: Song) -> some View {
@@ -87,15 +147,54 @@ struct SongListView: View {
         .buttonStyle(.plain)
         .swipeActions(edge: .leading) {
             Button {
-                var copy = song
-                copy.id = UUID()
-                copy.name = song.name + " copy"
-                SongStore.shared.save(copy)
-                songs = SongStore.shared.loadAll()
+                studio.duplicate(song)
+                reload()
             } label: {
                 Label("Duplicate", systemImage: "plus.square.on.square")
             }
             .tint(Theme.panelHigh)
+
+            Button {
+                renameText = song.name
+                renaming = song
+            } label: {
+                Label("Rename", systemImage: "pencil")
+            }
+            .tint(Theme.panelHigh)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button {
+                studio.share(song)
+            } label: {
+                Label("Share", systemImage: "square.and.arrow.up")
+            }
+            .tint(Theme.panelHigh)
+        }
+        // Same three actions as the swipes, for anyone who reaches for a long
+        // press instead — and so rename is discoverable without swiping.
+        .contextMenu {
+            Button {
+                renameText = song.name
+                renaming = song
+            } label: {
+                Label("Rename", systemImage: "pencil")
+            }
+            Button {
+                studio.duplicate(song)
+                reload()
+            } label: {
+                Label("Duplicate", systemImage: "plus.square.on.square")
+            }
+            Button {
+                studio.share(song)
+            } label: {
+                Label("Share song file", systemImage: "square.and.arrow.up")
+            }
+            Button(role: .destructive) {
+                pendingDelete = song
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
         }
     }
 
