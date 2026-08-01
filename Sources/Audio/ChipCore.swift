@@ -297,6 +297,22 @@ final class ChipCore {
         }
     }
 
+    /// Ends offline playback at the tail. Stops the sequencer and releases any
+    /// voice that would otherwise sustain forever — a sustaining instrument has
+    /// no next note to cut it once the song runs out — while leaving decaying
+    /// voices alone so they ring out naturally through the tail rather than
+    /// holding at full level and then hard-cutting at the end of the file.
+    func finish() {
+        playing = false
+        for c in 0..<Chip.maxTracks {
+            voices[c].previewSamples = 0
+            guard params[c].sustain == 1 else { continue }
+            voices[c].declick = 0
+            voices[c].pendingNote = Chip.emptyNote
+            if voices[c].active { voices[c].releasing = true }
+        }
+    }
+
     /// Plays a single note immediately, for keyboard previews.
     ///
     /// A sustaining instrument (the triangle ships that way) has no pattern step

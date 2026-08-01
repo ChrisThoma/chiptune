@@ -19,24 +19,38 @@ final class AudioEngine {
         scratch.initialize(repeating: 0, count: 4096)
 
         let node = AVAudioSourceNode(format: format) { _, _, frameCount, audioBufferList -> OSStatus in
-            let frames = min(Int(frameCount), 4096)
-            core.render(frames: frames, into: scratch)
-
-            let abl = UnsafeMutableAudioBufferListPointer(audioBufferList)
-            for buffer in abl {
-                guard let data = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }
-                for i in 0..<frames { data[i] = scratch[i] }
-                // Silence anything past what we rendered.
-                if Int(frameCount) > frames {
-                    for i in frames..<Int(frameCount) { data[i] = 0 }
-                }
-            }
+            AudioEngine.fill(audioBufferList, frames: Int(frameCount),
+                             from: core, scratch: scratch, scratchLen: 4096)
             return noErr
         }
 
         sourceNode = node
         engine.attach(node)
         engine.connect(node, to: engine.mainMixerNode, format: format)
+    }
+
+    /// Fills every buffer in a Core Audio buffer list from the core, rendering
+    /// in scratch-sized slices. Core Audio can ask for more frames than the
+    /// scratch holds (larger IO buffers when the screen locks, for one), so
+    /// this loops until the whole request is filled — dropping the excess
+    /// would lose audio and let the sequencer clock drift. Runs on the render
+    /// thread, so it must not allocate.
+    static func fill(_ audioBufferList: UnsafeMutablePointer<AudioBufferList>,
+                     frames total: Int,
+                     from core: ChipCore,
+                     scratch: UnsafeMutablePointer<Float>,
+                     scratchLen: Int) {
+        let abl = UnsafeMutableAudioBufferListPointer(audioBufferList)
+        var done = 0
+        while done < total {
+            let n = min(total - done, scratchLen)
+            core.render(frames: n, into: scratch)
+            for buffer in abl {
+                guard let data = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }
+                for i in 0..<n { data[done + i] = scratch[i] }
+            }
+            done += n
+        }
     }
 
     /// Configures the session and starts the engine. Safe to call repeatedly.

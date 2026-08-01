@@ -37,6 +37,10 @@ struct ArrangementView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            // Without these the List keeps its translucent system background
+            // and the grid shows through the sheet. SongListView does the same.
+            .scrollContentBackground(.hidden)
+            .background(Theme.background.ignoresSafeArea())
             .navigationTitle("Arrangement")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
