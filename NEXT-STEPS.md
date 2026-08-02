@@ -78,13 +78,21 @@ With the host surviving launch, the job ran end to end for the first time
 (run of 2 August 2026, after the `isTestHost` fix): both tests executed, each
 surfaced its documented race, and CI *does* relaunch the host between tests —
 "Restarting after unexpected exit" — with the final relaunch finding zero
-tests left. So the job is now the record its comment claims, with one
-structural limit: TSan still aborts the host on the first report within a
-test, so each test surfaces at most one race. That is fine while each test
-exercises one contract; keep it that way when adding to the suite. The red
-cross on the job is the designed outcome. A *green* TSan job now means TSan
-reported nothing — which, while the lock-free contract stands, is itself
-surprising and worth a look at whether the tests really ran.
+tests left. One structural limit remains: TSan aborts the host on the first
+report within a test, so each test surfaces at most one race. That is fine
+while each test exercises one contract; keep it that way when adding to the
+suite.
+
+The job no longer wears a designed red cross — a job that is always red
+alerts nobody. `continue-on-error` is gone; xcodebuild's exit code is
+swallowed and a final step judges the log instead. Green means every test ran
+and every report stayed inside the contract (a data race, word-sized or
+smaller, summarised inside a `ChipCore` method) — or that there were no
+reports at all, which is what fixing the races would look like and must not
+fail. Red now means evidence: a race somewhere new, an access bigger than a
+word, a test that failed an assertion, a host that died without a sanitizer
+report, or a run that never reached the tests — the failure mode this job
+spent its first day in without anyone being able to tell.
 
 ### Screenshots are stale, and the shoot script doesn't run
 

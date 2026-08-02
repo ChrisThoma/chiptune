@@ -99,18 +99,17 @@ jobs:
     name: Thread Sanitizer (concurrency)
     runs-on: macos-15
     timeout-minutes: 30
-    # Non-blocking, and expected to report.
-    #
     # `ChipCore` is deliberately lock-free: the main thread writes word-sized
     # parameter fields while the audio thread reads them, on the argument that a
     # torn read is impossible and a stale one lasts a single buffer. TSan has no
-    # way to know that argument and flags every one of those writes — so this
-    # job's output is a *record* of where the unsynchronised accesses are, not a
-    # pass/fail signal. Read the report; don't read the red cross.
-    #
-    # What would be worth acting on is a race somewhere new: outside
-    # ChipCore's parameter fields, or on something bigger than a word.
-    continue-on-error: true
+    # way to know that argument and flags every one of those writes, so raw
+    # TSan exit codes would make this job red on every run — and a job that is
+    # always red alerts nobody. Instead the last step judges the reports: green
+    # means every report stayed inside the contract (word-sized, inside
+    # ChipCore) or there were none at all; red means something actionable — a
+    # race somewhere new, an access bigger than a word, a test that died
+    # without a sanitizer report, or a run that never reached the tests, which
+    # is how this job spent its first day silently proving nothing.
 
     steps:
       - uses: actions/checkout@v4
@@ -166,6 +165,10 @@ jobs:
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
           echo "Using simulator $udid (SDK $sdk)"
 
+      # TSan aborts the test host on its first report and the runner
+      # relaunches for the next test, so xcodebuild exits non-zero whenever
+      # the expected reports fire. Its exit code is deliberately swallowed;
+      # the judgement happens in the next step, from the log.
       - name: Test with TSan
         run: |
           xcodebuild test \
@@ -175,7 +178,64 @@ jobs:
             -enableThreadSanitizer YES \
             -only-testing:ChiptuneTests/ChipCoreConcurrencyTests \
             -resultBundlePath TSanResults.xcresult \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee tsan.log || true
+
+      # The pass/fail signal. A report is inside the contract when it is a
+      # data race on a word-sized-or-smaller access whose summary lands in a
+      # ChipCore method; anything else fails, with the offending block
+      # printed. A test that starts and finishes cleanly with no report also
+      # passes — that is what fixing the races would look like, and it must
+      # not turn the job red.
+      - name: Assert reports stay inside the lock-free contract
+        run: |
+          python3 - <<'EOF'
+          import re, sys
+
+          lines = open('tsan.log', encoding='utf-8', errors='replace').read().splitlines()
+
+          starts = [i for i, l in enumerate(lines)
+                    if re.search(r"Test Case '.*' started", l)]
+          if not starts:
+              sys.exit('FAIL: no test case ever started — the run never '
+                       'reached the tests, so TSan proved nothing')
+
+          failures = []
+          for n, i in enumerate(starts):
+              end = starts[n + 1] if n + 1 < len(starts) else len(lines)
+              name = re.search(r"Test Case '(.*)' started", lines[i]).group(1)
+              text = '\n'.join(lines[i:end])
+
+              warnings = re.findall(r'WARNING: ThreadSanitizer: (.*?) \(pid', text)
+              summaries = re.findall(r'SUMMARY: ThreadSanitizer: (.*)', text)
+              for kind in warnings:
+                  if kind != 'data race':
+                      failures.append(name + ': TSan reported something other '
+                                      'than a data race: ' + kind)
+              for s in summaries:
+                  if 'Chiptune.ChipCore.' not in s:
+                      failures.append(name + ': race outside ChipCore: ' + s)
+              for op, size in re.findall(r'(Read|Write) of size (\d+)', text):
+                  if int(size) > 8:
+                      failures.append(name + ': ' + op.lower() + ' of size '
+                                      + size + ' — bigger than a word, torn '
+                                      'reads are possible')
+
+              if re.search(r"Test Case '.*' failed", text):
+                  failures.append(name + ': failed an assertion — that is a '
+                                  'test failure, not a sanitizer report')
+              elif not re.search(r"Test Case '.*' passed", text) and not warnings:
+                  failures.append(name + ': died without a sanitizer report — '
+                                  'the host crashed for some other reason')
+
+          if failures:
+              print('\n'.join(failures))
+              sys.exit('FAIL: see above; full reports are in tsan.log and '
+                       'the tsan-results artifact')
+
+          total = sum(1 for l in lines if 'WARNING: ThreadSanitizer' in l)
+          print('OK: ' + str(len(starts)) + ' test(s) ran, '
+                + str(total) + ' report(s), all inside the contract')
+          EOF
 
       # The whole point of the job is its report, and a launch crash leaves
       # nothing in the console — the result bundle is where the crash log and
