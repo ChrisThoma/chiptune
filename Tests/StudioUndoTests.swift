@@ -28,15 +28,6 @@ final class StudioUndoTests: XCTestCase {
     }
 
     /// `Song`'s own `==` includes `modified`, which moves on every save.
-    private func assertSameSong(_ a: Song, _ b: Song, _ message: String = "",
-                                file: StaticString = #filePath, line: UInt = #line) {
-        var a = a, b = b
-        let epoch = Date(timeIntervalSince1970: 0)
-        a.modified = epoch
-        b.modified = epoch
-        XCTAssertEqual(a, b, message, file: file, line: line)
-    }
-
     // MARK: Basics
 
     func testNothingToUndoOnAFreshSong() {

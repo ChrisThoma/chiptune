@@ -101,6 +101,8 @@ struct SongListView: View {
             }
         }
         .errorAlert("Import failed", message: $studio.importError)
+        // The library shares too, from the row's swipe action.
+        .errorAlert("Share failed", message: $studio.shareError)
         .alert("Rename song", isPresented: Binding(get: { renaming != nil },
                                                    set: { if !$0 { renaming = nil } })) {
             TextField("Name", text: $renameText)

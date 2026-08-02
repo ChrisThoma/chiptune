@@ -171,6 +171,15 @@ final class Studio {
     private var undoStack: [Snapshot] = []
     private var redoStack: [Snapshot] = []
     @ObservationIgnored private var lastCheckpoint: Date?
+    /// The run the last checkpoint belonged to, for key-coalesced edits.
+    @ObservationIgnored private var lastCheckpointRun: CheckpointRun?
+
+    /// A named run of edits that collapses to one undo step regardless of how
+    /// long it takes. Distinct from time coalescing: typing a song name has no
+    /// natural rhythm, so a wall-clock window would split a slow rename in two.
+    enum CheckpointRun {
+        case rename
+    }
 
     /// Edits closer together than this fold into one undo step, so painting a
     /// run of cells is one undo rather than sixteen.
@@ -190,11 +199,20 @@ final class Studio {
     /// snapshot for every push — including the ones undo itself performs, which
     /// corrupts the stack the moment you undo twice.
     ///
-    /// - Parameter coalescing: fold into the previous checkpoint if it was
-    ///   recent. For continuous gestures — painting cells, holding a stepper.
-    func checkpoint(coalescing: Bool = false) {
+    /// - Parameters:
+    ///   - coalescing: fold into the previous checkpoint if it was recent. For
+    ///     continuous gestures — painting cells, holding a stepper.
+    ///   - run: fold into the previous checkpoint if that one belonged to the
+    ///     same named run, however long ago it was. For edits with no rhythm to
+    ///     time out on. Any checkpoint without a `run` ends the run, so a
+    ///     different kind of edit always starts a new undo step.
+    func checkpoint(coalescing: Bool = false, run: CheckpointRun? = nil) {
         let now = Date()
-        if coalescing, !undoStack.isEmpty, let last = lastCheckpoint,
+        if run != nil, run == lastCheckpointRun, !undoStack.isEmpty {
+            lastCheckpoint = now
+            return
+        }
+        if coalescing, run == nil, !undoStack.isEmpty, let last = lastCheckpoint,
            now.timeIntervalSince(last) < undoCoalescingWindow {
             // Roll the window forward so a continuous stroke stays one step
             // however long it goes on.
@@ -208,6 +226,13 @@ final class Studio {
         // A new edit is a new branch; whatever was undone past is gone.
         redoStack.removeAll()
         lastCheckpoint = now
+        lastCheckpointRun = run
+    }
+
+    /// Ends the current named run, so the next edit of that kind starts a fresh
+    /// undo step. Called when the name field gives up focus or is submitted.
+    func endCheckpointRun() {
+        lastCheckpointRun = nil
     }
 
     func undo() {
@@ -238,14 +263,17 @@ final class Studio {
         engine.core.focus(pattern: selectedPattern)
         if !songMode { playingPattern = selectedPattern }
         // The next edit starts a fresh coalescing window rather than folding
-        // itself into whatever was undone.
+        // itself into whatever was undone. Same for a named run: typing after
+        // an undo must not fold into the step the undo just restored.
         lastCheckpoint = nil
+        lastCheckpointRun = nil
     }
 
     private func resetHistory() {
         undoStack.removeAll()
         redoStack.removeAll()
         lastCheckpoint = nil
+        lastCheckpointRun = nil
     }
 
     /// Stops the autosave and playhead timers. Tests call this in `tearDown`;
@@ -642,6 +670,10 @@ final class Studio {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
         if other.id == song.id {
+            // One step, not folded into whatever came before: a rename from the
+            // library is a single deliberate act, unlike typing in the title bar.
+            guard trimmed != song.name else { return }
+            checkpoint()
             song.name = trimmed
             saveNow()
         } else {
@@ -649,6 +681,45 @@ final class Studio {
             copy.name = trimmed
             save(copy, makeCurrent: false)
         }
+    }
+
+    /// Renames the open song as it's typed.
+    ///
+    /// Writes straight through to the model rather than holding a draft in the
+    /// view: undo restores a snapshot of the *same* song, so a view-side draft
+    /// has no id change to resynchronise on and would re-commit the name the
+    /// undo just removed. Keeping the model authoritative also means autosave
+    /// and a background-kill see the name the user can see.
+    ///
+    /// No trimming here — rejecting whitespace mid-word makes a space
+    /// untypeable. `normalizeSongName()` cleans up when editing ends.
+    func setSongName(_ name: String) {
+        guard name != song.name else { return }
+        checkpoint(run: .rename)
+        song.name = name
+    }
+
+    /// Ends a title-bar rename: trims, restores the previous name if what's
+    /// left is empty, and closes the run so the next rename is its own step.
+    func normalizeSongName() {
+        defer { endCheckpointRun() }
+        let trimmed = song.name.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty {
+            // Undoing rather than substituting a placeholder: the name before
+            // the edit is the one the user last chose, and it's already on the
+            // stack.
+            if lastCheckpointRunIsRename { undo() }
+            return
+        }
+        if trimmed != song.name { song.name = trimmed }
+        saveNow()
+    }
+
+    /// True when the top of the undo stack is the open title-bar rename, so
+    /// `normalizeSongName()` knows an `undo()` would land on the old name
+    /// rather than throwing away an unrelated edit.
+    private var lastCheckpointRunIsRename: Bool {
+        lastCheckpointRun == .rename && !undoStack.isEmpty
     }
 
     func delete(_ other: Song) {
@@ -659,6 +730,10 @@ final class Studio {
 
     /// Set when an import fails, for the library to alert on.
     var importError: String?
+    /// Set when preparing a song to share fails. Separate from `importError`
+    /// because the two alert under different titles — a share failure reported
+    /// as "Import failed" is just wrong.
+    var shareError: String?
     /// A `.chipsong` file written out and waiting to be shared.
     var shareURL: URL?
 
@@ -667,8 +742,11 @@ final class Studio {
     func share(_ other: Song) {
         do {
             shareURL = try SongDocument.write(other)
+            // A share that works clears the last one that didn't; otherwise a
+            // stale alert fires on the next unrelated state change.
+            shareError = nil
         } catch {
-            importError = "Couldn't prepare “\(other.name)” to share. \(error.localizedDescription)"
+            shareError = "Couldn't prepare “\(other.name)” to share. \(error.localizedDescription)"
         }
     }
 

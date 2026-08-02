@@ -7,6 +7,7 @@ struct ContentView: View {
     @State private var showingShare = false
     @State private var confirmingClearPattern = false
     @State private var showingExport = false
+    @FocusState private var nameFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -72,6 +73,7 @@ struct ContentView: View {
         .errorAlert("Export failed", message: $studio.exportError)
         .errorAlert("Audio unavailable", message: $studio.audioError)
         .errorAlert("Import failed", message: $studio.importError)
+        .errorAlert("Share failed", message: $studio.shareError)
     }
 
     /// Narrower than the 44pt targets either side of them — two more of those
@@ -92,11 +94,24 @@ struct ContentView: View {
         .accessibilityLabel(label)
     }
 
+    /// Commits whatever is in the name field and closes the undo run, for the
+    /// controls that act on the song while the field still has focus. Calls
+    /// through directly rather than relying on the focus change alone, which
+    /// arrives a beat later than the action that triggered it.
+    private func endRenaming() {
+        guard nameFocused else { return }
+        nameFocused = false
+        studio.normalizeSongName()
+    }
+
     private var titleBar: some View {
         HStack(spacing: 8) {
             // Browsing saved songs used to be buried two levels into the •••
             // menu, which made it feel like the app had no library at all.
             Button {
+                // Before the save, or the library lists the name as it was
+                // before whatever is still being typed in the field.
+                endRenaming()
                 studio.saveNow()
                 showingSongs = true
             } label: {
@@ -109,16 +124,27 @@ struct ContentView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Songs")
 
-            TextField("Song name", text: $studio.song.name)
+            // Bound through `setSongName` rather than at `song.name` directly,
+            // so a rename is one undo step. Reading straight from the model
+            // means an undo of that step shows up in the field immediately.
+            TextField("Song name", text: Binding(get: { studio.song.name },
+                                                 set: { studio.setSongName($0) }))
                 .chipFont(16, weight: .bold)
                 .foregroundStyle(Theme.text)
                 .textInputAutocapitalization(.words)
                 .submitLabel(.done)
+                .focused($nameFocused)
+                .onSubmit { studio.normalizeSongName() }
+                .onChange(of: nameFocused) { _, focused in
+                    if !focused { studio.normalizeSongName() }
+                }
 
+            // Both close any open rename first, so undo lands on the step the
+            // user can see rather than on one still being typed.
             historyButton("arrow.uturn.backward", label: "Undo",
-                          enabled: studio.canUndo) { studio.undo() }
+                          enabled: studio.canUndo) { endRenaming(); studio.undo() }
             historyButton("arrow.uturn.forward", label: "Redo",
-                          enabled: studio.canRedo) { studio.redo() }
+                          enabled: studio.canRedo) { endRenaming(); studio.redo() }
 
             Menu {
                 Button {

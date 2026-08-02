@@ -21,15 +21,6 @@ final class SongDocumentTests: XCTestCase {
         super.tearDown()
     }
 
-    private func assertSameSong(_ a: Song, _ b: Song, _ message: String = "",
-                                file: StaticString = #filePath, line: UInt = #line) {
-        var a = a, b = b
-        let epoch = Date(timeIntervalSince1970: 0)
-        a.modified = epoch
-        b.modified = epoch
-        XCTAssertEqual(a, b, message, file: file, line: line)
-    }
-
     private func makeSong() -> Song {
         var song = Song(name: "Shared")
         song.tempo = 174
@@ -341,5 +332,37 @@ final class StudioImportTests: XCTestCase {
         XCTAssertEqual(receiver.song.name, "Round trip")
         XCTAssertEqual(receiver.song.tempo, 108)
         XCTAssertEqual(receiver.song.patterns[0].rows[1][7], 71)
+    }
+
+    /// Share failures used to land in `importError`, which alerts under
+    /// "Import failed" — the wrong words for a share that couldn't write its
+    /// temp file. The two are separate now, and must stay separate.
+    func testShareFailuresDoNotSurfaceAsImportFailures() throws {
+        // `SongDocument.write` puts each song in its own temp directory. A
+        // regular file sitting at that path makes creating the directory fail,
+        // which is the only way sharing can fail at all.
+        let blocked = FileManager.default.temporaryDirectory
+            .appendingPathComponent("share-\(studio.song.id.uuidString)", isDirectory: false)
+        try? FileManager.default.removeItem(at: blocked)
+        try Data("not a directory".utf8).write(to: blocked)
+        addTeardownBlock { try? FileManager.default.removeItem(at: blocked) }
+
+        studio.share(studio.song)
+
+        XCTAssertNil(studio.shareURL, "nothing was written, so there's nothing to share")
+        XCTAssertNotNil(studio.shareError, "a share that failed must not do so quietly")
+        XCTAssertTrue(studio.shareError?.contains(studio.song.name) ?? false,
+                      "the message should name the song: \(studio.shareError ?? "nil")")
+        XCTAssertNil(studio.importError,
+                     "and it must not raise the alert titled “Import failed”")
+    }
+
+    func testASuccessfulShareClearsAPreviousError() {
+        studio.shareError = "an earlier failure"
+
+        studio.share(studio.song)
+
+        XCTAssertNotNil(studio.shareURL)
+        XCTAssertNil(studio.shareError, "a share that works clears the last one that didn't")
     }
 }

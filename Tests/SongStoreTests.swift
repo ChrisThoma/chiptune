@@ -19,15 +19,6 @@ final class SongStoreTests: XCTestCase {
     }
 
     /// `modified` is excluded: `save` stamps it on the way out, by design.
-    private func assertSameSong(_ a: Song, _ b: Song, file: StaticString = #filePath,
-                                line: UInt = #line) {
-        var a = a, b = b
-        let epoch = Date(timeIntervalSince1970: 0)
-        a.modified = epoch
-        b.modified = epoch
-        XCTAssertEqual(a, b, file: file, line: line)
-    }
-
     // MARK: Round trip
 
     func testSaveAndLoadRoundTripsTheWholeSong() throws {

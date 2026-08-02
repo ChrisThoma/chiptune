@@ -71,6 +71,136 @@ final class SongRenameTests: XCTestCase {
         XCTAssertEqual(song.name, "Padded")
     }
 
+    // MARK: Renaming from the title bar
+    //
+    // The field writes through `setSongName` on every keystroke, so these
+    // spell keystrokes out rather than assigning the finished string — the
+    // thing under test is what the undo stack looks like afterwards.
+
+    private func type(_ name: String) {
+        for end in 1...name.count {
+            studio.setSongName(String(name.prefix(end)))
+        }
+    }
+
+    func testTypedRenameIsOneUndoStep() {
+        studio.song.name = "Old"
+        studio.saveNow()
+
+        type("New name")
+        studio.normalizeSongName()
+        XCTAssertEqual(studio.song.name, "New name")
+
+        studio.undo()
+        XCTAssertEqual(studio.song.name, "Old", "the whole rename undoes at once")
+        XCTAssertFalse(studio.canUndo, "eight keystrokes must not leave eight steps")
+    }
+
+    /// The bug the wall-clock coalescing window would have: a pause mid-word
+    /// splitting one rename into two undo steps. The run is keyed, not timed,
+    /// so shrinking the window to nothing must change nothing.
+    func testAPauseWhileTypingDoesNotSplitTheRename() {
+        studio.undoCoalescingWindow = 0
+        studio.song.name = "Old"
+
+        type("New")
+        studio.setSongName("New name")
+        studio.normalizeSongName()
+
+        studio.undo()
+        XCTAssertEqual(studio.song.name, "Old")
+        XCTAssertFalse(studio.canUndo)
+    }
+
+    func testUndoingARenameCanBeRedone() {
+        studio.song.name = "Old"
+        type("New")
+        studio.normalizeSongName()
+
+        studio.undo()
+        XCTAssertEqual(studio.song.name, "Old")
+        studio.redo()
+        XCTAssertEqual(studio.song.name, "New")
+    }
+
+    /// Two renames with an unrelated edit between them are two steps: the
+    /// intervening checkpoint carries no run, which ends the first one.
+    func testAnInterveningEditClosesTheRenameRun() {
+        studio.song.name = "First"
+        type("Second")
+        studio.addPattern()
+        type("Third")
+
+        studio.undo()
+        XCTAssertEqual(studio.song.name, "Second", "only the second rename undoes")
+    }
+
+    /// Focus loss ends the run too, so renaming twice without touching
+    /// anything else is still two steps.
+    func testEndingTheRunSeparatesConsecutiveRenames() {
+        studio.song.name = "First"
+        type("Second")
+        studio.normalizeSongName()
+        type("Third")
+        studio.normalizeSongName()
+
+        studio.undo()
+        XCTAssertEqual(studio.song.name, "Second")
+        studio.undo()
+        XCTAssertEqual(studio.song.name, "First")
+    }
+
+    func testSettingTheSameNameRecordsNothing() {
+        studio.song.name = "Unchanged"
+        studio.setSongName("Unchanged")
+        XCTAssertFalse(studio.canUndo, "a no-op edit must not push an undo step")
+    }
+
+    /// Trimming happens when editing ends, not per keystroke — trimming as you
+    /// type makes a space untypeable.
+    func testTrailingSpaceSurvivesTypingAndIsTrimmedOnCommit() {
+        studio.song.name = "Old"
+
+        studio.setSongName("Two ")
+        XCTAssertEqual(studio.song.name, "Two ", "mid-word space must survive")
+        studio.setSongName("Two words")
+        studio.normalizeSongName()
+
+        XCTAssertEqual(studio.song.name, "Two words")
+    }
+
+    func testClearingTheNameEntirelyRestoresThePreviousOne() {
+        studio.song.name = "Keep me"
+        studio.saveNow()
+
+        type("X")
+        studio.setSongName("")
+        studio.normalizeSongName()
+
+        XCTAssertEqual(studio.song.name, "Keep me", "a blank name falls back rather than sticking")
+        XCTAssertFalse(studio.canUndo, "and the abandoned rename leaves no step behind")
+    }
+
+    func testCommittedRenameRoundTripsThroughTheStore() throws {
+        let id = studio.song.id
+        type("Persisted")
+        studio.normalizeSongName()
+
+        XCTAssertEqual(try XCTUnwrap(temp.store.load(id: id)).name, "Persisted",
+                       "committing the field saves, under the same id")
+    }
+
+    /// The library's rename dialog goes through `rename(_:to:)`, which is a
+    /// single deliberate act rather than a run — but it must still be undoable.
+    func testLibraryRenameOfTheOpenSongIsUndoable() {
+        studio.song.name = "Old"
+        studio.rename(studio.song, to: "New")
+        XCTAssertEqual(studio.song.name, "New")
+
+        studio.undo()
+        XCTAssertEqual(studio.song.name, "Old")
+    }
+
     func testDeleteRemovesTheSongFromTheLibrary() {
         let song = Song(name: "Doomed")
         temp.save(song)
