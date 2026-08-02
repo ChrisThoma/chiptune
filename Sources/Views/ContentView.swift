@@ -1,5 +1,30 @@
 import SwiftUI
 
+/// Which screen `AppStore/shoot.sh` asked the app to open on launch.
+///
+/// App Store screenshots have to show that the app is more than one screen —
+/// four framings of the grid is the "minimum functionality" impression
+/// `AppStore/REVIEW-NOTES.md` warns about — and the screens worth showing are
+/// two or three taps in. Driving those taps from outside is brittle, so the
+/// shoot passes an argument instead and the app opens the sheet itself.
+///
+/// Launch arguments of the form `-key YES` land in `UserDefaults` for the
+/// launch that passed them and nowhere else, so nothing here persists and no
+/// ordinary launch sees any of it. The bare `-key` form does *not* work: the
+/// value is required, or the argument is ignored and every shot silently comes
+/// out as the grid.
+enum ScreenshotMode {
+    case arrangement, instrument, library
+
+    static var requested: ScreenshotMode? {
+        let defaults = UserDefaults.standard
+        if defaults.bool(forKey: "shotArrangement") { return .arrangement }
+        if defaults.bool(forKey: "shotEditor") { return .instrument }
+        if defaults.bool(forKey: "shotLibrary") { return .library }
+        return nil
+    }
+}
+
 struct ContentView: View {
     @Bindable var studio: Studio
     @State private var showingSongs = false
@@ -7,6 +32,7 @@ struct ContentView: View {
     @State private var showingShare = false
     @State private var confirmingClearPattern = false
     @State private var showingExport = false
+    @State private var showingInstrument = false
     @FocusState private var nameFocused: Bool
 
     var body: some View {
@@ -74,6 +100,19 @@ struct ContentView: View {
         .errorAlert("Audio unavailable", message: $studio.audioError)
         .errorAlert("Import failed", message: $studio.importError)
         .errorAlert("Share failed", message: $studio.shareError)
+        .sheet(isPresented: $showingInstrument) {
+            InstrumentEditor(studio: studio, index: 0)
+        }
+        // Opens whichever screen the screenshot shoot asked for. Inert unless
+        // launched with one of its arguments; see `ScreenshotMode`.
+        .task {
+            switch ScreenshotMode.requested {
+            case .arrangement: showingArrangement = true
+            case .instrument: showingInstrument = true
+            case .library: showingSongs = true
+            case .none: break
+            }
+        }
     }
 
     /// Narrower than the 44pt targets either side of them — two more of those

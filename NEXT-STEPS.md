@@ -1,8 +1,8 @@
 # Next steps
 
-Written at the end of the verification-and-launch-polish branch (168 tests,
-~8 s). This is the engineering follow-on: what that branch left unproven, what
-it deliberately didn't cover, and what was cut.
+Written at the end of the verification-and-launch-polish branch, and updated as
+that work was closed out. This is the engineering follow-on: what was left
+unproven, what is deliberately uncovered, and what was cut.
 
 Submission *mechanics* — developer account, App Store Connect fields, upload —
 are not here. They're in `AppStore/CHECKLIST.md`, which is local-only and
@@ -10,51 +10,74 @@ untracked. This file is about the code.
 
 ---
 
-## 1. Before the branch merges
+## 1. What the first CI run proved
 
-### CI has never actually run
+The branch is merged and the workflow has run (PR #1, 2 August 2026). Both of
+the things it existed to settle came out green.
 
-The workflow is written but no push has exercised it. Two things it will prove
-or disprove on the first run:
+- **The Xcode pin holds.** `Xcode_16.4.app` (build 16F6) is installed on
+  `macos-15` and the simulator discovery picked a device without help. Nothing
+  in `.github/workflows/ci.yml` needed changing.
+- **The golden fixture survives a toolchain change.** This was the expected
+  failure: `Tests/Fixtures/golden-demo.wav` was rendered here under Xcode 26.5
+  and `testGoldenRenderIsUnchanged` compares within ±2 LSB, which is an
+  assertion about the compiler as much as about the code. It passed unchanged
+  under 16.4. The headroom argument turned out to be right — accumulated error
+  around 1e-11 against an LSB of 3e-5 — so the fixture is a genuine
+  cross-toolchain change detector, not a local one.
 
-- **The Xcode pin.** `.github/workflows/ci.yml` pins `Xcode_16.4.app` on
-  `macos-15`. That was chosen for a runner image, not verified against one. The
-  Select Xcode step fails loudly and lists what's installed if the pin is
-  wrong, so a bad pin is a one-line fix rather than a mystery.
-- **Local and CI are on different toolchains.** This machine is on Xcode 26.5;
-  CI is pinned to 16.4. Everything green here was green under 26.5 only.
+If it ever *does* drift, the order that actually works is: measure the drift
+from the failure output, widen the tolerance by the measured amount and write
+that number down, and only then consider a per-toolchain fixture. Regenerating
+locally under the other toolchain does not work — you are there precisely
+because the two disagree by more than the tolerance, so a fixture that suits
+one makes the other fail by the same margin.
 
-Push the branch and read the first run before merging.
+Regenerating at all has two traps worth knowing before you try it. The
+`CHIPTUNE_REGEN_GOLDEN` flag lives on the *shared* scheme (`project.yml`) and
+cannot be passed on the `xcodebuild` command line, because a test bundle hosted
+in the app takes its environment from the scheme. Turn it on, regenerate, then
+turn it off *and check that it is off* — left on, every local run silently
+rewrites the fixture and the test becomes a no-op that can never fail. And
+`testGoldenRenderIsUnchanged` sorts before `testRegenerateGolden`, so the
+regenerating run itself goes red against the stale copy; the run after it is
+the real one.
 
-### The golden fixture is the most likely CI failure
+### What the Thread Sanitizer job actually reports
 
-`Tests/Fixtures/golden-demo.wav` was rendered on this machine, on an arm64
-simulator, under Xcode 26.5, and `testGoldenRenderIsUnchanged` compares against
-it within ±2 LSB. A different toolchain can emit different floating-point code
-— FMA contraction, vectorisation, a different `libm` `tanh`.
+It reports, as designed — but read this before reading the red cross.
 
-The arithmetic says this should hold comfortably: accumulated error is around
-1e-11 against an LSB of 3e-5, three orders of magnitude of headroom even after
-the DC blocker's feedback. But it is the one assertion in the suite that is
-sensitive to the compiler rather than to the code, so if CI fails on exactly
-this test and nothing else, that's why — not a regression.
+Both races it finds are inside `ChipCore`'s word-sized parameter fields, which
+is exactly the contract: a size-8 write to `tempo` in `load(song:)` against a
+size-8 read in `samplesPerStep()`, and a size-4 write to a transport `Int32` in
+`start()` against the matching read in `render`. The function names in the
+stacks are where the *assignment* lives, not evidence of anything bulkier; the
+address in both reports is inside the 160-byte `ChipCore` instance, not the
+pattern array. Nothing is reported outside the contract.
 
-If it does fail, in order of preference:
+**The job is nonetheless not doing what its comment claims.** TSan aborts the
+test host on the first report, and CI declines to relaunch it ("no restart will
+be attempted"), so the job surfaces exactly one race and stops. It cannot be
+"a record of where the unsynchronised accesses are" while it dies at the first
+one. Locally the runner does restart between tests, which is why two reports
+come out here and one comes out there. Fixing that — letting the run continue
+past a report, or splitting the tests so each gets its own launch — is the
+outstanding work on this job. Until then, treat a green TSan job as suspicious
+rather than reassuring: it most likely means the tests never ran.
 
-1. Pin the same Xcode locally and regenerate, so both sides agree.
-2. Widen the tolerance, and write down the measured drift in the commit.
-3. Make CI regenerate rather than compare, keeping only the structural
-   assertions as a gate. This is the weakest option — it converts a change
-   detector into nothing — so take it only if 1 and 2 are impractical.
-
-The structural tests next to it (exact duration from the tempo, per-quarter
-level bounds) are not compiler-sensitive and stay meaningful either way.
-
-### Screenshots are now stale
+### Screenshots are stale, and the shoot script doesn't run
 
 The title bar gained undo and redo buttons, so every App Store screenshot
-showing it is out of date — at minimum `1-grid`, and any other set framing the
-top of the main screen. Recapture with `AppStore/shoot.sh` before submitting.
+framing the top of the main screen is out of date — at minimum `1-grid`.
+
+`AppStore/shoot.sh` cannot be re-run as-is. It resolves its output directory
+and its `make_song.py` seeder through a scratchpad path that no longer exists,
+its usage comment claims three arguments where the code reads two, and — the
+part that would have been silent — the launch arguments it passes for shots 2
+through 4 (`-shotArrangement`, `-shotEditor`, `-shotLibrary`) have never had a
+handler in `Sources/`. Every shot would have come out as the grid, which is
+precisely the "minimum functionality" impression `AppStore/REVIEW-NOTES.md`
+warns about. The script needs repairing before the recapture, not after.
 
 ---
 
@@ -89,47 +112,60 @@ leaves untested, and the manual pass that replaces it.
 
 ## 3. Loose ends in the code
 
-Small, none blocking. Roughly in order of how likely they are to matter.
+### Closed
 
-- **Renaming the song from the title bar isn't undoable.** The `TextField`
-  binds `studio.song.name` directly with no checkpoint, so typing over a name
-  can't be undone. Every other edit can. Either checkpoint it (coalesced, or
-  it's one undo step per keystroke) or decide that's fine and note why.
-- **`Studio.importError` also carries share failures.** One string, two
-  meanings, because share can only fail by failing to write a temp file. If a
-  third use appears, split it.
-- **`assertSameSong` / "equal ignoring `modified`" is copy-pasted** across four
-  test files. Hoist it into `Tests/Support/`.
+- **Renaming is undoable now**, from the title bar and from the library both.
+  Worth knowing why it looks the way it does, because the two obvious
+  implementations are both wrong. Checkpointing per keystroke under the
+  existing time coalescing splits a slow rename in two, since the window is
+  wall-clock and typing a name has no rhythm to stay inside. Holding the text
+  in view state and committing on blur is worse: undo restores a snapshot of
+  the *same* song, so there is no id change for the view to resynchronise on —
+  the field keeps showing the name that was just undone, then commits it back
+  on the next blur and clears the redo stack doing it. So `checkpoint(run:)`
+  coalesces by named run instead of by clock, and the field writes straight
+  through to the model. Trimming happens when editing ends; trimming per
+  keystroke makes a space untypeable.
+- **`shareError` is separate from `importError`.** A share that couldn't write
+  its temp file used to alert under the title "Import failed".
+- **`assertSameSong` is in `Tests/Support/`.** It was in three suites, not
+  four, and they had drifted — one copy had lost its `message` parameter.
+
+### Still open
+
 - **The undo stack holds up to 50 `Song` snapshots.** Copy-on-write makes each
   one cheap when little changed, but a full-size song is ~64 KB of note data,
   so a session of structural edits could hold a few MB. Measure before tuning
-  `undoLimit`; don't guess.
-- **The Thread Sanitizer job reports every run.** That's expected —
-  `ChipCore` is lock-free by contract and TSan can't know the argument. The
-  surprising signal would be it going *quiet*, or reporting somewhere outside
-  ChipCore's word-sized parameter fields.
+  `undoLimit`; don't guess. Measure it under Instruments rather than as an
+  assertion — a retained-bytes test would be a second compiler-sensitive
+  assertion in a suite that deliberately has one.
+- **The Thread Sanitizer job can't see past its first report.** See §1.
 
 ---
 
 ## 4. Deferred post-launch
 
-Cut deliberately, with reasons, not forgotten.
+Cut deliberately, with reasons, not forgotten. Ordered by what to pick up
+first, which is roughly the inverse of blast radius.
 
-- **Stereo / pan export.** Touches `ChipCore.render`'s signature,
-  `AudioEngine.fill`, the WAV writer and the schema, and invalidates the golden
-  fixture. The tempting "pan 0 behaves like the old mono" equivalence does not
-  hold under equal-power panning, so there's no cheap version of this.
-- **XCUITest automation.** See §2.
 - **MIDI export.** An SMF format-1 writer, one MIDI track per chip track, noise
   to channel 10. A pure function with byte-level tests — self-contained and
-  pleasant, just not a launch blocker.
+  pleasant, and the obvious next feature.
+- **Let the TSan job finish.** See §1: it aborts at the first report, so it
+  currently proves less than it looks like it does.
+- **iPad layout.** No longer a decision — `TARGETED_DEVICE_FAMILY` is `"1"` and
+  1.0 ships iPhone-only, on the evidence in `AppStore/screenshots/ipad-13/`: a
+  16-step pattern fills the grid and leaves a dead band under it. A native
+  layout is a 1.1 feature.
 - **Background-audio mode.** `stopEngineIfIdle()` currently stops the engine on
   backgrounding. Declaring `UIBackgroundModes: audio` is a product decision
   (playback continuing with the screen off) rather than a bug fix.
-- **iPad layout.** `AppStore/REVIEW-NOTES.md` rates this the single most likely
-  cause of rejection: the build is iPhone-only and portrait-locked, and iPadOS
-  windows everything. Decide before submitting — handle the sizes, or ship
-  iPhone-only deliberately.
+- **XCUITest automation.** See §2.
+- **Stereo / pan export.** Last, because it touches the most: `ChipCore.render`'s
+  signature, `AudioEngine.fill`, the WAV writer and the schema, and it
+  invalidates the golden fixture. The tempting "pan 0 behaves like the old mono"
+  equivalence does not hold under equal-power panning, so there is no cheap
+  version of this.
 
 ---
 
