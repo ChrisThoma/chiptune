@@ -74,14 +74,17 @@ where the *assignment* lives, not evidence of anything bulkier; the address in
 both reports is inside the 160-byte `ChipCore` instance, not the pattern
 array. Nothing is reported outside the contract.
 
-**One caveat survives from the earlier reading, locally verified:** TSan
-aborts the test host on the first report, so a single run surfaces one race
-and stops; locally the runner relaunches between tests, which is how two
-reports come out. Whether CI relaunches the host the same way is untested —
-the first run with a working destination will say. Until the job demonstrably
-runs to completion, treat a green TSan job as suspicious rather than
-reassuring, and letting the run continue past a report — or splitting the
-tests so each gets its own launch — remains the outstanding work.
+With the host surviving launch, the job ran end to end for the first time
+(run of 2 August 2026, after the `isTestHost` fix): both tests executed, each
+surfaced its documented race, and CI *does* relaunch the host between tests —
+"Restarting after unexpected exit" — with the final relaunch finding zero
+tests left. So the job is now the record its comment claims, with one
+structural limit: TSan still aborts the host on the first report within a
+test, so each test surfaces at most one race. That is fine while each test
+exercises one contract; keep it that way when adding to the suite. The red
+cross on the job is the designed outcome. A *green* TSan job now means TSan
+reported nothing — which, while the lock-free contract stands, is itself
+surprising and worth a look at whether the tests really ran.
 
 ### Screenshots are stale, and the shoot script doesn't run
 
@@ -148,6 +151,10 @@ leaves untested, and the manual pass that replaces it.
   its temp file used to alert under the title "Import failed".
 - **`assertSameSong` is in `Tests/Support/`.** It was in three suites, not
   four, and they had drifted — one copy had lost its `message` parameter.
+- **The Thread Sanitizer job runs its tests now.** It never had: the app host
+  booted its own `Studio` under tests, and CoreAudio init under TSan's
+  slowdown aborted the host before any test started. See §1 for the full
+  story and the one limit that remains (one report per test).
 
 ### Still open
 
@@ -157,7 +164,6 @@ leaves untested, and the manual pass that replaces it.
   `undoLimit`; don't guess. Measure it under Instruments rather than as an
   assertion — a retained-bytes test would be a second compiler-sensitive
   assertion in a suite that deliberately has one.
-- **The Thread Sanitizer job can't see past its first report.** See §1.
 
 ---
 
@@ -169,8 +175,6 @@ first, which is roughly the inverse of blast radius.
 - **MIDI export.** An SMF format-1 writer, one MIDI track per chip track, noise
   to channel 10. A pure function with byte-level tests — self-contained and
   pleasant, and the obvious next feature.
-- **Let the TSan job finish.** See §1: it aborts at the first report, so it
-  currently proves less than it looks like it does.
 - **iPad layout.** No longer a decision — `TARGETED_DEVICE_FAMILY` is `"1"` and
   1.0 ships iPhone-only, on the evidence in `AppStore/screenshots/ipad-13/`: a
   16-step pattern fills the grid and leaves a dead band under it. A native
