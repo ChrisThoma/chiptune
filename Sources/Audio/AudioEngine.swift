@@ -3,30 +3,67 @@ import AVFoundation
 /// Wraps AVAudioEngine and feeds it from `ChipCore`.
 final class AudioEngine {
     let core: ChipCore
-    private let engine = AVAudioEngine()
+
+    /// Replaced wholesale when the media server restarts — every node in a
+    /// graph is invalid after that, so the graph is rebuilt rather than patched.
+    private var engine = AVAudioEngine()
     private var sourceNode: AVAudioSourceNode?
     private var running = false
 
-    init() {
-        let sampleRate = 44100.0
-        core = ChipCore(sampleRate: sampleRate)
+    /// Why the last `startIfNeeded()` failed, for the UI to show. The engine
+    /// stays UI-free; this is a value the caller reads, not a message it prints.
+    private(set) var lastError: Error?
 
-        let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2)!
+    private static let sampleRate = 44100.0
+    private static let scratchLength = 4096
+
+    /// Sized for the largest render slice we expect. Owned by the engine rather
+    /// than by the graph so rebuilding the graph doesn't leak one buffer per
+    /// rebuild — the render callback captures this pointer and must not
+    /// allocate, so it can't be created per-callback either.
+    private let scratch: UnsafeMutablePointer<Float>
+
+    init() {
+        core = ChipCore(sampleRate: AudioEngine.sampleRate)
+        scratch = .allocate(capacity: AudioEngine.scratchLength)
+        scratch.initialize(repeating: 0, count: AudioEngine.scratchLength)
+        buildEngine()
+    }
+
+    deinit {
+        scratch.deallocate()
+    }
+
+    /// Builds a fresh engine and source node around the existing core.
+    ///
+    /// Called once at init, and again when the system tells us the media
+    /// services were reset: at that point every node, and the engine itself,
+    /// is dead, and nothing short of a new graph brings audio back.
+    func buildEngine() {
+        engine.stop()
+        if let node = sourceNode {
+            engine.detach(node)
+        }
+        running = false
+
+        let engine = AVAudioEngine()
+        let format = AVAudioFormat(standardFormatWithSampleRate: AudioEngine.sampleRate,
+                                   channels: 2)!
         let core = self.core
-        // Scratch buffer sized for the largest render slice we expect; the
-        // callback must not allocate, so it is created once here.
-        let scratch = UnsafeMutablePointer<Float>.allocate(capacity: 4096)
-        scratch.initialize(repeating: 0, count: 4096)
+        let scratch = self.scratch
+        let scratchLength = AudioEngine.scratchLength
 
         let node = AVAudioSourceNode(format: format) { _, _, frameCount, audioBufferList -> OSStatus in
             AudioEngine.fill(audioBufferList, frames: Int(frameCount),
-                             from: core, scratch: scratch, scratchLen: 4096)
+                             from: core, scratch: scratch, scratchLen: scratchLength)
             return noErr
         }
 
-        sourceNode = node
         engine.attach(node)
         engine.connect(node, to: engine.mainMixerNode, format: format)
+
+        self.engine = engine
+        self.sourceNode = node
     }
 
     /// Fills every buffer in a Core Audio buffer list from the core, rendering
@@ -54,8 +91,13 @@ final class AudioEngine {
     }
 
     /// Configures the session and starts the engine. Safe to call repeatedly.
-    func startIfNeeded() {
-        guard !running else { return }
+    ///
+    /// - Returns: whether audio is running. A caller that flips a PLAY button
+    ///   on the strength of this must check it — the button going green over
+    ///   silence is worse than an error.
+    @discardableResult
+    func startIfNeeded() -> Bool {
+        guard !running else { return true }
         do {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playback, mode: .default)
@@ -63,8 +105,12 @@ final class AudioEngine {
             engine.prepare()
             try engine.start()
             running = true
+            lastError = nil
+            return true
         } catch {
-            print("Audio engine failed to start: \(error)")
+            lastError = error
+            running = false
+            return false
         }
     }
 
@@ -73,4 +119,6 @@ final class AudioEngine {
         engine.stop()
         running = false
     }
+
+    var isRunning: Bool { running }
 }

@@ -59,6 +59,31 @@ struct Instrument: Codable, Equatable {
     static let dutyCycles: [Double] = [0.125, 0.25, 0.5, 0.75]
     static let dutyLabels = ["12%", "25%", "50%", "75%"]
 
+    /// Widest arpeggio offset a file may declare, in semitones — four octaves
+    /// either way, far past anything musical and far short of anything that
+    /// overflows the frequency maths.
+    static let maxArpeggioSemitones = 48
+    /// The core reads at most this many offsets; the rest are dead weight.
+    static let maxArpeggioSteps = 4
+
+    /// Forces every field back into the range the synth can actually play.
+    ///
+    /// The UI can't produce a bad instrument — its controls are all bounded —
+    /// but a `.chipsong` file is arbitrary JSON from wherever the user got it,
+    /// and the numbers here reach the DSP directly. An unclamped arpeggio
+    /// offset is the sharp edge: `pow(2, semitones / 12)` goes to infinity, the
+    /// voice's phase increment becomes infinite, its output becomes NaN, and
+    /// the master DC blocker feeds that NaN back into itself forever — one bad
+    /// file and the app is silent until it's relaunched.
+    mutating func normalize() {
+        duty = min(max(duty, 0), Instrument.dutyCycles.count - 1)
+        volume = volume.isFinite ? min(max(volume, 0), 1) : 0.8
+        decay = decay.isFinite ? min(max(decay, 0.01), 4.0) : 0.35
+        arpeggio = arpeggio.prefix(Instrument.maxArpeggioSteps).map {
+            min(max($0, -Instrument.maxArpeggioSemitones), Instrument.maxArpeggioSemitones)
+        }
+    }
+
     static func `default`(for kind: ChannelKind) -> Instrument {
         switch kind {
         case .pulse1: return Instrument(duty: 2, volume: 0.8, decay: 0.35)
@@ -245,9 +270,13 @@ struct Song: Codable, Equatable, Identifiable {
     // MARK: Invariants
 
     mutating func normalize() {
-        tempo = min(max(tempo, 40), 300)
+        // Not just a clamp: `min`/`max` pass NaN straight through, and the
+        // sequencer converts the tempo to an Int32 sample count — which traps
+        // on a NaN rather than merely sounding wrong.
+        tempo = tempo.isFinite ? min(max(tempo, 40), 300) : 120
         if tracks.isEmpty { tracks = ChannelKind.allCases.map { Track(kind: $0) } }
         if tracks.count > Chip.maxTracks { tracks = Array(tracks.prefix(Chip.maxTracks)) }
+        for i in tracks.indices { tracks[i].instrument.normalize() }
 
         if patterns.isEmpty { patterns = [Pattern(name: "A", length: 16, trackCount: tracks.count)] }
         if patterns.count > Chip.maxPatterns { patterns = Array(patterns.prefix(Chip.maxPatterns)) }

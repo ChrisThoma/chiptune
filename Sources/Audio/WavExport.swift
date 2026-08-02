@@ -1,23 +1,76 @@
 import Foundation
 
+/// How the exported file should be shaped.
+struct ExportOptions: Equatable, Sendable {
+    enum TailMode: Equatable, Sendable {
+        /// The file is exactly `loopCount` passes long and its final notes'
+        /// ring-out is folded over its own start, so playing it on repeat is
+        /// indistinguishable from the sequencer running on.
+        case seamlessLoop
+        /// The file runs `loopCount` passes and then keeps going in silence
+        /// while the last notes decay, ending on nothing. What you want when
+        /// the file is the finished thing rather than a loop to drop into
+        /// something else.
+        case ringOut
+    }
+
+    /// Passes of the whole arrangement.
+    var loopCount: Int = 1
+    var tailMode: TailMode = .seamlessLoop
+
+    static let maxLoopCount = 16
+
+    var clamped: ExportOptions {
+        var copy = self
+        copy.loopCount = min(max(loopCount, 1), ExportOptions.maxLoopCount)
+        return copy
+    }
+}
+
+/// The outcome of an export. Cancelling is not failing: the UI must not show
+/// an error for a file the user decided they didn't want.
+enum ExportResult: Sendable {
+    case success(URL)
+    case cancelled
+    case failed
+}
+
+/// Everything one export needs. Bundled into a struct so the injectable
+/// renderer stays a one-argument function as it grows.
+struct ExportRequest: Sendable {
+    var song: Song
+    var options: ExportOptions = ExportOptions()
+    /// Called with 0...1 as the render proceeds, on the rendering thread.
+    var progress: @Sendable (Double) -> Void = { _ in }
+    /// Polled at chunk boundaries. Returning true abandons the render.
+    var isCancelled: @Sendable () -> Bool = { false }
+}
+
 /// Renders a song offline and writes it out as a 16-bit mono WAV.
 enum WavExport {
     static let sampleRate = 44100.0
     private static let chunk = 4096
+    /// How long the last notes are given to decay past the end.
+    private static let tailSeconds = 1.0
 
-    /// Renders the whole arrangement exactly once, as a seamless loop: the file is
-    /// precisely one pass long and its final notes ring on into its own start, so
-    /// playing it on repeat is indistinguishable from the sequencer running on.
+    /// The simple entry point: one pass, seamless loop, no progress, no cancel.
+    /// This is what the plain "Export WAV" menu item has always done.
+    static func render(song: Song) -> URL? {
+        guard case .success(let url) = render(ExportRequest(song: song)) else { return nil }
+        return url
+    }
+
+    /// Renders `request` and writes the WAV.
     ///
     /// The render is memory-bounded: a max-length arrangement at low BPM runs to
     /// hundreds of MB of floats, so everything past the first second streams
     /// through a raw temp file instead of living in one giant buffer. Only the
-    /// opening stretch stays resident, because the tail folds over it.
-    ///
-    /// - Returns: the URL of the written file, or nil if writing failed.
-    static func render(song: Song) -> URL? {
-        var song = song
+    /// opening stretch stays resident, and only when the tail folds over it.
+    static func render(_ request: ExportRequest) -> ExportResult {
+        var song = request.song
         song.normalize()
+        let options = request.options.clamped
+        let folding = options.tailMode == .seamlessLoop
 
         let core = ChipCore(sampleRate: sampleRate)
         core.load(song: song)
@@ -25,31 +78,45 @@ enum WavExport {
         core.start()
 
         let samplesPerStep = Int((sampleRate * 60.0 / (song.tempo * 4.0)).rounded())
-        let loopSamples = samplesPerStep * max(song.arrangementSteps, 1)
-        // Rendered past the end so the final note's decay isn't clipped off, then
-        // folded back over the start rather than left as trailing silence.
-        let tail = Int(sampleRate)
+        let onePass = samplesPerStep * max(song.arrangementSteps, 1)
+        // The chain wraps on its own, so N passes are just a longer render.
+        let bodySamples = onePass * options.loopCount
+        let tail = Int(sampleRate * tailSeconds)
+
+        // Progress covers the body and the tail, which is the whole render.
+        let totalFrames = bodySamples + tail
+        var reported = -1.0
+        func report(_ done: Int) {
+            let fraction = min(Double(done) / Double(max(totalFrames, 1)), 1.0)
+            // At most a hundred hops to the main actor, rather than one per
+            // 4096 samples.
+            guard fraction - reported >= 0.01 || fraction >= 1.0 else { return }
+            reported = fraction
+            request.progress(fraction)
+        }
 
         let fm = FileManager.default
         let rawURL = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".raw")
         guard fm.createFile(atPath: rawURL.path, contents: nil),
-              let raw = try? FileHandle(forWritingTo: rawURL) else { return nil }
+              let raw = try? FileHandle(forWritingTo: rawURL) else { return .failed }
         defer { try? fm.removeItem(at: rawURL) }
 
         // The stretch the tail folds over. Kept in memory; everything after it
         // goes straight to the raw file. Wraps in case a very short song runs
-        // shorter than the tail itself.
-        let headLen = min(tail, loopSamples)
+        // shorter than the tail itself. Ring-out folds nothing, so it keeps
+        // nothing resident.
+        let headLen = folding ? min(tail, bodySamples) : 0
         var head = [Float](repeating: 0, count: headLen)
         var bodyPeak: Float = 0
 
         var scratch = [Float](repeating: 0, count: chunk)
-        var renderOK = true
+        var outcome: ExportResult? = nil
         scratch.withUnsafeMutableBufferPointer { buf in
-            guard let base = buf.baseAddress else { renderOK = false; return }
+            guard let base = buf.baseAddress else { outcome = .failed; return }
             var written = 0
-            while written < loopSamples {
-                let n = min(chunk, loopSamples - written)
+            while written < bodySamples {
+                if request.isCancelled() { outcome = .cancelled; return }
+                let n = min(chunk, bodySamples - written)
                 core.render(frames: n, into: base)
                 let inHead = max(0, min(n, headLen - written))
                 for i in 0..<inHead { head[written + i] = base[i] }
@@ -58,37 +125,42 @@ enum WavExport {
                     let bytes = Data(bytes: base + inHead,
                                      count: (n - inHead) * MemoryLayout<Float>.size)
                     do { try raw.write(contentsOf: bytes) } catch {
-                        renderOK = false
+                        outcome = .failed
                         return
                     }
                 }
                 written += n
+                report(written)
+            }
+
+            // The tail runs with the sequencer stopped so nothing new is
+            // triggered while the envelopes ring out.
+            core.finish()
+            var done = 0
+            while done < tail {
+                if request.isCancelled() { outcome = .cancelled; return }
+                let n = min(chunk, tail - done)
+                core.render(frames: n, into: base)
+                if folding {
+                    // Fold over the start: played on repeat, the file's last
+                    // notes ring on into its beginning exactly as they would
+                    // have if the sequencer had kept running — a seamless loop
+                    // with no trailing dead air.
+                    for i in 0..<n where headLen > 0 { head[(done + i) % headLen] += base[i] }
+                } else {
+                    for i in 0..<n { bodyPeak = max(bodyPeak, abs(base[i])) }
+                    let bytes = Data(bytes: base, count: n * MemoryLayout<Float>.size)
+                    do { try raw.write(contentsOf: bytes) } catch {
+                        outcome = .failed
+                        return
+                    }
+                }
+                done += n
+                report(bodySamples + done)
             }
         }
         try? raw.close()
-        guard renderOK else { return nil }
-
-        // The tail runs with the sequencer stopped so nothing new is triggered
-        // while the envelopes ring out. A second of mono floats is small enough
-        // to hold whole.
-        core.finish()
-        var tailBuf = [Float](repeating: 0, count: tail)
-        tailBuf.withUnsafeMutableBufferPointer { buf in
-            guard let base = buf.baseAddress else { return }
-            var done = 0
-            while done < tail {
-                let n = min(chunk, tail - done)
-                core.render(frames: n, into: base + done)
-                done += n
-            }
-        }
-
-        // Fold the tail over the start. Played on repeat, the file's last notes
-        // ring on into the beginning exactly as they would have if the sequencer
-        // had kept running — a seamless loop with no trailing dead air.
-        for i in 0..<tail {
-            head[i % headLen] += tailBuf[i]
-        }
+        if let outcome { return outcome }
 
         // Summing the overlap can push it past full scale. Scale the whole file
         // rather than letting the write clamp it: clamping would distort only the
@@ -97,11 +169,17 @@ enum WavExport {
         for s in head { peak = max(peak, abs(s)) }
         let scale: Float = peak > 1 ? 1 / peak : 1
 
-        return writeWav(head: head,
-                        bodyURL: rawURL,
-                        bodySamples: loopSamples - headLen,
-                        scale: scale,
-                        to: filename(for: song))
+        // Ring-out keeps the tail as trailing audio; the seamless loop folded
+        // it into the head and the file stops at the end of the last pass.
+        let streamed = (bodySamples - headLen) + (folding ? 0 : tail)
+        let result = writeWav(head: head,
+                              bodyURL: rawURL,
+                              bodySamples: streamed,
+                              scale: scale,
+                              isCancelled: request.isCancelled,
+                              to: filename(for: song))
+        if case .success = result { report(totalFrames) }
+        return result
     }
 
     private static func filename(for song: Song) -> URL {
@@ -121,7 +199,9 @@ enum WavExport {
     /// Streams the folded head plus the raw body file out as a WAV, converting
     /// to 16-bit in chunks so the whole song is never in memory twice.
     private static func writeWav(head: [Float], bodyURL: URL, bodySamples: Int,
-                                 scale: Float, to url: URL) -> URL? {
+                                 scale: Float,
+                                 isCancelled: @Sendable () -> Bool,
+                                 to url: URL) -> ExportResult {
         let totalSamples = head.count + bodySamples
         let channels: UInt16 = 1
         let bitsPerSample: UInt16 = 16
@@ -154,7 +234,14 @@ enum WavExport {
         let fm = FileManager.default
         try? fm.removeItem(at: url)
         guard fm.createFile(atPath: url.path, contents: nil),
-              let out = try? FileHandle(forWritingTo: url) else { return nil }
+              let out = try? FileHandle(forWritingTo: url) else { return .failed }
+
+        /// A half-written WAV left on disk is worse than no file — it would
+        /// show up in the share sheet and play as noise.
+        func discard() {
+            try? out.close()
+            try? fm.removeItem(at: url)
+        }
 
         do {
             try out.write(contentsOf: header)
@@ -165,6 +252,10 @@ enum WavExport {
                 defer { try? body.close() }
                 var remaining = bodySamples
                 while remaining > 0 {
+                    if isCancelled() {
+                        discard()
+                        return .cancelled
+                    }
                     let n = min(1 << 16, remaining)
                     guard let bytes = try body.read(upToCount: n * MemoryLayout<Float>.size),
                           !bytes.isEmpty, bytes.count % MemoryLayout<Float>.size == 0 else {
@@ -181,12 +272,10 @@ enum WavExport {
                 }
             }
             try out.close()
-            return url
+            return .success(url)
         } catch {
-            print("WAV export failed: \(error)")
-            try? out.close()
-            try? fm.removeItem(at: url)
-            return nil
+            discard()
+            return .failed
         }
     }
 

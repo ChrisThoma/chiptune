@@ -258,11 +258,16 @@ final class ChipCore {
         let arp = inst.arpeggio.prefix(4)
         p.arpCount = Int32(arp.count)
         for (i, semi) in arp.enumerated() {
+            // `Int32(_:)` traps on anything that doesn't fit, so a file with a
+            // wild offset would crash here rather than merely sound wrong.
+            // `Instrument.normalize` clamps these to ±48 long before they
+            // arrive; the saturating conversion is the belt to that's braces.
+            let value = Int32(clamping: semi)
             switch i {
-            case 0: p.arp0 = Int32(semi)
-            case 1: p.arp1 = Int32(semi)
-            case 2: p.arp2 = Int32(semi)
-            default: p.arp3 = Int32(semi)
+            case 0: p.arp0 = value
+            case 1: p.arp1 = value
+            case 2: p.arp2 = value
+            default: p.arp3 = value
             }
         }
         params[track] = p
@@ -514,6 +519,18 @@ final class ChipCore {
             var mix = 0.0
             for c in 0..<tracks { mix += voiceSample(c) }
             mix *= gain * masterVolume
+
+            // The DC blocker below feeds `dcY` back into itself, so a single
+            // non-finite sample reaching it doesn't glitch — it latches, and
+            // the app outputs NaN until it's relaunched. `Instrument.normalize`
+            // is what stops such a sample existing; this is the backstop that
+            // keeps a miss to one bad buffer instead of a dead audio engine.
+            if !mix.isFinite {
+                mix = 0
+                lpState = 0
+                dcX = 0
+                dcY = 0
+            }
 
             // Gentle lowpass, DC blocker, then a soft clip so stacked channels
             // never crack.

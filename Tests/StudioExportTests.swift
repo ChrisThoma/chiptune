@@ -8,6 +8,16 @@ import AVFoundation
 @MainActor
 final class StudioExportTests: XCTestCase {
 
+    /// Every `Studio` here goes through a temp store with autosave off. The
+    /// default store writes real Documents files and `UserDefaults.standard`,
+    /// which would leak this suite's songs into every other suite's `loadAll`
+    /// and make the order tests run in matter.
+    private func makeStudio() -> Studio {
+        let studio = Studio(store: makeTempStore().store, autosaveEnabled: false)
+        addTeardownBlock { @MainActor in studio.invalidateTimers() }
+        return studio
+    }
+
     private func waitForExport(_ studio: Studio, timeout: TimeInterval = 60) {
         let done = expectation(description: "export finishes")
         let timer = Timer(timeInterval: 0.05, repeats: true) { _ in
@@ -21,7 +31,7 @@ final class StudioExportTests: XCTestCase {
     }
 
     func testExportRunsAsyncAndPublishesAPlayableFile() throws {
-        let studio = Studio()
+        let studio = makeStudio()
         studio.exportURL = URL(fileURLWithPath: "/stale/from/last/time.wav")
 
         studio.export()
@@ -41,7 +51,7 @@ final class StudioExportTests: XCTestCase {
     }
 
     func testSecondExportWhileBusyIsIgnored() {
-        let studio = Studio()
+        let studio = makeStudio()
         studio.export()
         XCTAssertTrue(studio.isExporting)
 
@@ -51,5 +61,20 @@ final class StudioExportTests: XCTestCase {
 
         waitForExport(studio)
         XCTAssertNotNil(studio.exportURL)
+    }
+
+    /// The injected renderer is the seam the error-surfacing tests lean on, so
+    /// it has to be what export actually calls — not a field that quietly goes
+    /// unread while `WavExport` runs regardless.
+    func testExportUsesTheInjectedRenderer() throws {
+        let studio = makeStudio()
+        let standIn = FileManager.default.temporaryDirectory
+            .appendingPathComponent("injected-\(UUID().uuidString).wav")
+        studio.renderer = { _ in .success(standIn) }
+
+        studio.export()
+        waitForExport(studio)
+
+        XCTAssertEqual(studio.exportURL, standIn)
     }
 }

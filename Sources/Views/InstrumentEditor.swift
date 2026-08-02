@@ -5,6 +5,8 @@ struct InstrumentEditor: View {
     @Bindable var studio: Studio
     let index: Int
     @Environment(\.dismiss) private var dismiss
+    @State private var confirmingClear = false
+    @State private var confirmingDelete = false
 
     private var kind: ChannelKind { studio.song.tracks[safe: index]?.kind ?? .pulse1 }
     private var accent: Color { Theme.color(for: kind) }
@@ -99,16 +101,11 @@ struct InstrumentEditor: View {
                     // Notes live in patterns, so this only empties the one on
                     // screen — the other patterns keep their part.
                     Button("Clear this track in pattern \(studio.pattern.name)", role: .destructive) {
-                        studio.clearTrack(index)
+                        confirmingClear = true
                     }
 
                     Button("Delete track", role: .destructive) {
-                        // Dismiss first and remove on the next main-actor turn,
-                        // so SwiftUI never re-renders this sheet's bindings
-                        // against the deleted index.
-                        dismiss()
-                        let i = index
-                        DispatchQueue.main.async { studio.removeTrack(at: i) }
+                        confirmingDelete = true
                     }
                     .disabled(studio.song.tracks.count <= 1)
                 } footer: {
@@ -128,6 +125,27 @@ struct InstrumentEditor: View {
                     Button("Done") { dismiss() }.tint(accent)
                 }
             }
+            .confirmationDialog("Clear this track in pattern \(studio.pattern.name)?",
+                                isPresented: $confirmingClear, titleVisibility: .visible) {
+                Button("Clear track", role: .destructive) { studio.clearTrack(index) }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Its notes in the other patterns are left alone.")
+            }
+            .confirmationDialog("Delete \(studio.song.fullLabel(for: index))?",
+                                isPresented: $confirmingDelete, titleVisibility: .visible) {
+                Button("Delete track", role: .destructive) {
+                    // Dismiss first and remove on the next main-actor turn, so
+                    // SwiftUI never re-renders this sheet's bindings against
+                    // the deleted index.
+                    dismiss()
+                    let i = index
+                    DispatchQueue.main.async { studio.removeTrack(at: i) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Its notes in every pattern go with it. This can't be undone.")
+            }
     }
 
     /// Binding into the edited track's instrument that survives the track
@@ -139,6 +157,10 @@ struct InstrumentEditor: View {
             get: { studio.song.tracks[safe: index]?.instrument[keyPath: keyPath] ?? fallback },
             set: { newValue in
                 guard studio.song.tracks.indices.contains(index) else { return }
+                // Before the write, so undo restores the sound as it was.
+                // Coalesced: a slider drag is a stream of writes and should be
+                // one undo, not one per pixel.
+                studio.checkpoint(coalescing: true)
                 studio.song.tracks[index].instrument[keyPath: keyPath] = newValue
                 studio.pushInstrument(index)
             })
