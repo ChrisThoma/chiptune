@@ -43,22 +43,35 @@ jobs:
 
       # Fresh runners don't necessarily have any particular device, so the
       # destination is discovered rather than hardcoded — `name=iPhone 15` is a
-      # build failure the day the image drops that model.
+      # build failure the day the image drops that model. Discovery is capped
+      # at the selected Xcode's SDK version: the image also carries much newer
+      # runtimes (iOS 26.x next to Xcode 16.4's 18.5), and while a plain test
+      # run tolerates that gap, TSan's injected runtime does not — it aborts
+      # the app host at launch. Both jobs use the same cap so they test the
+      # same OS.
       - name: Resolve simulator destination
         id: sim
         run: |
-          udid=$(xcrun simctl list devices available -j | python3 -c "
-          import json, sys
+          sdk=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          udid=$(xcrun simctl list devices available -j | SDK_VERSION="$sdk" python3 -c "
+          import json, os, sys
+          sdk = tuple(int(p) for p in os.environ['SDK_VERSION'].split('.'))
           runtimes = json.load(sys.stdin)['devices']
-          ios = sorted((k for k in runtimes if 'iOS' in k), reverse=True)
+          def version(key):
+              return tuple(int(p) for p in key.split('iOS-')[1].split('-'))
+          ios = sorted((k for k in runtimes if 'iOS-' in k), key=version, reverse=True)
           for runtime in ios:
+              if version(runtime) > sdk:
+                  continue
               for device in runtimes[runtime]:
                   if device.get('isAvailable') and 'iPhone' in device['name']:
                       print(device['udid']); sys.exit(0)
-          sys.exit('no available iPhone simulator')
+          sys.exit('no available iPhone simulator at or below iOS '
+                   + os.environ['SDK_VERSION'] + '; runtimes present: '
+                   + ', '.join(sorted(runtimes)))
           ")
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
-          echo "Using simulator $udid"
+          echo "Using simulator $udid (SDK $sdk)"
 
       - name: Test
         run: |
@@ -124,20 +137,33 @@ jobs:
       - name: Generate project
         run: xcodegen generate
 
+      # Same cap as the unit-test job, and here it is load-bearing: Xcode
+      # 16.4's TSan runtime injected into an iOS 26.x simulator process
+      # aborted the app host at launch, before any test ran — both early runs
+      # of this job died that way, with no sanitizer report at all.
       - name: Resolve simulator destination
         id: sim
         run: |
-          udid=$(xcrun simctl list devices available -j | python3 -c "
-          import json, sys
+          sdk=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          udid=$(xcrun simctl list devices available -j | SDK_VERSION="$sdk" python3 -c "
+          import json, os, sys
+          sdk = tuple(int(p) for p in os.environ['SDK_VERSION'].split('.'))
           runtimes = json.load(sys.stdin)['devices']
-          ios = sorted((k for k in runtimes if 'iOS' in k), reverse=True)
+          def version(key):
+              return tuple(int(p) for p in key.split('iOS-')[1].split('-'))
+          ios = sorted((k for k in runtimes if 'iOS-' in k), key=version, reverse=True)
           for runtime in ios:
+              if version(runtime) > sdk:
+                  continue
               for device in runtimes[runtime]:
                   if device.get('isAvailable') and 'iPhone' in device['name']:
                       print(device['udid']); sys.exit(0)
-          sys.exit('no available iPhone simulator')
+          sys.exit('no available iPhone simulator at or below iOS '
+                   + os.environ['SDK_VERSION'] + '; runtimes present: '
+                   + ', '.join(sorted(runtimes)))
           ")
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          echo "Using simulator $udid (SDK $sdk)"
 
       - name: Test with TSan
         run: |
@@ -147,4 +173,16 @@ jobs:
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -enableThreadSanitizer YES \
             -only-testing:ChiptuneTests/ChipCoreConcurrencyTests \
+            -resultBundlePath TSanResults.xcresult \
             CODE_SIGNING_ALLOWED=NO
+
+      # The whole point of the job is its report, and a launch crash leaves
+      # nothing in the console — the result bundle is where the crash log and
+      # any runtime issues actually live.
+      - name: Upload result bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tsan-results
+          path: TSanResults.xcresult
+          retention-days: 7

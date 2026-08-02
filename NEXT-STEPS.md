@@ -16,8 +16,9 @@ The branch is merged and the workflow has run (PR #1, 2 August 2026). Both of
 the things it existed to settle came out green.
 
 - **The Xcode pin holds.** `Xcode_16.4.app` (build 16F6) is installed on
-  `macos-15` and the simulator discovery picked a device without help. Nothing
-  in `.github/workflows/ci.yml` needed changing.
+  `macos-15` and the simulator discovery picked a device without help — though
+  "a device" turned out to be the wrong one for the TSan job; see below. The
+  resolver now caps discovery at the pinned toolchain's SDK version.
 - **The golden fixture survives a toolchain change.** This was the expected
   failure: `Tests/Fixtures/golden-demo.wav` was rendered here under Xcode 26.5
   and `testGoldenRenderIsUnchanged` compares within ±2 LSB, which is an
@@ -45,25 +46,35 @@ the real one.
 
 ### What the Thread Sanitizer job actually reports
 
-It reports, as designed — but read this before reading the red cross.
+An earlier revision of this section read the first run's failure as TSan
+aborting on its first race report. The log says otherwise: the host crashed
+with SIGABRT *before starting test execution*, with no sanitizer report at
+all. **On CI the TSan tests had never run.** The cause was a toolchain/runtime
+mismatch — the destination resolver picked the newest simulator runtime on the
+runner (iOS 26.2) while the job builds with pinned Xcode 16.4 (iOS 18.5 SDK).
+A plain test run tolerates that gap; TSan's injected runtime, which intercepts
+libsystem internals, aborts the app host at launch. Fixed by capping simulator
+discovery at the selected Xcode's SDK version, in both jobs; the TSan job now
+also uploads its result bundle, because a launch crash leaves nothing in the
+console.
 
-Both races it finds are inside `ChipCore`'s word-sized parameter fields, which
-is exactly the contract: a size-8 write to `tempo` in `load(song:)` against a
-size-8 read in `samplesPerStep()`, and a size-4 write to a transport `Int32` in
-`start()` against the matching read in `render`. The function names in the
-stacks are where the *assignment* lives, not evidence of anything bulkier; the
-address in both reports is inside the 160-byte `ChipCore` instance, not the
-pattern array. Nothing is reported outside the contract.
+The races themselves — observed *locally* (Xcode 26.5, matching runtime) — are
+inside `ChipCore`'s word-sized parameter fields, which is exactly the
+contract: a size-8 write to `tempo` in `load(song:)` against a size-8 read in
+`samplesPerStep()`, and a size-4 write to a transport `Int32` in `start()`
+against the matching read in `render`. The function names in the stacks are
+where the *assignment* lives, not evidence of anything bulkier; the address in
+both reports is inside the 160-byte `ChipCore` instance, not the pattern
+array. Nothing is reported outside the contract.
 
-**The job is nonetheless not doing what its comment claims.** TSan aborts the
-test host on the first report, and CI declines to relaunch it ("no restart will
-be attempted"), so the job surfaces exactly one race and stops. It cannot be
-"a record of where the unsynchronised accesses are" while it dies at the first
-one. Locally the runner does restart between tests, which is why two reports
-come out here and one comes out there. Fixing that — letting the run continue
-past a report, or splitting the tests so each gets its own launch — is the
-outstanding work on this job. Until then, treat a green TSan job as suspicious
-rather than reassuring: it most likely means the tests never ran.
+**One caveat survives from the earlier reading, locally verified:** TSan
+aborts the test host on the first report, so a single run surfaces one race
+and stops; locally the runner relaunches between tests, which is how two
+reports come out. Whether CI relaunches the host the same way is untested —
+the first run with a working destination will say. Until the job demonstrably
+runs to completion, treat a green TSan job as suspicious rather than
+reassuring, and letting the run continue past a report — or splitting the
+tests so each gets its own launch — remains the outstanding work.
 
 ### Screenshots are stale, and the shoot script doesn't run
 
