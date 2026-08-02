@@ -16,6 +16,15 @@ schemes:
       config: Debug
       targets:
         - ChiptuneTests
+      environmentVariables:
+        # Tick this on in Xcode's scheme editor to rewrite
+        # Tests/Fixtures/golden-demo.wav from the current synth. A unit test
+        # bundle is hosted inside the app and takes its environment from the
+        # scheme, so passing this on the xcodebuild command line does nothing —
+        # it has to live here.
+        - variable: CHIPTUNE_REGEN_GOLDEN
+          value: "1"
+          isEnabled: false
     archive:
       config: Release
 
@@ -50,6 +59,21 @@ targets:
         # Nothing here encrypts anything. Declaring it up front skips the
         # export-compliance question on every App Store Connect upload.
         ITSAppUsesNonExemptEncryption: false
+        # A song file is the same JSON the library already stores, so the type
+        # conforms to public.json — anything that can read text can read one,
+        # and the app is only claiming the extension.
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: dev.individuation.chiptune.song
+            UTTypeDescription: Chiptune Song
+            UTTypeConformsTo: [public.json]
+            UTTypeTagSpecification:
+              public.filename-extension: [chipsong]
+              public.mime-type: [application/json]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Chiptune Song
+            LSItemContentTypes: [dev.individuation.chiptune.song]
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.individuation.chiptune

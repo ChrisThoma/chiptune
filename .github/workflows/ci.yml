@@ -1,0 +1,249 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Unit tests
+    # Pinned rather than macos-latest: a runner image rolling forward under us
+    # would change the Xcode and simulator set without a commit to blame.
+    runs-on: macos-15
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned so a runner image rolling its default Xcode forward can't change
+      # the compiler under us without a commit. If the pin ever stops existing,
+      # this says so and lists what's there rather than failing later with an
+      # inscrutable toolchain error.
+      - name: Select Xcode
+        run: |
+          XCODE=/Applications/Xcode_16.4.app
+          if [ ! -d "$XCODE" ]; then
+            echo "::error::$XCODE is not installed on this runner. Available:"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          sudo xcode-select -switch "$XCODE"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      # Fresh runners don't necessarily have any particular device, so the
+      # destination is discovered rather than hardcoded — `name=iPhone 15` is a
+      # build failure the day the image drops that model. Discovery is capped
+      # at the selected Xcode's SDK version: the image also carries runtimes
+      # many major versions newer than the pinned toolchain (iOS 26.x next to
+      # Xcode 16.4's 18.5), and a run on those is testing a pairing Apple
+      # never shipped. Both jobs use the same cap so they test the same OS.
+      - name: Resolve simulator destination
+        id: sim
+        run: |
+          sdk=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          udid=$(xcrun simctl list devices available -j | SDK_VERSION="$sdk" python3 -c "
+          import json, os, sys
+          sdk = tuple(int(p) for p in os.environ['SDK_VERSION'].split('.'))
+          runtimes = json.load(sys.stdin)['devices']
+          def version(key):
+              return tuple(int(p) for p in key.split('iOS-')[1].split('-'))
+          ios = sorted((k for k in runtimes if 'iOS-' in k), key=version, reverse=True)
+          for runtime in ios:
+              if version(runtime) > sdk:
+                  continue
+              for device in runtimes[runtime]:
+                  if device.get('isAvailable') and 'iPhone' in device['name']:
+                      print(device['udid']); sys.exit(0)
+          sys.exit('no available iPhone simulator at or below iOS '
+                   + os.environ['SDK_VERSION'] + '; runtimes present: '
+                   + ', '.join(sorted(runtimes)))
+          ")
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          echo "Using simulator $udid (SDK $sdk)"
+
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project Chiptune.xcodeproj \
+            -scheme Chiptune \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -resultBundlePath TestResults.xcresult \
+            -enableCodeCoverage YES \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty && exit ${PIPESTATUS[0]}
+
+      - name: Coverage summary
+        if: always()
+        run: xcrun xccov view --report --only-targets TestResults.xcresult || true
+
+      - name: Upload result bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults.xcresult
+          retention-days: 7
+
+  thread-sanitizer:
+    name: Thread Sanitizer (concurrency)
+    runs-on: macos-15
+    timeout-minutes: 30
+    # `ChipCore` is deliberately lock-free: the main thread writes word-sized
+    # parameter fields while the audio thread reads them, on the argument that a
+    # torn read is impossible and a stale one lasts a single buffer. TSan has no
+    # way to know that argument and flags every one of those writes, so raw
+    # TSan exit codes would make this job red on every run — and a job that is
+    # always red alerts nobody. Instead the last step judges the reports: green
+    # means every report stayed inside the contract (word-sized, inside
+    # ChipCore) or there were none at all; red means something actionable — a
+    # race somewhere new, an access bigger than a word, a test that died
+    # without a sanitizer report, or a run that never reached the tests, which
+    # is how this job spent its first day silently proving nothing.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned so a runner image rolling its default Xcode forward can't change
+      # the compiler under us without a commit. If the pin ever stops existing,
+      # this says so and lists what's there rather than failing later with an
+      # inscrutable toolchain error.
+      - name: Select Xcode
+        run: |
+          XCODE=/Applications/Xcode_16.4.app
+          if [ ! -d "$XCODE" ]; then
+            echo "::error::$XCODE is not installed on this runner. Available:"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          sudo xcode-select -switch "$XCODE"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      # Same cap as the unit-test job. It was first added on the theory that
+      # the toolchain/runtime version gap was what crashed this job's app
+      # host at launch; the crash reproduced on the matched runtime, and the
+      # result bundle showed the real killer — CoreAudio initialisation
+      # timing out under TSan's slowdown (see ChiptuneApp.isTestHost). The
+      # cap stays for the reason given above, not as the fix for that.
+      - name: Resolve simulator destination
+        id: sim
+        run: |
+          sdk=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          udid=$(xcrun simctl list devices available -j | SDK_VERSION="$sdk" python3 -c "
+          import json, os, sys
+          sdk = tuple(int(p) for p in os.environ['SDK_VERSION'].split('.'))
+          runtimes = json.load(sys.stdin)['devices']
+          def version(key):
+              return tuple(int(p) for p in key.split('iOS-')[1].split('-'))
+          ios = sorted((k for k in runtimes if 'iOS-' in k), key=version, reverse=True)
+          for runtime in ios:
+              if version(runtime) > sdk:
+                  continue
+              for device in runtimes[runtime]:
+                  if device.get('isAvailable') and 'iPhone' in device['name']:
+                      print(device['udid']); sys.exit(0)
+          sys.exit('no available iPhone simulator at or below iOS '
+                   + os.environ['SDK_VERSION'] + '; runtimes present: '
+                   + ', '.join(sorted(runtimes)))
+          ")
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          echo "Using simulator $udid (SDK $sdk)"
+
+      # TSan aborts the test host on its first report and the runner
+      # relaunches for the next test, so xcodebuild exits non-zero whenever
+      # the expected reports fire. Its exit code is deliberately swallowed;
+      # the judgement happens in the next step, from the log.
+      - name: Test with TSan
+        run: |
+          xcodebuild test \
+            -project Chiptune.xcodeproj \
+            -scheme Chiptune \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -enableThreadSanitizer YES \
+            -only-testing:ChiptuneTests/ChipCoreConcurrencyTests \
+            -resultBundlePath TSanResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee tsan.log || true
+
+      # The pass/fail signal. A report is inside the contract when it is a
+      # data race on a word-sized-or-smaller access whose summary lands in a
+      # ChipCore method; anything else fails, with the offending block
+      # printed. A test that starts and finishes cleanly with no report also
+      # passes — that is what fixing the races would look like, and it must
+      # not turn the job red.
+      - name: Assert reports stay inside the lock-free contract
+        run: |
+          python3 - <<'EOF'
+          import re, sys
+
+          lines = open('tsan.log', encoding='utf-8', errors='replace').read().splitlines()
+
+          starts = [i for i, l in enumerate(lines)
+                    if re.search(r"Test Case '.*' started", l)]
+          if not starts:
+              sys.exit('FAIL: no test case ever started — the run never '
+                       'reached the tests, so TSan proved nothing')
+
+          failures = []
+          for n, i in enumerate(starts):
+              end = starts[n + 1] if n + 1 < len(starts) else len(lines)
+              name = re.search(r"Test Case '(.*)' started", lines[i]).group(1)
+              text = '\n'.join(lines[i:end])
+
+              warnings = re.findall(r'WARNING: ThreadSanitizer: (.*?) \(pid', text)
+              summaries = re.findall(r'SUMMARY: ThreadSanitizer: (.*)', text)
+              for kind in warnings:
+                  if kind != 'data race':
+                      failures.append(name + ': TSan reported something other '
+                                      'than a data race: ' + kind)
+              for s in summaries:
+                  if 'Chiptune.ChipCore.' not in s:
+                      failures.append(name + ': race outside ChipCore: ' + s)
+              for op, size in re.findall(r'(Read|Write) of size (\d+)', text):
+                  if int(size) > 8:
+                      failures.append(name + ': ' + op.lower() + ' of size '
+                                      + size + ' — bigger than a word, torn '
+                                      'reads are possible')
+
+              if re.search(r"Test Case '.*' failed", text):
+                  failures.append(name + ': failed an assertion — that is a '
+                                  'test failure, not a sanitizer report')
+              elif not re.search(r"Test Case '.*' passed", text) and not warnings:
+                  failures.append(name + ': died without a sanitizer report — '
+                                  'the host crashed for some other reason')
+
+          if failures:
+              print('\n'.join(failures))
+              sys.exit('FAIL: see above; full reports are in tsan.log and '
+                       'the tsan-results artifact')
+
+          total = sum(1 for l in lines if 'WARNING: ThreadSanitizer' in l)
+          print('OK: ' + str(len(starts)) + ' test(s) ran, '
+                + str(total) + ' report(s), all inside the contract')
+          EOF
+
+      # The whole point of the job is its report, and a launch crash leaves
+      # nothing in the console — the result bundle is where the crash log and
+      # any runtime issues actually live.
+      - name: Upload result bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tsan-results
+          path: TSanResults.xcresult
+          retention-days: 7
