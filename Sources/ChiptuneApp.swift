@@ -2,6 +2,15 @@ import SwiftUI
 
 @main
 struct ChiptuneApp: App {
+    /// True when this process is hosting a unit-test run. The tests build
+    /// their own `Studio`s against throwaway stores, so the app's would only
+    /// write real Documents underneath them — and building it is what killed
+    /// the TSan job in CI: constructing the audio graph goes through
+    /// CoreAudio initialisation, which has an internal RPC timeout that
+    /// aborts the whole process when the sanitizer's slowdown blows through
+    /// it, before any test has started. XCTest is dyld-inserted at launch,
+    /// so the class check is valid this early.
+    private static let isTestHost = NSClassFromString("XCTestCase") != nil
     @Environment(\.scenePhase) private var scenePhase
     /// Built after the first frame so the splash is on screen while the audio
     /// engine spins up and the last song is read back off disk.
@@ -23,7 +32,7 @@ struct ChiptuneApp: App {
             }
             .preferredColorScheme(.dark)
             .task {
-                guard studio == nil else { return }
+                guard studio == nil, !Self.isTestHost else { return }
                 // Let the splash paint before the main thread goes away to
                 // build the audio engine and read the last song back.
                 try? await Task.sleep(nanoseconds: 40_000_000)

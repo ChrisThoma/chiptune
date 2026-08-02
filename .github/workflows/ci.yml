@@ -44,11 +44,10 @@ jobs:
       # Fresh runners don't necessarily have any particular device, so the
       # destination is discovered rather than hardcoded — `name=iPhone 15` is a
       # build failure the day the image drops that model. Discovery is capped
-      # at the selected Xcode's SDK version: the image also carries much newer
-      # runtimes (iOS 26.x next to Xcode 16.4's 18.5), and while a plain test
-      # run tolerates that gap, TSan's injected runtime does not — it aborts
-      # the app host at launch. Both jobs use the same cap so they test the
-      # same OS.
+      # at the selected Xcode's SDK version: the image also carries runtimes
+      # many major versions newer than the pinned toolchain (iOS 26.x next to
+      # Xcode 16.4's 18.5), and a run on those is testing a pairing Apple
+      # never shipped. Both jobs use the same cap so they test the same OS.
       - name: Resolve simulator destination
         id: sim
         run: |
@@ -137,10 +136,12 @@ jobs:
       - name: Generate project
         run: xcodegen generate
 
-      # Same cap as the unit-test job, and here it is load-bearing: Xcode
-      # 16.4's TSan runtime injected into an iOS 26.x simulator process
-      # aborted the app host at launch, before any test ran — both early runs
-      # of this job died that way, with no sanitizer report at all.
+      # Same cap as the unit-test job. It was first added on the theory that
+      # the toolchain/runtime version gap was what crashed this job's app
+      # host at launch; the crash reproduced on the matched runtime, and the
+      # result bundle showed the real killer — CoreAudio initialisation
+      # timing out under TSan's slowdown (see ChiptuneApp.isTestHost). The
+      # cap stays for the reason given above, not as the fix for that.
       - name: Resolve simulator destination
         id: sim
         run: |

@@ -17,8 +17,9 @@ the things it existed to settle came out green.
 
 - **The Xcode pin holds.** `Xcode_16.4.app` (build 16F6) is installed on
   `macos-15` and the simulator discovery picked a device without help — though
-  "a device" turned out to be the wrong one for the TSan job; see below. The
-  resolver now caps discovery at the pinned toolchain's SDK version.
+  what it picked was an iOS 26.2 runtime next to an 18.5 SDK, a pairing Apple
+  never shipped. The resolver now caps discovery at the pinned toolchain's
+  SDK version.
 - **The golden fixture survives a toolchain change.** This was the expected
   failure: `Tests/Fixtures/golden-demo.wav` was rendered here under Xcode 26.5
   and `testGoldenRenderIsUnchanged` compares within ±2 LSB, which is an
@@ -49,14 +50,20 @@ the real one.
 An earlier revision of this section read the first run's failure as TSan
 aborting on its first race report. The log says otherwise: the host crashed
 with SIGABRT *before starting test execution*, with no sanitizer report at
-all. **On CI the TSan tests had never run.** The cause was a toolchain/runtime
-mismatch — the destination resolver picked the newest simulator runtime on the
-runner (iOS 26.2) while the job builds with pinned Xcode 16.4 (iOS 18.5 SDK).
-A plain test run tolerates that gap; TSan's injected runtime, which intercepts
-libsystem internals, aborts the app host at launch. Fixed by capping simulator
-discovery at the selected Xcode's SDK version, in both jobs; the TSan job now
-also uploads its result bundle, because a launch crash leaves nothing in the
-console.
+all. **On CI the TSan tests had never run.** The first theory — the resolver
+pairing pinned Xcode 16.4 with a much newer iOS 26.2 runtime — did not
+survive testing: the crash reproduced on the matched iOS 18.5 runtime. The
+result bundle (which the job now uploads, precisely because a launch crash
+leaves nothing in the console) had the real cause in the host's stderr:
+`Initialize: RPC timeout. Apparently deadlocked. Aborting now.` The app host
+was booting its own `Studio`, whose `AudioEngine` build goes through CoreAudio
+initialisation; under TSan's slowdown that init blows CoreAudio's internal
+RPC timeout and CoreAudio aborts the process — while the test bundle is still
+bootstrapping. The fix is `ChiptuneApp.isTestHost`: the app no longer builds
+its `Studio` when hosting tests, which also stops it writing real Documents
+underneath every hosted test run. The SDK-version cap on simulator discovery
+was kept anyway — testing on an OS the pinned toolchain never shipped against
+proves less — but it was not the fix.
 
 The races themselves — observed *locally* (Xcode 26.5, matching runtime) — are
 inside `ChipCore`'s word-sized parameter fields, which is exactly the
