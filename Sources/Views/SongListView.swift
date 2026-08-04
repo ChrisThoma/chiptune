@@ -112,6 +112,9 @@ struct SongListView: View {
                 renaming = nil
                 reload()
             }
+            // A blank name is rejected by the model; grey the button out
+            // instead of letting it dismiss and silently do nothing.
+            .disabled(renameText.trimmingCharacters(in: .whitespaces).isEmpty)
         }
     }
 
@@ -165,6 +168,14 @@ struct SongListView: View {
             .tint(Theme.panelHigh)
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            // Asks first rather than deleting on the swipe — a song is not
+            // recoverable. Full swipe stays off for the same reason.
+            Button(role: .destructive) {
+                pendingDelete = song
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+
             Button {
                 studio.share(song)
             } label: {

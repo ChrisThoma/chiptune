@@ -117,6 +117,9 @@ struct KeyboardView: View {
                 studio.audition(note)
             }
             .accessibilityLabel("Note \(NoteName.label(note))")
+            // A shape with a tap gesture exposes as plain text/container;
+            // VoiceOver needs the trait to announce the key as tappable.
+            .accessibilityAddTraits(.isButton)
     }
 }
 

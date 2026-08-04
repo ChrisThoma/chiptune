@@ -315,6 +315,9 @@ final class Studio {
         engine.core.setSongMode(songMode)
         engine.core.start()
         isPlaying = true
+        // Each new play-through follows the arrangement again until the user
+        // pins a pattern by selecting one.
+        followsArrangement = true
         startPlayheadTimer()
     }
 
@@ -340,7 +343,9 @@ final class Studio {
                 self.playingPattern = pattern
                 // Following the arrangement means the grid should follow too,
                 // otherwise you're watching a playhead run over the wrong notes.
-                if self.songMode, pattern < self.song.patterns.count {
+                // Unless the user has picked a pattern to edit mid-playback —
+                // then their selection wins and only the playing dot moves.
+                if self.songMode, self.followsArrangement, pattern < self.song.patterns.count {
                     self.selectedPattern = pattern
                 }
             }
@@ -423,11 +428,23 @@ final class Studio {
     /// Clears every track in the pattern being edited. Other patterns are left
     /// alone — the arrangement is the song, so this is not "clear everything".
     func clearPattern() {
-        // One checkpoint for the lot, then the un-checkpointed erase — going
-        // through `clearTrack` would push a snapshot per track and make
+        clearPattern(at: selectedPattern)
+    }
+
+    /// Clears every track in one pattern without moving the editor to it —
+    /// clearing B from its chip menu must not yank the grid off the pattern
+    /// being edited.
+    func clearPattern(at index: Int) {
+        guard index < song.patterns.count else { return }
+        // One checkpoint for the lot — a per-track checkpoint would make
         // undoing a cleared pattern take one press per track.
         checkpoint()
-        for c in 0..<song.tracks.count { erase(c) }
+        for track in 0..<song.tracks.count {
+            for step in 0..<Chip.maxSteps {
+                song.patterns[index].rows[track][step] = Chip.emptyNote
+                engine.core.setNote(pattern: index, track: track, step: step, note: Chip.emptyNote)
+            }
+        }
     }
 
     // MARK: Parameter sync
@@ -462,8 +479,14 @@ final class Studio {
 
     // MARK: Patterns
 
+    /// True while SONG-mode playback should drag the grid along with the
+    /// sequencer. A manual pattern selection turns it off for the rest of the
+    /// play-through so editing isn't yanked away at the next boundary.
+    @ObservationIgnored private var followsArrangement = true
+
     func selectPattern(_ index: Int) {
         guard index >= 0, index < song.patterns.count else { return }
+        if isPlaying, songMode { followsArrangement = false }
         selectedPattern = index
         engine.core.focus(pattern: index)
         if !songMode { playingPattern = index }
@@ -519,11 +542,22 @@ final class Studio {
     }
 
     func renamePattern(at index: Int, to name: String) {
-        guard index < song.patterns.count else { return }
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return }
+        guard index < song.patterns.count,
+              let accepted = acceptablePatternName(name, for: index) else { return }
         checkpoint()
-        song.patterns[index].name = trimmed.isEmpty ? song.patterns[index].name : String(trimmed.prefix(6))
+        song.patterns[index].name = accepted
+    }
+
+    /// The name a rename would actually store — trimmed and truncated — or nil
+    /// when it's empty or collides with another pattern's name. Two chips both
+    /// labelled "A" are indistinguishable in the strip, the ••• menu, and to
+    /// VoiceOver, so duplicates are refused. The UI uses this to disable the
+    /// Rename button rather than letting it silently do nothing.
+    func acceptablePatternName(_ name: String, for index: Int) -> String? {
+        let trimmed = String(name.trimmingCharacters(in: .whitespaces).prefix(6))
+        guard !trimmed.isEmpty else { return nil }
+        let taken = song.patterns.enumerated().contains { $0.offset != index && $0.element.name == trimmed }
+        return taken ? nil : trimmed
     }
 
     // MARK: Arrangement
@@ -707,8 +741,12 @@ final class Studio {
         if trimmed.isEmpty {
             // Undoing rather than substituting a placeholder: the name before
             // the edit is the one the user last chose, and it's already on the
-            // stack.
-            if lastCheckpointRunIsRename { undo() }
+            // stack. The redo entry that undo just pushed is dropped — the
+            // empty name was rejected, and Redo must not reinstate it.
+            if lastCheckpointRunIsRename {
+                undo()
+                redoStack.removeAll()
+            }
             return
         }
         if trimmed != song.name { song.name = trimmed }
@@ -724,6 +762,24 @@ final class Studio {
 
     func delete(_ other: Song) {
         store.delete(other)
+        // Deleting the song on screen: the editor has to move off it, or the
+        // next autosave writes the "deleted" song straight back to disk.
+        guard other.id == song.id else { return }
+        stop()
+        autosaveTimer?.invalidate()
+        autosaveTimer = nil
+        resetHistory()
+        if var next = store.loadAll().first(where: { $0.id != other.id }) {
+            next.normalize()
+            song = next
+        } else {
+            song = Song(name: "Untitled")
+        }
+        selectedPattern = 0
+        songMode = false
+        pushAll()
+        engine.core.setSongMode(false)
+        save(song)
     }
 
     // MARK: Sharing
