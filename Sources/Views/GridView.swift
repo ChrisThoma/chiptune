@@ -16,20 +16,43 @@ struct GridView: View {
     var body: some View {
         GeometryReader { geo in
             let columnWidth = columnWidth(forAvailable: geo.size.width)
-            ScrollView(.horizontal, showsIndicators: false) {
-                VStack(spacing: 0) {
-                    header(columnWidth: columnWidth)
-                    steps(columnWidth: columnWidth)
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        header(columnWidth: columnWidth)
+                        steps(columnWidth: columnWidth)
+                    }
+                }
+                // A new track lands selected at the trailing edge, past where
+                // the row was clipped — without this the column (and the "+"
+                // beside it) is off screen with nothing hinting that the
+                // header scrolls.
+                .onChange(of: studio.song.tracks.count) { old, new in
+                    guard new > old else { return }
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo(GridView.trailingEdgeID, anchor: .trailing)
+                    }
                 }
             }
         }
         .background(Theme.background)
     }
 
+    /// Scroll target for the header row's trailing edge.
+    static let trailingEdgeID = "gridTrailingEdge"
+
     /// Tracks share the width evenly while they fit; past that they take the
     /// minimum and the row overflows into the horizontal scroll.
     private func columnWidth(forAvailable width: CGFloat) -> CGFloat {
-        let reserved = gutterWidth + (studio.song.canAddTrack ? addColumnWidth + 2 : 0) + 12
+        // Everything in the row that isn't a track column: gutter, the add
+        // button, the 12pt of horizontal padding, and the 2pt gaps between
+        // items — leaving the gaps out clipped the last column by a few
+        // points even when everything "fit".
+        let items = 1 + studio.song.tracks.count + (studio.song.canAddTrack ? 1 : 0)
+        let reserved = gutterWidth
+            + (studio.song.canAddTrack ? addColumnWidth : 0)
+            + 12
+            + CGFloat(items - 1) * 2
         let available = width - reserved
         let each = available / CGFloat(max(studio.song.tracks.count, 1))
         return max(minColumnWidth, each)
@@ -47,6 +70,7 @@ struct GridView: View {
                 addTrackButton.frame(width: addColumnWidth)
             }
         }
+        .id(GridView.trailingEdgeID)
         .padding(.horizontal, 6)
         .padding(.bottom, 4)
     }

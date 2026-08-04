@@ -408,16 +408,19 @@ struct PatternBar: View {
                 if let index = renaming { studio.renamePattern(at: index, to: renameText) }
                 renaming = nil
             }
+            // Greyed out rather than silently ignored when the name is empty
+            // or already another pattern's.
+            .disabled(renaming.map { studio.acceptablePatternName(renameText, for: $0) == nil } ?? true)
         }
         .confirmationDialog("Clear pattern \(name(clearing))?",
                             isPresented: Binding(get: { clearing != nil },
                                                  set: { if !$0 { clearing = nil } }),
                             titleVisibility: .visible) {
             Button("Clear pattern", role: .destructive) {
-                if let index = clearing {
-                    studio.selectPattern(index)
-                    studio.clearPattern()
-                }
+                // Clears in place — jumping the editor to the cleared pattern
+                // reads as "my work just vanished" when it's still in the one
+                // you were editing.
+                if let index = clearing { studio.clearPattern(at: index) }
                 clearing = nil
             }
             Button("Cancel", role: .cancel) { clearing = nil }
@@ -434,7 +437,9 @@ struct PatternBar: View {
             }
             Button("Cancel", role: .cancel) { deleting = nil }
         } message: {
-            Text("It's removed from the arrangement too. This can't be undone.")
+            // No "can't be undone" here: removePattern checkpoints, and a
+            // false warning teaches people to distrust the real ones.
+            Text("It's removed from the arrangement too. Undo brings it back.")
         }
     }
 
