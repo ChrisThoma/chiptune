@@ -384,15 +384,16 @@ final class Studio {
         engine.core.setNote(pattern: selectedPattern, track: track, step: step, note: note)
     }
 
-    /// Tap behaviour: an empty cell takes the selected note, a filled one clears.
+    /// Tap behaviour: an empty cell takes the selected note; a filled cell
+    /// overwrites with the selected note, or clears if it already matches.
     func toggleCell(track: Int, step: Int) {
         checkpoint(coalescing: true)
         let existing = note(track: track, step: step)
-        if existing == Chip.emptyNote {
+        if existing == selectedNote {
+            setNote(track: track, step: step, note: Chip.emptyNote)
+        } else {
             setNote(track: track, step: step, note: selectedNote)
             audition(selectedNote, on: track)
-        } else {
-            setNote(track: track, step: step, note: Chip.emptyNote)
         }
     }
 

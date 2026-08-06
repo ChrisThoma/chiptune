@@ -289,6 +289,19 @@ final class StudioEditingTests: XCTestCase {
         XCTAssertEqual(studio.note(track: 0, step: 0), Chip.emptyNote)
     }
 
+    func testToggleCellOverwritesWithDifferentNote() {
+        studio.selectedNote = 60
+        studio.toggleCell(track: 0, step: 0)
+        XCTAssertEqual(studio.note(track: 0, step: 0), 60)
+
+        studio.selectedNote = 67
+        studio.toggleCell(track: 0, step: 0)
+        XCTAssertEqual(studio.note(track: 0, step: 0), 67, "a filled cell tapped with a different note overwrites in place")
+
+        studio.toggleCell(track: 0, step: 0)
+        XCTAssertEqual(studio.note(track: 0, step: 0), Chip.emptyNote, "tapping again with the same note selected clears it")
+    }
+
     // MARK: Arrangement
 
     func testRemovingEveryArrangementSectionFallsBackToTheFirstPattern() {
