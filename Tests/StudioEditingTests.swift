@@ -272,6 +272,30 @@ final class StudioEditingTests: XCTestCase {
         XCTAssertEqual(studio.patternLength, 4)
     }
 
+    func testChipStepperOnlyEnablesDirectionsWithinItsRange() {
+        let minimumBPM = ChipStepper(label: "BPM", value: 40, range: 40...300, onChange: { _ in })
+        XCTAssertFalse(minimumBPM.canDecrease)
+        XCTAssertTrue(minimumBPM.canIncrease)
+
+        let maximumBPM = ChipStepper(label: "BPM", value: 300, range: 40...300, onChange: { _ in })
+        XCTAssertTrue(maximumBPM.canDecrease)
+        XCTAssertFalse(maximumBPM.canIncrease)
+
+        let middle = ChipStepper(label: "BPM", value: 120, range: 40...300, onChange: { _ in })
+        XCTAssertTrue(middle.canDecrease)
+        XCTAssertTrue(middle.canIncrease)
+
+        let minimumSteps = ChipStepper(label: "STEPS", value: 4,
+                                       range: 4...Chip.maxSteps, onChange: { _ in })
+        XCTAssertFalse(minimumSteps.canDecrease)
+        XCTAssertTrue(minimumSteps.canIncrease)
+
+        let maximumSteps = ChipStepper(label: "STEPS", value: Chip.maxSteps,
+                                       range: 4...Chip.maxSteps, onChange: { _ in })
+        XCTAssertTrue(maximumSteps.canDecrease)
+        XCTAssertFalse(maximumSteps.canIncrease)
+    }
+
     func testSetNoteIgnoresOutOfRangeCoordinates() {
         studio.setNote(track: 99, step: 0, note: 60)
         studio.setNote(track: 0, step: 9999, note: 60)

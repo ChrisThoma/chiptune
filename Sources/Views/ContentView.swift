@@ -285,6 +285,7 @@ struct TransportBar: View {
             // 174 four BPM at a time is nobody's idea of a good afternoon.
             ChipStepper(label: "BPM",
                         value: Int(studio.song.tempo),
+                        range: 40...300,
                         onChange: { studio.setTempo(studio.song.tempo + Double($0) * 4) },
                         onTapValue: {
                             tempoText = String(Int(studio.song.tempo))
@@ -395,6 +396,7 @@ struct PatternBar: View {
             // the strip of chips beside it, and the gap is what says so.
             ChipStepper(label: "STEPS",
                         value: studio.patternLength,
+                        range: 4...Chip.maxSteps,
                         onChange: { studio.setPatternLength(studio.patternLength + $0 * 4) })
                 .chipTray()
         }
@@ -578,8 +580,12 @@ struct PatternBar: View {
 struct ChipStepper: View {
     let label: String
     let value: Int
+    let range: ClosedRange<Int>
     let onChange: (Int) -> Void
     var onTapValue: (() -> Void)?
+
+    var canDecrease: Bool { value > range.lowerBound }
+    var canIncrease: Bool { value < range.upperBound }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -589,8 +595,9 @@ struct ChipStepper: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .foregroundStyle(Theme.text)
+            .foregroundStyle(canDecrease ? Theme.text : Theme.dim.opacity(0.4))
             .accessibilityLabel("Decrease \(label)")
+            .disabled(!canDecrease)
 
             Group {
                 if let onTapValue {
@@ -608,8 +615,9 @@ struct ChipStepper: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .foregroundStyle(Theme.text)
+            .foregroundStyle(canIncrease ? Theme.text : Theme.dim.opacity(0.4))
             .accessibilityLabel("Increase \(label)")
+            .disabled(!canIncrease)
         }
     }
 
