@@ -1,4 +1,6 @@
 import XCTest
+import SwiftUI
+import UIKit
 @testable import Chiptune
 
 /// Renaming from the library. The App Store copy promises it, so it has to
@@ -69,6 +71,11 @@ final class SongRenameTests: XCTestCase {
 
         song = try XCTUnwrap(temp.store.load(id: song.id))
         XCTAssertEqual(song.name, "Padded")
+    }
+
+    func testRenameAlertTextContrastsWithItsWhiteField() {
+        let foreground = UIColor(SongRenameAlertStyle.fieldText)
+        XCTAssertGreaterThan(contrastRatio(foreground, .white), 4.5)
     }
 
     // MARK: Renaming from the title bar
@@ -199,6 +206,29 @@ final class SongRenameTests: XCTestCase {
 
         studio.undo()
         XCTAssertEqual(studio.song.name, "Old")
+    }
+
+    private func contrastRatio(_ first: UIColor, _ second: UIColor) -> CGFloat {
+        let firstLuminance = relativeLuminance(first)
+        let secondLuminance = relativeLuminance(second)
+        return (max(firstLuminance, secondLuminance) + 0.05)
+            / (min(firstLuminance, secondLuminance) + 0.05)
+    }
+
+    private func relativeLuminance(_ color: UIColor) -> CGFloat {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        XCTAssertTrue(color.getRed(&red, green: &green, blue: &blue, alpha: &alpha))
+
+        func linear(_ component: CGFloat) -> CGFloat {
+            component <= 0.04045
+                ? component / 12.92
+                : pow((component + 0.055) / 1.055, 2.4)
+        }
+
+        return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
     }
 
     func testDeleteRemovesTheSongFromTheLibrary() {

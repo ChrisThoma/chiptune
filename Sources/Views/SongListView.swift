@@ -1,5 +1,10 @@
 import SwiftUI
 
+enum SongRenameAlertStyle {
+    /// SwiftUI's iOS 17 alert field is white even under our forced dark scheme.
+    static let fieldText = Theme.onLight
+}
+
 /// Browse, open, duplicate and delete saved songs. Everything is autosaved, so
 /// this is the whole library rather than a list of things you remembered to save.
 struct SongListView: View {
@@ -106,6 +111,7 @@ struct SongListView: View {
         .alert("Rename song", isPresented: Binding(get: { renaming != nil },
                                                    set: { if !$0 { renaming = nil } })) {
             TextField("Name", text: $renameText)
+                .foregroundStyle(SongRenameAlertStyle.fieldText)
             Button("Cancel", role: .cancel) { renaming = nil }
             Button("Rename") {
                 if let song = renaming { studio.rename(song, to: renameText) }
