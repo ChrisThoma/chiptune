@@ -35,6 +35,10 @@ enum SongLibraryPresentation {
     }
 }
 
+enum SongNameFieldAccessibility {
+    static let label = "Song title"
+}
+
 struct ContentView: View {
     @Bindable var studio: Studio
     @State private var showingSongs = false
@@ -187,6 +191,7 @@ struct ContentView: View {
                                                  set: { studio.setSongName($0) }))
                 .chipFont(16, weight: .bold)
                 .foregroundStyle(Theme.text)
+                .accessibilityLabel(SongNameFieldAccessibility.label)
                 .textInputAutocapitalization(.words)
                 .submitLabel(.done)
                 .focused($nameFocused)

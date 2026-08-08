@@ -1,8 +1,58 @@
 import SwiftUI
+import UIKit
 
 enum SongRenameAlertStyle {
     /// SwiftUI's iOS 17 alert field is white even under our forced dark scheme.
     static let fieldText = Theme.onLight
+}
+
+extension SongNameFieldAccessibility {
+    static func apply(to textField: UITextField) {
+        textField.accessibilityLabel = label
+    }
+}
+
+/// SwiftUI drops modifiers from alert TextFields on iOS 17. This inert bridge
+/// labels the UITextField SwiftUI creates, leaving the alert itself and
+/// all of its binding/action behavior native to SwiftUI.
+private struct SongRenameAlertAccessibilityBridge: UIViewRepresentable {
+    let isPresented: Bool
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.isUserInteractionEnabled = false
+        view.isAccessibilityElement = false
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        context.coordinator.generation += 1
+        guard isPresented else { return }
+        context.coordinator.applyLabel(from: view,
+                                       generation: context.coordinator.generation)
+    }
+
+    final class Coordinator {
+        var generation = 0
+
+        func applyLabel(from view: UIView, generation expectedGeneration: Int,
+                        attemptsRemaining: Int = 100) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { [weak self, weak view] in
+                guard let self, let view,
+                      self.generation == expectedGeneration else { return }
+                var presented = view.window?.rootViewController
+                while let next = presented?.presentedViewController { presented = next }
+                if let field = (presented as? UIAlertController)?.textFields?.first {
+                    SongNameFieldAccessibility.apply(to: field)
+                } else if attemptsRemaining > 1 {
+                    self.applyLabel(from: view, generation: expectedGeneration,
+                                    attemptsRemaining: attemptsRemaining - 1)
+                }
+            }
+        }
+    }
 }
 
 /// Browse, open, duplicate and delete saved songs. Everything is autosaved, so
@@ -108,6 +158,9 @@ struct SongListView: View {
         .errorAlert("Import failed", message: $studio.importError)
         // The library shares too, from the row's swipe action.
         .errorAlert("Share failed", message: $studio.shareError)
+        .background {
+            SongRenameAlertAccessibilityBridge(isPresented: renaming != nil)
+        }
         .alert("Rename song", isPresented: Binding(get: { renaming != nil },
                                                    set: { if !$0 { renaming = nil } })) {
             TextField("Name", text: $renameText)
