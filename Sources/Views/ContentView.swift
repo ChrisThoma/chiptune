@@ -25,6 +25,16 @@ enum ScreenshotMode {
     }
 }
 
+enum SongLibraryPresentation {
+    /// Opening a different song routes back to the editor. This also handles a
+    /// document URL arriving while the library sheet is already presented.
+    static func afterOpeningSong(isPresented: Bool,
+                                 previousSongID: UUID,
+                                 currentSongID: UUID) -> Bool {
+        isPresented && previousSongID == currentSongID
+    }
+}
+
 struct ContentView: View {
     @Bindable var studio: Studio
     @State private var showingSongs = false
@@ -55,6 +65,13 @@ struct ContentView: View {
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showingSongs) {
             SongListView(studio: studio)
+        }
+        .onChange(of: studio.song.id) { previousSongID, currentSongID in
+            showingSongs = SongLibraryPresentation.afterOpeningSong(
+                isPresented: showingSongs,
+                previousSongID: previousSongID,
+                currentSongID: currentSongID
+            )
         }
         .sheet(isPresented: $showingArrangement) {
             ArrangementView(studio: studio)
