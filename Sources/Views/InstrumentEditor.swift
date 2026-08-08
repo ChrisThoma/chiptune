@@ -178,7 +178,26 @@ struct InstrumentEditor: View {
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
-            Slider(value: value, in: range).tint(accent)
+            Slider(value: value, in: range)
+                .tint(accent)
+                .accessibilityRepresentation {
+                    Text(title)
+                        .accessibilityLabel(title)
+                        .accessibilityValue(display(value.wrappedValue))
+                        .accessibilityAdjustableAction { direction in
+                            let step = (range.upperBound - range.lowerBound) / 10
+                            switch direction {
+                            case .increment:
+                                value.wrappedValue = min(value.wrappedValue + step,
+                                                         range.upperBound)
+                            case .decrement:
+                                value.wrappedValue = max(value.wrappedValue - step,
+                                                         range.lowerBound)
+                            @unknown default:
+                                break
+                            }
+                        }
+                }
         }
     }
 }
