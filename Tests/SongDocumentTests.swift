@@ -269,6 +269,21 @@ final class StudioImportTests: XCTestCase {
         XCTAssertEqual(studio.song.tempo, 200)
     }
 
+    /// A document URL can arrive while the library sheet is covering the
+    /// editor. The imported song still needs to route visibly to the editor.
+    func testWarmImportDismissesAPresentedSongLibrary() throws {
+        let previousSongID = studio.song.id
+        let url = try writeSong(studio.song)
+
+        XCTAssertTrue(studio.importSong(from: url))
+
+        XCTAssertFalse(SongLibraryPresentation.afterOpeningSong(
+            isPresented: true,
+            previousSongID: previousSongID,
+            currentSongID: studio.song.id
+        ))
+    }
+
     func testImportingRubbishReportsAnErrorAndLeavesTheOpenSongAlone() throws {
         studio.open(Song(name: "Working on this"))
         let url = FileManager.default.temporaryDirectory
