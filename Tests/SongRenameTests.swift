@@ -78,6 +78,14 @@ final class SongRenameTests: XCTestCase {
         XCTAssertGreaterThan(contrastRatio(foreground, .white), 4.5)
     }
 
+    func testNativeRenameAlertFieldReceivesItsSpokenPurpose() {
+        let field = UITextField()
+
+        SongNameFieldAccessibility.apply(to: field)
+
+        XCTAssertEqual(field.accessibilityLabel, "Song title")
+    }
+
     // MARK: Renaming from the title bar
     //
     // The field writes through `setSongName` on every keystroke, so these
