@@ -27,9 +27,28 @@ struct ChipLayout: Equatable {
     var keyboardMaxWidth: CGFloat
     /// Points of type for the note names on the key caps.
     var keyLabelSize: CGFloat
+    /// Widest the transport and pattern rows are allowed to get. Past this
+    /// they centre in whatever space is left, rather than pushing BPM and
+    /// STEPS half a metre away from the play button they belong beside.
+    var chromeMaxWidth: CGFloat
+    /// iPad-shaped window rather than phone-shaped. Kept as a stored flag
+    /// because a popover's *content* is handed a compact size class whatever
+    /// the window is — 400pt of popover is compact by any measure — so the
+    /// views inside one can't ask the environment what they're being presented
+    /// on. The presenting side reads it from here and passes it down.
+    var isRegularWidth: Bool
     /// Grid and keyboard sit side by side rather than stacked. True only when
-    /// the window is both regular-width and wider than it is tall.
+    /// the window is regular-width, wider than it is tall, and wide enough to
+    /// give both halves a usable share.
     var usesSideKeyboard: Bool
+    /// The selected track's sound controls live permanently in the side
+    /// column instead of arriving over the grid as a sheet. Only the side
+    /// arrangement has anywhere to put them.
+    var docksInstrumentEditor: Bool { usesSideKeyboard }
+    /// Anchored to the track header that opened it, keeping the grid visible,
+    /// rather than a sheet over the whole editor. The side arrangement docks
+    /// the controls instead and needs no popover at all.
+    var presentsInstrumentAsPopover: Bool { isRegularWidth && !usesSideKeyboard }
 
     static let phone = ChipLayout(
         gridRowHeight: 40,
@@ -39,6 +58,8 @@ struct ChipLayout: Equatable {
         keyboardHeight: 110,
         keyboardMaxWidth: .infinity,
         keyLabelSize: 9,
+        chromeMaxWidth: .infinity,
+        isRegularWidth: false,
         usesSideKeyboard: false
     )
 
@@ -50,12 +71,27 @@ struct ChipLayout: Equatable {
         keyboardHeight: 170,
         keyboardMaxWidth: 720,
         keyLabelSize: 11,
+        chromeMaxWidth: 720,
+        isRegularWidth: true,
         usesSideKeyboard: false
     )
 
     /// The keyboard column in the wide layout. Narrow enough to leave the grid
     /// most of the window, wide enough that eight white keys stay finger-sized.
     static let sideKeyboardWidth: CGFloat = 400
+
+    /// What the grid needs beside that column before splitting is worth it:
+    /// the step gutter, four iPad-width track columns, the "+" beside them and
+    /// the padding around the lot. Below this the grid is a sliver and the
+    /// stacked arrangement — which at least gives it the full width — wins.
+    static let minimumSideGridWidth: CGFloat =
+        pad.gridGutterWidth + 4 * pad.gridMinColumnWidth + 44 + 12
+
+    /// Total window width at which the side arrangement becomes possible.
+    /// Rotation never lands between these two, but a resized Stage Manager
+    /// window or a Slide Over transition can, and a short wide window that
+    /// splits on proportions alone leaves the grid whatever is left over.
+    static var minimumSideBySideWidth: CGFloat { sideKeyboardWidth + minimumSideGridWidth }
 
     /// Picks the metrics for a window of this size.
     ///
@@ -68,12 +104,14 @@ struct ChipLayout: Equatable {
         guard horizontalSizeClass == .regular else { return .phone }
         var layout = ChipLayout.pad
         layout.usesSideKeyboard = size.width > size.height
+            && size.width >= minimumSideBySideWidth
         if layout.usesSideKeyboard {
-            // The column is already narrow, so the keys take all of it, and
-            // they grow taller to fill some of the height a stacked keyboard
-            // would never have had.
+            // The column is already narrow, so the keys take all of it. They
+            // grow a little taller than the stacked keyboard's, but not to
+            // fill the column: the selected track's sound controls dock under
+            // them, and that's what the rest of the height is for.
             layout.keyboardMaxWidth = .infinity
-            layout.keyboardHeight = 300
+            layout.keyboardHeight = 220
         }
         return layout
     }

@@ -71,4 +71,56 @@ final class LayoutTests: XCTestCase {
         let gridWidth = padLandscape.width - ChipLayout.sideKeyboardWidth
         XCTAssertGreaterThan(gridWidth, padLandscape.width * 0.6)
     }
+
+    /// The hole the proportions rule left open. Rotation never produces a
+    /// window this shape, but Stage Manager and Slide Over both can: wider
+    /// than tall, still regular, and not wide enough to give the grid anything
+    /// worth having once the keyboard column has taken its 400pt.
+    func testShortWideWindowStacksRatherThanSqueezingTheGrid() {
+        let squat = CGSize(width: ChipLayout.minimumSideBySideWidth - 1, height: 700)
+        XCTAssertGreaterThan(squat.width, squat.height,
+                             "This case only matters while the proportions say split")
+        XCTAssertFalse(ChipLayout.resolve(size: squat, horizontalSizeClass: .regular)
+                        .usesSideKeyboard)
+
+        let wideEnough = CGSize(width: ChipLayout.minimumSideBySideWidth, height: 700)
+        XCTAssertTrue(ChipLayout.resolve(size: wideEnough, horizontalSizeClass: .regular)
+                        .usesSideKeyboard)
+    }
+
+    /// The threshold has to sit under every window an iPad can actually be
+    /// held in landscape at, or rotating one would stack it.
+    func testEveryLandscapeIPadIsWideEnoughToSplit() {
+        // 11-inch, 13-inch, and the 10th-generation iPad, landscape.
+        for width in [1194.0, 1366.0, 1180.0] {
+            XCTAssertGreaterThan(width, ChipLayout.minimumSideBySideWidth,
+                                 "\(width)pt landscape should still split")
+        }
+    }
+
+    func testChromeStopsSpreadingOnIPadAndNeverDoesOnIPhone() {
+        let pad = ChipLayout.resolve(size: padLandscape, horizontalSizeClass: .regular)
+        XCTAssertLessThan(pad.chromeMaxWidth,
+                          padLandscape.width - ChipLayout.sideKeyboardWidth,
+                          "Capped wider than the grid column is no cap at all")
+        XCTAssertEqual(ChipLayout.phone.chromeMaxWidth, .infinity)
+    }
+
+    /// Where the sound controls go, which is one choice with three answers and
+    /// no overlap between them: docked in the side column, anchored to the
+    /// track header as a popover, or presented as a sheet.
+    func testTheInstrumentEditorGoesExactlyOnePlacePerLayout() {
+        let landscape = ChipLayout.resolve(size: padLandscape, horizontalSizeClass: .regular)
+        XCTAssertTrue(landscape.docksInstrumentEditor)
+        XCTAssertFalse(landscape.presentsInstrumentAsPopover)
+
+        let portrait = ChipLayout.resolve(size: padPortrait, horizontalSizeClass: .regular)
+        XCTAssertFalse(portrait.docksInstrumentEditor)
+        XCTAssertTrue(portrait.presentsInstrumentAsPopover)
+
+        // The phone keeps the sheet it has always had.
+        let phone = ChipLayout.resolve(size: phonePortrait, horizontalSizeClass: .compact)
+        XCTAssertFalse(phone.docksInstrumentEditor)
+        XCTAssertFalse(phone.presentsInstrumentAsPopover)
+    }
 }

@@ -45,10 +45,22 @@ private struct AccessibilityAdjustableControl: UIViewRepresentable {
     }
 }
 
-/// Sheet for shaping one track's voice.
+/// One track's voice: waveform, level, pulse width and arpeggio.
+///
+/// Presented over the grid on a phone and on a portrait iPad, and docked into
+/// the side column on a landscape one — see `ChipLayout.docksInstrumentEditor`.
+/// The controls are the same either way; only the chrome around them differs,
+/// because a docked panel has nothing to dismiss and no title bar to put a
+/// Done button in.
 struct InstrumentEditor: View {
     @Bindable var studio: Studio
     let index: Int
+    /// Living in the side column rather than arriving over the grid.
+    var docked = false
+    /// Presented as a popover rather than a sheet, which needs a stated size —
+    /// see `ChipLayout.presentsInstrumentAsPopover` for why this is passed in
+    /// rather than read from the environment.
+    var popover = false
     @Environment(\.dismiss) private var dismiss
     @State private var confirmingClear = false
     @State private var confirmingDelete = false
@@ -66,18 +78,63 @@ struct InstrumentEditor: View {
     ]
 
     var body: some View {
+        if docked {
+            dockedPanel
+        } else {
+            presentedPanel
+        }
+    }
+
+    /// The track can vanish while this is up — deleted from here, or removed
+    /// elsewhere while it was open. Rendering the form against a dead index
+    /// would trap in the bindings below, so a presented editor closes itself
+    /// and a docked one waits for the selection to land somewhere real.
+    private var trackExists: Bool { studio.song.tracks.indices.contains(index) }
+
+    private var presentedPanel: some View {
         NavigationStack {
-            // The track can vanish while the sheet is up — deleted here, or
-            // removed elsewhere while this was open. Rendering the form against
-            // a dead index would trap in the bindings below.
-            if studio.song.tracks.indices.contains(index) {
+            if trackExists {
                 editor
+                    .navigationTitle(studio.song.fullLabel(for: index))
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { dismiss() }.tint(accent)
+                        }
+                    }
             } else {
                 Color.clear.onAppear { dismiss() }
             }
         }
         .presentationDetents([.medium, .large])
+        .popoverSized(popover)
         .preferredColorScheme(.dark)
+    }
+
+
+    /// No navigation bar: the column it sits in is already labelled by the
+    /// track header the selection highlights, and a title bar here would read
+    /// as a second window inside the editor.
+    private var dockedPanel: some View {
+        VStack(spacing: 0) {
+            if trackExists {
+                HStack(spacing: 6) {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text(studio.song.fullLabel(for: index).uppercased())
+                        .chipFont(11, weight: .bold)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(accent)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 6)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Sound settings for \(studio.song.fullLabel(for: index))")
+
+                editor
+            }
+        }
     }
 
     private var editor: some View {
@@ -181,13 +238,6 @@ struct InstrumentEditor: View {
             // and the grid shows through the sheet. SongListView does the same.
             .scrollContentBackground(.hidden)
             .background(Theme.background.ignoresSafeArea())
-            .navigationTitle(studio.song.fullLabel(for: index))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }.tint(accent)
-                }
-            }
             .confirmationDialog("Clear this track in pattern \(studio.pattern.name)?",
                                 isPresented: $confirmingClear, titleVisibility: .visible) {
                 Button("Clear track", role: .destructive) { studio.clearTrack(index) }
@@ -321,6 +371,20 @@ struct InstrumentEditor: View {
                         break
                     }
                 }
+        }
+    }
+}
+
+private extension View {
+    /// A popover takes its size from its content and has no detents, so it
+    /// needs one stated. A sheet does not, and a minimum height taller than
+    /// the medium detent would fight the detent it was given.
+    @ViewBuilder
+    func popoverSized(_ apply: Bool) -> some View {
+        if apply {
+            frame(minWidth: 380, idealWidth: 420, minHeight: 420, idealHeight: 520)
+        } else {
+            self
         }
     }
 }
