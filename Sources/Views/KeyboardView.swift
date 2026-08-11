@@ -3,6 +3,7 @@ import SwiftUI
 /// One-octave piano used to pick the note that taps write into the grid.
 struct KeyboardView: View {
     @Bindable var studio: Studio
+    @Environment(\.chipLayout) private var layout
     @State private var octave: Int = 5
 
     /// Semitone offsets of the white keys, C through the octave's C.
@@ -32,7 +33,12 @@ struct KeyboardView: View {
                     }
                 }
             }
-            .frame(height: 110)
+            .frame(height: layout.keyboardHeight)
+            // On an iPad the keys stop widening partway across the window and
+            // centre; eight white keys spread over the full width are wider
+            // than a hand and stop looking like an instrument.
+            .frame(maxWidth: layout.keyboardMaxWidth)
+            .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 10)
         .padding(.bottom, 6)
@@ -101,7 +107,7 @@ struct KeyboardView: View {
             .overlay(alignment: .bottom) {
                 if !black {
                     Text(NoteName.label(note))
-                        .chipFont(9)
+                        .chipFont(layout.keyLabelSize)
                         // 0.45 over an 0.88 key cap only reaches 3.2:1 at 9pt.
                         .foregroundStyle(selected ? Theme.onLight.opacity(0.7) : Theme.onLight.opacity(0.62))
                         .padding(.bottom, 5)

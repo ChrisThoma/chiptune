@@ -6,11 +6,13 @@ import SwiftUI
 /// tap width and the whole grid scrolls sideways once they stop fitting.
 struct GridView: View {
     @Bindable var studio: Studio
+    /// Row height, gutter and column floor all grow on iPad; see `ChipLayout`.
+    @Environment(\.chipLayout) private var layout
 
-    private let rowHeight: CGFloat = 40
-    private let gutterWidth: CGFloat = 28
+    private var rowHeight: CGFloat { layout.gridRowHeight }
+    private var gutterWidth: CGFloat { layout.gridGutterWidth }
     /// Narrow enough to fit a handful of columns, wide enough to stay tappable.
-    private let minColumnWidth: CGFloat = 74
+    private var minColumnWidth: CGFloat { layout.gridMinColumnWidth }
     private let addColumnWidth: CGFloat = 44
 
     var body: some View {
@@ -85,7 +87,7 @@ struct GridView: View {
                 .chipFont(15)
                 .foregroundStyle(Theme.text)
                 .frame(maxWidth: .infinity)
-                .frame(height: 81)
+                .frame(height: layout.trackHeaderHeight)
                 .contentShape(Rectangle())
                 .background(
                     RoundedRectangle(cornerRadius: 8)
@@ -194,8 +196,14 @@ struct GridView: View {
 private struct TrackHeader: View {
     @Bindable var studio: Studio
     let index: Int
+    @Environment(\.chipLayout) private var layout
     @State private var showingEditor = false
     @State private var confirmingDelete = false
+
+    /// The two stacked buttons share the header box, keeping the name row a
+    /// little taller than the mute row at any size.
+    private var nameHeight: CGFloat { (layout.trackHeaderHeight - 14) * 0.53 }
+    private var muteHeight: CGFloat { (layout.trackHeaderHeight - 14) * 0.47 }
 
     var body: some View {
         let track = studio.song.tracks[safe: index]
@@ -217,7 +225,7 @@ private struct TrackHeader: View {
                 }
                 .foregroundStyle(muted ? Theme.dim : accent)
                 .frame(maxWidth: .infinity)
-                .frame(height: 38)
+                .frame(height: nameHeight)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -233,7 +241,7 @@ private struct TrackHeader: View {
                     .font(.system(size: 13))
                     .foregroundStyle(muted ? Theme.dim : Theme.text)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 34)
+                    .frame(height: muteHeight)
                     .contentShape(Rectangle())
                     .background(
                         RoundedRectangle(cornerRadius: 5)
