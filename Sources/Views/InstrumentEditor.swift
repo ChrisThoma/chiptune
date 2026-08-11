@@ -106,7 +106,7 @@ struct InstrumentEditor: View {
                 Color.clear.onAppear { dismiss() }
             }
         }
-        .presentationDetents([.medium, .large])
+        .compactSheetDetents(!popover)
         .popoverSized(popover)
         .preferredColorScheme(.dark)
     }

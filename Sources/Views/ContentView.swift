@@ -14,13 +14,14 @@ import SwiftUI
 /// value is required, or the argument is ignored and every shot silently comes
 /// out as the grid.
 enum ScreenshotMode {
-    case arrangement, instrument, library
+    case arrangement, instrument, library, export
 
     static var requested: ScreenshotMode? {
         let defaults = UserDefaults.standard
         if defaults.bool(forKey: "shotArrangement") { return .arrangement }
         if defaults.bool(forKey: "shotEditor") { return .instrument }
         if defaults.bool(forKey: "shotLibrary") { return .library }
+        if defaults.bool(forKey: "shotExport") { return .export }
         return nil
     }
 }
@@ -47,7 +48,6 @@ struct ContentView: View {
     @State private var showingShare = false
     @State private var confirmingClearPattern = false
     @State private var showingExport = false
-    @State private var showingInstrument = false
     @FocusState private var nameFocused: Bool
 
     var body: some View {
@@ -83,7 +83,7 @@ struct ContentView: View {
             )
         }
         .sheet(isPresented: $showingArrangement) {
-            ArrangementView(studio: studio)
+            ArrangementView(studio: studio, regularWidth: horizontalSizeClass == .regular)
         }
         .sheet(isPresented: $showingExport) {
             ExportSheet(studio: studio)
@@ -126,17 +126,19 @@ struct ContentView: View {
         .errorAlert("Audio unavailable", message: $studio.audioError)
         .errorAlert("Import failed", message: $studio.importError)
         .errorAlert("Share failed", message: $studio.shareError)
-        .sheet(isPresented: $showingInstrument) {
-            InstrumentEditor(studio: studio, index: 0)
-        }
         // Opens whichever screen the screenshot shoot asked for. Inert unless
         // launched with one of its arguments; see `ScreenshotMode`.
+        //
+        // The instrument editor isn't here: it's opened from the track header
+        // instead, so a shot catches the presentation that window really uses
+        // — a popover on a portrait iPad, a sheet on a phone, and nothing at
+        // all where the panel is already docked beside the grid.
         .task {
             switch ScreenshotMode.requested {
             case .arrangement: showingArrangement = true
-            case .instrument: showingInstrument = true
             case .library: showingSongs = true
-            case .none: break
+            case .export: showingExport = true
+            case .instrument, .none: break
             }
         }
     }

@@ -4,6 +4,10 @@ import SwiftUI
 /// many times it repeats. SONG mode walks this list from the top and loops.
 struct ArrangementView: View {
     @Bindable var studio: Studio
+    /// Presented in an iPad-shaped window, which sizes its own sheets. Passed
+    /// in rather than read from the environment, which reports a sheet's
+    /// contents as compact whatever the window behind it is.
+    var regularWidth = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -50,7 +54,7 @@ struct ArrangementView: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .compactSheetDetents(!regularWidth)
         .preferredColorScheme(.dark)
     }
 

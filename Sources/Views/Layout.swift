@@ -127,3 +127,18 @@ extension EnvironmentValues {
         set { self[ChipLayoutKey.self] = newValue }
     }
 }
+
+extension View {
+    /// Half-height sheets are a phone idiom. On an iPad the same detents
+    /// shrink a form sheet to a small floating box adrift in the middle of a
+    /// large screen; without them the sheet takes the standard iPad form-sheet
+    /// size, which is the size its content was laid out for.
+    @ViewBuilder
+    func compactSheetDetents(_ apply: Bool) -> some View {
+        if apply {
+            presentationDetents([.medium, .large])
+        } else {
+            self
+        }
+    }
+}

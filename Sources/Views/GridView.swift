@@ -292,6 +292,14 @@ private struct TrackHeader: View {
         .onChange(of: layout.docksInstrumentEditor) { _, docks in
             if docks { showingEditor = false }
         }
+        // The screenshot shoot opens this from a launch argument. Driven from
+        // here rather than from `ContentView` so the shot shows the real
+        // presentation for the window it was taken in; see `ScreenshotMode`.
+        .task {
+            guard index == 0, ScreenshotMode.requested == .instrument,
+                  !layout.docksInstrumentEditor else { return }
+            showingEditor = true
+        }
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(selected ? accent.opacity(0.18) : Theme.panel)
