@@ -214,8 +214,15 @@ private struct TrackHeader: View {
 
         VStack(spacing: 4) {
             Button {
-                // Already selected? The second tap opens the sound editor.
-                if selected { showingEditor = true } else { studio.selectedTrack = index }
+                // Already selected? The second tap opens the sound editor —
+                // unless the editor is docked in the side column, where it's
+                // already on screen showing this track and there's nothing for
+                // a second tap to open.
+                if selected && !layout.docksInstrumentEditor {
+                    showingEditor = true
+                } else {
+                    studio.selectedTrack = index
+                }
             } label: {
                 HStack(spacing: 4) {
                     Text(studio.song.label(for: index)).chipFont(13).lineLimit(1)
@@ -230,7 +237,9 @@ private struct TrackHeader: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(name)
-            .accessibilityHint(selected ? "Opens sound settings" : "Selects this track")
+            .accessibilityHint(selected && !layout.docksInstrumentEditor
+                               ? "Opens sound settings"
+                               : "Selects this track")
 
             Button {
                 studio.checkpoint()
@@ -252,6 +261,11 @@ private struct TrackHeader: View {
             .accessibilityLabel(muted ? "Unmute \(name)" : "Mute \(name)")
         }
         .padding(5)
+        // A rotation into the side arrangement docks the editor; leaving the
+        // popover up as well would show the same controls twice.
+        .onChange(of: layout.docksInstrumentEditor) { _, docks in
+            if docks { showingEditor = false }
+        }
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(selected ? accent.opacity(0.18) : Theme.panel)
@@ -277,8 +291,14 @@ private struct TrackHeader: View {
             }
             .disabled(studio.song.tracks.count <= 1)
         }
-        .sheet(isPresented: $showingEditor) {
-            InstrumentEditor(studio: studio, index: index)
+        // A popover at regular width, anchored here so the controls sit beside
+        // the track they change and the grid stays visible behind them. On a
+        // phone this adapts back to the sheet it has always been.
+        .popover(isPresented: $showingEditor, attachmentAnchor: .rect(.bounds),
+                 arrowEdge: .top) {
+            InstrumentEditor(studio: studio, index: index,
+                             popover: layout.presentsInstrumentAsPopover)
+                .presentationCompactAdaptation(.sheet)
         }
         // A track carries its notes in every pattern, so this is the most
         // expensive thing a context menu in this app can do.

@@ -57,14 +57,14 @@ struct ContentView: View {
         GeometryReader { geo in
             let layout = ChipLayout.resolve(size: geo.size,
                                             horizontalSizeClass: horizontalSizeClass)
-            VStack(spacing: 0) {
-                titleBar
-                TransportBar(studio: studio, showingArrangement: $showingArrangement)
-                PatternBar(studio: studio)
+            Group {
                 if layout.usesSideKeyboard {
-                    wideEditor
+                    wideEditor(layout)
                 } else {
-                    stackedEditor
+                    VStack(spacing: 0) {
+                        chrome(layout)
+                        stackedEditor
+                    }
                 }
             }
             .environment(\.chipLayout, layout)
@@ -140,6 +140,21 @@ struct ContentView: View {
         }
     }
 
+    /// Song name, transport and patterns. Capped and centred rather than
+    /// stretched: BPM and STEPS trail their rows so the two steppers read as a
+    /// column, and across 1200pt of window that puts the tempo at the far end
+    /// of the room from the play button that uses it. The cap is per-layout,
+    /// so a phone row is untouched.
+    private func chrome(_ layout: ChipLayout) -> some View {
+        VStack(spacing: 0) {
+            titleBar
+            TransportBar(studio: studio, showingArrangement: $showingArrangement)
+            PatternBar(studio: studio)
+        }
+        .frame(maxWidth: layout.chromeMaxWidth)
+        .frame(maxWidth: .infinity)
+    }
+
     /// Phone, and any iPad window taller than it is wide: the keys sit under
     /// the grid across the full width.
     private var stackedEditor: some View {
@@ -161,28 +176,52 @@ struct ContentView: View {
     /// three or four steps visible and a keyboard stretched a metre wide, so
     /// the keys move into a column of their own and the grid takes the height
     /// back — which is the whole reason to run natively on the thing.
-    private var wideEditor: some View {
+    private func wideEditor(_ layout: ChipLayout) -> some View {
         HStack(spacing: 0) {
-            GridView(studio: studio)
+            // The chrome rides above the grid rather than the whole window, so
+            // the transport and the pattern strip stay over the thing they act
+            // on instead of spanning the keyboard column too.
+            VStack(spacing: 0) {
+                chrome(layout)
+                GridView(studio: studio)
+            }
 
             Rectangle()
                 .fill(Theme.grid.opacity(0.5))
                 .frame(width: 1)
                 .padding(.vertical, 12)
 
-            // Centred in its column rather than pinned to the bottom: on a
-            // 13-inch iPad the bottom edge is a long way from where the hands
-            // holding it actually are.
-            VStack(spacing: 0) {
-                Spacer(minLength: 0)
-                KeyboardView(studio: studio)
-                Spacer(minLength: 0)
-            }
-            .frame(width: ChipLayout.sideKeyboardWidth)
+            instrumentPanel
+                .frame(width: ChipLayout.sideKeyboardWidth)
         }
         // Nothing sits under the grid in this layout, so without this the last
         // step row runs beneath the home indicator.
         .padding(.bottom, 8)
+    }
+
+    /// The side column: keys on top, the selected track's sound underneath.
+    ///
+    /// The keyboard alone left most of this column empty, and the one thing
+    /// worth putting beside a keyboard is the voice it plays. Docking the
+    /// instrument controls here also takes the editor off the sheet path,
+    /// which on an iPad covered the grid every time you nudged a decay — and
+    /// nudging a decay is something you do against the part you just wrote.
+    ///
+    /// Keys sit above the controls rather than below: they're what your hands
+    /// go to, and the bottom edge of a 13-inch iPad is a long way from where
+    /// the hands holding it are.
+    private var instrumentPanel: some View {
+        VStack(spacing: 0) {
+            KeyboardView(studio: studio)
+
+            Rectangle()
+                .fill(Theme.grid.opacity(0.5))
+                .frame(height: 1)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 10)
+
+            InstrumentEditor(studio: studio, index: studio.selectedTrack, docked: true)
+        }
     }
 
     /// Narrower than the 44pt targets either side of them — two more of those
