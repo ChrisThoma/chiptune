@@ -50,6 +50,16 @@ targets:
       path: Sources/Info.plist
       properties:
         CFBundleDisplayName: Chiptune
+        # The version has to be read out of the build settings rather than
+        # written here. XcodeGen writes this plist itself, and with
+        # GENERATE_INFOPLIST_FILE off the plist — not MARKETING_VERSION — is
+        # what the archive carries. Left alone it gets XcodeGen's own defaults
+        # of 1.0 and 1, so a version bump in the settings below does nothing
+        # and the upload is refused as a duplicate of the build already on the
+        # store. Nothing in the built app says which number won, which is why
+        # this went unnoticed until the archive was read.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UIStatusBarStyle: UIStatusBarStyleLightContent
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         # iPad turns freely. The editor has a stacked layout for tall windows

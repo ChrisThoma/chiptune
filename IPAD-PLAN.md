@@ -84,7 +84,7 @@ Two things learned the hard way, both recorded in `HardwareKeys.swift`:
   plain text field not receiving typed characters is the quickest way to tell
   that apart from a bug in the app.
 
-## 4. App Store metadata and screenshots — mostly done
+## 4. App Store metadata and screenshots — done
 
 - `MARKETING_VERSION` is 1.1 and `CURRENT_PROJECT_VERSION` is 3.
 - `AppStore/shoot.sh` takes an orientation and captures the iPad set in
@@ -92,21 +92,50 @@ Two things learned the hard way, both recorded in `HardwareKeys.swift`:
   also captures opaque PNGs now, so the alpha channel no longer needs
   stripping by hand.
 - `AppStore/screenshots/ipad-13/` is a current four-shot landscape set at
-  2752×2064, and `make_deliver.py` ships both sets.
+  2752×2064, `screenshots/iphone-6.9/` a portrait one at 1320×2868, and
+  `make_deliver.py` ships both sets.
 - `REVIEW-NOTES.md`, `CHECKLIST.md`, `SCREENSHOTS.md`, `LISTING.md`,
   `SUBMISSION.md` and `README.md` all describe an iPhone-and-iPad app.
 
-**Still to do before uploading:** the iPhone screenshots on disk are
-1206×2622, which is the 6.3" size, not the 6.9" one App Store Connect asks
-for. They were shot on the wrong simulator at some point before this branch,
-and they will be refused. Reshoot with:
+The iPhone set has been reshot. It held 1206×2622 files — the 6.3" size,
+from the wrong simulator at some point before this branch — and App Store
+Connect would have refused them. `screenshots/iphone-6.9/` is now a 1320×2868
+set off an iPhone 17 Pro Max. The iOS 26 dimming artifact that makes the iPad
+set unusable does not appear on a phone: the sheet shots were checked by eye,
+and the dimming is even across the screen. Only the iPad set needs iOS 17.
+
+Both sets pack through `make_deliver.py` into `AppStore/fastlane/`.
+
+## 4a. The version the archive carries — fixed
+
+`MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` were 1.1 and 3, and the
+archive came out **1.0 (1)** anyway. `GENERATE_INFOPLIST_FILE` is off, so
+`Sources/Info.plist` is what ships, and XcodeGen writes that file from
+`info.properties`. Whatever isn't listed there gets XcodeGen's own default —
+which for those two keys is 1.0 and 1. The build settings were never read.
+
+Both keys are now `$(MARKETING_VERSION)` and `$(CURRENT_PROJECT_VERSION)` in
+`project.yml`, so the settings are the single source again.
+
+It failed silently and would have been caught by App Store Connect refusing
+1.0 as a duplicate of the shipped build. **Read the version out of the
+archive, not out of `project.yml`**, whenever it matters:
 
 ```sh
-./AppStore/shoot.sh <6.9-inch-iphone-udid> iphone-6.9
+/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
+  <archive>/Products/Applications/Chiptune.app/Info.plist
 ```
 
-Also verify the archive reports `UIDeviceFamily [1, 2]` before uploading; the
-device family is what decides which screenshot sets are demanded.
+The same archive was checked for `UIDeviceFamily`, which decides which
+screenshot sets App Store Connect demands: it reports `[1, 2]`.
+
+Note that `Chiptune.xcodeproj` and `Sources/Info.plist` are both generated and
+both git-ignored, so this is only ever fixed in `project.yml`. Regenerate with
+the team exported, or the project gets no signing team:
+
+```sh
+CHIPTUNE_TEAM_ID=<team> xcodegen generate
+```
 
 ## 5. Coverage this branch does not have
 
