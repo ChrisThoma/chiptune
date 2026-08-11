@@ -59,6 +59,10 @@ targets:
         # Nothing here encrypts anything. Declaring it up front skips the
         # export-compliance question on every App Store Connect upload.
         ITSAppUsesNonExemptEncryption: false
+        # An imported song is copied into the library and edited there; the
+        # original file is only ever read. Saying so silences the build warning
+        # and keeps Files from offering an in-place edit that never happens.
+        LSSupportsOpeningDocumentsInPlace: false
         # A song file is the same JSON the library already stores, so the type
         # conforms to public.json — anything that can read text can read one,
         # and the app is only claiming the extension.
@@ -84,7 +88,7 @@ targets:
         # which is the same as having no team — pick one in Xcode instead.
         DEVELOPMENT_TEAM: ${CHIPTUNE_TEAM_ID}
         MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "1"
+        CURRENT_PROJECT_VERSION: "2"
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "5.0"
