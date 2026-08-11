@@ -137,6 +137,56 @@ the team exported, or the project gets no signing team:
 CHIPTUNE_TEAM_ID=<team> xcodegen generate
 ```
 
+## 4b. Which build is this? — the app says so
+
+The `…` menu ends with the build's own identity:
+
+```
+Built Aug 11, 2026
+ccb90be
+Version 1.1
+```
+
+The commit leads because it's the part worth trusting. A build phase stamps it
+into the *built* `Info.plist` under `ChiptuneGitCommit`, alongside
+`ChiptuneBuildDate`, so it names the code that was actually compiled — whereas
+the version number is typed into `project.yml`, only changes when someone
+remembers, and is routinely shared by builds that differ. The date saves a
+lookup when telling last week's build from today's. Tapping the row copies
+`1.1 · ccb90be`, which is what a bug report needs.
+
+`CFBundleVersion` is deliberately absent. The upload counter is how App Store
+Connect tells two uploads apart; on a device it is bookkeeping, and putting it
+in the row made the row read like bookkeeping.
+
+Nothing reports whether the tree had uncommitted edits when the build ran. It
+is a real distinction, but on any build someone other than the developer is
+holding the tree was clean, so the flag would be noise in every case where it
+is read.
+
+`BuildStamp` leaves a line out rather than showing a placeholder. A build made
+outside a git checkout has no commit — a source tarball is a legitimate way to
+build this — and a dash where a hash should be tells the reader nothing they
+can act on. A `$(…)` that never expanded is treated as absent for the same
+reason.
+
+Two things about the phase were checked rather than assumed, since both are
+ordering questions the build system doesn't promise:
+
+- The stamp survives into the archive, which is the build that ships. It's
+  written after the plist is processed, and
+  `testTheShippingBundleCarriesACommitAndABuildDate` fails if that stops being
+  true.
+- A signed archive still passes `codesign --verify --deep --strict`, so the
+  edit lands before the bundle is sealed rather than breaking it. A simulator
+  build fails that check with or without the phase — an artifact of building
+  with `CODE_SIGNING_ALLOWED=NO` — so verify an archive, not a simulator
+  build.
+
+The phase runs on every build by design: a stamp refreshed only when something
+else changed is one that eventually names the wrong commit. Xcode emits a note
+saying so, which is the expected cost.
+
 ## 5. Coverage this branch does not have
 
 The layout tests assert the resolve rules and the key-press mapping, which are

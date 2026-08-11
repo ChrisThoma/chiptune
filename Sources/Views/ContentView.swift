@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Which screen `AppStore/shoot.sh` asked the app to open on launch.
 ///
@@ -49,6 +50,10 @@ struct ContentView: View {
     @State private var confirmingClearPattern = false
     @State private var showingExport = false
     @FocusState private var nameFocused: Bool
+
+    /// Fixed for the life of the process — the bundle can't change under a
+    /// running app — so it's read once rather than per menu open.
+    private let build = BuildStamp()
 
     var body: some View {
         // The window decides the metrics, so the layout has to be read from
@@ -327,6 +332,23 @@ struct ContentView: View {
                     confirmingClearPattern = true
                 } label: {
                     Label("Clear pattern \(studio.pattern.name)", systemImage: "trash")
+                }
+                if !build.lines.isEmpty {
+                    Divider()
+                    // Which build this is, last in the menu because it's read
+                    // rarely and never while writing a part. Tapping copies
+                    // the release and commit, since the reason to look is
+                    // almost always a bug report.
+                    Button {
+                        UIPasteboard.general.string = build.copyText
+                    } label: {
+                        // A menu row takes a title and a subtitle, so the
+                        // first line leads and the rest stack underneath it.
+                        Text(build.lines[0])
+                        Text(build.lines.dropFirst().joined(separator: "\n"))
+                        Image(systemName: "info.circle")
+                    }
+                    .accessibilityHint("Copies the version and commit to the clipboard")
                 }
             } label: {
                 Image(systemName: "ellipsis.circle.fill")
