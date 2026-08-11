@@ -4,7 +4,9 @@ import SwiftUI
 struct KeyboardView: View {
     @Bindable var studio: Studio
     @Environment(\.chipLayout) private var layout
-    @State private var octave: Int = 5
+    /// Lives on the model rather than here, so the hardware note keys and
+    /// these buttons can't end up an octave apart; see `NoteKeys`.
+    private var octave: Int { studio.octave }
 
     /// Semitone offsets of the white keys, C through the octave's C.
     private let whiteOffsets = [0, 2, 4, 5, 7, 9, 11, 12]
@@ -47,7 +49,7 @@ struct KeyboardView: View {
     private var controls: some View {
         HStack(spacing: 10) {
             Button {
-                octave = max(0, octave - 1)
+                studio.shiftOctave(-1)
             } label: {
                 Image(systemName: "chevron.left").chipFont(13)
             }
@@ -61,7 +63,7 @@ struct KeyboardView: View {
                 .frame(width: 62)
 
             Button {
-                octave = min(8, octave + 1)
+                studio.shiftOctave(1)
             } label: {
                 Image(systemName: "chevron.right").chipFont(13)
             }
@@ -118,6 +120,9 @@ struct KeyboardView: View {
                     .stroke(Color.black.opacity(0.35), lineWidth: 1)
             )
             .contentShape(Rectangle())
+            // A key that doesn't light up under a pointer reads as a picture
+            // of a keyboard rather than one.
+            .hoverEffect(.lift)
             .onTapGesture {
                 studio.selectedNote = note
                 studio.audition(note)
@@ -140,6 +145,7 @@ struct PadStyle: ButtonStyle {
             // Meets the 44pt minimum touch target on its own.
             .frame(minWidth: 44, minHeight: 44)
             .contentShape(Rectangle())
+            .hoverEffect(.highlight)
             .background(
                 RoundedRectangle(cornerRadius: 7)
                     .fill(active ? Theme.text : Theme.panelHigh)
