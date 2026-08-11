@@ -1,4 +1,49 @@
 import SwiftUI
+import UIKit
+
+/// A real UIKit accessibility node for controls that iOS 17 bridges to an
+/// empty tab group. Unlike a transparent SwiftUI view, this remains present in
+/// the accessibility hierarchy while the segmented picker supplies the pixels
+/// and direct-touch behavior above it.
+private struct AccessibilityAdjustableControl: UIViewRepresentable {
+    let label: String
+    let value: String
+    let adjust: (AccessibilityAdjustmentDirection) -> Void
+
+    func makeUIView(context: Context) -> AdjustableView {
+        AdjustableView()
+    }
+
+    func updateUIView(_ view: AdjustableView, context: Context) {
+        view.accessibilityLabel = label
+        view.accessibilityValue = value
+        view.adjust = adjust
+    }
+
+    final class AdjustableView: UIView {
+        var adjust: ((AccessibilityAdjustmentDirection) -> Void)?
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            isAccessibilityElement = true
+            accessibilityTraits = .adjustable
+            backgroundColor = .clear
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func accessibilityIncrement() {
+            adjust?(.increment)
+        }
+
+        override func accessibilityDecrement() {
+            adjust?(.decrement)
+        }
+    }
+}
 
 /// Sheet for shaping one track's voice.
 struct InstrumentEditor: View {
@@ -47,6 +92,12 @@ struct InstrumentEditor: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .accessibilityHidden(true)
+                    .background {
+                        accessibilitySelector(label: "Channel",
+                                              value: kind.fullName,
+                                              adjust: adjustChannel)
+                    }
 
                     Text("Switching waveform keeps this track's notes and loads the new channel's default sound.")
                         .font(.caption)
@@ -73,6 +124,12 @@ struct InstrumentEditor: View {
                             }
                         }
                         .pickerStyle(.segmented)
+                        .accessibilityHidden(true)
+                        .background {
+                            accessibilitySelector(label: "Pulse width",
+                                                  value: pulseWidthAccessibilityValue,
+                                                  adjust: adjustPulseWidth)
+                        }
                     }
                 }
 
@@ -83,6 +140,12 @@ struct InstrumentEditor: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .accessibilityHidden(true)
+                    .background {
+                        accessibilitySelector(label: "Arpeggio",
+                                              value: arpeggioAccessibilityValue,
+                                              adjust: adjustArpeggio)
+                    }
 
                     Text("Cycles through the chord tones fast enough to sound like one voice — the classic way to fake a chord on a single channel.")
                         .font(.caption)
@@ -166,6 +229,68 @@ struct InstrumentEditor: View {
             })
     }
 
+    private var pulseWidthAccessibilityValue: String {
+        let duty = studio.song.tracks[safe: index]?.instrument.duty ?? 0
+        return Instrument.dutyLabels[safe: duty] ?? "Unknown"
+    }
+
+    private var arpeggioAccessibilityValue: String {
+        let offsets = studio.song.tracks[safe: index]?.instrument.arpeggio ?? []
+        switch arps.first(where: { $0.offsets == offsets })?.name {
+        case "Maj": return "Major"
+        case "Min": return "Minor"
+        case "Oct": return "Octave"
+        case "5th": return "Fifth"
+        case let name?: return name
+        case nil: return "Custom"
+        }
+    }
+
+    private func adjustChannel(_ direction: AccessibilityAdjustmentDirection) {
+        let kinds = ChannelKind.allCases
+        guard let current = kinds.firstIndex(of: kind),
+              let next = adjustedIndex(current, count: kinds.count, direction: direction),
+              next != current else { return }
+        studio.setKind(kinds[next], for: index)
+    }
+
+    private func adjustPulseWidth(_ direction: AccessibilityAdjustmentDirection) {
+        let binding = instrument(\.duty, default: 0)
+        guard let next = adjustedIndex(binding.wrappedValue,
+                                       count: Instrument.dutyLabels.count,
+                                       direction: direction),
+              next != binding.wrappedValue else { return }
+        binding.wrappedValue = next
+    }
+
+    private func adjustArpeggio(_ direction: AccessibilityAdjustmentDirection) {
+        let binding = instrument(\.arpeggio, default: [])
+        let current = arps.firstIndex(where: { $0.offsets == binding.wrappedValue }) ?? 0
+        guard let next = adjustedIndex(current, count: arps.count, direction: direction),
+              next != current else { return }
+        binding.wrappedValue = arps[next].offsets
+    }
+
+    private func adjustedIndex(_ current: Int,
+                               count: Int,
+                               direction: AccessibilityAdjustmentDirection) -> Int? {
+        switch direction {
+        case .increment: return min(current + 1, count - 1)
+        case .decrement: return max(current - 1, 0)
+        @unknown default: return nil
+        }
+    }
+
+    /// Segmented pickers are bridged to empty tab groups on iOS 17. A concrete
+    /// UIKit view supplies the missing adjustable accessibility node.
+    private func accessibilitySelector(
+        label: String,
+        value: String,
+        adjust: @escaping (AccessibilityAdjustmentDirection) -> Void
+    ) -> some View {
+        AccessibilityAdjustableControl(label: label, value: value, adjust: adjust)
+    }
+
     private func slider(title: String,
                         value: Binding<Double>,
                         range: ClosedRange<Double>,
@@ -180,23 +305,21 @@ struct InstrumentEditor: View {
             }
             Slider(value: value, in: range)
                 .tint(accent)
-                .accessibilityRepresentation {
-                    Text(title)
-                        .accessibilityLabel(title)
-                        .accessibilityValue(display(value.wrappedValue))
-                        .accessibilityAdjustableAction { direction in
-                            let step = (range.upperBound - range.lowerBound) / 10
-                            switch direction {
-                            case .increment:
-                                value.wrappedValue = min(value.wrappedValue + step,
-                                                         range.upperBound)
-                            case .decrement:
-                                value.wrappedValue = max(value.wrappedValue - step,
-                                                         range.lowerBound)
-                            @unknown default:
-                                break
-                            }
-                        }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(title)
+                .accessibilityValue(display(value.wrappedValue))
+                .accessibilityAdjustableAction { direction in
+                    let step = (range.upperBound - range.lowerBound) / 10
+                    switch direction {
+                    case .increment:
+                        value.wrappedValue = min(value.wrappedValue + step,
+                                                 range.upperBound)
+                    case .decrement:
+                        value.wrappedValue = max(value.wrappedValue - step,
+                                                 range.lowerBound)
+                    @unknown default:
+                        break
+                    }
                 }
         }
     }
