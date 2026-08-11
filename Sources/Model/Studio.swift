@@ -16,6 +16,17 @@ final class Studio {
     var selectedNote: Int8 = 60
     /// Index into `song.tracks`, not a `ChannelKind`.
     var selectedTrack: Int = 0
+    /// Step the grid cursor sits on. Paired with `selectedTrack`, this is the
+    /// cell the hardware keyboard writes into.
+    var selectedStep: Int = 0
+    /// Octave the keys write in. Shared by the on-screen keyboard and the
+    /// hardware one so the two can't drift apart and disagree about what
+    /// pressing a key means.
+    var octave: Int = 5
+    /// A hardware key has been pressed. Until then the grid draws no cursor:
+    /// with nothing to move it, a highlighted cell reads as a selection the
+    /// user didn't make.
+    var hardwareKeyboardInUse = false
     /// Index into `song.patterns` — the pattern the grid is editing.
     var selectedPattern: Int = 0
     /// PATT loops the pattern being edited; SONG follows the arrangement.
@@ -395,6 +406,82 @@ final class Studio {
             setNote(track: track, step: step, note: selectedNote)
             audition(selectedNote, on: track)
         }
+    }
+
+    // MARK: Hardware keyboard
+    //
+    // An iPad is often a keyboard-and-trackpad machine, and a step sequencer
+    // is one of the app types where that changes how it's used rather than
+    // just how it's driven. Entering a run of notes is a cell tap plus a key
+    // tap each, and typing them instead is the obvious faster path.
+
+    /// Pulls the cursor back inside the grid. Both counts move under it — a
+    /// pattern can be shortened, a track deleted — so every cursor operation
+    /// starts here rather than trusting whoever wrote it last.
+    func clampCursor() {
+        selectedTrack = min(max(selectedTrack, 0), max(song.tracks.count - 1, 0))
+        selectedStep = min(max(selectedStep, 0), max(patternLength - 1, 0))
+    }
+
+    /// Arrow-key movement. Stops at the edges rather than wrapping: an arrow
+    /// held down should come to rest somewhere predictable.
+    func moveCursor(track trackDelta: Int = 0, step stepDelta: Int = 0) {
+        hardwareKeyboardInUse = true
+        clampCursor()
+        selectedTrack = min(max(selectedTrack + trackDelta, 0),
+                            max(song.tracks.count - 1, 0))
+        selectedStep = min(max(selectedStep + stepDelta, 0),
+                           max(patternLength - 1, 0))
+    }
+
+    /// Follows a tap, but only once the keyboard is in play. A touch-only
+    /// session never sees the cursor, so moving it would be invisible; a mixed
+    /// one would otherwise have taps and arrows disagreeing about where "here"
+    /// is.
+    func placeCursor(track: Int, step: Int) {
+        guard hardwareKeyboardInUse else { return }
+        selectedTrack = track
+        selectedStep = step
+        clampCursor()
+    }
+
+    /// Writes a note at the cursor and steps down, the way a tracker does.
+    /// Typing a run of notes is the whole point, and reaching for an arrow key
+    /// between each one would give most of it back.
+    func typeNote(_ note: Int8) {
+        hardwareKeyboardInUse = true
+        clampCursor()
+        guard !song.tracks.isEmpty else { return }
+        checkpoint(coalescing: true)
+        setNote(track: selectedTrack, step: selectedStep, note: note)
+        selectedNote = note
+        audition(note)
+        advanceCursor()
+    }
+
+    /// Empties the cell under the cursor and steps down, so holding delete
+    /// walks a run of notes off the same way typing walked it on.
+    func clearAtCursor() {
+        hardwareKeyboardInUse = true
+        clampCursor()
+        guard !song.tracks.isEmpty else { return }
+        checkpoint(coalescing: true)
+        setNote(track: selectedTrack, step: selectedStep, note: Chip.emptyNote)
+        advanceCursor()
+    }
+
+    /// Wraps, unlike the arrow keys: this one runs off the end of a pattern
+    /// you're filling in, and stopping dead on the last step would mean
+    /// reaching for the mouse to carry on.
+    func advanceCursor() {
+        guard patternLength > 0 else { return }
+        selectedStep = (selectedStep + 1) % patternLength
+    }
+
+    /// Shared by the on-screen octave buttons and the hardware ones. The range
+    /// is the one the on-screen keyboard has always offered.
+    func shiftOctave(_ delta: Int) {
+        octave = min(8, max(0, octave + delta))
     }
 
     /// Previews a note on a track — the selected one unless told otherwise.

@@ -71,6 +71,7 @@ struct ContentView: View {
         }
         .background(Theme.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
+        .hardwareKeys(studio: studio)
         .sheet(isPresented: $showingSongs) {
             SongListView(studio: studio)
         }

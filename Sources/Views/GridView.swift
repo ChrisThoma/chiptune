@@ -94,6 +94,7 @@ struct GridView: View {
                         .fill(Theme.panel)
                 )
         }
+        .hoverEffect(.highlight)
         .accessibilityLabel("Add track")
     }
 
@@ -118,6 +119,15 @@ struct GridView: View {
             // the top of the new block rather than wherever you last scrolled.
             .onChange(of: studio.selectedPattern) { _, _ in
                 proxy.scrollTo(0, anchor: .top)
+            }
+            // An arrow key that walks the cursor off the bottom of the visible
+            // rows has to bring the grid with it. Yields to the playhead while
+            // that's running rather than the two fighting over the offset.
+            .onChange(of: studio.selectedStep) { _, step in
+                guard studio.hardwareKeyboardInUse, !showsPlayhead else { return }
+                withAnimation(.easeOut(duration: 0.12)) {
+                    proxy.scrollTo(step, anchor: .center)
+                }
             }
         }
     }
@@ -158,8 +168,15 @@ struct GridView: View {
         let accent = Theme.color(for: studio.song.tracks[track].kind)
         let isOff = note == ChipCore.noteOff
         let muted = studio.song.tracks[track].muted
+        // Only once a hardware key has been pressed. On a touch-only session
+        // there's nothing moving it, and a ringed cell would read as a
+        // selection the user didn't make.
+        let atCursor = studio.hardwareKeyboardInUse
+            && studio.selectedTrack == track
+            && studio.selectedStep == step
 
         return Button {
+            studio.placeCursor(track: track, step: step)
             studio.toggleCell(track: track, step: step)
         } label: {
             Text(isOff ? "OFF" : (filled ? NoteName.label(note) : "·"))
@@ -180,8 +197,15 @@ struct GridView: View {
                     RoundedRectangle(cornerRadius: 5)
                         .stroke(Theme.grid.opacity(0.6), lineWidth: filled ? 0 : 1)
                 )
+                // White rather than the channel accent: the cursor has to
+                // stand out against a cell already filled with that accent.
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(atCursor ? Theme.text : Color.clear, lineWidth: 2)
+                )
         }
         .buttonStyle(.plain)
+        .hoverEffect(.highlight)
         .accessibilityLabel("\(studio.song.fullLabel(for: track)) step \(step + 1)")
         .accessibilityValue(filled ? NoteName.label(note) : "empty")
     }
@@ -236,6 +260,7 @@ private struct TrackHeader: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .hoverEffect(.highlight)
             .accessibilityLabel(name)
             .accessibilityHint(selected && !layout.docksInstrumentEditor
                                ? "Opens sound settings"
@@ -258,6 +283,7 @@ private struct TrackHeader: View {
                     )
             }
             .buttonStyle(.plain)
+            .hoverEffect(.highlight)
             .accessibilityLabel(muted ? "Unmute \(name)" : "Mute \(name)")
         }
         .padding(5)
