@@ -41,6 +41,7 @@ enum SongNameFieldAccessibility {
 
 struct ContentView: View {
     @Bindable var studio: Studio
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var showingSongs = false
     @State private var showingArrangement = false
     @State private var showingShare = false
@@ -50,20 +51,23 @@ struct ContentView: View {
     @FocusState private var nameFocused: Bool
 
     var body: some View {
-        VStack(spacing: 0) {
-            titleBar
-            TransportBar(studio: studio, showingArrangement: $showingArrangement)
-            PatternBar(studio: studio)
-            GridView(studio: studio)
-            // The grid used to run straight into the keys; this is the breathing
-            // room between the two.
-            Rectangle()
-                .fill(Theme.grid.opacity(0.5))
-                .frame(height: 1)
-                .padding(.top, 10)
-                .padding(.horizontal, 14)
-            KeyboardView(studio: studio)
-                .padding(.top, 10)
+        // The window decides the metrics, so the layout has to be read from
+        // the actual size rather than the device: an iPad in a Split View
+        // slice gets the phone layout, and a rotation swaps arrangements.
+        GeometryReader { geo in
+            let layout = ChipLayout.resolve(size: geo.size,
+                                            horizontalSizeClass: horizontalSizeClass)
+            VStack(spacing: 0) {
+                titleBar
+                TransportBar(studio: studio, showingArrangement: $showingArrangement)
+                PatternBar(studio: studio)
+                if layout.usesSideKeyboard {
+                    wideEditor
+                } else {
+                    stackedEditor
+                }
+            }
+            .environment(\.chipLayout, layout)
         }
         .background(Theme.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
@@ -134,6 +138,51 @@ struct ContentView: View {
             case .none: break
             }
         }
+    }
+
+    /// Phone, and any iPad window taller than it is wide: the keys sit under
+    /// the grid across the full width.
+    private var stackedEditor: some View {
+        VStack(spacing: 0) {
+            GridView(studio: studio)
+            // The grid used to run straight into the keys; this is the breathing
+            // room between the two.
+            Rectangle()
+                .fill(Theme.grid.opacity(0.5))
+                .frame(height: 1)
+                .padding(.top, 10)
+                .padding(.horizontal, 14)
+            KeyboardView(studio: studio)
+                .padding(.top, 10)
+        }
+    }
+
+    /// iPad in landscape. Stacking here would leave the grid a squat band with
+    /// three or four steps visible and a keyboard stretched a metre wide, so
+    /// the keys move into a column of their own and the grid takes the height
+    /// back — which is the whole reason to run natively on the thing.
+    private var wideEditor: some View {
+        HStack(spacing: 0) {
+            GridView(studio: studio)
+
+            Rectangle()
+                .fill(Theme.grid.opacity(0.5))
+                .frame(width: 1)
+                .padding(.vertical, 12)
+
+            // Centred in its column rather than pinned to the bottom: on a
+            // 13-inch iPad the bottom edge is a long way from where the hands
+            // holding it actually are.
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                KeyboardView(studio: studio)
+                Spacer(minLength: 0)
+            }
+            .frame(width: ChipLayout.sideKeyboardWidth)
+        }
+        // Nothing sits under the grid in this layout, so without this the last
+        // step row runs beneath the home indicator.
+        .padding(.bottom, 8)
     }
 
     /// Narrower than the 44pt targets either side of them — two more of those

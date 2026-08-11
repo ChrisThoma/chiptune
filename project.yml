@@ -52,6 +52,15 @@ targets:
         CFBundleDisplayName: Chiptune
         UIStatusBarStyle: UIStatusBarStyleLightContent
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        # iPad turns freely. The editor has a stacked layout for tall windows
+        # and a grid-beside-keyboard one for wide, so neither orientation is
+        # the odd one out; the iPhone stays portrait because the stacked
+        # layout has nowhere to put the keys in a 390pt-tall window.
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         # Dark launch screen matching Theme.background, so the app doesn't
         # flash white before the splash view takes over.
         UILaunchScreen:
@@ -92,7 +101,7 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "5.0"
-        # iPhone-only for 1.0. It still runs on iPad in compatibility mode; a
-        # native iPad layout is a later release, not a launch blocker.
-        TARGETED_DEVICE_FAMILY: "1"
+        # iPhone and iPad. The iPad build is a native layout rather than the
+        # scaled-up phone window it used to run in; see `ChipLayout`.
+        TARGETED_DEVICE_FAMILY: "1,2"
         ENABLE_PREVIEWS: YES
