@@ -69,6 +69,22 @@ struct InstrumentEditor: View {
     private var accent: Color { Theme.color(for: kind) }
     private var held: Bool { studio.song.tracks[safe: index]?.instrument.sustain ?? false }
 
+    /// "Custom" once the sound has been edited away from every preset, which is
+    /// the honest answer — the sliders below are the truth, not the menu.
+    private var presetName: String {
+        guard let instrument = studio.song.tracks[safe: index]?.instrument else { return "Custom" }
+        return InstrumentPreset.matching(instrument, kind: kind)?.name ?? "Custom"
+    }
+
+    /// Replaces the whole instrument, and deliberately leaves the track's name
+    /// alone — picking "Snare" shouldn't rename a track someone called Drums.
+    private func apply(_ preset: InstrumentPreset) {
+        guard studio.song.tracks.indices.contains(index) else { return }
+        studio.checkpoint()
+        studio.song.tracks[index].instrument = preset.instrument
+        studio.pushInstrument(index)
+    }
+
     /// Preset arpeggio shapes; empty means the note plays straight.
     private let arps: [(name: String, offsets: [Int])] = [
         ("Off", []),
@@ -140,6 +156,30 @@ struct InstrumentEditor: View {
 
     private var editor: some View {
             Form {
+                Section("Preset") {
+                    Menu {
+                        ForEach(InstrumentPreset.presets(for: kind)) { preset in
+                            Button(preset.name) { apply(preset) }
+                        }
+                    } label: {
+                        HStack {
+                            Text("Sound")
+                            Spacer()
+                            Text(presetName)
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityLabel("Sound preset")
+                    .accessibilityValue(presetName)
+
+                    Text("A starting point. Every control below stays yours to move.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section("Name") {
                     // Placeholder rather than a pre-filled value: an untouched
                     // track has no name, and showing "TRI" in the field would
