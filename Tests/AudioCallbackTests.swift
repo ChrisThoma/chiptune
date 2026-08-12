@@ -13,7 +13,7 @@ final class AudioCallbackTests: XCTestCase {
         var song = Song(name: "CallbackTest")
         song.tempo = 240
         // Long decays so sound persists across the whole window under test.
-        for i in song.tracks.indices { song.tracks[i].instrument.decay = 4.0 }
+        for i in song.tracks.indices { song.tracks[i].instrument.sustain = true }
         song.patterns[0].rows[0][0] = 60
         song.patterns[0].rows[1][4] = 64
         song.patterns[0].rows[2][8] = 48

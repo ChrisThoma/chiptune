@@ -51,13 +51,21 @@ struct Instrument: Codable, Equatable {
     var duty: Int = 2
     /// 0...1 channel level.
     var volume: Double = 0.8
-    /// Seconds for the amplitude envelope to fall to silence. 4.0 means "hold".
+    /// Seconds for the amplitude envelope to fall to silence.
     var decay: Double = 0.35
+    /// Holds the note at full level until the next one, or an OFF, instead of
+    /// decaying. `decay` is ignored while this is on, and kept so switching
+    /// hold back off lands somewhere musical rather than on a default.
+    var sustain: Bool = false
     /// Semitone offsets cycled at ~60 Hz. Empty means no arpeggio.
     var arpeggio: [Int] = []
 
     static let dutyCycles: [Double] = [0.125, 0.25, 0.5, 0.75]
     static let dutyLabels = ["12%", "25%", "50%", "75%"]
+
+    /// Hold used to be the far end of the decay slider rather than a switch of
+    /// its own. Files written then say hold by carrying a decay this long.
+    static let legacyHoldDecay = 3.99
 
     /// Widest arpeggio offset a file may declare, in semitones — four octaves
     /// either way, far past anything musical and far short of anything that
@@ -75,6 +83,43 @@ struct Instrument: Codable, Equatable {
     /// voice's phase increment becomes infinite, its output becomes NaN, and
     /// the master DC blocker feeds that NaN back into itself forever — one bad
     /// file and the app is silent until it's relaunched.
+    private enum CodingKeys: String, CodingKey {
+        case duty, volume, decay, sustain, arpeggio
+    }
+
+    init(duty: Int = 2, volume: Double = 0.8, decay: Double = 0.35,
+         sustain: Bool = false, arpeggio: [Int] = []) {
+        self.duty = duty
+        self.volume = volume
+        self.decay = decay
+        self.sustain = sustain
+        self.arpeggio = arpeggio
+    }
+
+    /// Written by hand, like `Track`'s and `Song`'s, because the synthesised
+    /// decoder emits `decode` rather than `decodeIfPresent` and never applies
+    /// the property defaults above. Under it, adding a single field would have
+    /// made every `.chipsong` already written — and the autosave restored at
+    /// launch — fail to decode, which reads to the user as their song vanishing.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        duty = try c.decodeIfPresent(Int.self, forKey: .duty) ?? 2
+        volume = try c.decodeIfPresent(Double.self, forKey: .volume) ?? 0.8
+        decay = try c.decodeIfPresent(Double.self, forKey: .decay) ?? 0.35
+        arpeggio = try c.decodeIfPresent([Int].self, forKey: .arpeggio) ?? []
+        if let saved = try c.decodeIfPresent(Bool.self, forKey: .sustain) {
+            sustain = saved
+        } else if decay >= Instrument.legacyHoldDecay {
+            // An older file saying hold the only way it could. Leave a real
+            // decay behind, or turning hold off would drop to a four-second
+            // fade that reads as still held.
+            sustain = true
+            decay = 0.35
+        } else {
+            sustain = false
+        }
+    }
+
     mutating func normalize() {
         duty = min(max(duty, 0), Instrument.dutyCycles.count - 1)
         volume = volume.isFinite ? min(max(volume, 0), 1) : 0.8
@@ -88,7 +133,7 @@ struct Instrument: Codable, Equatable {
         switch kind {
         case .pulse1: return Instrument(duty: 2, volume: 0.8, decay: 0.35)
         case .pulse2: return Instrument(duty: 1, volume: 0.6, decay: 0.5)
-        case .triangle: return Instrument(duty: 2, volume: 0.9, decay: 4.0)
+        case .triangle: return Instrument(duty: 2, volume: 0.9, decay: 4.0, sustain: true)
         case .noise: return Instrument(duty: 2, volume: 0.5, decay: 0.12)
         }
     }

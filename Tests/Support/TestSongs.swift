@@ -26,7 +26,8 @@ enum TestSongs {
                            arpeggio: [Int] = []) -> Song {
         var song = empty(tempo: tempo)
         song.tracks = [Track(kind: kind)]
-        song.tracks[0].instrument.decay = sustain ? 4.0 : 0.35
+        song.tracks[0].instrument.sustain = sustain
+        song.tracks[0].instrument.decay = 0.35
         song.tracks[0].instrument.volume = 1.0
         song.tracks[0].instrument.duty = duty
         song.tracks[0].instrument.arpeggio = arpeggio
