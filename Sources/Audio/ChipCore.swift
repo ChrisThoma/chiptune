@@ -146,12 +146,22 @@ final class ChipCore {
     /// resetting it, and TSan reports only data races — while the same suite
     /// against the pre-`transport` `start()` reports a Swift access race.
     ///
-    /// What the pointer buys is that the distinction can't be lost later.
-    /// Rewrite the advance as `chainPos += 1` and a stored property would
-    /// quietly become undefined behaviour; memory reached through a pointer is
-    /// never exclusivity-enforced, so it cannot. Same placement as `transport`,
-    /// for a weaker reason, and the same ordinary word-sized race the rest of
-    /// this file already runs on.
+    /// What the pointer buys is narrower than it first appears, and worth
+    /// stating exactly, because a wrong version of this claim cost a CI
+    /// failure: pointer memory is *not* immune to exclusivity enforcement.
+    /// `release` proved it — `params[track].releaseToken &+= 1` passes a field
+    /// of a pointer element as `inout`, which takes a modifying access to the
+    /// element and reports as a Swift access race. What matters is the form of
+    /// the mutation, not where the memory lives.
+    ///
+    /// The accessors below are a plain `get`/`set` pair, so even `chainPos +=
+    /// 1` would compile to a get, an add, and a set, with no access held
+    /// across them. That is what makes this placement a guard rather than a
+    /// fix: it takes the field out of reach of the one construct — a compound
+    /// assignment straight onto storage — that turns this pattern into
+    /// undefined behaviour. Same placement as `transport`, for a weaker
+    /// reason, and the same ordinary word-sized race the rest of this file
+    /// already runs on.
     private var chainPos: Int32 {
         get { chainCursor.pointee }
         set { chainCursor.pointee = newValue }
@@ -227,11 +237,21 @@ final class ChipCore {
     /// the note that started it and nothing is left to release it.
     func release(track: Int) {
         guard track >= 0, track < Chip.maxTracks else { return }
-        params[track].releaseToken &+= 1
+        // Not `&+= 1`: a compound assignment passes the field as `inout`,
+        // which takes a modifying access to the element and holds it across
+        // the bump. The audio thread reads this element while triggering, so
+        // that overlap is an exclusivity violation rather than the stale read
+        // the rest of this contract trades on — TSan calls it a Swift access
+        // race, and CI rejects it. Read then write, and neither access is
+        // held. Same reason `start()` bumps `transport[0]` this way.
+        params[track].releaseToken = params[track].releaseToken &+ 1
     }
 
     func releaseAll() {
-        for track in 0..<Chip.maxTracks { params[track].releaseToken &+= 1 }
+        // Read then write rather than `&+=`, for the reason given in `release`.
+        for track in 0..<Chip.maxTracks {
+            params[track].releaseToken = params[track].releaseToken &+ 1
+        }
     }
 
     /// Which pattern cell started the note currently sounding on `track`, or
