@@ -102,6 +102,11 @@ final class ChipCore {
     private let chain: UnsafeMutablePointer<Int32>
     private let params: UnsafeMutablePointer<VoiceParams>
     private let voices: UnsafeMutablePointer<VoiceState>
+    /// Two slots: `[0]` is bumped by `start()` to ask the audio thread to
+    /// rewind, `[1]` is the last value the audio thread acted on. Same shape as
+    /// `VoiceParams.releaseToken`, and here for the same reason it lives in
+    /// allocated memory rather than in a stored property — see `start()`.
+    private let transport: UnsafeMutablePointer<Int32>
 
     private let sampleRate: Double
 
@@ -159,6 +164,8 @@ final class ChipCore {
         params.initialize(repeating: VoiceParams(), count: Chip.maxTracks)
         voices = .allocate(capacity: Chip.maxTracks)
         voices.initialize(repeating: VoiceState(), count: Chip.maxTracks)
+        transport = .allocate(capacity: 2)
+        transport.initialize(repeating: 0, count: 2)
     }
 
     deinit {
@@ -167,6 +174,7 @@ final class ChipCore {
         chain.deallocate()
         params.deallocate()
         voices.deallocate()
+        transport.deallocate()
     }
 
     private func cell(_ pat: Int, _ track: Int, _ step: Int) -> Int {
@@ -328,13 +336,32 @@ final class ChipCore {
             voices[c].declick = 0
             voices[c].pendingNote = Chip.emptyNote
         }
-        chainPos = 0
-        currentPattern = songMode ? chain[0] : focusPattern
-        currentStep = 0
-        sampleCounter = 0
-        lpState = 0
-        dcX = 0
-        dcY = 0
+        // The playhead and the filter state are deliberately not written here.
+        // `render` mutates both in place — `currentStep += 1`, `lpState += …` —
+        // and Swift treats a read-modify-write of a stored property as an
+        // exclusive access. A main-thread write landing inside one is an
+        // exclusivity violation, which is undefined behaviour, not the harmless
+        // stale read the rest of this contract trades on: the compiler is
+        // entitled to assume nothing else writes for the duration. Thread
+        // Sanitizer names it a "Swift access race" rather than a data race, and
+        // that is the distinction — the benign reports here are the latter.
+        //
+        // Note this applies to the stored properties only. `voices`, `params`
+        // and `pattern` are reached through `UnsafeMutablePointer`, which
+        // exclusivity enforcement does not cover, so the writes above stay.
+        //
+        // So the rewind is requested and performed on the audio thread that
+        // owns those fields, exactly as `releaseToken` does for voices. The
+        // token is bumped before `playing`, so a buffer that sees playback
+        // start has already rewound; a buffer that sees only the token rewinds
+        // and stays silent one more buffer, which is inaudible.
+        //
+        // It lives in `transport` rather than in a stored property for the very
+        // reason described above: `token &+= 1` on a property is itself a
+        // read-modify-write, so a token kept there would only move the
+        // exclusivity violation from `lpState` into the mechanism meant to
+        // avoid it. Through a pointer it is an ordinary word-sized write.
+        transport[0] = transport[0] &+ 1
         playing = true
     }
 
@@ -560,6 +587,20 @@ final class ChipCore {
             voices[c].previewSamples = 0
             voices[c].declick = 0
             voices[c].pendingNote = Chip.emptyNote
+        }
+
+        // A `start()` since the last buffer rewinds the transport here rather
+        // than on the main thread — see `start()` for why it cannot do it
+        // itself. Before the sample loop, so the first step lands on frame 0.
+        if transport[0] != transport[1] {
+            transport[1] = transport[0]
+            chainPos = 0
+            currentPattern = songMode ? chain[0] : focusPattern
+            currentStep = 0
+            sampleCounter = 0
+            lpState = 0
+            dcX = 0
+            dcY = 0
         }
 
         for i in 0..<frames {
