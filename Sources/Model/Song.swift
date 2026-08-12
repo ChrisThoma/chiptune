@@ -133,7 +133,10 @@ struct Instrument: Codable, Equatable {
         switch kind {
         case .pulse1: return Instrument(duty: 2, volume: 0.8, decay: 0.35)
         case .pulse2: return Instrument(duty: 1, volume: 0.6, decay: 0.5)
-        case .triangle: return Instrument(duty: 2, volume: 0.9, decay: 4.0, sustain: true)
+        // Long enough to read as a bass sustain, short enough that it always
+        // ends. This used to ship holding, and one note left the channel
+        // sounding until the transport stopped.
+        case .triangle: return Instrument(duty: 2, volume: 0.9, decay: 1.5)
         case .noise: return Instrument(duty: 2, volume: 0.5, decay: 0.12)
         }
     }
