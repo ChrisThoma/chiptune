@@ -211,6 +211,78 @@ final class ChipCoreConcurrencyTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(core.currentPattern, 0)
     }
 
+    /// `release` and `releaseAll` bump a per-voice token that the audio thread
+    /// reads while triggering notes. The token lives in allocated memory
+    /// precisely so the bump would be an ordinary race — but `&+=` on a field
+    /// *inside* a pointer element is not an ordinary write. It takes a
+    /// modifying access to the element for the duration, which is the
+    /// long-term kind Swift enforces, so a concurrent read of that element is
+    /// an exclusivity violation rather than a stale value.
+    ///
+    /// CI caught this where the broad mutation test could not: that test calls
+    /// `release` once per pass, against a render loop that only reads the
+    /// token when a note actually starts, so the two rarely coincide. Here
+    /// every step of every track carries a note at 200 samples a step, so the
+    /// audio thread is triggering almost continuously while the other thread
+    /// does nothing but bump tokens.
+    func testReleaseTokensSurviveConcurrentTriggering() {
+        let core = ChipCore(sampleRate: 4000)
+        var song = Song(name: "Release churn")
+        song.tracks = (0..<Chip.maxTracks).map { Track(kind: ChannelKind.allCases[$0 % 4]) }
+        var pattern = Pattern(name: "0", length: 16, trackCount: Chip.maxTracks)
+        // A note on every step of every track, so `trigger` runs at every
+        // single step boundary rather than at the few that happen to be filled.
+        for track in 0..<Chip.maxTracks {
+            for step in 0..<16 { pattern.rows[track][step] = Int8(48 + (track + step) % 24) }
+        }
+        song.patterns = [pattern]
+        song.arrangement = [SongSection(patternID: pattern.id, repeats: 1)]
+        song.normalize()
+        core.load(song: song)
+        core.tempo = 300
+        core.start()
+
+        let rendered = expectation(description: "render loop finishes")
+        let released = expectation(description: "release loop finishes")
+        let nonFinite = Counter()
+        // Evidence the window was open: a run whose playhead never moved would
+        // never trigger, and would otherwise look exactly like a pass.
+        let steps = Counter()
+        let frames = 256
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let buffer = UnsafeMutablePointer<Float>.allocate(capacity: frames)
+            buffer.initialize(repeating: 0, count: frames)
+            defer { buffer.deallocate() }
+            var last = core.currentStep
+            for _ in 0..<3000 {
+                core.render(frames: frames, into: buffer)
+                for i in 0..<frames where !buffer[i].isFinite { nonFinite.bump() }
+                if core.currentStep != last {
+                    last = core.currentStep
+                    steps.bump()
+                }
+            }
+            rendered.fulfill()
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            for pass in 0..<20000 {
+                core.release(track: pass % Chip.maxTracks)
+                if pass % 4 == 0 { core.releaseAll() }
+            }
+            released.fulfill()
+        }
+
+        wait(for: [rendered, released], timeout: 120)
+
+        XCTAssertEqual(nonFinite.value, 0,
+                       "the render produced non-finite samples while release tokens were bumped")
+        XCTAssertGreaterThan(steps.value, 500,
+                             "the playhead barely moved, so the audio thread was not triggering — "
+                             + "this test proves nothing unless it does")
+    }
+
     /// Stopping and starting transport from another thread mid-render is what
     /// the PLAY button does, and `start()` rewrites every voice's state.
     func testTransportChangesDuringRenderStayFinite() {
