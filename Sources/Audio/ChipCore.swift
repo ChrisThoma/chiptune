@@ -107,6 +107,8 @@ final class ChipCore {
     /// `VoiceParams.releaseToken`, and here for the same reason it lives in
     /// allocated memory rather than in a stored property — see `start()`.
     private let transport: UnsafeMutablePointer<Int32>
+    /// One slot, backing `chainPos` — see there for why it isn't a property.
+    private let chainCursor: UnsafeMutablePointer<Int32>
 
     private let sampleRate: Double
 
@@ -127,7 +129,34 @@ final class ChipCore {
     private(set) var currentStep: Int32 = 0
     private(set) var currentPattern: Int32 = 0
 
-    private var chainPos: Int32 = 0
+    /// How far through the chain playback has got: advanced by the audio
+    /// thread at each pattern boundary, reset by the main thread from
+    /// `setChain` and `setSongMode`.
+    ///
+    /// It lives in `chainCursor` to keep it out of the hazard `start()` ran
+    /// into — but note that as written it is *not* an instance of it. Swift
+    /// enforces exclusivity only on long-term accesses: an `inout` argument,
+    /// which is what a compound assignment like `lpState += …` or
+    /// `currentStep += 1` compiles to. `chainPos = (chainPos + 1) % links` is
+    /// an ordinary read followed by an ordinary write, neither of them held,
+    /// so a main-thread write between the two is a plain stale value and
+    /// nothing worse. That was measured, not assumed: with this field a stored
+    /// property, `testChainCursorSurvivesResetsWhileTheChainIsAdvancing`
+    /// crosses thousands of boundaries under a thread doing nothing but
+    /// resetting it, and TSan reports only data races — while the same suite
+    /// against the pre-`transport` `start()` reports a Swift access race.
+    ///
+    /// What the pointer buys is that the distinction can't be lost later.
+    /// Rewrite the advance as `chainPos += 1` and a stored property would
+    /// quietly become undefined behaviour; memory reached through a pointer is
+    /// never exclusivity-enforced, so it cannot. Same placement as `transport`,
+    /// for a weaker reason, and the same ordinary word-sized race the rest of
+    /// this file already runs on.
+    private var chainPos: Int32 {
+        get { chainCursor.pointee }
+        set { chainCursor.pointee = newValue }
+    }
+
     private var sampleCounter: Int32 = 0
     /// One-pole lowpass state, just enough to take the fizz off the aliasing.
     private var lpState: Double = 0
@@ -166,6 +195,8 @@ final class ChipCore {
         voices.initialize(repeating: VoiceState(), count: Chip.maxTracks)
         transport = .allocate(capacity: 2)
         transport.initialize(repeating: 0, count: 2)
+        chainCursor = .allocate(capacity: 1)
+        chainCursor.initialize(to: 0)
     }
 
     deinit {
@@ -175,6 +206,7 @@ final class ChipCore {
         params.deallocate()
         voices.deallocate()
         transport.deallocate()
+        chainCursor.deallocate()
     }
 
     private func cell(_ pat: Int, _ track: Int, _ step: Int) -> Int {

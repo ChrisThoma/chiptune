@@ -114,6 +114,103 @@ final class ChipCoreConcurrencyTests: XCTestCase {
         XCTAssertLessThan(core.currentStep, Int32(Chip.maxSteps))
     }
 
+    /// The chain cursor is advanced by the audio thread at every pattern
+    /// boundary and reset by the main thread from `setSongMode` and
+    /// `setChain`. The sanitizer judges that pairing by how the advance is
+    /// written: a plain stale read is inside the contract, but a main-thread
+    /// write landing inside a *long-term* access — the `inout` a compound
+    /// assignment like `+=` compiles to — is an exclusivity violation, which
+    /// TSan reports as a Swift access race and the CI gate rejects.
+    ///
+    /// `chainPos = (chainPos + 1) % links` is the benign form: two
+    /// instantaneous accesses, nothing held across the arithmetic. This test
+    /// is what establishes that rather than taking it on faith, and it is why
+    /// the assertion below is about the ordinary contract holding — the
+    /// sanitizer's verdict on the run is the other half, and the CI gate owns
+    /// it. Run against a build where `start()` still wrote the filter state
+    /// directly, the same suite does produce a Swift access race, so the
+    /// distinction is real and this suite can see it.
+    ///
+    /// `testRenderingSurvivesConcurrentParameterWrites` reaches a pattern
+    /// boundary only a dozen or so times in a whole run — the songs it loads
+    /// are ordinary ones — so it exercises this window almost by accident.
+    /// This test exists to make the window wide: a low sample rate, the
+    /// highest tempo the core will clamp to, and one-step patterns put a
+    /// boundary every 200 samples, so the cursor advances thousands of times
+    /// while the other thread does nothing but reset it.
+    ///
+    /// The sample rate is the lever that makes that possible, and it is a
+    /// legitimate one — the core takes it as a parameter and is otherwise
+    /// hardware-free, which is the same property every offline DSP assertion
+    /// in this suite already relies on.
+    func testChainCursorSurvivesResetsWhileTheChainIsAdvancing() {
+        // 200 samples a step: 4000 * 60 / (300 * 4).
+        let core = ChipCore(sampleRate: 4000)
+        var song = Song(name: "Chain churn")
+        song.tracks = (0..<2).map { Track(kind: ChannelKind.allCases[$0 % 4]) }
+        song.patterns = (0..<4).map { index in
+            var pattern = Pattern(name: "\(index)", length: 4, trackCount: 2)
+            pattern.rows[0][0] = Int8(48 + index)
+            return pattern
+        }
+        song.arrangement = song.patterns.map { SongSection(patternID: $0.id, repeats: 2) }
+        song.normalize()
+        core.load(song: song)
+        // After `load`, so it is not undone by it. `normalize` will not leave a
+        // pattern this short, but the core clamps only at 1.
+        for index in 0..<Chip.maxPatterns { core.setLength(pattern: index, length: 1) }
+        core.tempo = 300
+        core.setSongMode(true)
+        core.start()
+
+        let rendered = expectation(description: "render loop finishes")
+        let reset = expectation(description: "reset loop finishes")
+        let nonFinite = Counter()
+        // Counted on the render thread from the value that thread just wrote,
+        // and read only after both loops have joined. It is the evidence that
+        // the window was actually opened: a run that renders happily without
+        // ever crossing a boundary would prove nothing, and would otherwise
+        // look exactly like a pass.
+        let boundaries = Counter()
+        let frames = 256
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let buffer = UnsafeMutablePointer<Float>.allocate(capacity: frames)
+            buffer.initialize(repeating: 0, count: frames)
+            defer { buffer.deallocate() }
+            var last = core.currentPattern
+            for _ in 0..<3000 {
+                core.render(frames: frames, into: buffer)
+                for i in 0..<frames where !buffer[i].isFinite { nonFinite.bump() }
+                if core.currentPattern != last {
+                    last = core.currentPattern
+                    boundaries.bump()
+                }
+            }
+            rendered.fulfill()
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            for pass in 0..<20000 {
+                // The two main-thread writers of the cursor, and nothing else,
+                // so a report from this test can only be about them.
+                core.setSongMode(pass % 8 != 0)
+                core.setChain(Array(0..<(1 + pass % 4)))
+            }
+            reset.fulfill()
+        }
+
+        wait(for: [rendered, reset], timeout: 120)
+
+        XCTAssertEqual(nonFinite.value, 0,
+                       "the render produced non-finite samples while the chain was being reset")
+        XCTAssertGreaterThan(boundaries.value, 500,
+                             "the render never crossed enough pattern boundaries to exercise the "
+                             + "cursor — this test proves nothing unless it does")
+        XCTAssertLessThan(core.currentPattern, Int32(Chip.maxPatterns))
+        XCTAssertGreaterThanOrEqual(core.currentPattern, 0)
+    }
+
     /// Stopping and starting transport from another thread mid-render is what
     /// the PLAY button does, and `start()` rewrites every voice's state.
     func testTransportChangesDuringRenderStayFinite() {
