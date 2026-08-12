@@ -157,6 +157,26 @@ final class ChipCoreSequencerTests: XCTestCase {
         XCTAssertEqual(core.currentPattern, 0, "SONG must begin at the start of the arrangement")
     }
 
+    /// `start()` rewinds the playhead. It no longer does so on the calling
+    /// thread — the reset is handed to the audio thread as a token, because
+    /// `render` mutates these fields in place and a main-thread write inside
+    /// one of those accesses is a Swift exclusivity violation. That is an
+    /// implementation detail the caller must not be able to feel: the first
+    /// buffer after `start()` has to play from the top either way.
+    func testStartRewindsThePlayheadOnTheNextBuffer() {
+        let song = TestSongs.twoPatterns(lengths: (16, 16))
+        let sps = samplesPerStep(tempo: 120)
+        let core = makeCore(song, songMode: false)
+
+        _ = RenderHarness.renderMono(core, frames: sps * 5)
+        XCTAssertEqual(core.currentStep, 5, "precondition: the playhead moved")
+
+        core.start()
+        _ = RenderHarness.renderMono(core, frames: 1)
+        XCTAssertEqual(core.currentStep, 0, "start() must rewind to the top")
+        XCTAssertEqual(core.currentPattern, 0)
+    }
+
     // MARK: Hostile edits mid-playback
 
     /// The pattern being edited can shrink under the playhead — STEPS is a
