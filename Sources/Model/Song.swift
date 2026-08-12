@@ -129,16 +129,13 @@ struct Instrument: Codable, Equatable {
         }
     }
 
+    /// The first preset of the kind — one place to change a channel's sound,
+    /// rather than a default here and a menu entry somewhere else that quietly
+    /// disagree. The triangle's used to hold, which meant one note left the
+    /// channel sounding until the transport stopped.
     static func `default`(for kind: ChannelKind) -> Instrument {
-        switch kind {
-        case .pulse1: return Instrument(duty: 2, volume: 0.8, decay: 0.35)
-        case .pulse2: return Instrument(duty: 1, volume: 0.6, decay: 0.5)
-        // Long enough to read as a bass sustain, short enough that it always
-        // ends. This used to ship holding, and one note left the channel
-        // sounding until the transport stopped.
-        case .triangle: return Instrument(duty: 2, volume: 0.9, decay: 1.5)
-        case .noise: return Instrument(duty: 2, volume: 0.5, decay: 0.12)
-        }
+        InstrumentPreset.presets(for: kind).first?.instrument
+            ?? Instrument(duty: 2, volume: 0.8, decay: 0.35)
     }
 }
 
