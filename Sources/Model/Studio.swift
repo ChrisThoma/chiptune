@@ -272,6 +272,11 @@ final class Studio {
         selectedPattern = min(max(snapshot.selectedPattern, 0), song.patterns.count - 1)
         selectedTrack = min(max(snapshot.selectedTrack, 0), song.tracks.count - 1)
         engine.core.focus(pattern: selectedPattern)
+        // Not `reconcileRingingVoices`: `pushAll` above reloads every pattern,
+        // which drops each voice's record of the cell that started it. Nothing
+        // is left to aim at, and any note still sounding may belong to a cell
+        // the restored song no longer has.
+        engine.core.releaseAll()
         if !songMode { playingPattern = selectedPattern }
         // The next edit starts a fresh coalescing window rather than folding
         // itself into whatever was undone. Same for a named run: typing after
@@ -393,6 +398,28 @@ final class Studio {
               track < song.tracks.count, step < Chip.maxSteps else { return }
         song.patterns[selectedPattern].rows[track][step] = note
         engine.core.setNote(pattern: selectedPattern, track: track, step: step, note: note)
+        reconcileRingingVoices()
+    }
+
+    /// Cuts any voice whose originating cell no longer holds a note.
+    ///
+    /// A sustaining instrument has nothing else to stop it — no decay runs out
+    /// and no pattern step comes along — so erasing the note that started it
+    /// would otherwise leave it sounding until STOP.
+    ///
+    /// Aimed at the cell that actually started the note, not fired on any edit:
+    /// clearing some later step on a track must not cut the note ringing from
+    /// an earlier one. A cell overwritten with a *different* pitch is left
+    /// alone too, since the sequencer retriggers it on the next pass.
+    func reconcileRingingVoices() {
+        for track in song.tracks.indices {
+            guard let source = engine.core.ringingSource(track: track),
+                  let note = song.patterns[safe: source.pattern]?
+                      .rows[safe: track]?[safe: source.step],
+                  note == Chip.emptyNote || note == ChipCore.noteOff
+            else { continue }
+            engine.core.release(track: track)
+        }
     }
 
     /// Tap behaviour: an empty cell takes the selected note; a filled cell
@@ -533,6 +560,7 @@ final class Studio {
                 engine.core.setNote(pattern: index, track: track, step: step, note: Chip.emptyNote)
             }
         }
+        reconcileRingingVoices()
     }
 
     // MARK: Parameter sync
@@ -722,6 +750,10 @@ final class Studio {
             song.patterns[i].rows.remove(at: index)
         }
         pushAll()
+        // After `pushAll` — `load` acks any outstanding release, so one issued
+        // before it would be swallowed. Every voice from `index` up now belongs
+        // to a different track, so there is nothing sensible to aim at.
+        engine.core.releaseAll()
         selectedTrack = min(selectedTrack, song.tracks.count - 1)
     }
 
