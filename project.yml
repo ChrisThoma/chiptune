@@ -141,9 +141,16 @@ targets:
         # baked into the project; leave it unset and this expands to nothing,
         # which is the same as having no team — pick one in Xcode instead.
         DEVELOPMENT_TEAM: ${CHIPTUNE_TEAM_ID}
-        # An iPad layout is a feature release, not a build bump.
-        MARKETING_VERSION: "1.1"
-        CURRENT_PROJECT_VERSION: "3"
+        # Stays at 1.0 until 1.0 is approved and on the store. The iPad work
+        # bumped this to 1.1 on the reasoning that a layout is a feature
+        # release — but nothing had shipped yet, so there was no released
+        # version to move on from, and App Store Connect attached the 1.1
+        # binary to the still-unsubmitted 1.0 version record. That mismatch
+        # fails at submission, and an uploaded build can't be withdrawn, so
+        # build 3 is stranded in a 1.1 train and 1.0 carries on at build 4.
+        # Only raise the marketing version once a released one exists.
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "4"
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "5.0"
