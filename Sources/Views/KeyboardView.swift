@@ -79,8 +79,11 @@ struct KeyboardView: View {
                 Text(NoteName.label(studio.selectedNote))
                     .chipFont(15, weight: .bold)
                     .foregroundStyle(Theme.color(for: studio.selectedKind))
-                Text(studio.song.label(for: studio.selectedTrack))
+                // The full label: this slot is flexible, and it's the readout
+                // that says where a tap is about to land.
+                Text(studio.song.fullLabel(for: studio.selectedTrack))
                     .chipFont(9)
+                    .lineLimit(1)
                     .foregroundStyle(Theme.dim)
             }
             .accessibilityElement(children: .combine)

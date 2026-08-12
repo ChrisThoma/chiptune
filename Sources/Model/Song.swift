@@ -149,6 +149,14 @@ struct Track: Codable, Equatable, Identifiable {
     var kind: ChannelKind
     var instrument: Instrument
     var muted: Bool = false
+    /// What this track is called in the song, overriding the channel code
+    /// everywhere a label is drawn. nil rather than "" so an untouched track
+    /// adds nothing to the file.
+    var name: String?
+
+    /// Long enough for "Harmony", short enough that a grid column header can
+    /// still show something recognisable once it truncates.
+    static let maxNameLength = 16
 
     /// Notes read out of a file written before patterns existed. `Song`'s
     /// decoder folds them into pattern A and clears this; it is never encoded.
@@ -159,7 +167,7 @@ struct Track: Codable, Equatable, Identifiable {
         self.instrument = .default(for: kind)
     }
 
-    private enum CodingKeys: String, CodingKey { case id, kind, instrument, muted, notes }
+    private enum CodingKeys: String, CodingKey { case id, kind, instrument, muted, notes, name }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -168,6 +176,7 @@ struct Track: Codable, Equatable, Identifiable {
         kind = try c.decode(ChannelKind.self, forKey: .kind)
         instrument = try c.decode(Instrument.self, forKey: .instrument)
         muted = try c.decodeIfPresent(Bool.self, forKey: .muted) ?? false
+        name = try c.decodeIfPresent(String.self, forKey: .name)
         legacyNotes = try c.decodeIfPresent([Int8].self, forKey: .notes)
     }
 
@@ -177,11 +186,25 @@ struct Track: Codable, Equatable, Identifiable {
         try c.encode(kind, forKey: .kind)
         try c.encode(instrument, forKey: .instrument)
         try c.encode(muted, forKey: .muted)
+        try c.encodeIfPresent(name, forKey: .name)
+    }
+
+    /// A name arrives from a `.chipsong` file, so it can be any string at all.
+    /// One made of spaces would draw an empty column header, and a long one
+    /// would push the grid off screen.
+    mutating func normalizeName() {
+        guard let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            name = nil
+            return
+        }
+        name = String(trimmed.prefix(Track.maxNameLength))
     }
 
     static func == (lhs: Track, rhs: Track) -> Bool {
         lhs.id == rhs.id && lhs.kind == rhs.kind
             && lhs.instrument == rhs.instrument && lhs.muted == rhs.muted
+            && lhs.name == rhs.name
     }
 }
 
@@ -324,7 +347,10 @@ struct Song: Codable, Equatable, Identifiable {
         tempo = tempo.isFinite ? min(max(tempo, 40), 300) : 120
         if tracks.isEmpty { tracks = ChannelKind.allCases.map { Track(kind: $0) } }
         if tracks.count > Chip.maxTracks { tracks = Array(tracks.prefix(Chip.maxTracks)) }
-        for i in tracks.indices { tracks[i].instrument.normalize() }
+        for i in tracks.indices {
+            tracks[i].instrument.normalize()
+            tracks[i].normalizeName()
+        }
 
         if patterns.isEmpty { patterns = [Pattern(name: "A", length: 16, trackCount: tracks.count)] }
         if patterns.count > Chip.maxPatterns { patterns = Array(patterns.prefix(Chip.maxPatterns)) }
@@ -387,6 +413,7 @@ struct Song: Codable, Equatable, Identifiable {
     /// "TRI B". Letters rather than numbers, because "PU1 1" is a riddle.
     func label(for index: Int) -> String {
         guard let track = tracks[safe: index] else { return "" }
+        if let named = Song.usableName(track.name) { return named }
         guard let suffix = duplicateSuffix(for: index) else { return track.kind.name }
         return "\(track.kind.name) \(suffix)"
     }
@@ -394,8 +421,17 @@ struct Song: Codable, Equatable, Identifiable {
     /// Spoken/title name — "Triangle B".
     func fullLabel(for index: Int) -> String {
         guard let track = tracks[safe: index] else { return "" }
+        if let named = Song.usableName(track.name) { return named }
         guard let suffix = duplicateSuffix(for: index) else { return track.kind.fullName }
         return "\(track.kind.fullName) \(suffix)"
+    }
+
+    /// Checked here as well as in `normalizeName` because the labels are drawn
+    /// while the name is being typed, before anything has normalised it.
+    private static func usableName(_ name: String?) -> String? {
+        guard let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else { return nil }
+        return trimmed
     }
 
     /// "A", "B", "C"… by position among tracks of the same kind, or nil when

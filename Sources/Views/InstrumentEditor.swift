@@ -140,13 +140,24 @@ struct InstrumentEditor: View {
 
     private var editor: some View {
             Form {
+                Section("Name") {
+                    // Placeholder rather than a pre-filled value: an untouched
+                    // track has no name, and showing "TRI" in the field would
+                    // make clearing it look like it did something.
+                    TextField(kind.fullName, text: trackName)
+                        .accessibilityLabel("Track name")
+                }
+
                 Section("Channel") {
                     Picker("Waveform", selection: Binding(
                         get: { kind },
                         set: { studio.setKind($0, for: index) })
                     ) {
                         ForEach(ChannelKind.allCases, id: \.self) { k in
-                            Text(k.name).tag(k)
+                            // Full names here — "PU1 PU2 TRI NOI" was the
+                            // densest jargon in the app, in the one row with
+                            // room to spell it out.
+                            Text(k.fullName).minimumScaleFactor(0.7).tag(k)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -279,6 +290,23 @@ struct InstrumentEditor: View {
     /// Binding into the edited track's instrument that survives the track
     /// disappearing mid-render: reads fall back to a placeholder, writes on a
     /// stale index are dropped.
+    /// Separate from `instrument(_:default:)` because a name never reaches the
+    /// DSP — there is nothing to push. Non-optional so `TextField` can bind to
+    /// it; emptying the field clears the name back to nil.
+    private var trackName: Binding<String> {
+        Binding(
+            get: { studio.song.tracks[safe: index]?.name ?? "" },
+            set: { newValue in
+                guard studio.song.tracks.indices.contains(index) else { return }
+                // Coalesced: typing a name is a stream of writes and should be
+                // one undo, not one per keystroke.
+                studio.checkpoint(coalescing: true)
+                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                studio.song.tracks[index].name =
+                    trimmed.isEmpty ? nil : String(newValue.prefix(Track.maxNameLength))
+            })
+    }
+
     private func instrument<T>(_ keyPath: WritableKeyPath<Instrument, T>,
                                default fallback: T) -> Binding<T> {
         Binding(
