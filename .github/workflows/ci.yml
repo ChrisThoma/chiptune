@@ -173,10 +173,12 @@ jobs:
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
           echo "Using simulator $udid (SDK $sdk)"
 
-      # TSan aborts the test host on its first report and the runner
-      # relaunches for the next test, so xcodebuild exits non-zero whenever
-      # the expected reports fire. Its exit code is deliberately swallowed;
-      # the judgement happens in the next step, from the log.
+      # The scheme sets TSAN_OPTIONS=halt_on_error=0, so a report no longer
+      # kills the host and the tests run to their assertions. Before that they
+      # did not: TSan aborted on the first parameter write and neither test
+      # ever reached an XCTAssert, which the judgement below happily read as a
+      # pass. The exit code is still swallowed — a report on its own is not a
+      # failure here — but the next step now demands that every test finish.
       - name: Test with TSan
         run: |
           xcodebuild test \
@@ -231,9 +233,16 @@ jobs:
               if re.search(r"Test Case '.*' failed", text):
                   failures.append(name + ': failed an assertion — that is a '
                                   'test failure, not a sanitizer report')
-              elif not re.search(r"Test Case '.*' passed", text) and not warnings:
-                  failures.append(name + ': died without a sanitizer report — '
-                                  'the host crashed for some other reason')
+              elif not re.search(r"Test Case '.*' passed", text):
+                  # Every started test must also finish. A test that stops
+                  # partway proves nothing, and for a long time that was this
+                  # job's normal state — the old rule excused a test that died
+                  # so long as it had printed a report first, which is exactly
+                  # what dying on the first race looks like.
+                  failures.append(name + ': started but never finished — it '
+                                  'died partway through, so its assertions '
+                                  'never ran. Check TSAN_OPTIONS='
+                                  'halt_on_error=0 is still in the scheme.')
 
           if failures:
               print('\n'.join(failures))

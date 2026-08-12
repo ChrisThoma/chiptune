@@ -8,8 +8,14 @@ import XCTest
 ///
 /// Until now that was a comment. These tests are the check — a render loop on
 /// one thread while another does everything the UI can do, asserting the output
-/// stays finite and the core's own bounds hold. The suite also runs on its own
-/// under Thread Sanitizer in CI.
+/// stays finite and the core's own bounds hold.
+///
+/// The suite also runs on its own under Thread Sanitizer in CI, which needs
+/// `TSAN_OPTIONS=halt_on_error=0` in the scheme to mean anything: every
+/// parameter write here is a race by TSan's reckoning, so on the default
+/// setting the process aborted on the first one — the `tempo` write inside
+/// `load` — and neither test ever reached an assertion. The CI job read that
+/// as a pass, because a report is exactly what it expects to see.
 final class ChipCoreConcurrencyTests: XCTestCase {
 
     /// Songs of varying shape, so `load` is repeatedly changing the track and
