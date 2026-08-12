@@ -35,6 +35,14 @@ jobs:
           sudo xcode-select -switch "$XCODE"
           xcodebuild -version
 
+      # Runs before anything is built because it needs nothing built: it
+      # checks that the release plumbing still derives every path and version
+      # from project.yml. The bug it stands guard over is a documented .ipa
+      # path aging into an old binary and a stale build reaching TestFlight,
+      # which no amount of passing unit tests would have caught.
+      - name: Release plumbing
+        run: bash Tests/Release/release_test.sh
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
