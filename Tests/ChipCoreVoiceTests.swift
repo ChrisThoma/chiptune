@@ -113,8 +113,28 @@ final class ChipCoreVoiceTests: XCTestCase {
         XCTAssertLessThan(late / early, 0.02, "decay didn't reach roughly -60 dB by 0.3 s")
     }
 
-    /// 4.0 s of decay is the UI's maximum and means "hold" — a bass triangle
-    /// that faded would make every long note wrong.
+    /// A track added from the UI must not drone. The triangle used to ship
+    /// holding, which is what a playtester hit: one note, and the channel
+    /// never went quiet again.
+    func testANewTrackOfAnyKindDoesNotSustainByDefault() {
+        for kind in ChannelKind.allCases {
+            XCTAssertFalse(Instrument.default(for: kind).sustain,
+                           "\(kind.fullName) ships holding")
+
+            // Slow enough that 16 steps run past the window: at a normal tempo
+            // the pattern would wrap and retrigger the note under measurement.
+            var song = TestSongs.empty(tempo: 40)
+            song.tracks = [Track(kind: kind)]
+            song.patterns[0].rows = [Pattern.emptyRow]
+            song.patterns[0].rows[0][0] = 48
+            let samples = render(song, seconds: 3.0)
+
+            let tail = RenderHarness.rms(samples[(samples.count - 4410)...])
+            XCTAssertLessThan(tail, 0.005,
+                              "a default \(kind.fullName) was still sounding 3 s after one note")
+        }
+    }
+
     func testSustainHoldsLevelForTheWholeNote() {
         let samples = render(TestSongs.singleNote(kind: .triangle, note: 48, sustain: true),
                              seconds: 1.5)
