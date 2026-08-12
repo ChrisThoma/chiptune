@@ -249,7 +249,13 @@ private struct TrackHeader: View {
                 }
             } label: {
                 HStack(spacing: 4) {
-                    Text(studio.song.label(for: index)).chipFont(13).lineLimit(1)
+                    // A column is ~7 characters wide on a four-track phone, so
+                    // a name that doesn't fit truncates rather than shrinking
+                    // the header out of step with its neighbours.
+                    Text(studio.song.label(for: index))
+                        .chipFont(13)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                     if selected {
                         Image(systemName: "slider.horizontal.3").font(.system(size: 9))
                     }
