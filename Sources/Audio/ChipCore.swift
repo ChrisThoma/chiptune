@@ -25,6 +25,11 @@ final class ChipCore {
         var decayCoeff: Double = 0.9999
         /// 1 when the note should hold instead of decaying.
         var sustain: Int32 = 0
+        /// Bumped when the main thread wants this voice cut. The audio thread
+        /// compares it against its own ack rather than reading a flag, because
+        /// `voiceSample` rewrites the whole voice struct every sample and would
+        /// silently overwrite anything set into `voices` from outside.
+        var releaseToken: Int32 = 0
         var muted: Int32 = 0
         var arpCount: Int32 = 0
         var arp0: Int32 = 0
@@ -76,6 +81,13 @@ final class ChipCore {
         var pendingNote: Int8 = -1
         /// Preview lifetime to apply once `pendingNote` starts.
         var pendingPreview: Int32 = 0
+        /// Last `releaseToken` this voice has acted on.
+        var releaseAck: Int32 = 0
+        /// The pattern cell that started the note now sounding, or -1 when it
+        /// came from the keyboard rather than from the sequencer. Lets the main
+        /// thread ask "is the note I just erased the one I can hear?".
+        var sourcePattern: Int32 = -1
+        var sourceStep: Int32 = -1
     }
 
     /// Special pattern value meaning "cut the sustaining note".
@@ -170,6 +182,31 @@ final class ChipCore {
         pattern[cell(pat, track, step)] = note
     }
 
+    /// Cuts a voice the sequencer has no way to stop. A sustaining note is
+    /// otherwise ended only by a note-off cell, a new note, or `stop()` — erase
+    /// the note that started it and nothing is left to release it.
+    func release(track: Int) {
+        guard track >= 0, track < Chip.maxTracks else { return }
+        params[track].releaseToken &+= 1
+    }
+
+    func releaseAll() {
+        for track in 0..<Chip.maxTracks { params[track].releaseToken &+= 1 }
+    }
+
+    /// Which pattern cell started the note currently sounding on `track`, or
+    /// nil when it is silent or came from a keyboard preview.
+    ///
+    /// Racy by construction: the audio thread can retrigger the voice while the
+    /// answer is in flight. A stale answer costs one missed or one extra
+    /// release, never a wrong note, which is why this needs no synchronisation.
+    func ringingSource(track: Int) -> (pattern: Int, step: Int)? {
+        guard track >= 0, track < Chip.maxTracks else { return nil }
+        let voice = voices[track]
+        guard voice.active, voice.sourcePattern >= 0, voice.sourceStep >= 0 else { return nil }
+        return (Int(voice.sourcePattern), Int(voice.sourceStep))
+    }
+
     func setLength(pattern pat: Int, length: Int) {
         guard pat >= 0, pat < Chip.maxPatterns else { return }
         patternLengths[pat] = Int32(min(max(length, 1), Chip.maxSteps))
@@ -240,6 +277,7 @@ final class ChipCore {
 
     func setInstrument(_ inst: Instrument, kind: ChannelKind, track: Int, muted: Bool) {
         guard track >= 0, track < Chip.maxTracks else { return }
+        let wasSustaining = params[track].sustain == 1
         var p = params[track]
         p.kind = Int32(kind.rawValue)
         p.duty = kind.hasDuty ? Instrument.dutyCycles[min(max(inst.duty, 0), 3)] : 0.5
@@ -271,6 +309,17 @@ final class ChipCore {
             }
         }
         params[track] = p
+
+        // A preview started under a decaying instrument has no lifetime of its
+        // own — the decay was going to end it. Turning hold on while it rings
+        // removes the only thing that ever would, so it inherits the lifetime
+        // `audition` would have given it. The source guard keeps this away from
+        // sequencer notes, which the pattern is still responsible for cutting.
+        if p.sustain == 1, !wasSustaining,
+           voices[track].active, !voices[track].releasing,
+           voices[track].previewSamples == 0, voices[track].sourceStep < 0 {
+            voices[track].previewSamples = Int32(sampleRate * ChipCore.previewSeconds)
+        }
     }
 
     func start() {
@@ -326,6 +375,8 @@ final class ChipCore {
     func audition(track: Int, note: Int8) {
         guard track >= 0, track < Chip.maxTracks, note >= 0 else { return }
         trigger(track: track, note: note)
+        voices[track].sourcePattern = -1
+        voices[track].sourceStep = -1
         let preview = params[track].sustain == 1 ? Int32(sampleRate * ChipCore.previewSeconds) : 0
         // A retrigger defers the note past its de-click fade, so the preview
         // lifetime has to wait with it.
@@ -392,6 +443,11 @@ final class ChipCore {
                 voices[c].pendingNote = Chip.emptyNote
             } else if note >= 0 {
                 trigger(track: c, note: note)
+                // Recorded here rather than in `begin`, because a retrigger
+                // defers the note past its de-click fade — the cell it came
+                // from is known now, not when it eventually starts.
+                voices[c].sourcePattern = pat
+                voices[c].sourceStep = step
             }
         }
     }
@@ -488,6 +544,24 @@ final class ChipCore {
         // Four tracks keep the level they always had; beyond that the mix is
         // pulled down so eight voices at once don't ride the soft clipper.
         let gain = 0.32 * (4.0 / Double(max(tracks, 4))).squareRoot()
+
+        // Pick up anything the main thread asked to cut since the last buffer.
+        // Once per buffer rather than per sample, and via the token rather than
+        // a flag written straight into `voices`, which the per-sample
+        // read-modify-write below would clobber.
+        // `releaseAck` is written only here, on the audio thread. A token
+        // bumped while the transport was stopped is acked against a voice
+        // `start`/`load` has already silenced, so the `active` guard drops it —
+        // no main-thread sync needed, and none wanted: writing into `voices`
+        // from outside is the hazard this whole mechanism exists to avoid.
+        for c in 0..<tracks where params[c].releaseToken != voices[c].releaseAck {
+            voices[c].releaseAck = params[c].releaseToken
+            guard voices[c].active else { continue }
+            voices[c].releasing = true
+            voices[c].previewSamples = 0
+            voices[c].declick = 0
+            voices[c].pendingNote = Chip.emptyNote
+        }
 
         for i in 0..<frames {
             if playing {

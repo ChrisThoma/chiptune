@@ -86,6 +86,11 @@ final class ChipCoreConcurrencyTests: XCTestCase {
                 }
                 core.setSongMode(pass % 3 != 0)
                 core.tempo = Double(60 + pass % 240)
+                // Editing a cell can cut the voice it started, so a release
+                // races the render loop the same way every write above does.
+                core.release(track: pass % Chip.maxTracks)
+                _ = core.ringingSource(track: pass % Chip.maxTracks)
+                if pass % 11 == 0 { core.releaseAll() }
             }
             mutated.fulfill()
         }
