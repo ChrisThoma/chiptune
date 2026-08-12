@@ -25,6 +25,26 @@ schemes:
         - variable: CHIPTUNE_REGEN_GOLDEN
           value: "1"
           isEnabled: false
+        # Thread Sanitizer kills the process on its first report. ChipCore is
+        # deliberately lock-free and every one of its parameter writes is a
+        # report, so the default behaviour meant the concurrency suite died on
+        # the first `tempo` write — before a single XCTAssert ran, and before
+        # any race after the first was ever looked for. `halt_on_error=0` makes
+        # TSan print and carry on, so the tests actually finish and the CI job
+        # sees every race rather than the earliest one.
+        #
+        # `abort_on_error=0` is the other half. It defaults on for Apple
+        # platforms, and it is what turns TSan's exit into `abort()` — so
+        # without it the run still ends in a SIGABRT crash report, just moved
+        # from the first race to process teardown. The reports are expected
+        # here; a crash log for each one is noise. TSan still exits non-zero,
+        # which the CI job swallows on purpose and judges from the log instead.
+        #
+        # Same scheme-only rule as the variable above: on the xcodebuild
+        # command line this does nothing.
+        - variable: TSAN_OPTIONS
+          value: "halt_on_error=0:abort_on_error=0"
+          isEnabled: true
     archive:
       config: Release
 
