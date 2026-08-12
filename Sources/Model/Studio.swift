@@ -13,7 +13,14 @@ final class Studio {
     }
 
     /// Note the keyboard will write into the grid.
-    var selectedNote: Int8 = 60
+    var selectedNote: Int8 = 60 {
+        // Every way of choosing a pitch goes through this property, so
+        // remembering it here is what keeps the on-screen keys and the typed
+        // ones from disagreeing about what OFF should disarm to.
+        didSet { if selectedNote >= 0 { lastPitch = selectedNote } }
+    }
+    /// The pitch OFF was armed over, so a second tap can put it back.
+    @ObservationIgnored private var lastPitch: Int8 = 60
     /// Index into `song.tracks`, not a `ChannelKind`.
     var selectedTrack: Int = 0
     /// Step the grid cursor sits on. Paired with `selectedTrack`, this is the
@@ -509,6 +516,14 @@ final class Studio {
     /// is the one the on-screen keyboard has always offered.
     func shiftOctave(_ delta: Int) {
         octave = min(8, max(0, octave + delta))
+    }
+
+    /// Arms a note off, or disarms back to the pitch it was armed over.
+    ///
+    /// The arm used to be one-way, which left tapping some other key as the
+    /// only way out — so the button read as a toggle that had jammed.
+    func toggleNoteOff() {
+        selectedNote = selectedNote == ChipCore.noteOff ? lastPitch : ChipCore.noteOff
     }
 
     /// Previews a note on a track — the selected one unless told otherwise.

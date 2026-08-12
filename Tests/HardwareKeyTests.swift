@@ -220,4 +220,29 @@ final class HardwareKeyTests: XCTestCase {
         studio.shiftOctave(-1)
         XCTAssertEqual(studio.octave, 0)
     }
+
+    // MARK: Note off
+
+    /// Return types whatever the on-screen keyboard holds, so it can only
+    /// enter a note off once one is already armed. Backslash arms it — the key
+    /// trackers have used for a cut for as long as there have been trackers.
+    func testBackslashArmsAndDisarmsNoteOff() {
+        let action = KeyAction.forKey(usage: .keyboardBackslash,
+                                      characters: "\\",
+                                      modifiers: [],
+                                      octave: 5)
+        XCTAssertEqual(action, .toggleNoteOff)
+
+        studio.selectedNote = 62
+        studio.apply(.toggleNoteOff)
+        XCTAssertEqual(studio.selectedNote, ChipCore.noteOff)
+        studio.apply(.toggleNoteOff)
+        XCTAssertEqual(studio.selectedNote, 62)
+    }
+
+    /// Backslash is a printing character, so the letter-row lookup must not
+    /// get a chance to claim it first.
+    func testBackslashIsNotReadAsANote() {
+        XCTAssertNil(NoteKeys.note(for: "\\", octave: 5))
+    }
 }

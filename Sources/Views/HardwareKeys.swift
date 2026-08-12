@@ -44,6 +44,8 @@ enum KeyAction: Equatable {
     /// Return: writes whatever the on-screen keyboard is holding, which is the
     /// only way to enter a note off — the letter row has no key for one.
     case typeSelected
+    /// Arms or disarms a note off, mirroring the OFF button.
+    case toggleNoteOff
     case clear
     case octave(Int)
 
@@ -69,6 +71,9 @@ enum KeyAction: Equatable {
         // gesture to the person pressing it.
         case .keyboardDeleteOrBackspace, .keyboardDeleteForward: return .clear
         case .keyboardReturnOrEnter, .keypadEnter: return .typeSelected
+        // Backslash is the tracker convention for a cut. Matched on usage
+        // rather than character so a layout that puts it elsewhere still works.
+        case .keyboardBackslash: return .toggleNoteOff
         default: break
         }
 
@@ -92,6 +97,9 @@ extension Studio {
         case let .move(track, step): moveCursor(track: track, step: step)
         case let .type(note): typeNote(note)
         case .typeSelected: typeNote(selectedNote)
+        case .toggleNoteOff:
+            hardwareKeyboardInUse = true
+            toggleNoteOff()
         case .clear: clearAtCursor()
         case let .octave(delta):
             hardwareKeyboardInUse = true
