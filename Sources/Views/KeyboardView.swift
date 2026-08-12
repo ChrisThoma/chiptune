@@ -88,14 +88,19 @@ struct KeyboardView: View {
             Spacer()
 
             // Writes a note-off into the grid instead of a pitch, for cutting
-            // sustained notes on the triangle channel.
+            // sustained notes on a channel that holds. Tapping it again puts
+            // the previous pitch back, so it can be undone where it was armed
+            // rather than by hunting for a key on the keyboard below.
+            let armed = studio.selectedNote == ChipCore.noteOff
             Button {
-                studio.selectedNote = ChipCore.noteOff
+                studio.toggleNoteOff()
             } label: {
                 Text("OFF").chipFont(12)
             }
-            .buttonStyle(PadStyle(active: studio.selectedNote == ChipCore.noteOff))
-            .accessibilityLabel("Select note off")
+            .buttonStyle(PadStyle(active: armed))
+            .accessibilityLabel("Note off")
+            .accessibilityAddTraits(armed ? [.isButton, .isSelected] : .isButton)
+            .accessibilityHint(armed ? "Disarms, back to the note you had" : "Writes a note off")
         }
     }
 

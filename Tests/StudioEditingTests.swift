@@ -49,6 +49,64 @@ final class StudioEditingTests: XCTestCase {
                       "selected track out of range \(message)", file: file, line: line)
     }
 
+    // MARK: The note-off arm
+
+    /// OFF used to be a one-way arm: it set the selected note and nothing but
+    /// tapping a pitch key cleared it, so it read as a toggle that had stuck.
+    func testOffTogglesBackToThePreviousPitch() {
+        studio.selectedNote = 64
+
+        studio.toggleNoteOff()
+        XCTAssertEqual(studio.selectedNote, ChipCore.noteOff)
+
+        studio.toggleNoteOff()
+        XCTAssertEqual(studio.selectedNote, 64, "a second tap should disarm back to the pitch")
+    }
+
+    /// The pitch it returns to has to follow every way of choosing one, not
+    /// just the on-screen keys — typing is the other.
+    func testOffReturnsToTheLastTypedNote() {
+        studio.typeNote(55)
+
+        studio.toggleNoteOff()
+        studio.toggleNoteOff()
+
+        XCTAssertEqual(studio.selectedNote, 55)
+    }
+
+    func testOffFromAFreshStudioReturnsToMiddleC() {
+        studio.toggleNoteOff()
+        studio.toggleNoteOff()
+
+        XCTAssertEqual(studio.selectedNote, 60)
+    }
+
+    /// Picking a key while OFF is armed is a choice, not a disarm — the next
+    /// OFF should come back to *that* note.
+    func testSelectingAPitchWhileOffIsArmedReplacesRatherThanRestores() {
+        studio.selectedNote = 64
+        studio.toggleNoteOff()
+
+        studio.selectedNote = 72
+
+        studio.toggleNoteOff()
+        XCTAssertEqual(studio.selectedNote, ChipCore.noteOff)
+        studio.toggleNoteOff()
+        XCTAssertEqual(studio.selectedNote, 72)
+    }
+
+    /// Arming twice in a row must not record OFF as the pitch to come back to,
+    /// which would leave it stuck exactly the way it was before.
+    func testArmingOffTwiceStillDisarmsToAPitch() {
+        studio.selectedNote = 67
+        studio.selectedNote = ChipCore.noteOff
+        studio.selectedNote = ChipCore.noteOff
+
+        studio.toggleNoteOff()
+
+        XCTAssertEqual(studio.selectedNote, 67)
+    }
+
     // MARK: Patterns
 
     func testAddPatternAppendsToTheArrangementAndSelectsIt() {
