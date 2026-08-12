@@ -155,7 +155,7 @@ final class WavExportTests: XCTestCase {
         // suddenly have the second's audio in it.
         let silent = makeSong(name: "Twin", tempo: 240)
         var loud = makeSong(name: "Twin", tempo: 240)
-        loud.tracks[0].instrument.decay = 4.0
+        loud.tracks[0].instrument.sustain = true
         loud.patterns[0].rows[0][0] = 72
 
         let silentURL = try XCTUnwrap(WavExport.render(song: silent))

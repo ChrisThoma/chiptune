@@ -168,6 +168,80 @@ final class SongDocumentTests: XCTestCase {
         XCTAssertLessThanOrEqual(RenderHarness.peak(samples), 1.0)
     }
 
+    // MARK: Hold, before and after it was its own switch
+
+    /// `Instrument` is the one model type that still used the synthesised
+    /// `Codable`, whose decoder emits `decode` rather than `decodeIfPresent`
+    /// and never applies property defaults. Adding a field to it without a
+    /// hand-written decoder would make every file already on disk — including
+    /// the autosave restored at launch — fail to load.
+    func testAFileWrittenBeforeHoldWasASwitchStillLoads() throws {
+        let old = """
+        { "name": "Before hold", "tempo": 120, "tracks": [
+            { "kind": 2, "instrument": { "duty": 2, "volume": 0.9, "decay": 0.35, "arpeggio": [] } } ],
+          "patterns": [ { "id": "\(UUID().uuidString)", "name": "A", "length": 16,
+                          "rows": [[60]] } ],
+          "arrangement": [] }
+        """
+
+        let song = try SongDocument.decode(Data(old.utf8))
+
+        XCTAssertEqual(song.tracks.count, 1)
+        XCTAssertFalse(song.tracks[0].instrument.sustain)
+        XCTAssertEqual(song.tracks[0].instrument.decay, 0.35, accuracy: 0.0001)
+    }
+
+    /// Hold used to be the far end of the decay slider. A file carrying that
+    /// sentinel has to come back holding, and with a real decay underneath it
+    /// for when hold is switched off again.
+    func testFullDecayInAnOldFileBecomesHold() throws {
+        let held = """
+        { "name": "Held", "tempo": 120, "tracks": [
+            { "kind": 2, "instrument": { "duty": 2, "volume": 0.9, "decay": 4.0, "arpeggio": [] } } ],
+          "patterns": [ { "id": "\(UUID().uuidString)", "name": "A", "length": 16,
+                          "rows": [[48]] } ],
+          "arrangement": [] }
+        """
+
+        let song = try SongDocument.decode(Data(held.utf8))
+
+        XCTAssertTrue(song.tracks[0].instrument.sustain,
+                      "a 4 s decay was the old way of saying hold")
+        XCTAssertLessThan(song.tracks[0].instrument.decay, 3.99,
+                          "turning hold off should land on a real decay, not the old sentinel")
+    }
+
+    /// The synthesised decoder also made every key mandatory, so a file merely
+    /// missing "arpeggio" was unreadable. Nothing about an instrument should be.
+    func testAnInstrumentMissingEveryOptionalKeyDecodes() throws {
+        let sparse = """
+        { "name": "Sparse", "tempo": 120, "tracks": [ { "kind": 0, "instrument": {} } ],
+          "patterns": [ { "id": "\(UUID().uuidString)", "name": "A", "length": 16,
+                          "rows": [[60]] } ],
+          "arrangement": [] }
+        """
+
+        let song = try SongDocument.decode(Data(sparse.utf8))
+
+        let instrument = song.tracks[0].instrument
+        XCTAssertTrue((0...1).contains(instrument.volume))
+        XCTAssertTrue((0.01...4.0).contains(instrument.decay))
+        XCTAssertTrue(Instrument.dutyCycles.indices.contains(instrument.duty))
+        XCTAssertTrue(instrument.arpeggio.isEmpty)
+        XCTAssertFalse(instrument.sustain)
+    }
+
+    func testHoldSurvivesARoundTrip() throws {
+        var song = makeSong()
+        song.tracks[0].instrument.sustain = true
+        song.tracks[1].instrument.sustain = false
+
+        let restored = try SongDocument.read(contentsOf: try SongDocument.write(song))
+
+        XCTAssertTrue(restored.tracks[0].instrument.sustain)
+        XCTAssertFalse(restored.tracks[1].instrument.sustain)
+    }
+
     /// Songs written before patterns existed can be shared too.
     func testALegacyFileImports() throws {
         let legacy = """

@@ -35,7 +35,7 @@ final class StudioSustainTests: XCTestCase {
     private func openHeldNote(extraNoteAt step: Int? = nil) {
         var song = TestSongs.empty(tempo: 120, length: 16)
         song.tracks = [Track(kind: .triangle)]
-        song.tracks[0].instrument.decay = 4.0        // hold
+        song.tracks[0].instrument.sustain = true
         song.tracks[0].instrument.volume = 1.0
         song.patterns[0].rows = [Pattern.emptyRow]
         song.patterns[0].rows[0][0] = 48
@@ -99,7 +99,7 @@ final class StudioSustainTests: XCTestCase {
         // the note under test would never be reached.
         var song = TestSongs.empty(tempo: 120, length: 16)
         song.tracks = [Track(kind: .triangle)]
-        song.tracks[0].instrument.decay = 4.0
+        song.tracks[0].instrument.sustain = true
         song.tracks[0].instrument.volume = 1.0
         song.patterns[0].rows = [Pattern.emptyRow]
         song.patterns[0].rows[0][0] = 48
@@ -123,7 +123,7 @@ final class StudioSustainTests: XCTestCase {
     func testUndoDoesNotLeaveAClearedNoteRinging() {
         var song = TestSongs.empty(tempo: 120, length: 16)
         song.tracks = [Track(kind: .triangle)]
-        song.tracks[0].instrument.decay = 4.0
+        song.tracks[0].instrument.sustain = true
         song.tracks[0].instrument.volume = 1.0
         song.patterns[0].rows = [Pattern.emptyRow]
         studio.open(song)
@@ -145,7 +145,7 @@ final class StudioSustainTests: XCTestCase {
         var song = TestSongs.empty(tempo: 120, length: 16)
         song.tracks = [Track(kind: .pulse1), Track(kind: .triangle)]
         song.patterns[0].rows = [Pattern.emptyRow, Pattern.emptyRow]
-        song.tracks[1].instrument.decay = 4.0
+        song.tracks[1].instrument.sustain = true
         song.tracks[1].instrument.volume = 1.0
         song.patterns[0].rows[1][0] = 48
         studio.open(song)

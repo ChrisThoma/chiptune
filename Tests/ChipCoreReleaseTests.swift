@@ -41,7 +41,7 @@ final class ChipCoreReleaseTests: XCTestCase {
         song.tracks = [Track(kind: .triangle), Track(kind: .pulse1)]
         song.patterns[0].rows = [Pattern.emptyRow, Pattern.emptyRow]
         for track in 0..<2 {
-            song.tracks[track].instrument.decay = 4.0
+            song.tracks[track].instrument.sustain = true
             song.tracks[track].instrument.volume = 1.0
             song.patterns[0].rows[track][0] = Int8(48 + track * 12)
         }
@@ -154,7 +154,7 @@ final class ChipCoreReleaseTests: XCTestCase {
         _ = RenderHarness.renderMono(core, frames: 4410)
 
         var held = song.tracks[0].instrument
-        held.decay = 4.0
+        held.sustain = true
         core.setInstrument(held, kind: .triangle, track: 0, muted: false)
 
         // Longer than `previewSeconds` plus the release tail.

@@ -67,6 +67,7 @@ struct InstrumentEditor: View {
 
     private var kind: ChannelKind { studio.song.tracks[safe: index]?.kind ?? .pulse1 }
     private var accent: Color { Theme.color(for: kind) }
+    private var held: Bool { studio.song.tracks[safe: index]?.instrument.sustain ?? false }
 
     /// Preset arpeggio shapes; empty means the note plays straight.
     private let arps: [(name: String, offsets: [Int])] = [
@@ -161,16 +162,30 @@ struct InstrumentEditor: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Level") {
+                Section {
                     slider(title: "Volume",
                            value: instrument(\.volume, default: 0.5),
                            range: 0...1,
                            display: { "\(Int($0 * 100))%" })
 
+                    // Hold used to be the far end of the decay slider, which
+                    // meant the triangle shipped droning with nothing on screen
+                    // saying so and no obvious way out.
+                    Toggle("Hold", isOn: instrument(\.sustain, default: false))
+                        .tint(accent)
+
                     slider(title: "Decay",
                            value: instrument(\.decay, default: 0.3),
                            range: 0.03...4.0,
-                           display: { $0 >= 3.99 ? "hold" : String(format: "%.2fs", $0) })
+                           display: { String(format: "%.2fs", $0) })
+                        .disabled(held)
+                        .opacity(held ? 0.4 : 1)
+                } header: {
+                    Text("Level")
+                } footer: {
+                    Text(held
+                         ? "The note sounds until the next one on this track, or an OFF."
+                         : "The note fades out over the decay time.")
                 }
 
                 if kind.hasDuty {

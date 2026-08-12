@@ -17,7 +17,7 @@ final class ExportOptionsTests: XCTestCase {
         var song = Song(name: name)
         song.tempo = 240
         song.patterns[0].length = 4
-        song.tracks[0].instrument.decay = 4.0
+        song.tracks[0].instrument.sustain = true
         song.tracks[0].instrument.volume = 0.9
         song.patterns[0].rows[0][0] = 60
         song.patterns[0].rows[0][2] = 67

@@ -283,8 +283,7 @@ final class ChipCore {
         p.duty = kind.hasDuty ? Instrument.dutyCycles[min(max(inst.duty, 0), 3)] : 0.5
         p.volume = min(max(inst.volume, 0), 1)
         p.muted = muted ? 1 : 0
-        // 4 s of decay is the UI's maximum and means "hold until the next note".
-        if inst.decay >= 3.99 {
+        if inst.sustain {
             p.sustain = 1
             p.decayCoeff = 1.0
         } else {

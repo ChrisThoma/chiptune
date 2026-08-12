@@ -49,6 +49,7 @@ final class SongPropertyTests: XCTestCase {
             track.instrument.arpeggio = (0..<int(0...9)).map { _ in
                 pick([0, 3, 7, 12, -12, 5000, -5000, Int.max / 2, Int.min / 2])
             }
+            track.instrument.sustain = rng.next() % 2 == 0
             track.muted = rng.next() % 2 == 0
             return track
         }
@@ -97,8 +98,17 @@ final class SongPropertyTests: XCTestCase {
 
     func testNormalizeProducesValuesTheEngineCanPlay() {
         forEachSong { song, tag in
+            // Hold is a switch rather than a value with a range, so the only
+            // thing normalising can do wrong is change it. Captured before,
+            // because normalize clamps the track count.
+            let heldBefore = song.tracks.map(\.instrument.sustain)
             var song = song
             song.normalize()
+
+            for (index, held) in zip(song.tracks.indices, heldBefore) {
+                XCTAssertEqual(song.tracks[index].instrument.sustain, held,
+                               "normalize changed hold on track \(index) (\(tag))")
+            }
 
             XCTAssertTrue(song.tempo.isFinite, "non-finite tempo survived (\(tag))")
             XCTAssertTrue((40...300).contains(song.tempo), "tempo \(song.tempo) out of range (\(tag))")
