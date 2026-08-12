@@ -183,10 +183,6 @@ first, which is roughly the inverse of blast radius.
 - **MIDI export.** An SMF format-1 writer, one MIDI track per chip track, noise
   to channel 10. A pure function with byte-level tests — self-contained and
   pleasant, and the obvious next feature.
-- **iPad layout.** No longer a decision — `TARGETED_DEVICE_FAMILY` is `"1"` and
-  1.0 ships iPhone-only, on the evidence in `AppStore/screenshots/ipad-13/`: a
-  16-step pattern fills the grid and leaves a dead band under it. A native
-  layout is a 1.1 feature.
 - **Background-audio mode.** `stopEngineIfIdle()` currently stops the engine on
   backgrounding. Declaring `UIBackgroundModes: audio` is a product decision
   (playback continuing with the screen off) rather than a bug fix.

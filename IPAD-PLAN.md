@@ -86,7 +86,7 @@ Two things learned the hard way, both recorded in `HardwareKeys.swift`:
 
 ## 4. App Store metadata and screenshots — done
 
-- `MARKETING_VERSION` is 1.1 and `CURRENT_PROJECT_VERSION` is 3.
+- `MARKETING_VERSION` is 1.0 and `CURRENT_PROJECT_VERSION` is 4; see §4c.
 - `AppStore/shoot.sh` takes an orientation and captures the iPad set in
   landscape, which is the layout that shows the iPad build is a real one. It
   also captures opaque PNGs now, so the alpha channel no longer needs
@@ -144,7 +144,7 @@ The `…` menu ends with the build's own identity:
 ```
 Built Aug 11, 2026
 ccb90be
-Version 1.1
+Version 1.0
 ```
 
 The commit leads because it's the part worth trusting. A build phase stamps it
@@ -153,11 +153,26 @@ into the *built* `Info.plist` under `ChiptuneGitCommit`, alongside
 the version number is typed into `project.yml`, only changes when someone
 remembers, and is routinely shared by builds that differ. The date saves a
 lookup when telling last week's build from today's. Tapping the row copies
-`1.1 · ccb90be`, which is what a bug report needs.
+`1.0 · ccb90be`, which is what a bug report needs.
 
 `CFBundleVersion` is deliberately absent. The upload counter is how App Store
 Connect tells two uploads apart; on a device it is bookkeeping, and putting it
 in the row made the row read like bookkeeping.
+
+## 4c. Back to 1.0 — the version was raised too early
+
+The iPad work set `MARKETING_VERSION` to 1.1 on the reasoning recorded above:
+a new layout is a feature release, not a build bump. That reasoning holds
+between *released* versions and nowhere else. 1.0 had never been submitted, so
+there was no released version to move on from — and App Store Connect attached
+the uploaded 1.1 binary to the still-unsubmitted 1.0 version record. That
+mismatch fails at submission.
+
+An uploaded build cannot be withdrawn, so build 3 is stranded in a 1.1 train
+and 1.0 resumes at build 4. The rule this needed, now stated in `project.yml`
+beside the settings: only raise the marketing version once a released one
+exists. Everything §4 says about the iPad build still stands; it simply ships
+as part of 1.0.
 
 Nothing reports whether the tree had uncommitted edits when the build ran. It
 is a real distinction, but on any build someone other than the developer is
