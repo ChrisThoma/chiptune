@@ -1077,31 +1077,38 @@ final class Studio {
         // renderer rather than reaching back through `self` off the main actor.
         let renderer = renderer
 
-        Task.detached(priority: .userInitiated) { [weak self] in
+        // Both closures capture self weakly *here*, while it is still the
+        // method's immutable `self`. Swift 6 (the CI compiler) rejects a
+        // nested concurrent closure reading a `[weak self]` captured by the
+        // detached task — that capture is a var — so nothing inside the
+        // detach may name `self` at all.
+        let progress: @Sendable (Double) -> Void = { [weak self] fraction in
+            Task { @MainActor in self?.exportProgress = fraction }
+        }
+        let finish: @MainActor @Sendable (ExportResult) -> Void = { [weak self] result in
+            guard let self else { return }
+            self.isExporting = false
+            self.exportProgress = 0
+            self.exportCancel = nil
+            switch result {
+            case .success(let url):
+                self.exportURL = url
+            case .cancelled:
+                // Deliberately silent. Cancelling is not failing, and an
+                // alert for something the user just asked to stop is noise.
+                break
+            case .failed:
+                self.exportError = "Couldn't export “\(song.name)”. There may not be enough space on the device."
+            }
+        }
+
+        Task.detached(priority: .userInitiated) {
             let result = renderer(ExportRequest(
                 song: song,
                 options: options,
-                progress: { fraction in
-                    Task { @MainActor in self?.exportProgress = fraction }
-                },
+                progress: progress,
                 isCancelled: { token.isCancelled }))
-
-            await MainActor.run {
-                guard let self else { return }
-                self.isExporting = false
-                self.exportProgress = 0
-                self.exportCancel = nil
-                switch result {
-                case .success(let url):
-                    self.exportURL = url
-                case .cancelled:
-                    // Deliberately silent. Cancelling is not failing, and an
-                    // alert for something the user just asked to stop is noise.
-                    break
-                case .failed:
-                    self.exportError = "Couldn't export “\(song.name)”. There may not be enough space on the device."
-                }
-            }
+            await MainActor.run { finish(result) }
         }
     }
 

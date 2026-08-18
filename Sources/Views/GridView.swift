@@ -187,7 +187,6 @@ private struct GridCell: View {
     var body: some View {
         let note = studio.note(track: track, step: step)
         let filled = note != Chip.emptyNote
-        let accent = Theme.color(for: studio.song.tracks[track].kind)
         let isOff = note == ChipCore.noteOff
         let muted = studio.song.tracks[track].muted
         // Only once a hardware key has been pressed. On a touch-only session
@@ -197,29 +196,38 @@ private struct GridCell: View {
             && studio.selectedTrack == track
             && studio.selectedStep == step
 
-        return Text(isOff ? "OFF" : (filled ? NoteName.label(note) : "·"))
+        // Every ternary lands in an explicitly typed `let`: as one chained
+        // expression this body blows Xcode 16.4's type-check budget (CI's
+        // compiler), which 26.5 only happens to tolerate.
+        let title: String = isOff ? "OFF" : (filled ? NoteName.label(note) : "·")
+        // Muting fades the fill to 35% over near-black, so the dark
+        // note text has to flip light or it scores under 2.6:1.
+        let titleColor: Color = filled
+            ? (muted ? Theme.text.opacity(0.85) : Theme.onLight.opacity(0.85))
+            : Theme.dim.opacity(0.6)
+        let accent: Color = Theme.color(for: studio.song.tracks[track].kind)
+        let fill: Color = filled
+            ? (isOff ? Theme.dim : accent).opacity(muted ? 0.35 : 1.0)
+            : Theme.rowTint(step: step)
+        // White rather than the channel accent: the cursor has to
+        // stand out against a cell already filled with that accent.
+        let cursorRing: Color = atCursor ? Theme.text : Color.clear
+
+        return Text(title)
             .chipFont(filled ? 12 : 14)
-            // Muting fades the fill to 35% over near-black, so the dark
-            // note text has to flip light or it scores under 2.6:1.
-            .foregroundStyle(filled
-                             ? (muted ? Theme.text.opacity(0.85) : Theme.onLight.opacity(0.85))
-                             : Theme.dim.opacity(0.6))
+            .foregroundStyle(titleColor)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: 5)
-                    .fill(filled
-                          ? (isOff ? Theme.dim : accent).opacity(muted ? 0.35 : 1.0)
-                          : Theme.rowTint(step: step))
+                    .fill(fill)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 5)
                     .stroke(Theme.grid.opacity(0.6), lineWidth: filled ? 0 : 1)
             )
-            // White rather than the channel accent: the cursor has to
-            // stand out against a cell already filled with that accent.
             .overlay(
                 RoundedRectangle(cornerRadius: 5)
-                    .stroke(atCursor ? Theme.text : Color.clear, lineWidth: 2)
+                    .stroke(cursorRing, lineWidth: 2)
             )
             // What `.buttonStyle(.plain)` used to do. Without it a tap has no
             // touch-down feedback at all and the grid reads as a picture.
