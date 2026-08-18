@@ -157,4 +157,64 @@ final class StudioSustainTests: XCTestCase {
         XCTAssertLessThan(RenderHarness.rms(render(seconds: 0.2)[4410...]), 0.01,
                           "a deleted track's held note carried on sounding")
     }
+
+    /// Previewing a muted track would be silent either way, so the early
+    /// return looks cosmetic — it isn't. `audition` marks the voice it takes as
+    /// having no originating cell, which is the record `reconcileRingingVoices`
+    /// needs to find and release a held note. Without the guard, a header tap
+    /// on a muted track is a silent no-op that strands the next held note.
+    func testPreviewingAMutedTrackDoesNotStealItsRingingVoice() {
+        openHeldNote()
+        _ = render(seconds: 0.3)
+        let source = studio.engine.core.ringingSource(track: 0)
+        XCTAssertNotNil(source, "precondition: a pattern note should be ringing")
+
+        studio.song.tracks[0].muted = true
+        studio.pushInstrument(0)
+        studio.previewTrack(0)
+
+        XCTAssertEqual(studio.engine.core.ringingSource(track: 0)?.step, source?.step,
+                       "the preview took over the voice and lost its originating cell")
+
+        // And the record still works: erasing that cell must cut the note.
+        studio.song.tracks[0].muted = false
+        studio.pushInstrument(0)
+        studio.setNote(track: 0, step: 0, note: Chip.emptyNote)
+        XCTAssertLessThan(RenderHarness.rms(render(seconds: 0.2)[4410...]), 0.01,
+                          "the held note outlived the cell that started it")
+    }
+
+    /// Long-pressing a cell plays *that cell's* note on *that cell's* track —
+    /// the two things easiest to get wrong, since the obvious implementation
+    /// reaches for `selectedNote` and `selectedTrack` instead.
+    ///
+    /// Track 0 is muted and the armed note is a different pitch, so either
+    /// mistake is audible: routing to the selected track gives silence, and
+    /// reading the selected note gives the wrong frequency.
+    func testPreviewingACellPlaysThatCellsNoteOnThatCellsTrack() {
+        var song = TestSongs.empty(tempo: 120, length: 16)
+        song.tracks = [Track(kind: .triangle), Track(kind: .triangle)]
+        song.patterns[0].rows = [Pattern.emptyRow, Pattern.emptyRow]
+        for track in 0...1 {
+            song.tracks[track].instrument.sustain = true
+            song.tracks[track].instrument.volume = 1.0
+        }
+        song.tracks[0].muted = true
+        let cellNote: Int8 = 69                  // A4, 440 Hz
+        song.patterns[0].rows[1][4] = cellNote
+        studio.open(song)
+        studio.selectedTrack = 0
+        studio.selectedNote = 48
+
+        studio.previewCell(track: 1, step: 4)
+        let rendered = render(seconds: 0.4)
+
+        let window = rendered[4410..<(4410 + 8820)]
+        XCTAssertGreaterThan(RenderHarness.rms(window), 0.01,
+                             "the preview should have sounded on track 1, which isn't muted")
+        let dominant = RenderHarness.dominantFrequency(
+            window, candidates: RenderHarness.semitoneLadder(around: cellNote))
+        XCTAssertEqual(dominant ?? 0, NoteName.frequency(cellNote), accuracy: 0.001,
+                       "the preview played a pitch the cell doesn't hold")
+    }
 }
