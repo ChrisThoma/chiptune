@@ -92,7 +92,12 @@ echo "release.sh: the version comes from project.yml"
 assert_eq "reads MARKETING_VERSION"      "2.5" "$(marketing_version "$(fixture_project 2.5 17)")"
 assert_eq "reads CURRENT_PROJECT_VERSION" "17" "$(build_number     "$(fixture_project 2.5 17)")"
 assert_eq "reads the real project.yml"  "1.0" "$(marketing_version "$ROOT/project.yml")"
-assert_eq "reads the real build number"   "4" "$(build_number      "$ROOT/project.yml")"
+# The expectation is parsed out of project.yml by different means than the
+# code under test, not written down: a literal here turns every
+# './scripts/release.sh bump' into a test failure, which is how this line
+# broke CI the first time a build actually shipped.
+real_build="$(awk -F'"' '/CURRENT_PROJECT_VERSION:/ {print $2; exit}' "$ROOT/project.yml")"
+assert_eq "reads the real build number" "$real_build" "$(build_number "$ROOT/project.yml")"
 
 echo
 echo "release.sh: every artifact path is derived, never fixed"
@@ -109,7 +114,10 @@ assert_eq "ipa path carries the version" \
 echo
 echo "release.sh: an ipa is verified against project.yml before it can be uploaded"
 
-matching="$(fixture_ipa 1.0 4 1 2)"
+# Built from whatever project.yml currently ships, for the same reason the
+# build number above is parsed rather than written down: this fixture is
+# "the right artifact", and what's right moves with every bump.
+matching="$(fixture_ipa "$(marketing_version "$ROOT/project.yml")" "$real_build" 1 2)"
 assert_ok "accepts the ipa the project asked for" \
     verify_ipa "$matching" "$ROOT/project.yml"
 
