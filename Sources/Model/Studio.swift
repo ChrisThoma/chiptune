@@ -278,6 +278,10 @@ final class Studio {
         // which would otherwise throw away the selection we just recovered.
         selectedPattern = min(max(snapshot.selectedPattern, 0), song.patterns.count - 1)
         selectedTrack = min(max(snapshot.selectedTrack, 0), song.tracks.count - 1)
+        // Straight assignment above, so `selectPattern`'s pin never runs. An
+        // undo that put the cursor back only to have the next boundary take it
+        // away again reads as the undo having failed.
+        pinToSelectedPattern()
         engine.core.focus(pattern: selectedPattern)
         // Not `reconcileRingingVoices`: `pushAll` above reloads every pattern,
         // which drops each voice's record of the cell that started it. Nothing
@@ -360,21 +364,27 @@ final class Studio {
         timer?.invalidate()
         let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             guard let self else { return }
-            self.playhead = Int(self.engine.core.currentStep)
-            let pattern = Int(self.engine.core.currentPattern)
-            if self.playingPattern != pattern {
-                self.playingPattern = pattern
-                // Following the arrangement means the grid should follow too,
-                // otherwise you're watching a playhead run over the wrong notes.
-                // Unless the user has picked a pattern to edit mid-playback —
-                // then their selection wins and only the playing dot moves.
-                if self.songMode, self.followsArrangement, pattern < self.song.patterns.count {
-                    self.selectedPattern = pattern
-                }
-            }
+            self.applyPlayhead(step: Int(self.engine.core.currentStep),
+                               pattern: Int(self.engine.core.currentPattern))
         }
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
+    }
+
+    /// One tick of the playhead: 60 a second from the timer above, and one at a
+    /// time from the tests. Lifting it out of the closure is what makes the
+    /// follow behaviour reachable without a run loop or a live audio engine.
+    func applyPlayhead(step: Int, pattern: Int) {
+        playhead = step
+        guard playingPattern != pattern else { return }
+        playingPattern = pattern
+        // Following the arrangement means the grid should follow too, otherwise
+        // you're watching a playhead run over the wrong notes. Unless the user
+        // has pinned a pattern by selecting or editing one mid-playback — then
+        // their pattern wins and only the playing dot moves.
+        if songMode, followsArrangement, pattern < song.patterns.count {
+            selectedPattern = pattern
+        }
     }
 
     func setSongMode(_ on: Bool) {
@@ -403,6 +413,7 @@ final class Studio {
     func setNote(track: Int, step: Int, note: Int8) {
         guard selectedPattern < song.patterns.count,
               track < song.tracks.count, step < Chip.maxSteps else { return }
+        pinToSelectedPattern()
         song.patterns[selectedPattern].rows[track][step] = note
         engine.core.setNote(pattern: selectedPattern, track: track, step: step, note: note)
         reconcileRingingVoices()
@@ -518,12 +529,64 @@ final class Studio {
         octave = min(8, max(0, octave + delta))
     }
 
+    /// Whether the keyboard is about to write a note off rather than a pitch.
+    /// The readout leans on this to explain what OFF does at the one moment
+    /// anyone needs to know.
+    var noteOffArmed: Bool { selectedNote == ChipCore.noteOff }
+
     /// Arms a note off, or disarms back to the pitch it was armed over.
     ///
     /// The arm used to be one-way, which left tapping some other key as the
     /// only way out — so the button read as a toggle that had jammed.
     func toggleNoteOff() {
         selectedNote = selectedNote == ChipCore.noteOff ? lastPitch : ChipCore.noteOff
+    }
+
+    /// The note a track header's tap demos, or nil when there's nothing to
+    /// play. Split out from `previewTrack` because what it picks is the whole
+    /// substance of the feature and rendering audio to assert on it is a slow,
+    /// indirect way to ask.
+    func previewNote(forTrack index: Int) -> Int8? {
+        // Muted tracks return early, which reads as cosmetic and isn't:
+        // `audition` marks the voice it takes as having no originating cell,
+        // and that record is what `reconcileRingingVoices` needs to release a
+        // held note. Previewing a muted track would be a silent no-op that
+        // strands the next sustained note on it. The mute speaker sits right
+        // under the name, so the silence explains itself.
+        guard let track = song.tracks[safe: index], !track.muted else { return nil }
+        // Noise has no melody — the LFSR runs off the note's frequency, so a
+        // bass C2 is a slow rattle rather than the drum the track plays. And an
+        // armed OFF is not a pitch at all; the core drops the sentinel, which
+        // would leave the header dead at seemingly random times.
+        if track.kind == .noise { return 60 }
+        return selectedNote >= 0 ? selectedNote : 60
+    }
+
+    /// Demos a track's sound. The tester tapped the top row expecting to hear
+    /// what each channel sounded like, and nothing happened.
+    func previewTrack(_ index: Int) {
+        guard let note = previewNote(forTrack: index) else { return }
+        audition(note, on: index)
+    }
+
+    /// Plays the note already in a cell. Writes nothing, arms nothing, moves
+    /// nothing — a beta tester had no way to hear what was in a cell except by
+    /// tapping it, and tapping it wrote over it.
+    ///
+    /// Empty and OFF cells are turned away here rather than left to the core's
+    /// own `note >= 0` guard. `audition` starts the audio engine on its way
+    /// through and can raise an error doing it, so leaning on the core would
+    /// make previewing an empty cell inaudible but not harmless.
+    ///
+    /// Reports whether anything was played, which is what the tests assert on.
+    @discardableResult
+    func previewCell(track: Int, step: Int) -> Bool {
+        let note = self.note(track: track, step: step)
+        // An OFF has no sound of its own, and releasing the track's voice to
+        // demonstrate it would be an audible change from a read-only gesture.
+        guard note != Chip.emptyNote, note != ChipCore.noteOff else { return false }
+        audition(note, on: track)
+        return true
     }
 
     /// Previews a note on a track — the selected one unless told otherwise.
@@ -569,6 +632,9 @@ final class Studio {
         // One checkpoint for the lot — a per-track checkpoint would make
         // undoing a cleared pattern take one press per track.
         checkpoint()
+        // Only when it's the pattern on screen. Clearing B from its chip menu
+        // doesn't move the editor off A, so it has no business pinning A.
+        if index == selectedPattern { pinToSelectedPattern() }
         for track in 0..<song.tracks.count {
             for step in 0..<Chip.maxSteps {
                 song.patterns[index].rows[track][step] = Chip.emptyNote
@@ -611,13 +677,28 @@ final class Studio {
     // MARK: Patterns
 
     /// True while SONG-mode playback should drag the grid along with the
-    /// sequencer. A manual pattern selection turns it off for the rest of the
-    /// play-through so editing isn't yanked away at the next boundary.
-    @ObservationIgnored private var followsArrangement = true
+    /// sequencer. Selecting a pattern or editing one turns it off for the rest
+    /// of the play-through so editing isn't yanked away at the next boundary;
+    /// selecting the pattern that's currently sounding turns it back on.
+    @ObservationIgnored private(set) var followsArrangement = true
+
+    /// Keeps the grid on the pattern being edited for the rest of the
+    /// play-through. Editing counts as claiming a pattern just as much as
+    /// selecting one does — otherwise writing a note over playback lasts only
+    /// until the next arrangement boundary hauls the grid somewhere else.
+    ///
+    /// Deliberately not called from instrument, tempo, or arrangement edits.
+    /// Those aren't pattern-local — an instrument sounds in every pattern — so
+    /// being carried along doesn't interrupt them.
+    private func pinToSelectedPattern() {
+        if isPlaying, songMode { followsArrangement = false }
+    }
 
     func selectPattern(_ index: Int) {
         guard index >= 0, index < song.patterns.count else { return }
-        if isPlaying, songMode { followsArrangement = false }
+        // Jumping to the pattern that's already sounding means "back to the
+        // song", and re-arms; any other choice pins the grid there.
+        if isPlaying, songMode { followsArrangement = (index == playingPattern) }
         selectedPattern = index
         engine.core.focus(pattern: index)
         if !songMode { playingPattern = index }
@@ -626,6 +707,7 @@ final class Studio {
     func setPatternLength(_ length: Int) {
         guard selectedPattern < song.patterns.count else { return }
         checkpoint(coalescing: true)
+        pinToSelectedPattern()
         song.patterns[selectedPattern].length = min(max(length, 4), Chip.maxSteps)
         engine.core.setLength(pattern: selectedPattern, length: song.patterns[selectedPattern].length)
     }

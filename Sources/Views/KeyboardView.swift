@@ -81,7 +81,17 @@ struct KeyboardView: View {
                     .foregroundStyle(Theme.color(for: studio.selectedKind))
                 // The full label: this slot is flexible, and it's the readout
                 // that says where a tap is about to land.
-                Text(studio.song.fullLabel(for: studio.selectedTrack))
+                //
+                // Except while OFF is armed, when the line above already reads
+                // "OFF" in the track's colour and the track name is the least
+                // useful thing on screen. A tester's "I don't understand what
+                // the off button does" had nowhere to be answered — the only
+                // prose about it in the app is buried in the sound editor — and
+                // borrowing this line costs no height, so the keyboard can't
+                // jump and the grid doesn't lose a row to it.
+                Text(studio.noteOffArmed
+                     ? "cuts a held note"
+                     : studio.song.fullLabel(for: studio.selectedTrack))
                     .chipFont(9)
                     .lineLimit(1)
                     .foregroundStyle(Theme.dim)

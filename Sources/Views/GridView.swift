@@ -163,6 +163,28 @@ struct GridView: View {
     }
 
     private func cell(track: Int, step: Int) -> some View {
+        GridCell(studio: studio, track: track, step: step)
+    }
+}
+
+/// One step on one track.
+///
+/// Not a `Button`, which it was until a beta tester pointed out that the only
+/// way to hear what was in a cell was to tap it — and tapping it wrote over it.
+/// A long press previews instead, and a `Button` can't carry one: the two fire
+/// together, so telling them apart needs a did-long-press flag checked and
+/// cleared in the button's own action. A shape with both gestures on it
+/// arbitrates properly — the long press cancels the tap rather than racing it —
+/// at the cost of putting back the press feedback and the button trait that
+/// `.buttonStyle(.plain)` was giving away for free.
+private struct GridCell: View {
+    @Bindable var studio: Studio
+    let track: Int
+    let step: Int
+
+    @State private var pressed = false
+
+    var body: some View {
         let note = studio.note(track: track, step: step)
         let filled = note != Chip.emptyNote
         let accent = Theme.color(for: studio.song.tracks[track].kind)
@@ -175,39 +197,55 @@ struct GridView: View {
             && studio.selectedTrack == track
             && studio.selectedStep == step
 
-        return Button {
-            studio.placeCursor(track: track, step: step)
-            studio.toggleCell(track: track, step: step)
-        } label: {
-            Text(isOff ? "OFF" : (filled ? NoteName.label(note) : "·"))
-                .chipFont(filled ? 12 : 14)
-                // Muting fades the fill to 35% over near-black, so the dark
-                // note text has to flip light or it scores under 2.6:1.
-                .foregroundStyle(filled
-                                 ? (muted ? Theme.text.opacity(0.85) : Theme.onLight.opacity(0.85))
-                                 : Theme.dim.opacity(0.6))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(
-                    RoundedRectangle(cornerRadius: 5)
-                        .fill(filled
-                              ? (isOff ? Theme.dim : accent).opacity(muted ? 0.35 : 1.0)
-                              : Theme.rowTint(step: step))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 5)
-                        .stroke(Theme.grid.opacity(0.6), lineWidth: filled ? 0 : 1)
-                )
-                // White rather than the channel accent: the cursor has to
-                // stand out against a cell already filled with that accent.
-                .overlay(
-                    RoundedRectangle(cornerRadius: 5)
-                        .stroke(atCursor ? Theme.text : Color.clear, lineWidth: 2)
-                )
-        }
-        .buttonStyle(.plain)
-        .hoverEffect(.highlight)
-        .accessibilityLabel("\(studio.song.fullLabel(for: track)) step \(step + 1)")
-        .accessibilityValue(filled ? NoteName.label(note) : "empty")
+        return Text(isOff ? "OFF" : (filled ? NoteName.label(note) : "·"))
+            .chipFont(filled ? 12 : 14)
+            // Muting fades the fill to 35% over near-black, so the dark
+            // note text has to flip light or it scores under 2.6:1.
+            .foregroundStyle(filled
+                             ? (muted ? Theme.text.opacity(0.85) : Theme.onLight.opacity(0.85))
+                             : Theme.dim.opacity(0.6))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(filled
+                          ? (isOff ? Theme.dim : accent).opacity(muted ? 0.35 : 1.0)
+                          : Theme.rowTint(step: step))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 5)
+                    .stroke(Theme.grid.opacity(0.6), lineWidth: filled ? 0 : 1)
+            )
+            // White rather than the channel accent: the cursor has to
+            // stand out against a cell already filled with that accent.
+            .overlay(
+                RoundedRectangle(cornerRadius: 5)
+                    .stroke(atCursor ? Theme.text : Color.clear, lineWidth: 2)
+            )
+            // What `.buttonStyle(.plain)` used to do. Without it a tap has no
+            // touch-down feedback at all and the grid reads as a picture.
+            .opacity(pressed ? 0.6 : 1)
+            .contentShape(Rectangle())
+            .hoverEffect(.highlight)
+            // Tap first, long press second. In this order the long press
+            // cancels the tap rather than both firing on release.
+            .onTapGesture {
+                studio.placeCursor(track: track, step: step)
+                studio.toggleCell(track: track, step: step)
+            }
+            .onLongPressGesture {
+                studio.previewCell(track: track, step: step)
+            } onPressingChanged: { pressing in
+                pressed = pressing
+            }
+            .accessibilityLabel("\(studio.song.fullLabel(for: track)) step \(step + 1)")
+            .accessibilityValue(filled ? NoteName.label(note) : "empty")
+            // A shape with gestures on it exposes as plain text, and there is
+            // no reaching a long press with VoiceOver — so the trait and the
+            // preview both have to be spelled out.
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(named: "Preview") {
+                studio.previewCell(track: track, step: step)
+            }
     }
 }
 
@@ -238,6 +276,10 @@ private struct TrackHeader: View {
 
         VStack(spacing: 4) {
             Button {
+                // Every tap demos the sound, whichever of the two things below
+                // it also does. A tester tapped along this row expecting to
+                // hear what each channel sounded like and got silence.
+                studio.previewTrack(index)
                 // Already selected? The second tap opens the sound editor —
                 // unless the editor is docked in the side column, where it's
                 // already on screen showing this track and there's nothing for

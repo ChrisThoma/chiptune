@@ -384,6 +384,138 @@ final class StudioEditingTests: XCTestCase {
         XCTAssertEqual(studio.note(track: 0, step: 0), Chip.emptyNote, "tapping again with the same note selected clears it")
     }
 
+    /// The keyboard readout swaps its second line for an explanation while OFF
+    /// is armed — a tester's flat "I don't understand what the off button
+    /// does", and nothing on screen said.
+    func testNoteOffArmedFollowsTheSelectedNote() {
+        XCTAssertFalse(studio.noteOffArmed)
+
+        studio.toggleNoteOff()
+        XCTAssertTrue(studio.noteOffArmed)
+
+        studio.selectedNote = 64
+        XCTAssertFalse(studio.noteOffArmed, "picking a pitch disarms the caption too")
+    }
+
+    // MARK: Previewing a track
+
+    /// A tap on a track header demos its sound. The tester expected the top row
+    /// to be audible and it wasn't, so the header now plays something on every
+    /// tap — which means it has to have something to play on every tap.
+    func testPreviewingATrackPlaysTheArmedPitch() {
+        studio.selectedNote = 67
+        XCTAssertEqual(studio.previewNote(forTrack: 0), 67)
+    }
+
+    /// OFF isn't a pitch, and the core drops the sentinel silently — so without
+    /// a fallback the header would go dead at seemingly random times.
+    func testPreviewingATrackFallsBackToMiddleCWhenOffIsArmed() {
+        studio.toggleNoteOff()
+        XCTAssertEqual(studio.previewNote(forTrack: 0), 60)
+    }
+
+    /// Pitch on the noise channel is timbre rather than melody: the LFSR runs
+    /// off the note's frequency, so a bass C2 is a slow rattle that sounds
+    /// nothing like the drum the track actually plays.
+    func testPreviewingANoiseTrackAlwaysUsesTheSameHit() {
+        let noise = studio.song.tracks.firstIndex { $0.kind == .noise }
+        let index = try! XCTUnwrap(noise)
+        studio.selectedNote = 36
+
+        XCTAssertEqual(studio.previewNote(forTrack: index), 60,
+                       "a noise preview should sound like the track, not like a pitch")
+    }
+
+    func testPreviewingAMutedTrackPlaysNothing() {
+        studio.song.tracks[0].muted = true
+        XCTAssertNil(studio.previewNote(forTrack: 0))
+    }
+
+    func testPreviewingAMissingTrackPlaysNothing() {
+        XCTAssertNil(studio.previewNote(forTrack: 99))
+        XCTAssertNil(studio.previewNote(forTrack: -1))
+    }
+
+    /// Same promise the cell preview makes: listening changes nothing.
+    func testPreviewingATrackDoesNotEditOrChangeTheSelection() {
+        studio.selectedNote = 60
+        studio.selectedTrack = 0
+        let before = studio.song
+
+        studio.previewTrack(1)
+
+        XCTAssertEqual(studio.song.patterns, before.patterns)
+        XCTAssertEqual(studio.selectedTrack, 0, "previewing must not select the track")
+        XCTAssertEqual(studio.selectedNote, 60)
+        XCTAssertFalse(studio.canUndo)
+    }
+
+    // MARK: Previewing a cell
+
+    /// The whole point of the gesture: a beta tester couldn't hear what was in
+    /// a cell without tapping it, and tapping it wrote over it. Preview has to
+    /// leave every last piece of editing state alone.
+    func testPreviewingACellChangesNothing() {
+        studio.selectedNote = 60
+        studio.toggleCell(track: 0, step: 3)
+        studio.selectedNote = 72
+        studio.selectedTrack = 1
+        studio.selectedStep = 5
+        studio.hardwareKeyboardInUse = true
+        let before = studio.song
+        let undoBefore = studio.canUndo
+
+        XCTAssertTrue(studio.previewCell(track: 0, step: 3))
+
+        XCTAssertEqual(studio.song.patterns, before.patterns, "preview must not write")
+        XCTAssertEqual(studio.selectedNote, 72, "preview must not arm the note it played")
+        XCTAssertEqual(studio.selectedTrack, 1, "preview must not move the cursor")
+        XCTAssertEqual(studio.selectedStep, 5)
+        XCTAssertEqual(studio.canUndo, undoBefore, "preview must not push an undo step")
+    }
+
+    /// Silence has to be decided here rather than left to the core. `audition`
+    /// starts the audio engine on its way through and can raise an error doing
+    /// it, so a preview of an empty cell would be inaudible but not harmless.
+    func testPreviewingAnEmptyCellDoesNothingAtAll() {
+        XCTAssertFalse(studio.previewCell(track: 0, step: 0))
+        XCTAssertNil(studio.audioError, "an empty cell must not even reach the engine")
+    }
+
+    /// An OFF isn't a pitch, and releasing the track's voice would be an
+    /// audible side effect from a gesture that promises to change nothing.
+    func testPreviewingANoteOffCellDoesNothingAtAll() {
+        studio.toggleNoteOff()
+        studio.toggleCell(track: 0, step: 2)
+        XCTAssertEqual(studio.note(track: 0, step: 2), ChipCore.noteOff)
+
+        XCTAssertFalse(studio.previewCell(track: 0, step: 2))
+        XCTAssertNil(studio.audioError)
+    }
+
+    func testPreviewingAnOutOfRangeCellIsDropped() {
+        XCTAssertFalse(studio.previewCell(track: 99, step: 0))
+        XCTAssertFalse(studio.previewCell(track: 0, step: 9999))
+        XCTAssertFalse(studio.previewCell(track: -1, step: -1))
+    }
+
+    /// Previewing is read-only, so it must not pin the grid the way an edit
+    /// does — you can listen your way around a song while it plays.
+    func testPreviewingACellDoesNotPinTheGrid() {
+        studio.addPattern()
+        studio.selectPattern(0)
+        studio.selectedNote = 60
+        studio.toggleCell(track: 0, step: 1)
+        studio.songMode = true
+        studio.isPlaying = true
+        studio.selectPattern(studio.playingPattern)   // re-arm after the edit above
+        XCTAssertTrue(studio.followsArrangement, "precondition")
+
+        studio.previewCell(track: 0, step: 1)
+
+        XCTAssertTrue(studio.followsArrangement)
+    }
+
     // MARK: Arrangement
 
     func testRemovingEveryArrangementSectionFallsBackToTheFirstPattern() {

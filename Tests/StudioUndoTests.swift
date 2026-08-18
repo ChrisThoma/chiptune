@@ -129,6 +129,30 @@ final class StudioUndoTests: XCTestCase {
         XCTAssertEqual(studio.selectedPattern, 2, "undo must put the cursor back too")
     }
 
+    /// Undo assigns `selectedPattern` directly rather than going through
+    /// `selectPattern`, so without a pin of its own the next arrangement
+    /// boundary takes the grid straight back off the pattern the undo just
+    /// restored — which reads as the undo having failed.
+    func testUndoingWhilePlayingPinsTheGrid() {
+        studio.addPattern()
+        studio.addPattern()
+        studio.selectPattern(0)
+        studio.toggleCell(track: 0, step: 3)
+        studio.songMode = true
+        studio.isPlaying = true
+        // Left following on purpose, so the pin under test is undo's own and
+        // not one inherited from a manual pattern selection.
+        studio.applyPlayhead(step: 0, pattern: 1)
+        XCTAssertTrue(studio.followsArrangement, "precondition: still following")
+
+        studio.undo()
+
+        XCTAssertFalse(studio.followsArrangement)
+        XCTAssertEqual(studio.selectedPattern, 0, "undo put the cursor here")
+        studio.applyPlayhead(step: 0, pattern: 2)
+        XCTAssertEqual(studio.selectedPattern, 0, "and the arrangement must not take it away")
+    }
+
     func testUndoingATrackDeleteRestoresTheSelection() {
         studio.selectedTrack = 3
         studio.removeTrack(at: 3)
