@@ -222,7 +222,15 @@ enum WavExport {
         let bitsPerSample: UInt16 = 16
         let byteRate = UInt32(sampleRate) * UInt32(channels) * UInt32(bitsPerSample / 8)
         let blockAlign = channels * (bitsPerSample / 8)
-        let dataSize = UInt32(totalSamples * 2)
+
+        // WAV's RIFF header caps a chunk at 32 bits; a render big enough to
+        // overflow it can't be written as a valid WAV at all, so fail the
+        // export instead of trapping the UInt32 conversion.
+        let dataByteCount = totalSamples * 2
+        guard dataByteCount <= Int(UInt32.max), 36 + dataByteCount <= Int(UInt32.max) else {
+            return .failed
+        }
+        let dataSize = UInt32(dataByteCount)
 
         var header = Data()
         func append<T>(_ value: T) {
