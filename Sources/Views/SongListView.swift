@@ -103,6 +103,8 @@ struct SongListView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
+                        .accessibilityLabel("Close")
+                        .accessibilityIdentifier("SongListView.CloseButton")
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Menu {
@@ -120,6 +122,8 @@ struct SongListView: View {
                     } label: {
                         Label("Add", systemImage: "plus")
                     }
+                    .accessibilityLabel("Add")
+                    .accessibilityIdentifier("SongListView.AddMenu")
                 }
             }
             .tint(Theme.text)
