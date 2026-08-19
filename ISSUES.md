@@ -37,16 +37,13 @@ Bundle ID: dev.individuation.chiptune
 - Repro: Open Songs list. `ui_describe_all` shows nav bar `AXGroup` with zero children, though Close and "+" are visibly rendered and tappable by raw coordinate.
 - Expected: toolbar buttons exposed to AX tree (VoiceOver reachable). Actual: not exposed; only coordinate taps work.
 - Evidence: scratchpad/songlist.png
-- Fix: added explicit `.accessibilityLabel`/`.accessibilityIdentifier` to Close button and Add Menu (SongListView.swift:104-124).
-- Severity: S3. Status: FIXED-UNVERIFIED (pending rebuild + verify).
+- Fix attempt 1: added explicit `.accessibilityLabel`/`.accessibilityIdentifier` to Close button and Add Menu (SongListView.swift:104-124). Commit: 626e9d7.
+- Verify 1 verdict: REJECTED — "ui_describe_all on the SongListView shows the nav bar as zero children... ui_find_element with [Close, Add, +, New song] returned []. The fix does not appear to be present in this build."
+- Severity: S3. Status: CONFIRMED (re-fix in progress, escalated to opus after rejection).
 
-### #6 — Song title field overflows and hides Songs/Undo nav buttons
-- Track: B (visual, SIM-B)
-- Repro: New song → tap title field → type a long name (e.g. "This Is An Extremely Long Song Title That Should Overflow The Text Field Width").
-- Expected: title truncates/wraps, Songs icon and Undo button stay visible. Actual: TextField grows unbounded, scrolls to show tail, Songs icon reduced to a stray fragment, Undo button disappears entirely. Persists after keyboard dismissed / sheet reopened — real layout bug, not a mid-edit artifact.
-- Evidence: scratchpad/05_longname.png, 13_final.png
-- Fix: TextField gets `.lineLimit(1)`, `.truncationMode(.tail)`, `.layoutPriority(-1)` so it shrinks/truncates instead of growing unbounded (ContentView.swift:279-286).
-- Severity: S3. Status: FIXED-UNVERIFIED (pending rebuild + verify).
+### #6 — VERIFIED — Song title field overflows and hides Songs/Undo nav buttons
+- Repro: New song → tap title field → type a 70+ char name. Commit: 626e9d7.
+- Verdict: "FIXED. Accessibility tree confirms the title TextField frame is bounded... does not overlap either the Songs button... or the Undo button... Songs icon, Undo/Redo arrows, and the '…' menu button all remain fully visible and unobstructed."
 
 Inconclusive (not a candidate): Export WAV in-flight feedback — render was too fast (small pattern) to tell if a spinner/disabled state is missing; retest with a heavy pattern in a later wave.
 

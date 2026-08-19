@@ -8,12 +8,16 @@ import Foundation
 /// A plain struct stored as an *observed* property of its owner — not a class,
 /// and not `@ObservationIgnored` — so `canUndo`/`canRedo` keep invalidating
 /// the toolbar buttons exactly as the inline stacks did.
-struct UndoHistory<State, Run: Equatable> {
+struct UndoHistory<State, Run: Equatable, Kind: Equatable> {
     private var undoStack: [State] = []
     private var redoStack: [State] = []
     private var lastCheckpoint: Date?
     /// The run the last checkpoint belonged to, for run-coalesced edits.
     private var lastRun: Run?
+    /// The operation kind the last checkpoint belonged to, so time-coalescing
+    /// only folds edits of the same kind — a tempo tap followed by a note
+    /// toggle inside the window must still be two undo steps.
+    private var lastKind: Kind?
 
     /// Edits closer together than this fold into one undo step, so painting a
     /// run of cells is one undo rather than sixteen.
@@ -29,15 +33,20 @@ struct UndoHistory<State, Run: Equatable> {
     ///
     /// - Parameters:
     ///   - coalescing: fold when the previous checkpoint was inside
-    ///     `coalescingWindow`. For continuous gestures — painting cells,
-    ///     holding a stepper. Folding rolls the window forward, so a
-    ///     continuous stroke stays one step however long it goes on.
+    ///     `coalescingWindow` *and* tagged with the same `kind`. For
+    ///     continuous gestures — painting cells, holding a stepper. Folding
+    ///     rolls the window forward, so a continuous stroke stays one step
+    ///     however long it goes on.
+    ///   - kind: identifies the operation for `coalescing`, so unrelated
+    ///     edits that merely land inside the same window (a tempo tap, then
+    ///     a note toggle) don't fold into one undo step.
     ///   - run: fold when the previous checkpoint belonged to the same named
     ///     run, however long ago it was. For edits with no rhythm to time out
     ///     on. Any record without a `run` ends the run, so a different kind of
     ///     edit always starts a new undo step.
     mutating func record(_ state: @autoclosure () -> State,
                          coalescing: Bool = false,
+                         kind: Kind? = nil,
                          run: Run? = nil) {
         let now = Date()
         if run != nil, run == lastRun, !undoStack.isEmpty {
@@ -45,7 +54,7 @@ struct UndoHistory<State, Run: Equatable> {
             return
         }
         if coalescing, run == nil, !undoStack.isEmpty, let last = lastCheckpoint,
-           now.timeIntervalSince(last) < coalescingWindow {
+           kind == lastKind, now.timeIntervalSince(last) < coalescingWindow {
             lastCheckpoint = now
             return
         }
@@ -55,6 +64,7 @@ struct UndoHistory<State, Run: Equatable> {
         redoStack.removeAll()
         lastCheckpoint = now
         lastRun = run
+        lastKind = kind
     }
 
     /// Steps back, pushing `current` where redo will find it. Returns the
@@ -76,6 +86,7 @@ struct UndoHistory<State, Run: Equatable> {
     mutating func closeFolding() {
         lastCheckpoint = nil
         lastRun = nil
+        lastKind = nil
     }
 
     /// Ends the current named run, so the next edit of that kind starts a

@@ -100,13 +100,21 @@ struct SongListView: View {
             .background(Theme.background.ignoresSafeArea())
             .navigationTitle("Songs")
             .navigationBarTitleDisplayMode(.inline)
+            // `.cancellationAction`/`.confirmationAction` get bridged to legacy
+            // UIBarButtonItems that drop the accessibility metadata attached
+            // here; the topBar placements stay SwiftUI-native and keep it.
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
-                        .accessibilityLabel("Close")
-                        .accessibilityIdentifier("SongListView.CloseButton")
+                ToolbarItem(id: "SongListView.CloseButton", placement: .topBarLeading) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("Close")
+                            .accessibilityLabel("Close")
+                    }
+                    .accessibilityLabel("Close")
+                    .accessibilityIdentifier("SongListView.CloseButton")
                 }
-                ToolbarItem(placement: .confirmationAction) {
+                ToolbarItem(id: "SongListView.AddMenu", placement: .topBarTrailing) {
                     Menu {
                         Button {
                             studio.newSong()
@@ -120,8 +128,10 @@ struct SongListView: View {
                             Label("Import song…", systemImage: "square.and.arrow.down")
                         }
                     } label: {
-                        Label("Add", systemImage: "plus")
+                        Image(systemName: "plus")
+                            .accessibilityLabel("Add")
                     }
+                    .accessibilityElement(children: .combine)
                     .accessibilityLabel("Add")
                     .accessibilityIdentifier("SongListView.AddMenu")
                 }

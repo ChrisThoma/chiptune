@@ -9,6 +9,11 @@ struct ExportSheet: View {
     @Bindable var studio: Studio
     @Environment(\.dismiss) private var dismiss
     @State private var options = ExportOptions()
+    // Separate from `studio.isExporting`: a short render can finish and flip
+    // that flag back to false before a second rapid tap's action closure
+    // runs, letting it start a stale second render. This flag latches for
+    // the lifetime of this sheet instance instead.
+    @State private var hasStartedExport = false
 
     var body: some View {
         NavigationStack {
@@ -56,10 +61,13 @@ struct ExportSheet: View {
                         }
                     } else {
                         Button {
+                            guard !hasStartedExport else { return }
+                            hasStartedExport = true
                             studio.export(options: options)
                         } label: {
                             Label("Export WAV", systemImage: "square.and.arrow.up")
                         }
+                        .disabled(hasStartedExport)
                     }
                 }
             }
