@@ -70,7 +70,7 @@ final class SongStoreTests: XCTestCase {
     func testLoadLastFallsBackToTheNewestSongWhenTheCurrentOneIsMissing() throws {
         let missing = Song(name: "Missing")
         temp.save(missing, makeCurrent: true)
-        store.delete(missing)
+        try store.delete(missing)
 
         var older = Song(name: "Older")
         older.modified = Date(timeIntervalSince1970: 1000)
@@ -87,26 +87,36 @@ final class SongStoreTests: XCTestCase {
         XCTAssertNil(store.loadLast())
     }
 
-    func testDeletingTheCurrentSongClearsTheCurrentKey() {
+    func testDeletingTheCurrentSongClearsTheCurrentKey() throws {
         let song = Song(name: "Doomed")
         temp.save(song, makeCurrent: true)
 
-        store.delete(song)
+        try store.delete(song)
 
         XCTAssertNil(store.load(id: song.id))
         XCTAssertNil(temp.defaults.string(forKey: "currentSongID"),
                      "the pointer must not outlive the file it points at")
     }
 
-    func testDeletingAnotherSongLeavesTheCurrentKeyAlone() {
+    func testDeletingAnotherSongLeavesTheCurrentKeyAlone() throws {
         let current = Song(name: "Current")
         let other = Song(name: "Other")
         temp.save(current, makeCurrent: true)
         temp.save(other)
 
-        store.delete(other)
+        try store.delete(other)
 
         XCTAssertEqual(temp.defaults.string(forKey: "currentSongID"), current.id.uuidString)
+    }
+
+    /// Deleted from the Files app, lost to a restore — the file being gone
+    /// already is what delete wanted, not something to alert about.
+    func testDeletingAMissingFileIsNotAnError() throws {
+        let song = Song(name: "Ghost")
+        temp.save(song)
+        try store.delete(song)
+
+        XCTAssertNoThrow(try store.delete(song))
     }
 
     // MARK: Loading the library

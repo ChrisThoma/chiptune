@@ -127,8 +127,7 @@ struct SongListView: View {
         .preferredColorScheme(.dark)
         .onAppear { reload() }
         .confirmationDialog("Delete “\(pendingDelete?.name ?? "")”?",
-                            isPresented: Binding(get: { pendingDelete != nil },
-                                                 set: { if !$0 { pendingDelete = nil } }),
+                            isPresented: Binding(isPresenting: $pendingDelete),
                             titleVisibility: .visible) {
             Button("Delete song", role: .destructive) {
                 if let song = pendingDelete { studio.delete(song) }
@@ -149,20 +148,14 @@ struct SongListView: View {
                 studio.importError = error.localizedDescription
             }
         }
-        .sheet(isPresented: Binding(get: { studio.shareURL != nil },
-                                    set: { if !$0 { studio.shareURL = nil } })) {
-            if let url = studio.shareURL {
-                ShareSheet(items: [url])
-            }
-        }
+        .songShareSheet(for: studio)
         .errorAlert("Import failed", message: $studio.importError)
         // The library shares too, from the row's swipe action.
         .errorAlert("Share failed", message: $studio.shareError)
         .background {
             SongRenameAlertAccessibilityBridge(isPresented: renaming != nil)
         }
-        .alert("Rename song", isPresented: Binding(get: { renaming != nil },
-                                                   set: { if !$0 { renaming = nil } })) {
+        .alert("Rename song", isPresented: Binding(isPresenting: $renaming)) {
             TextField("Name", text: $renameText)
                 .foregroundStyle(SongRenameAlertStyle.fieldText)
             Button("Cancel", role: .cancel) { renaming = nil }
@@ -210,72 +203,65 @@ struct SongListView: View {
         // every song title renders blue.
         .buttonStyle(.plain)
         .swipeActions(edge: .leading) {
-            Button {
-                studio.duplicate(song)
-                reload()
-            } label: {
-                Label("Duplicate", systemImage: "plus.square.on.square")
-            }
-            .tint(Theme.panelHigh)
-
-            Button {
-                renameText = song.name
-                renaming = song
-            } label: {
-                Label("Rename", systemImage: "pencil")
-            }
-            .tint(Theme.panelHigh)
+            duplicateAction(song).tint(Theme.panelHigh)
+            renameAction(song).tint(Theme.panelHigh)
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            // Asks first rather than deleting on the swipe — a song is not
-            // recoverable. Full swipe stays off for the same reason.
-            Button(role: .destructive) {
-                pendingDelete = song
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-
-            Button {
-                studio.share(song)
-            } label: {
-                Label("Share", systemImage: "square.and.arrow.up")
-            }
-            .tint(Theme.panelHigh)
+            // Full swipe stays off: a song is not recoverable.
+            deleteAction(song)
+            shareAction(song).tint(Theme.panelHigh)
         }
-        // Same three actions as the swipes, for anyone who reaches for a long
-        // press instead — and so rename is discoverable without swiping.
+        // The same actions again, for anyone who reaches for a long press
+        // instead — and so rename is discoverable without swiping.
         .contextMenu {
-            Button {
-                renameText = song.name
-                renaming = song
-            } label: {
-                Label("Rename", systemImage: "pencil")
-            }
-            Button {
-                studio.duplicate(song)
-                reload()
-            } label: {
-                Label("Duplicate", systemImage: "plus.square.on.square")
-            }
-            Button {
-                studio.share(song)
-            } label: {
-                Label("Share song file", systemImage: "square.and.arrow.up")
-            }
-            Button(role: .destructive) {
-                pendingDelete = song
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
+            renameAction(song)
+            duplicateAction(song)
+            shareAction(song)
+            deleteAction(song)
+        }
+    }
+
+    // One definition per action, shared by the swipes and the long-press menu
+    // so the two entrances can't drift apart.
+
+    private func renameAction(_ song: Song) -> some View {
+        Button {
+            renameText = song.name
+            renaming = song
+        } label: {
+            Label("Rename", systemImage: "pencil")
+        }
+    }
+
+    private func duplicateAction(_ song: Song) -> some View {
+        Button {
+            studio.duplicate(song)
+            reload()
+        } label: {
+            Label("Duplicate", systemImage: "plus.square.on.square")
+        }
+    }
+
+    private func shareAction(_ song: Song) -> some View {
+        Button {
+            studio.share(song)
+        } label: {
+            Label("Share song file", systemImage: "square.and.arrow.up")
+        }
+    }
+
+    private func deleteAction(_ song: Song) -> some View {
+        // Asks first rather than acting on the tap — a song is not recoverable.
+        Button(role: .destructive) {
+            pendingDelete = song
+        } label: {
+            Label("Delete", systemImage: "trash")
         }
     }
 
     private func detail(_ song: Song) -> String {
-        let patterns = song.patterns.count
-        let seconds = song.arrangementDuration
-        let time = String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
         // Monospace is wider than the proportional caption this used to be, so
         // the clock is dropped to keep the line from wrapping.
-        return "\(Int(song.tempo)) BPM · \(patterns) pattern\(patterns == 1 ? "" : "s") · \(time) · \(song.modified.formatted(date: .abbreviated, time: .omitted))"
+        return "\(Format.bpm(song.tempo)) · \(Format.count(song.patterns.count, "pattern")) · \(Format.clock(song.arrangementDuration)) · \(song.modified.formatted(date: .abbreviated, time: .omitted))"
     }
 }

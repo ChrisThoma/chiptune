@@ -135,7 +135,7 @@ final class SongPropertyTests: XCTestCase {
                 for row in pattern.rows {
                     XCTAssertEqual(row.count, Chip.maxSteps, tag)
                     for note in row {
-                        XCTAssertTrue(note == Chip.emptyNote || note == ChipCore.noteOff
+                        XCTAssertTrue(note == Chip.emptyNote || note == Chip.noteOff
                                         || (0...127).contains(note),
                                       "note \(note) (\(tag))")
                     }
@@ -222,6 +222,10 @@ final class SongPropertyTests: XCTestCase {
 
     /// `Song`'s own `==` includes `modified`, which is a wall clock and not
     /// part of the song's content.
+    ///
+    /// Deliberately not `assertSameSong`: these run inside property loops
+    /// whose failure messages identify the seed and case, where the
+    /// assertion helper would dump two whole random `Song`s instead.
     private static func equalIgnoringModified(_ a: Song, _ b: Song) -> Bool {
         var a = a, b = b
         let epoch = Date(timeIntervalSince1970: 0)

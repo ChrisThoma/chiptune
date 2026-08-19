@@ -68,14 +68,10 @@ final class GoldenRenderTests: XCTestCase {
     /// a float conversion applied to both sides.
     private func pcm16(_ url: URL) throws -> [Int16] {
         let data = try Data(contentsOf: url)
-        func le32(_ offset: Int) -> Int {
-            Int(data[offset]) | Int(data[offset + 1]) << 8
-                | Int(data[offset + 2]) << 16 | Int(data[offset + 3]) << 24
-        }
         var offset = 12
         while offset + 8 <= data.count {
             let id = String(decoding: data[offset..<(offset + 4)], as: UTF8.self)
-            let size = le32(offset + 4)
+            let size = le32(data, at: offset + 4)
             if id == "data" {
                 let payload = data[(offset + 8)..<min(offset + 8 + size, data.count)]
                 return payload.withUnsafeBytes { raw in

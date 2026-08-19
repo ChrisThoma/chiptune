@@ -7,16 +7,29 @@ import XCTest
 @MainActor
 final class ErrorSurfacingTests: XCTestCase {
 
-    private func waitForExport(_ studio: Studio, timeout: TimeInterval = 30) {
-        let done = expectation(description: "export finishes")
-        let timer = Timer(timeInterval: 0.05, repeats: true) { _ in
-            Task { @MainActor in
-                if !studio.isExporting { done.fulfill() }
-            }
+    // MARK: Delete
+
+    /// Deleting a song whose file refuses to go must say so — silently keeping
+    /// the file means the song reappears in the library on the next load.
+    func testAFailedDeleteIsReported() throws {
+        let temp = makeTempStore()
+        let studio = Studio(store: temp.store, autosaveEnabled: false)
+        addTeardownBlock { @MainActor in studio.invalidateTimers() }
+
+        let doomed = Song(name: "Doomed")
+        temp.save(doomed)
+
+        // A read-only directory keeps its entries: `removeItem` fails rather
+        // than the file being gone.
+        let fm = FileManager.default
+        try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: temp.directory.path)
+        addTeardownBlock {
+            try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: temp.directory.path)
         }
-        RunLoop.main.add(timer, forMode: .common)
-        wait(for: [done], timeout: timeout)
-        timer.invalidate()
+
+        studio.delete(doomed)
+
+        XCTAssertNotNil(studio.storageError, "a delete that failed must be surfaced")
     }
 
     // MARK: Export
@@ -82,7 +95,11 @@ final class ErrorSurfacingTests: XCTestCase {
         try Data("not a directory".utf8).write(to: blocked)
         addTeardownBlock { try? FileManager.default.removeItem(at: blocked) }
 
-        let defaults = UserDefaults(suiteName: "chiptune.tests.blocked.\(UUID().uuidString)")!
+        let suiteName = "chiptune.tests.blocked.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        // Without this the suite persists into the simulator's preferences for
+        // good — the leak `TempStore.clean()` exists to prevent.
+        addTeardownBlock { defaults.removePersistentDomain(forName: suiteName) }
         let studio = Studio(store: SongStore(directory: blocked, defaults: defaults),
                             autosaveEnabled: false)
         addTeardownBlock { @MainActor in studio.invalidateTimers() }
@@ -114,7 +131,9 @@ final class ErrorSurfacingTests: XCTestCase {
         try? Data("not a directory".utf8).write(to: blocked)
         addTeardownBlock { try? FileManager.default.removeItem(at: blocked) }
 
-        let defaults = UserDefaults(suiteName: "chiptune.tests.throw.\(UUID().uuidString)")!
+        let suiteName = "chiptune.tests.throw.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        addTeardownBlock { defaults.removePersistentDomain(forName: suiteName) }
         let store = SongStore(directory: blocked, defaults: defaults)
 
         XCTAssertThrowsError(try store.save(Song(name: "Nope")))

@@ -54,7 +54,7 @@ struct KeyboardView: View {
                 Image(systemName: "chevron.left").chipFont(13)
             }
             .buttonStyle(PadStyle())
-            .disabled(octave <= 0)
+            .disabled(octave <= Studio.octaveRange.lowerBound)
             .accessibilityLabel("Octave down")
 
             Text("OCT \(octave - 1)")
@@ -68,7 +68,7 @@ struct KeyboardView: View {
                 Image(systemName: "chevron.right").chipFont(13)
             }
             .buttonStyle(PadStyle())
-            .disabled(octave >= 8)
+            .disabled(octave >= Studio.octaveRange.upperBound)
             .accessibilityLabel("Octave up")
 
             Spacer()
@@ -104,7 +104,7 @@ struct KeyboardView: View {
             // sustained notes on a channel that holds. Tapping it again puts
             // the previous pitch back, so it can be undone where it was armed
             // rather than by hunting for a key on the keyboard below.
-            let armed = studio.selectedNote == ChipCore.noteOff
+            let armed = studio.noteOffArmed
             Button {
                 studio.toggleNoteOff()
             } label: {
@@ -122,7 +122,7 @@ struct KeyboardView: View {
         let selected = studio.selectedNote == note
         let accent = Theme.color(for: studio.selectedKind)
 
-        return RoundedRectangle(cornerRadius: 5)
+        return RoundedRectangle(cornerRadius: Theme.cellRadius)
             .fill(selected ? accent : (black ? Color(white: 0.13) : Color(white: 0.88)))
             .overlay(alignment: .bottom) {
                 if !black {
@@ -134,7 +134,7 @@ struct KeyboardView: View {
                 }
             }
             .overlay(
-                RoundedRectangle(cornerRadius: 5)
+                RoundedRectangle(cornerRadius: Theme.cellRadius)
                     .stroke(Color.black.opacity(0.35), lineWidth: 1)
             )
             .contentShape(Rectangle())
@@ -165,7 +165,7 @@ struct PadStyle: ButtonStyle {
             .contentShape(Rectangle())
             .hoverEffect(.highlight)
             .background(
-                RoundedRectangle(cornerRadius: 7)
+                RoundedRectangle(cornerRadius: Theme.innerRadius)
                     .fill(active ? Theme.text : Theme.panelHigh)
             )
             .opacity(configuration.isPressed ? 0.6 : 1)

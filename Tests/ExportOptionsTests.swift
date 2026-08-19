@@ -14,9 +14,7 @@ final class ExportOptionsTests: XCTestCase {
     /// A short song so the repeat tests stay quick: 4 steps at 240 BPM = 0.25 s
     /// a pass. Sustaining, so there is something to ring out.
     private func makeSong(name: String = "Options") -> Song {
-        var song = Song(name: name)
-        song.tempo = 240
-        song.patterns[0].length = 4
+        var song = TestSongs.empty(name: name, tempo: 240, length: 4)
         song.tracks[0].instrument.sustain = true
         song.tracks[0].instrument.volume = 0.9
         song.patterns[0].rows[0][0] = 60
@@ -229,25 +227,13 @@ final class ExportOptionsTests: XCTestCase {
 @MainActor
 final class StudioExportOptionsTests: XCTestCase {
 
-    private func waitUntilIdle(_ studio: Studio, timeout: TimeInterval = 30) {
-        let done = expectation(description: "export finishes")
-        let timer = Timer(timeInterval: 0.02, repeats: true) { _ in
-            Task { @MainActor in
-                if !studio.isExporting { done.fulfill() }
-            }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        wait(for: [done], timeout: timeout)
-        timer.invalidate()
-    }
-
     func testCancelledExportPublishesNoUrlAndNoError() {
         let studio = Studio(store: makeTempStore().store, autosaveEnabled: false,
                             renderer: { _ in .cancelled })
         addTeardownBlock { @MainActor in studio.invalidateTimers() }
 
         studio.export()
-        waitUntilIdle(studio)
+        waitForExport(studio)
 
         XCTAssertNil(studio.exportURL)
         XCTAssertNil(studio.exportError, "cancelling is not an error")
@@ -271,7 +257,7 @@ final class StudioExportOptionsTests: XCTestCase {
         studio.export()
         wait(for: [started], timeout: 10)
         studio.cancelExport()
-        waitUntilIdle(studio)
+        waitForExport(studio)
 
         XCTAssertFalse(studio.isExporting)
         XCTAssertNil(studio.exportError)
@@ -288,7 +274,7 @@ final class StudioExportOptionsTests: XCTestCase {
         addTeardownBlock { @MainActor in studio.invalidateTimers() }
 
         studio.export()
-        waitUntilIdle(studio)
+        waitForExport(studio)
 
         XCTAssertNotNil(studio.exportURL)
         // Reset once finished, so a second export doesn't open on a stale bar.
@@ -306,7 +292,7 @@ final class StudioExportOptionsTests: XCTestCase {
         addTeardownBlock { @MainActor in studio.invalidateTimers() }
 
         studio.export(options: ExportOptions(loopCount: 4, tailMode: .ringOut))
-        waitUntilIdle(studio)
+        waitForExport(studio)
 
         XCTAssertEqual(seen.value, ExportOptions(loopCount: 4, tailMode: .ringOut))
     }

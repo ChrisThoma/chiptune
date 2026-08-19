@@ -11,9 +11,8 @@ enum SongDocument {
     static let fileExtension = "chipsong"
 
     /// Declared in `project.yml` as an exported type conforming to `public.json`.
-    static var contentType: UTType {
-        UTType(exportedAs: "dev.individuation.chiptune.song", conformingTo: .json)
-    }
+    static let contentType = UTType(exportedAs: "dev.individuation.chiptune.song",
+                                    conformingTo: .json)
 
     enum ImportError: LocalizedError {
         case unreadable

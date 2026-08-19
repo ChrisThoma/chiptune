@@ -75,9 +75,9 @@ struct SplashView: View {
     var body: some View {
         VStack(spacing: 22) {
             HStack(alignment: .bottom, spacing: 7) {
-                ForEach(0..<4, id: \.self) { i in
+                ForEach(Array(ChannelKind.allCases.enumerated()), id: \.offset) { i, kind in
                     RoundedRectangle(cornerRadius: 2)
-                        .fill(Theme.channelColors[i])
+                        .fill(Theme.color(for: kind))
                         .frame(width: 11, height: animating ? heights[i] : 12)
                         .animation(
                             .easeInOut(duration: 0.42)

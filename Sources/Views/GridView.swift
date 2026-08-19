@@ -90,7 +90,7 @@ struct GridView: View {
                 .frame(height: layout.trackHeaderHeight)
                 .contentShape(Rectangle())
                 .background(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: Theme.panelRadius)
                         .fill(Theme.panel)
                 )
         }
@@ -146,7 +146,7 @@ struct GridView: View {
                 .frame(width: gutterWidth)
 
             ForEach(Array(studio.song.tracks.enumerated()), id: \.element.id) { index, _ in
-                cell(track: index, step: step)
+                GridCell(studio: studio, track: index, step: step)
                     .frame(width: columnWidth)
             }
             if studio.song.canAddTrack {
@@ -162,9 +162,6 @@ struct GridView: View {
         )
     }
 
-    private func cell(track: Int, step: Int) -> some View {
-        GridCell(studio: studio, track: track, step: step)
-    }
 }
 
 /// One step on one track.
@@ -187,7 +184,7 @@ private struct GridCell: View {
     var body: some View {
         let note = studio.note(track: track, step: step)
         let filled = note != Chip.emptyNote
-        let isOff = note == ChipCore.noteOff
+        let isOff = note == Chip.noteOff
         let muted = studio.song.tracks[track].muted
         // Only once a hardware key has been pressed. On a touch-only session
         // there's nothing moving it, and a ringed cell would read as a
@@ -218,15 +215,15 @@ private struct GridCell: View {
             .foregroundStyle(titleColor)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(
-                RoundedRectangle(cornerRadius: 5)
+                RoundedRectangle(cornerRadius: Theme.cellRadius)
                     .fill(fill)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 5)
+                RoundedRectangle(cornerRadius: Theme.cellRadius)
                     .stroke(Theme.grid.opacity(0.6), lineWidth: filled ? 0 : 1)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 5)
+                RoundedRectangle(cornerRadius: Theme.cellRadius)
                     .stroke(cursorRing, lineWidth: 2)
             )
             // What `.buttonStyle(.plain)` used to do. Without it a tap has no
@@ -307,7 +304,7 @@ private struct TrackHeader: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                     if selected {
-                        Image(systemName: "slider.horizontal.3").font(.system(size: 9))
+                        Image(systemName: "slider.horizontal.3").symbolFont(9)
                     }
                 }
                 .foregroundStyle(muted ? Theme.dim : accent)
@@ -328,13 +325,13 @@ private struct TrackHeader: View {
                 studio.pushInstrument(index)
             } label: {
                 Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                    .font(.system(size: 13))
+                    .symbolFont(13)
                     .foregroundStyle(muted ? Theme.dim : Theme.text)
                     .frame(maxWidth: .infinity)
                     .frame(height: muteHeight)
                     .contentShape(Rectangle())
                     .background(
-                        RoundedRectangle(cornerRadius: 5)
+                        RoundedRectangle(cornerRadius: Theme.cellRadius)
                             .fill(muted ? Color.black.opacity(0.35) : Theme.panelHigh)
                     )
             }
@@ -357,11 +354,11 @@ private struct TrackHeader: View {
             showingEditor = true
         }
         .background(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: Theme.panelRadius)
                 .fill(selected ? accent.opacity(0.18) : Theme.panel)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: Theme.panelRadius)
                 .stroke(selected ? accent : Color.clear, lineWidth: 1.5)
         )
         // Duplicate and delete also live in the sound editor; this is the
@@ -397,7 +394,7 @@ private struct TrackHeader: View {
             Button("Delete track", role: .destructive) { studio.removeTrack(at: index) }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Its notes in every pattern go with it. This can't be undone.")
+            Text(ConfirmationCopy.deleteTrack)
         }
     }
 }

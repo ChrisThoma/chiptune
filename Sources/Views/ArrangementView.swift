@@ -60,11 +60,7 @@ struct ArrangementView: View {
 
     private var summary: String {
         let song = studio.song
-        let blocks = song.chain.count
-        let steps = song.arrangementSteps
-        let seconds = song.arrangementDuration
-        let time = String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
-        return "\(blocks) pattern\(blocks == 1 ? "" : "s") · \(steps) steps · \(time) at \(Int(song.tempo)) BPM"
+        return "\(Format.count(song.chain.count, "pattern")) · \(song.arrangementSteps) steps · \(Format.clock(song.arrangementDuration)) at \(Format.bpm(song.tempo))"
     }
 
     private func row(position: Int, section: SongSection) -> some View {
@@ -90,7 +86,7 @@ struct ArrangementView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(RoundedRectangle(cornerRadius: 7).fill(Color.secondary.opacity(0.18)))
+                .background(RoundedRectangle(cornerRadius: Theme.innerRadius).fill(Color.secondary.opacity(0.18)))
             }
             .accessibilityLabel("Section \(position + 1), pattern \(pattern?.name ?? "none")")
 

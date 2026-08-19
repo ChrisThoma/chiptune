@@ -17,6 +17,35 @@ enum Chip {
     /// this caps that list, not the number of sections the UI shows.
     static let maxChain = 128
     static let emptyNote: Int8 = -1
+    /// Middle C — what a preview plays when nothing better is selected.
+    static let defaultPreviewNote: Int8 = 60
+    /// Special note value meaning "cut the sustaining note". An encoding
+    /// concern like `emptyNote`, so it lives here, not on the audio engine.
+    static let noteOff: Int8 = -2
+
+    /// The tempo every clamp agrees on: model, editor, core, and UI stepper.
+    static let tempoRange: ClosedRange<Double> = 40...300
+    /// Sequencer resolution — a step is a sixteenth.
+    static let stepsPerBeat = 4
+    /// Pattern lengths the grid supports.
+    static let patternLengthRange: ClosedRange<Int> = 4...maxSteps
+
+    /// Samples in one sequencer step. The one formula the live core and the
+    /// offline exporter must share — computed independently they drift, and a
+    /// drifted export loops out of time with what the app played.
+    static func samplesPerStep(tempo: Double, sampleRate: Double) -> Int {
+        let bpm = min(max(tempo, tempoRange.lowerBound), tempoRange.upperBound)
+        return Int((sampleRate * 60.0 / (bpm * Double(stepsPerBeat))).rounded())
+    }
+}
+
+extension Comparable {
+    /// The standard clamp. `min`/`max` composition on purpose: NaN passes
+    /// through untouched, exactly like the hand-written clamps this replaces —
+    /// callers that need a NaN default keep their `isFinite` check.
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
+    }
 }
 
 enum ChannelKind: Int, Codable, CaseIterable {
@@ -121,11 +150,11 @@ struct Instrument: Codable, Equatable {
     }
 
     mutating func normalize() {
-        duty = min(max(duty, 0), Instrument.dutyCycles.count - 1)
-        volume = volume.isFinite ? min(max(volume, 0), 1) : 0.8
-        decay = decay.isFinite ? min(max(decay, 0.01), 4.0) : 0.35
+        duty = duty.clamped(to: 0...(Instrument.dutyCycles.count - 1))
+        volume = volume.isFinite ? volume.clamped(to: 0...1) : 0.8
+        decay = decay.isFinite ? decay.clamped(to: 0.01...4.0) : 0.35
         arpeggio = arpeggio.prefix(Instrument.maxArpeggioSteps).map {
-            min(max($0, -Instrument.maxArpeggioSemitones), Instrument.maxArpeggioSemitones)
+            $0.clamped(to: -Instrument.maxArpeggioSemitones...Instrument.maxArpeggioSemitones)
         }
     }
 
@@ -231,7 +260,7 @@ struct Pattern: Codable, Equatable, Identifiable {
     /// Pads or trims decoded rows so an older or corrupt file can't send the
     /// audio thread past the end of its fixed-size buffers.
     mutating func normalize(trackCount: Int) {
-        length = min(max(length, 4), Chip.maxSteps)
+        length = length.clamped(to: Chip.patternLengthRange)
         let want = max(trackCount, 1)
         if rows.count < want {
             rows.append(contentsOf: Array(repeating: Pattern.emptyRow, count: want - rows.count))
@@ -250,7 +279,7 @@ struct Pattern: Codable, Equatable, Identifiable {
             // the audio engine ignores it.
             for s in rows[i].indices {
                 let n = rows[i][s]
-                if n != Chip.emptyNote, n != ChipCore.noteOff, !(0...127).contains(n) {
+                if n != Chip.emptyNote, n != Chip.noteOff, !(0...127).contains(n) {
                     rows[i][s] = Chip.emptyNote
                 }
             }
@@ -286,8 +315,6 @@ struct Song: Codable, Equatable, Identifiable {
         self.patterns = [pattern]
         self.arrangement = [SongSection(patternID: pattern.id)]
     }
-
-    var stepsPerBeat: Int { 4 }
 
     // MARK: Coding
 
@@ -341,7 +368,7 @@ struct Song: Codable, Equatable, Identifiable {
         // Not just a clamp: `min`/`max` pass NaN straight through, and the
         // sequencer converts the tempo to an Int32 sample count — which traps
         // on a NaN rather than merely sounding wrong.
-        tempo = tempo.isFinite ? min(max(tempo, 40), 300) : 120
+        tempo = tempo.isFinite ? tempo.clamped(to: Chip.tempoRange) : 120
         if tracks.isEmpty { tracks = ChannelKind.allCases.map { Track(kind: $0) } }
         if tracks.count > Chip.maxTracks { tracks = Array(tracks.prefix(Chip.maxTracks)) }
         for i in tracks.indices {
@@ -356,7 +383,7 @@ struct Song: Codable, Equatable, Identifiable {
         let known = Set(patterns.map(\.id))
         arrangement.removeAll { !known.contains($0.patternID) }
         for i in arrangement.indices {
-            arrangement[i].repeats = min(max(arrangement[i].repeats, 1), SongSection.maxRepeats)
+            arrangement[i].repeats = arrangement[i].repeats.clamped(to: 1...SongSection.maxRepeats)
         }
         if arrangement.isEmpty { arrangement = [SongSection(patternID: patterns[0].id)] }
     }
@@ -367,11 +394,17 @@ struct Song: Codable, Equatable, Identifiable {
 
     func patternIndex(id: UUID) -> Int? { patterns.firstIndex { $0.id == id } }
 
+    /// "A" for 0, "B" for 1… — pattern names and track suffixes both count
+    /// this way, and the 65 belongs in exactly one place.
+    static func letter(_ index: Int) -> String {
+        String(UnicodeScalar(UInt8(65 + min(index, 25))))
+    }
+
     /// First unused letter, so deleting B and adding again gives you B back.
     func nextPatternName() -> String {
         let taken = Set(patterns.map(\.name))
         for i in 0..<Chip.maxPatterns {
-            let name = String(UnicodeScalar(UInt8(65 + i)))
+            let name = Song.letter(i)
             if !taken.contains(name) { return name }
         }
         return "\(patterns.count + 1)"
@@ -399,7 +432,7 @@ struct Song: Codable, Equatable, Identifiable {
 
     /// Seconds for one pass of the arrangement, at the current tempo.
     var arrangementDuration: TimeInterval {
-        Double(arrangementSteps) * 60.0 / (max(tempo, 1) * Double(stepsPerBeat))
+        Double(arrangementSteps) * 60.0 / (max(tempo, 1) * Double(Chip.stepsPerBeat))
     }
 
     // MARK: Track labels
@@ -438,7 +471,7 @@ struct Song: Codable, Equatable, Identifiable {
         let sameKind = tracks.indices.filter { tracks[$0].kind == track.kind }
         guard sameKind.count > 1, let position = sameKind.firstIndex(of: index) else { return nil }
         // maxTracks is 8, so this never runs past "H".
-        return String(UnicodeScalar(UInt8(65 + min(position, 25))))
+        return Song.letter(position)
     }
 }
 
@@ -457,7 +490,7 @@ enum NoteName {
     /// note in the keyboard readout and a grid cell's spoken value, and an
     /// empty string in either place reads as a blank display.
     static func label(_ midi: Int8) -> String {
-        if midi == ChipCore.noteOff { return "OFF" }
+        if midi == Chip.noteOff { return "OFF" }
         guard midi >= 0 else { return "" }
         let n = Int(midi)
         return "\(names[n % 12])\(n / 12 - 1)"
@@ -467,7 +500,4 @@ enum NoteName {
         440.0 * pow(2.0, (Double(midi) - 69.0) / 12.0)
     }
 
-    static func isSharp(_ midi: Int) -> Bool {
-        [1, 3, 6, 8, 10].contains(midi % 12)
-    }
 }
