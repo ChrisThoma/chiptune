@@ -88,10 +88,11 @@ verify_ipa () {  # verify_ipa [ipa] [project.yml]
     local ipa="${1:-$(ipa_path "$yml")}"
     local plist want_version want_build want_family got_version got_build got_family status=0
 
-    plist=$(ipa_plist "$ipa") || return 1
     want_version=$(marketing_version "$yml") || return 1
     want_build=$(build_number "$yml")        || return 1
     want_family=$(device_family "$yml")      || return 1
+    # Last, so the temp plist it creates can't leak past an early return above.
+    plist=$(ipa_plist "$ipa") || return 1
 
     got_version=$(plutil -extract CFBundleShortVersionString raw -o - "$plist" 2>/dev/null || printf '?')
     got_build=$(plutil   -extract CFBundleVersion            raw -o - "$plist" 2>/dev/null || printf '?')

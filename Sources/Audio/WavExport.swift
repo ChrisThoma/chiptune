@@ -53,8 +53,16 @@ enum WavExport {
     /// How long the last notes are given to decay past the end.
     private static let tailSeconds = 1.0
 
+    /// Why a render stopped early. Thrown out of the streaming loops so a
+    /// cancel or a failed write unwinds in one hop rather than threading an
+    /// optional result out of a pointer closure.
+    private enum RenderAbort: Error {
+        case cancelled, failed
+    }
+
     /// The simple entry point: one pass, seamless loop, no progress, no cancel.
-    /// This is what the plain "Export WAV" menu item has always done.
+    /// The app itself now exports through `Studio.export(options:)`; this
+    /// overload survives as the tests' one-line way to render a song.
     static func render(song: Song) -> URL? {
         guard case .success(let url) = render(ExportRequest(song: song)) else { return nil }
         return url
@@ -77,7 +85,7 @@ enum WavExport {
         core.setSongMode(true)
         core.start()
 
-        let samplesPerStep = Int((sampleRate * 60.0 / (song.tempo * 4.0)).rounded())
+        let samplesPerStep = Chip.samplesPerStep(tempo: song.tempo, sampleRate: sampleRate)
         let onePass = samplesPerStep * max(song.arrangementSteps, 1)
         // The chain wraps on its own, so N passes are just a longer render.
         let bodySamples = onePass * options.loopCount
@@ -110,12 +118,11 @@ enum WavExport {
         var bodyPeak: Float = 0
 
         var scratch = [Float](repeating: 0, count: chunk)
-        var outcome: ExportResult? = nil
-        scratch.withUnsafeMutableBufferPointer { buf in
-            guard let base = buf.baseAddress else { outcome = .failed; return }
+
+        func renderBody(into base: UnsafeMutablePointer<Float>) throws {
             var written = 0
             while written < bodySamples {
-                if request.isCancelled() { outcome = .cancelled; return }
+                if request.isCancelled() { throw RenderAbort.cancelled }
                 let n = min(chunk, bodySamples - written)
                 core.render(frames: n, into: base)
                 let inHead = max(0, min(n, headLen - written))
@@ -124,21 +131,19 @@ enum WavExport {
                     for i in inHead..<n { bodyPeak = max(bodyPeak, abs(base[i])) }
                     let bytes = Data(bytes: base + inHead,
                                      count: (n - inHead) * MemoryLayout<Float>.size)
-                    do { try raw.write(contentsOf: bytes) } catch {
-                        outcome = .failed
-                        return
-                    }
+                    do { try raw.write(contentsOf: bytes) } catch { throw RenderAbort.failed }
                 }
                 written += n
                 report(written)
             }
+        }
 
-            // The tail runs with the sequencer stopped so nothing new is
-            // triggered while the envelopes ring out.
-            core.finish()
+        // The tail runs with the sequencer stopped so nothing new is
+        // triggered while the envelopes ring out.
+        func renderTail(into base: UnsafeMutablePointer<Float>) throws {
             var done = 0
             while done < tail {
-                if request.isCancelled() { outcome = .cancelled; return }
+                if request.isCancelled() { throw RenderAbort.cancelled }
                 let n = min(chunk, tail - done)
                 core.render(frames: n, into: base)
                 if folding {
@@ -146,21 +151,31 @@ enum WavExport {
                     // notes ring on into its beginning exactly as they would
                     // have if the sequencer had kept running — a seamless loop
                     // with no trailing dead air.
-                    for i in 0..<n where headLen > 0 { head[(done + i) % headLen] += base[i] }
+                    if headLen > 0 {
+                        for i in 0..<n { head[(done + i) % headLen] += base[i] }
+                    }
                 } else {
                     for i in 0..<n { bodyPeak = max(bodyPeak, abs(base[i])) }
                     let bytes = Data(bytes: base, count: n * MemoryLayout<Float>.size)
-                    do { try raw.write(contentsOf: bytes) } catch {
-                        outcome = .failed
-                        return
-                    }
+                    do { try raw.write(contentsOf: bytes) } catch { throw RenderAbort.failed }
                 }
                 done += n
                 report(bodySamples + done)
             }
         }
-        try? raw.close()
-        if let outcome { return outcome }
+
+        do {
+            try scratch.withUnsafeMutableBufferPointer { buf in
+                guard let base = buf.baseAddress else { throw RenderAbort.failed }
+                try renderBody(into: base)
+                core.finish()
+                try renderTail(into: base)
+            }
+            try? raw.close()
+        } catch {
+            try? raw.close()
+            return (error as? RenderAbort) == .cancelled ? .cancelled : .failed
+        }
 
         // Summing the overlap can push it past full scale. Scale the whole file
         // rather than letting the write clamp it: clamping would distort only the

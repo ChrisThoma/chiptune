@@ -64,6 +64,27 @@ final class ChipCoreVoiceTests: XCTestCase {
 
     // MARK: Waveform shape
 
+    /// Files are clamped by `Instrument.normalize`, but the core must not
+    /// trust that: fed an un-normalized instrument directly, `setInstrument`
+    /// clamps the duty index itself. Pins the clamp to the table's real size,
+    /// so growing `dutyCycles` can't leave the core clamping to the old end.
+    func testAWildDutyIndexRendersAsTheLastDuty() {
+        func rendered(duty: Int) -> [Float] {
+            var song = TestSongs.singleNote(kind: .pulse1, note: 60)
+            song.normalize()
+            let core = ChipCore(sampleRate: RenderHarness.sampleRate)
+            core.load(song: song)
+            var inst = Instrument()
+            inst.duty = duty
+            core.setInstrument(inst, kind: .pulse1, track: 0, muted: false)
+            core.start()
+            return RenderHarness.renderMono(core, frames: Int(RenderHarness.sampleRate * 0.25))
+        }
+        XCTAssertEqual(rendered(duty: 999),
+                       rendered(duty: Instrument.dutyCycles.count - 1),
+                       "an out-of-range duty index must clamp to the last real duty")
+    }
+
     func testPulseDutyCyclesMatchTheirSettings() {
         for duty in Instrument.dutyCycles.indices {
             let song = TestSongs.singleNote(kind: .pulse1, note: 60, duty: duty)
@@ -148,7 +169,7 @@ final class ChipCoreVoiceTests: XCTestCase {
 
     func testNoteOffCutsASustainingVoice() {
         var song = TestSongs.singleNote(kind: .pulse1, note: 60, tempo: 120)
-        song.patterns[0].rows[0][8] = ChipCore.noteOff
+        song.patterns[0].rows[0][8] = Chip.noteOff
         let samples = render(song, seconds: 1.5)
 
         let sps = Int((sampleRate * 60.0 / (120 * 4)).rounded())

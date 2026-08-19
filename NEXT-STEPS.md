@@ -159,6 +159,8 @@ leaves untested, and the manual pass that replaces it.
   its temp file used to alert under the title "Import failed".
 - **`assertSameSong` is in `Tests/Support/`.** It was in three suites, not
   four, and they had drifted — one copy had lost its `message` parameter.
+  (`SongPropertyTests.equalIgnoringModified` stays separate on purpose: the
+  property loops need a `Bool` and their own seed-naming failure messages.)
 - **The Thread Sanitizer job runs its tests now.** It never had: the app host
   booted its own `Studio` under tests, and CoreAudio init under TSan's
   slowdown aborted the host before any test started. See §1 for the full

@@ -53,7 +53,13 @@ targets:
     type: bundle.unit-test
     platform: iOS
     sources:
-      - Tests
+      # Object form so Release/ can be excluded: release_test.sh is run by CI
+      # from the checkout, never from the bundle. The directory sweep itself
+      # stays broad on purpose - Tests/Fixtures/golden-demo.wav must keep
+      # landing in the bundle for GoldenRenderTests.
+      - path: Tests
+        excludes:
+          - Release
     dependencies:
       - target: Chiptune
     settings:

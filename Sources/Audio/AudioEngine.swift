@@ -47,8 +47,17 @@ final class AudioEngine {
         running = false
 
         let engine = AVAudioEngine()
-        let format = AVAudioFormat(standardFormatWithSampleRate: AudioEngine.sampleRate,
-                                   channels: 2)!
+        // Can't fail for 44100/2 — but "no crashes in the audio path" is a
+        // property, not a bet. A nil format leaves the graph unbuilt, and
+        // `startIfNeeded` reports that instead of starting silence.
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: AudioEngine.sampleRate,
+                                         channels: 2) else {
+            sourceNode = nil
+            lastError = NSError(domain: "Chiptune.AudioEngine", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "The audio format could not be created."
+            ])
+            return
+        }
         let core = self.core
         let scratch = self.scratch
         let scratchLength = AudioEngine.scratchLength
@@ -98,6 +107,9 @@ final class AudioEngine {
     @discardableResult
     func startIfNeeded() -> Bool {
         guard !running else { return true }
+        // A failed `buildEngine` leaves no source node; starting the engine
+        // anyway would "succeed" into silence, wiping the error it recorded.
+        guard sourceNode != nil else { return false }
         do {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playback, mode: .default)

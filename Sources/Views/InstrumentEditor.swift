@@ -85,13 +85,23 @@ struct InstrumentEditor: View {
         studio.pushInstrument(index)
     }
 
-    /// Preset arpeggio shapes; empty means the note plays straight.
-    private let arps: [(name: String, offsets: [Int])] = [
-        ("Off", []),
-        ("Maj", [0, 4, 7]),
-        ("Min", [0, 3, 7]),
-        ("Oct", [0, 12]),
-        ("5th", [0, 7]),
+    /// Preset arpeggio shapes; empty offsets mean the note plays straight.
+    /// `spoken` rides along because VoiceOver should say "Major", not "Maj" —
+    /// deriving it from the button label meant a relabel silently broke the
+    /// spoken name.
+    private struct ArpShape: Identifiable {
+        let label: String
+        let spoken: String
+        let offsets: [Int]
+        var id: [Int] { offsets }
+    }
+
+    private let arps: [ArpShape] = [
+        ArpShape(label: "Off", spoken: "Off", offsets: []),
+        ArpShape(label: "Maj", spoken: "Major", offsets: [0, 4, 7]),
+        ArpShape(label: "Min", spoken: "Minor", offsets: [0, 3, 7]),
+        ArpShape(label: "Oct", spoken: "Octave", offsets: [0, 12]),
+        ArpShape(label: "5th", spoken: "Fifth", offsets: [0, 7]),
     ]
 
     var body: some View {
@@ -137,7 +147,7 @@ struct InstrumentEditor: View {
             if trackExists {
                 HStack(spacing: 6) {
                     Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 11, weight: .semibold))
+                        .symbolFont(11, weight: .semibold)
                     Text(studio.song.fullLabel(for: index).uppercased())
                         .chipFont(11, weight: .bold)
                         .lineLimit(1)
@@ -258,8 +268,8 @@ struct InstrumentEditor: View {
 
                 Section("Arpeggio") {
                     Picker("Shape", selection: instrument(\.arpeggio, default: [])) {
-                        ForEach(arps, id: \.name) { arp in
-                            Text(arp.name).tag(arp.offsets)
+                        ForEach(arps) { arp in
+                            Text(arp.label).tag(arp.offsets)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -323,7 +333,7 @@ struct InstrumentEditor: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Its notes in every pattern go with it. This can't be undone.")
+                Text(ConfirmationCopy.deleteTrack)
             }
     }
 
@@ -369,14 +379,7 @@ struct InstrumentEditor: View {
 
     private var arpeggioAccessibilityValue: String {
         let offsets = studio.song.tracks[safe: index]?.instrument.arpeggio ?? []
-        switch arps.first(where: { $0.offsets == offsets })?.name {
-        case "Maj": return "Major"
-        case "Min": return "Minor"
-        case "Oct": return "Octave"
-        case "5th": return "Fifth"
-        case let name?: return name
-        case nil: return "Custom"
-        }
+        return arps.first { $0.offsets == offsets }?.spoken ?? "Custom"
     }
 
     private func adjustChannel(_ direction: AccessibilityAdjustmentDirection) {

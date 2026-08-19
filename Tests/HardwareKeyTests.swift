@@ -235,7 +235,7 @@ final class HardwareKeyTests: XCTestCase {
 
         studio.selectedNote = 62
         studio.apply(.toggleNoteOff)
-        XCTAssertEqual(studio.selectedNote, ChipCore.noteOff)
+        XCTAssertEqual(studio.selectedNote, Chip.noteOff)
         studio.apply(.toggleNoteOff)
         XCTAssertEqual(studio.selectedNote, 62)
     }

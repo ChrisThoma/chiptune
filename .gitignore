@@ -7,3 +7,12 @@ Chiptune.xcodeproj/
 # rule above silently swallows the fixture and the test skips on a fresh clone.
 !Tests/Fixtures/*.wav
 Sources/Info.plist
+
+# Result bundles xcodebuild writes to the repo root when run with CI's flags.
+*.xcresult
+# Python bytecode from the screenshot tooling.
+__pycache__/
+*.pyc
+# Per-user Xcode state; moot while the whole .xcodeproj is ignored, but the
+# project file being ignored is a choice, not a guarantee.
+xcuserdata/

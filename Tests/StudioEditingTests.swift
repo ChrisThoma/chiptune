@@ -57,7 +57,7 @@ final class StudioEditingTests: XCTestCase {
         studio.selectedNote = 64
 
         studio.toggleNoteOff()
-        XCTAssertEqual(studio.selectedNote, ChipCore.noteOff)
+        XCTAssertEqual(studio.selectedNote, Chip.noteOff)
 
         studio.toggleNoteOff()
         XCTAssertEqual(studio.selectedNote, 64, "a second tap should disarm back to the pitch")
@@ -90,7 +90,7 @@ final class StudioEditingTests: XCTestCase {
         studio.selectedNote = 72
 
         studio.toggleNoteOff()
-        XCTAssertEqual(studio.selectedNote, ChipCore.noteOff)
+        XCTAssertEqual(studio.selectedNote, Chip.noteOff)
         studio.toggleNoteOff()
         XCTAssertEqual(studio.selectedNote, 72)
     }
@@ -99,8 +99,8 @@ final class StudioEditingTests: XCTestCase {
     /// which would leave it stuck exactly the way it was before.
     func testArmingOffTwiceStillDisarmsToAPitch() {
         studio.selectedNote = 67
-        studio.selectedNote = ChipCore.noteOff
-        studio.selectedNote = ChipCore.noteOff
+        studio.selectedNote = Chip.noteOff
+        studio.selectedNote = Chip.noteOff
 
         studio.toggleNoteOff()
 
@@ -487,7 +487,7 @@ final class StudioEditingTests: XCTestCase {
     func testPreviewingANoteOffCellDoesNothingAtAll() {
         studio.toggleNoteOff()
         studio.toggleCell(track: 0, step: 2)
-        XCTAssertEqual(studio.note(track: 0, step: 2), ChipCore.noteOff)
+        XCTAssertEqual(studio.note(track: 0, step: 2), Chip.noteOff)
 
         XCTAssertFalse(studio.previewCell(track: 0, step: 2))
         XCTAssertNil(studio.audioError)

@@ -15,7 +15,7 @@ final class ChipCore {
 
     // MARK: Shared parameter blocks
 
-    struct VoiceParams {
+    private struct VoiceParams {
         /// `ChannelKind.rawValue`. A voice's waveform travels with its params
         /// because several voices can share one kind.
         var kind: Int32 = 0
@@ -89,9 +89,6 @@ final class ChipCore {
         var sourcePattern: Int32 = -1
         var sourceStep: Int32 = -1
     }
-
-    /// Special pattern value meaning "cut the sustaining note".
-    static let noteOff: Int8 = -2
 
     // MARK: Storage
 
@@ -340,7 +337,7 @@ final class ChipCore {
         let wasSustaining = params[track].sustain == 1
         var p = params[track]
         p.kind = Int32(kind.rawValue)
-        p.duty = kind.hasDuty ? Instrument.dutyCycles[min(max(inst.duty, 0), 3)] : 0.5
+        p.duty = kind.hasDuty ? Instrument.dutyCycles[min(max(inst.duty, 0), Instrument.dutyCycles.count - 1)] : 0.5
         p.volume = min(max(inst.volume, 0), 1)
         p.muted = muted ? 1 : 0
         if inst.sustain {
@@ -468,8 +465,7 @@ final class ChipCore {
     // MARK: Audio thread
 
     private func samplesPerStep() -> Int32 {
-        let bpm = min(max(tempo, 40), 300)
-        return Int32((sampleRate * 60.0 / (bpm * 4.0)).rounded())
+        Int32(Chip.samplesPerStep(tempo: tempo, sampleRate: sampleRate))
     }
 
     /// Starts a note on a voice that is already at silence.
@@ -515,7 +511,7 @@ final class ChipCore {
         let p = Int(pat)
         for c in 0..<tracks {
             let note = pattern[cell(p, c, s)]
-            if note == ChipCore.noteOff {
+            if note == Chip.noteOff {
                 if voices[c].active { voices[c].releasing = true }
                 voices[c].declick = 0
                 voices[c].pendingNote = Chip.emptyNote

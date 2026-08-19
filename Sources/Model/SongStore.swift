@@ -26,7 +26,7 @@ struct SongStore {
     }
 
     /// Creates the directory lazily, so constructing a store never touches disk.
-    private var directory: URL {
+    private func ensuringDirectory() -> URL {
         if !FileManager.default.fileExists(atPath: root.path) {
             try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         }
@@ -34,7 +34,7 @@ struct SongStore {
     }
 
     private func url(for id: UUID) -> URL {
-        directory.appendingPathComponent("\(id.uuidString).json")
+        ensuringDirectory().appendingPathComponent("\(id.uuidString).json")
     }
 
     /// - Parameter makeCurrent: also record this as the song to reopen on launch.
@@ -54,8 +54,16 @@ struct SongStore {
         }
     }
 
-    func delete(_ song: Song) {
-        try? FileManager.default.removeItem(at: url(for: song.id))
+    /// Throws for the same reason `save` does: a file that refuses to go means
+    /// the song reappears in the library, and quietly keeping it is the failure
+    /// mode that confuses. A file that is *already* gone is the outcome delete
+    /// was after — deleted behind the app's back is still deleted — so that
+    /// stays a no-op rather than becoming an alert.
+    func delete(_ song: Song) throws {
+        do {
+            try FileManager.default.removeItem(at: url(for: song.id))
+        } catch let error as CocoaError where error.code == .fileNoSuchFile {
+        }
         if defaults.string(forKey: currentKey) == song.id.uuidString {
             defaults.removeObject(forKey: currentKey)
         }
@@ -82,7 +90,7 @@ struct SongStore {
     /// Loads every saved song, newest first. Unreadable files are skipped
     /// rather than failing the whole load.
     func loadAll() -> [Song] {
-        let files = (try? FileManager.default.contentsOfDirectory(at: directory,
+        let files = (try? FileManager.default.contentsOfDirectory(at: ensuringDirectory(),
                                                                   includingPropertiesForKeys: nil)) ?? []
         let decoder = JSONDecoder()
         var songs: [Song] = []

@@ -1,5 +1,3 @@
-import Foundation
-
 /// Named starting points for a channel's sound.
 ///
 /// Four numbers — duty, volume, decay, arpeggio — are a precise way to describe

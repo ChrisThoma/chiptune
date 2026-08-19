@@ -23,7 +23,10 @@ enum Theme {
     static let trayRadius: CGFloat = 10
     static let innerRadius: CGFloat = 7
     static let trayHeight: CGFloat = 44
-    static let innerHeight: CGFloat = 36
+    /// Grid cells, keyboard keys — the small squares.
+    static let cellRadius: CGFloat = 5
+    /// The panels those squares sit on.
+    static let panelRadius: CGFloat = 8
 
     /// One accent per channel kind. Tracks are coloured by the sound they make,
     /// so two triangle tracks share a colour and are told apart by their number.
@@ -35,7 +38,7 @@ enum Theme {
     ]
 
     static func color(for kind: ChannelKind) -> Color {
-        channelColors[min(max(kind.rawValue, 0), channelColors.count - 1)]
+        channelColors[kind.rawValue.clamped(to: 0...(channelColors.count - 1))]
     }
 
     /// Every 4th step is a beat, so it gets a brighter lane.
@@ -47,6 +50,12 @@ enum Theme {
 extension View {
     func chipFont(_ size: CGFloat, weight: Font.Weight = .semibold) -> some View {
         font(.system(size: size, weight: weight, design: .monospaced))
+    }
+
+    /// `chipFont`'s companion for SF Symbols, which take no monospaced design.
+    /// One place to look when the icon sizes need retuning together.
+    func symbolFont(_ size: CGFloat, weight: Font.Weight = .regular) -> some View {
+        font(.system(size: size, weight: weight))
     }
 
     /// Groups related controls onto one panel so a row of them reads as a

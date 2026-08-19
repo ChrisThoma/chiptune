@@ -1,4 +1,4 @@
-import SwiftUI
+import Foundation
 import Observation
 
 /// App-wide state: the song being edited, the audio engine, and the editing
@@ -184,14 +184,6 @@ final class Studio {
         var selectedTrack: Int
     }
 
-    /// `Song` is a value type whose arrays are copy-on-write, so a snapshot is
-    /// a handful of retains rather than a copy of the notes.
-    private var undoStack: [Snapshot] = []
-    private var redoStack: [Snapshot] = []
-    @ObservationIgnored private var lastCheckpoint: Date?
-    /// The run the last checkpoint belonged to, for key-coalesced edits.
-    @ObservationIgnored private var lastCheckpointRun: CheckpointRun?
-
     /// A named run of edits that collapses to one undo step regardless of how
     /// long it takes. Distinct from time coalescing: typing a song name has no
     /// natural rhythm, so a wall-clock window would split a slow rename in two.
@@ -199,73 +191,53 @@ final class Studio {
         case rename
     }
 
-    /// Edits closer together than this fold into one undo step, so painting a
-    /// run of cells is one undo rather than sixteen.
-    @ObservationIgnored var undoCoalescingWindow: TimeInterval = 1.0
-    /// Deep enough to cover a working session, shallow enough that the stack
-    /// isn't holding an unbounded number of songs.
-    @ObservationIgnored var undoLimit = 50
+    /// `Song` is a value type whose arrays are copy-on-write, so a snapshot is
+    /// a handful of retains rather than a copy of the notes. Observed — not
+    /// `@ObservationIgnored` — so `canUndo`/`canRedo` invalidate the buttons.
+    private var history = UndoHistory<Snapshot, CheckpointRun>()
 
-    var canUndo: Bool { !undoStack.isEmpty }
-    var canRedo: Bool { !redoStack.isEmpty }
+    var undoCoalescingWindow: TimeInterval {
+        get { history.coalescingWindow }
+        set { history.coalescingWindow = newValue }
+    }
+    var undoLimit: Int {
+        get { history.limit }
+        set { history.limit = newValue }
+    }
+
+    var canUndo: Bool { history.canUndo }
+    var canRedo: Bool { history.canRedo }
+
+    private func snapshot() -> Snapshot {
+        Snapshot(song: song,
+                 selectedPattern: selectedPattern,
+                 selectedTrack: selectedTrack)
+    }
 
     /// Records the state *before* a mutation. Every mutating method below calls
-    /// this as its first act.
+    /// this as its first act. The folding rules live on `UndoHistory`.
     ///
     /// Deliberately not driven from `song.didSet`. `pushAll()` reassigns `song`
     /// (`song = s` after normalising), so a `didSet` hook would record a
     /// snapshot for every push — including the ones undo itself performs, which
     /// corrupts the stack the moment you undo twice.
-    ///
-    /// - Parameters:
-    ///   - coalescing: fold into the previous checkpoint if it was recent. For
-    ///     continuous gestures — painting cells, holding a stepper.
-    ///   - run: fold into the previous checkpoint if that one belonged to the
-    ///     same named run, however long ago it was. For edits with no rhythm to
-    ///     time out on. Any checkpoint without a `run` ends the run, so a
-    ///     different kind of edit always starts a new undo step.
     func checkpoint(coalescing: Bool = false, run: CheckpointRun? = nil) {
-        let now = Date()
-        if run != nil, run == lastCheckpointRun, !undoStack.isEmpty {
-            lastCheckpoint = now
-            return
-        }
-        if coalescing, run == nil, !undoStack.isEmpty, let last = lastCheckpoint,
-           now.timeIntervalSince(last) < undoCoalescingWindow {
-            // Roll the window forward so a continuous stroke stays one step
-            // however long it goes on.
-            lastCheckpoint = now
-            return
-        }
-        undoStack.append(Snapshot(song: song,
-                                  selectedPattern: selectedPattern,
-                                  selectedTrack: selectedTrack))
-        if undoStack.count > undoLimit { undoStack.removeFirst() }
-        // A new edit is a new branch; whatever was undone past is gone.
-        redoStack.removeAll()
-        lastCheckpoint = now
-        lastCheckpointRun = run
+        history.record(snapshot(), coalescing: coalescing, run: run)
     }
 
     /// Ends the current named run, so the next edit of that kind starts a fresh
     /// undo step. Called when the name field gives up focus or is submitted.
-    func endCheckpointRun() {
-        lastCheckpointRun = nil
+    private func endCheckpointRun() {
+        history.endRun()
     }
 
     func undo() {
-        guard let previous = undoStack.popLast() else { return }
-        redoStack.append(Snapshot(song: song,
-                                  selectedPattern: selectedPattern,
-                                  selectedTrack: selectedTrack))
+        guard let previous = history.undo(current: snapshot()) else { return }
         apply(previous)
     }
 
     func redo() {
-        guard let next = redoStack.popLast() else { return }
-        undoStack.append(Snapshot(song: song,
-                                  selectedPattern: selectedPattern,
-                                  selectedTrack: selectedTrack))
+        guard let next = history.redo(current: snapshot()) else { return }
         apply(next)
     }
 
@@ -292,15 +264,11 @@ final class Studio {
         // The next edit starts a fresh coalescing window rather than folding
         // itself into whatever was undone. Same for a named run: typing after
         // an undo must not fold into the step the undo just restored.
-        lastCheckpoint = nil
-        lastCheckpointRun = nil
+        history.closeFolding()
     }
 
     private func resetHistory() {
-        undoStack.removeAll()
-        redoStack.removeAll()
-        lastCheckpoint = nil
-        lastCheckpointRun = nil
+        history.reset()
     }
 
     /// Stops the autosave and playhead timers. Tests call this in `tearDown`;
@@ -395,7 +363,7 @@ final class Studio {
 
     func setTempo(_ bpm: Double) {
         checkpoint(coalescing: true)
-        song.tempo = min(max(bpm, 40), 300)
+        song.tempo = bpm.clamped(to: Chip.tempoRange)
         pushTransport()
     }
 
@@ -434,7 +402,7 @@ final class Studio {
             guard let source = engine.core.ringingSource(track: track),
                   let note = song.patterns[safe: source.pattern]?
                       .rows[safe: track]?[safe: source.step],
-                  note == Chip.emptyNote || note == ChipCore.noteOff
+                  note == Chip.emptyNote || note == Chip.noteOff
             else { continue }
             engine.core.release(track: track)
         }
@@ -464,8 +432,8 @@ final class Studio {
     /// pattern can be shortened, a track deleted — so every cursor operation
     /// starts here rather than trusting whoever wrote it last.
     func clampCursor() {
-        selectedTrack = min(max(selectedTrack, 0), max(song.tracks.count - 1, 0))
-        selectedStep = min(max(selectedStep, 0), max(patternLength - 1, 0))
+        selectedTrack = selectedTrack.clamped(to: 0...max(song.tracks.count - 1, 0))
+        selectedStep = selectedStep.clamped(to: 0...max(patternLength - 1, 0))
     }
 
     /// Arrow-key movement. Stops at the edges rather than wrapping: an arrow
@@ -473,10 +441,10 @@ final class Studio {
     func moveCursor(track trackDelta: Int = 0, step stepDelta: Int = 0) {
         hardwareKeyboardInUse = true
         clampCursor()
-        selectedTrack = min(max(selectedTrack + trackDelta, 0),
-                            max(song.tracks.count - 1, 0))
-        selectedStep = min(max(selectedStep + stepDelta, 0),
-                           max(patternLength - 1, 0))
+        selectedTrack = (selectedTrack + trackDelta)
+            .clamped(to: 0...max(song.tracks.count - 1, 0))
+        selectedStep = (selectedStep + stepDelta)
+            .clamped(to: 0...max(patternLength - 1, 0))
     }
 
     /// Follows a tap, but only once the keyboard is in play. A touch-only
@@ -523,23 +491,27 @@ final class Studio {
         selectedStep = (selectedStep + 1) % patternLength
     }
 
+    /// The octaves the keyboard can reach — one source for `shiftOctave` and
+    /// for the buttons that grey out at the ends.
+    static let octaveRange = 0...8
+
     /// Shared by the on-screen octave buttons and the hardware ones. The range
     /// is the one the on-screen keyboard has always offered.
     func shiftOctave(_ delta: Int) {
-        octave = min(8, max(0, octave + delta))
+        octave = (octave + delta).clamped(to: Studio.octaveRange)
     }
 
     /// Whether the keyboard is about to write a note off rather than a pitch.
     /// The readout leans on this to explain what OFF does at the one moment
     /// anyone needs to know.
-    var noteOffArmed: Bool { selectedNote == ChipCore.noteOff }
+    var noteOffArmed: Bool { selectedNote == Chip.noteOff }
 
     /// Arms a note off, or disarms back to the pitch it was armed over.
     ///
     /// The arm used to be one-way, which left tapping some other key as the
     /// only way out — so the button read as a toggle that had jammed.
     func toggleNoteOff() {
-        selectedNote = selectedNote == ChipCore.noteOff ? lastPitch : ChipCore.noteOff
+        selectedNote = selectedNote == Chip.noteOff ? lastPitch : Chip.noteOff
     }
 
     /// The note a track header's tap demos, or nil when there's nothing to
@@ -558,8 +530,8 @@ final class Studio {
         // bass C2 is a slow rattle rather than the drum the track plays. And an
         // armed OFF is not a pitch at all; the core drops the sentinel, which
         // would leave the header dead at seemingly random times.
-        if track.kind == .noise { return 60 }
-        return selectedNote >= 0 ? selectedNote : 60
+        if track.kind == .noise { return Chip.defaultPreviewNote }
+        return selectedNote >= 0 ? selectedNote : Chip.defaultPreviewNote
     }
 
     /// Demos a track's sound. The tester tapped the top row expecting to hear
@@ -584,7 +556,7 @@ final class Studio {
         let note = self.note(track: track, step: step)
         // An OFF has no sound of its own, and releasing the track's voice to
         // demonstrate it would be an audible change from a read-only gesture.
-        guard note != Chip.emptyNote, note != ChipCore.noteOff else { return false }
+        guard note != Chip.emptyNote, note != Chip.noteOff else { return false }
         audition(note, on: track)
         return true
     }
@@ -612,10 +584,17 @@ final class Studio {
     }
 
     private func erase(_ track: Int) {
-        guard track < song.tracks.count else { return }
+        guard selectedPattern < song.patterns.count,
+              track < song.tracks.count else { return }
+        // Batched like `clearPattern(at:)`: one pin, one reconcile pass at the
+        // end — not one per step via `setNote`.
+        pinToSelectedPattern()
         for step in 0..<Chip.maxSteps {
-            setNote(track: track, step: step, note: Chip.emptyNote)
+            song.patterns[selectedPattern].rows[track][step] = Chip.emptyNote
+            engine.core.setNote(pattern: selectedPattern, track: track, step: step,
+                                note: Chip.emptyNote)
         }
+        reconcileRingingVoices()
     }
 
     /// Clears every track in the pattern being edited. Other patterns are left
@@ -708,7 +687,7 @@ final class Studio {
         guard selectedPattern < song.patterns.count else { return }
         checkpoint(coalescing: true)
         pinToSelectedPattern()
-        song.patterns[selectedPattern].length = min(max(length, 4), Chip.maxSteps)
+        song.patterns[selectedPattern].length = length.clamped(to: Chip.patternLengthRange)
         engine.core.setLength(pattern: selectedPattern, length: song.patterns[selectedPattern].length)
     }
 
@@ -806,7 +785,7 @@ final class Studio {
     func setSection(_ id: UUID, repeats: Int) {
         guard let i = song.arrangement.firstIndex(where: { $0.id == id }) else { return }
         checkpoint(coalescing: true)
-        song.arrangement[i].repeats = min(max(repeats, 1), SongSection.maxRepeats)
+        song.arrangement[i].repeats = repeats.clamped(to: 1...SongSection.maxRepeats)
         pushArrangement()
     }
 
@@ -960,9 +939,9 @@ final class Studio {
             // the edit is the one the user last chose, and it's already on the
             // stack. The redo entry that undo just pushed is dropped — the
             // empty name was rejected, and Redo must not reinstate it.
-            if lastCheckpointRunIsRename {
+            if history.lastRunIs(.rename) {
                 undo()
-                redoStack.removeAll()
+                history.dropRedo()
             }
             return
         }
@@ -970,15 +949,15 @@ final class Studio {
         saveNow()
     }
 
-    /// True when the top of the undo stack is the open title-bar rename, so
-    /// `normalizeSongName()` knows an `undo()` would land on the old name
-    /// rather than throwing away an unrelated edit.
-    private var lastCheckpointRunIsRename: Bool {
-        lastCheckpointRun == .rename && !undoStack.isEmpty
-    }
-
     func delete(_ other: Song) {
-        store.delete(other)
+        do {
+            try store.delete(other)
+        } catch {
+            // The file is still there, so the song is still real — leave the
+            // editor and library alone and say what happened.
+            storageError = "Couldn't delete “\(other.name)”. \(error.localizedDescription)"
+            return
+        }
         // Deleting the song on screen: the editor has to move off it, or the
         // next autosave writes the "deleted" song straight back to disk.
         guard other.id == song.id else { return }
