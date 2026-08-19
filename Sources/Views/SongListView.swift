@@ -199,6 +199,8 @@ struct SongListView: View {
                     Text(song.name)
                         .font(.headline)
                         .foregroundStyle(Theme.text)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                     Text(detail(song))
                         .chipFont(11)
                         .foregroundStyle(Theme.dim)
