@@ -131,7 +131,6 @@ struct SongListView: View {
                         Image(systemName: "plus")
                             .accessibilityLabel("Add")
                     }
-                    .accessibilityElement(children: .combine)
                     .accessibilityLabel("Add")
                     .accessibilityIdentifier("SongListView.AddMenu")
                 }
