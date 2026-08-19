@@ -136,9 +136,31 @@ extension View {
     @ViewBuilder
     func compactSheetDetents(_ apply: Bool) -> some View {
         if apply {
-            presentationDetents([.medium, .large])
+            modifier(CompactSheetDetents())
         } else {
             self
         }
+    }
+}
+
+/// `.medium` is a fine starting height at ordinary text sizes, but at the
+/// accessibility Dynamic Type sizes each Form row is tall enough that the
+/// medium detent shows only the first section's heading — the rest of the
+/// editor is reachable only by dragging the sheet up by hand. Starting an
+/// accessibility-sized sheet at `.large` instead means the controls are on
+/// screen from the moment it opens; `.medium` stays available for anyone who
+/// drags back down.
+private struct CompactSheetDetents: ViewModifier {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var selection: PresentationDetent = .medium
+
+    func body(content: Content) -> some View {
+        content
+            .presentationDetents([.medium, .large], selection: $selection)
+            .onAppear {
+                if dynamicTypeSize.isAccessibilitySize {
+                    selection = .large
+                }
+            }
     }
 }
