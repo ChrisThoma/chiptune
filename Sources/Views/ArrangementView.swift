@@ -35,6 +35,14 @@ struct ArrangementView: View {
                     Text(summary)
                 }
 
+                if studio.song.exceedsChainCapacity {
+                    Section {
+                        Label("Arrangement exceeds \(Chip.maxChain)x — trailing sections won't play", systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                }
+
                 Section {
                     Text("Each section plays one pattern. Repeat it to hold a section for longer, and drag to reorder. Switch the transport to SONG to hear the whole thing; PATT keeps looping just the pattern you're editing.")
                         .font(.caption)

@@ -47,21 +47,31 @@ Inconclusive (not a candidate): Export WAV in-flight feedback — render was too
 
 Checked, not bugs: blank-name rename reverts correctly; force-quit/relaunch mid-edit restores state exactly; rapid double-tap Clear Pattern confirm produces only one clear.
 
-### #7 — WAV export crashes on integer overflow for large renders
-- Track: C (code audit, audio/export)
-- Repro: build a song near several limits at once (patterns at max 64 steps, arrangement repeats filling the chain to Chip.maxChain=128, tempo at minimum 40 BPM), export with a high loop count (e.g. 16x). `WavExport.swift:225`: `let dataSize = UInt32(totalSamples * 2)` — worked example gives totalSamples*2 ≈ 4.34 billion > UInt32.max (≈4.29 billion), trapping the initializer.
-- Expected: export fails gracefully (`.failed`, surfaced via `exportError`) or succeeds. Actual: app crashes mid-render (fatal trap on `UInt32(_:)`), losing the in-progress export.
-- Severity: S1 (crash/data loss). Status: CONFIRMED (deterministic arithmetic, code-verified — extreme repro impractical to hand-build via UI in reasonable action budget; fix should add a bounds check rather than rely on UI repro for confirmation).
+### #7 — VERIFIED — WAV export crashes on integer overflow for large renders
+- Repro: song near several limits at once (max-length patterns, arrangement filling Chip.maxChain=128, min tempo, 16x loop) traps `UInt32(totalSamples * 2)`. Commit: 191143b.
+- Verify method: UI repro impractical within action budget (50+ actions to construct); verified by targeted code review instead of live repro.
+- Verdict: "FIXED. Overflow is checked before any UInt32(...) conversion, entirely in Int domain... Both dataByteCount and 36+dataByteCount are checked separately... .failed propagates unmodified through render()'s return value to Studio.export's finish closure, which sets exportError... Normal exports... guard is inert for them — no behavior change for reasonable song lengths."
 
-### #8 — "New Song" (+) button in SongListView does nothing
-- Track: B (visual, SIM-B, wave 2)
-- Repro: Open Songs sheet → tap "+" (top-right). Tried 3 times.
-- Expected: a new song is created and appears in the list (or a naming sheet appears). Actual: nothing happens — song count unchanged, no sheet/dialog, no error, no feedback at all.
-- Evidence: scratchpad/13_songlist_plus.png, 14_songlist_plus3.png
-- Severity: S2. Status: CONFIRMED.
+### #8 — VERIFIED — "New Song" (+) button in SongListView does nothing
+- Repro: Songs sheet → "+" → "New song". Commit: 191143b.
+- Verdict: "FIXED... editor immediately showed a fresh song titled 'Untitled'... Songs list confirms the song count went from 2 to 3, with the new 'Untitled' entry present and marked OPEN."
 
 S4 reserve (log only, don't chase unless needed to hit 10 — max 2 S4 count toward goal):
 - SongListView song titles don't line-clamp at AX-XXXL Dynamic Type (wrap to 8 lines, row balloons). scratchpad/9_songlist_axxxl.png.
 - InstrumentEditor half-screen sheet shows almost no controls at AX-XXXL (only Preset heading visible, must drag to full screen). scratchpad/4_instreditor_popover_axxxl.png.
+
+### #9 — Arrangement silently truncates past 128-slot chain cap
+- Track: C (code audit, wave 4)
+- Repro: create 8 arrangement sections at ×16 repeats each (8×16=128, exact cap), then add a 9th section (any repeat count). Row appears, fully editable, but SONG-mode playback / footer duration-step summary / WAV export never reflect it. `Song.chain` (Song.swift:417-426) stops appending once `Chip.maxChain`=128 total play-throughs reached; `ArrangementView`/`Studio.addSection` has no cap and no warning.
+- Expected: cap entry (disable Add/clamp) or show an explicit warning that trailing sections won't play. Actual: silent divergence between the visible arrangement list and what actually plays/exports — no alert, no disabled control, no truncation marker.
+- Severity: S2. Status: CONFIRMED.
+
+### #10 — "Import song…" crashes the app (or corrupts grid display) via stale track index
+- Track: A (UI-flow, wave 4, SIM-A)
+- Repro: Songs list → "+" → "Import song…" (crashes before any file is even chosen).
+- Expected: file picker (`fileImporter`) presents. Actual: app terminates to Home. Crash report confirms `EXC_BREAKPOINT`/Swift fatal "Index out of range" at GridView.swift:188 (`let muted = studio.song.tracks[track].muted` in `GridCell.body`) — a `ForEach` in `GridView.row` (line 148) captures a track index that goes stale vs. `studio.song.tracks`.
+- Non-deterministic: a second attempt didn't crash but instead showed corrupted step-row labels ("30"–"34" instead of "00"–"04") while STEPS still read 16 — same stale-index desync surfacing as silent data corruption instead of a crash.
+- Evidence: crash log `~/Library/Logs/DiagnosticReports/Chiptune-2026-08-19-162742.ips`; scratchpad/16.png, 17.png, repro2.png.
+- Severity: S1 (crash, with a data-corruption variant). Status: CONFIRMED.
 
 Leads (not candidates, hand to next Track A finder to try): TrackHeader mute button unguarded index (GridView.swift:322-336); PatternBar destructive actions keyed by stale Int index not id (PatternBar.swift:30-31,69-106); stacked sheets on ContentView rely on mutual exclusion discipline (ContentView.swift:80-110); InstrumentEditor docked panel could blank on async selection change (InstrumentEditor.swift:107-165); empty-array `patterns:[]` in a .chipsong import silently discards arrangement (Song.swift:335-349); SONG arrangement chain silently truncates past Chip.maxChain=128 (Song.swift:417-426); two independent rename paths (library vs title-bar) may race (Studio.swift:899-926).

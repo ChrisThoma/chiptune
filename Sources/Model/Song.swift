@@ -425,6 +425,18 @@ struct Song: Codable, Equatable, Identifiable {
         return out.isEmpty ? [0] : out
     }
 
+    /// The full expansion `chain` would need before it gets capped — sections
+    /// with a missing pattern don't count, matching what `chain` actually walks.
+    var plannedPlaythroughs: Int {
+        arrangement.reduce(0) { total, section in
+            patternIndex(id: section.patternID) != nil ? total + max(section.repeats, 1) : total
+        }
+    }
+
+    /// True once `chain` has silently dropped trailing play-throughs past
+    /// `Chip.maxChain`. The UI must surface this — `chain` itself stays quiet.
+    var exceedsChainCapacity: Bool { plannedPlaythroughs > Chip.maxChain }
+
     /// Steps in one pass of the whole arrangement.
     var arrangementSteps: Int {
         chain.reduce(0) { $0 + (patterns[safe: $1]?.length ?? 0) }

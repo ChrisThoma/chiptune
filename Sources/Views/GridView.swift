@@ -182,10 +182,18 @@ private struct GridCell: View {
     @State private var pressed = false
 
     var body: some View {
+        // `track` is an index captured when this cell's `ForEach` last ran.
+        // If `studio.song.tracks` shrinks — a song switch swaps the whole
+        // array while an old cell is still finishing a removal-transition
+        // frame — that capture can outlive the array it indexed into, so
+        // every read here has to tolerate a now out-of-range index.
+        guard let trackModel = studio.song.tracks[safe: track] else {
+            return AnyView(Color.clear)
+        }
         let note = studio.note(track: track, step: step)
         let filled = note != Chip.emptyNote
         let isOff = note == Chip.noteOff
-        let muted = studio.song.tracks[track].muted
+        let muted = trackModel.muted
         // Only once a hardware key has been pressed. On a touch-only session
         // there's nothing moving it, and a ringed cell would read as a
         // selection the user didn't make.
@@ -202,7 +210,7 @@ private struct GridCell: View {
         let titleColor: Color = filled
             ? (muted ? Theme.text.opacity(0.85) : Theme.onLight.opacity(0.85))
             : Theme.dim.opacity(0.6)
-        let accent: Color = Theme.color(for: studio.song.tracks[track].kind)
+        let accent: Color = Theme.color(for: trackModel.kind)
         let fill: Color = filled
             ? (isOff ? Theme.dim : accent).opacity(muted ? 0.35 : 1.0)
             : Theme.rowTint(step: step)
@@ -210,7 +218,7 @@ private struct GridCell: View {
         // stand out against a cell already filled with that accent.
         let cursorRing: Color = atCursor ? Theme.text : Color.clear
 
-        return Text(title)
+        return AnyView(Text(title)
             .chipFont(filled ? 12 : 14)
             .foregroundStyle(titleColor)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -250,7 +258,7 @@ private struct GridCell: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityAction(named: "Preview") {
                 studio.previewCell(track: track, step: step)
-            }
+            })
     }
 }
 
