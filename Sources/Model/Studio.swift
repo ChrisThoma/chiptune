@@ -191,10 +191,18 @@ final class Studio {
         case rename
     }
 
+    /// Tags a `checkpoint(coalescing: true)` call with the operation that made
+    /// it, so time-coalescing only folds edits of the same kind — tapping the
+    /// tempo stepper and then a grid cell within the window must stay two
+    /// undo steps.
+    enum CheckpointKind {
+        case tempo, cell, note, patternLength, repeats
+    }
+
     /// `Song` is a value type whose arrays are copy-on-write, so a snapshot is
     /// a handful of retains rather than a copy of the notes. Observed — not
     /// `@ObservationIgnored` — so `canUndo`/`canRedo` invalidate the buttons.
-    private var history = UndoHistory<Snapshot, CheckpointRun>()
+    private var history = UndoHistory<Snapshot, CheckpointRun, CheckpointKind>()
 
     var undoCoalescingWindow: TimeInterval {
         get { history.coalescingWindow }
@@ -221,8 +229,8 @@ final class Studio {
     /// (`song = s` after normalising), so a `didSet` hook would record a
     /// snapshot for every push — including the ones undo itself performs, which
     /// corrupts the stack the moment you undo twice.
-    func checkpoint(coalescing: Bool = false, run: CheckpointRun? = nil) {
-        history.record(snapshot(), coalescing: coalescing, run: run)
+    func checkpoint(coalescing: Bool = false, kind: CheckpointKind? = nil, run: CheckpointRun? = nil) {
+        history.record(snapshot(), coalescing: coalescing, kind: kind, run: run)
     }
 
     /// Ends the current named run, so the next edit of that kind starts a fresh
@@ -362,7 +370,7 @@ final class Studio {
     }
 
     func setTempo(_ bpm: Double) {
-        checkpoint(coalescing: true)
+        checkpoint(coalescing: true, kind: .tempo)
         song.tempo = bpm.clamped(to: Chip.tempoRange)
         pushTransport()
     }
@@ -411,7 +419,7 @@ final class Studio {
     /// Tap behaviour: an empty cell takes the selected note; a filled cell
     /// overwrites with the selected note, or clears if it already matches.
     func toggleCell(track: Int, step: Int) {
-        checkpoint(coalescing: true)
+        checkpoint(coalescing: true, kind: .cell)
         let existing = note(track: track, step: step)
         if existing == selectedNote {
             setNote(track: track, step: step, note: Chip.emptyNote)
@@ -465,7 +473,7 @@ final class Studio {
         hardwareKeyboardInUse = true
         clampCursor()
         guard !song.tracks.isEmpty else { return }
-        checkpoint(coalescing: true)
+        checkpoint(coalescing: true, kind: .note)
         setNote(track: selectedTrack, step: selectedStep, note: note)
         selectedNote = note
         audition(note)
@@ -478,7 +486,7 @@ final class Studio {
         hardwareKeyboardInUse = true
         clampCursor()
         guard !song.tracks.isEmpty else { return }
-        checkpoint(coalescing: true)
+        checkpoint(coalescing: true, kind: .note)
         setNote(track: selectedTrack, step: selectedStep, note: Chip.emptyNote)
         advanceCursor()
     }
@@ -685,7 +693,7 @@ final class Studio {
 
     func setPatternLength(_ length: Int) {
         guard selectedPattern < song.patterns.count else { return }
-        checkpoint(coalescing: true)
+        checkpoint(coalescing: true, kind: .patternLength)
         pinToSelectedPattern()
         song.patterns[selectedPattern].length = length.clamped(to: Chip.patternLengthRange)
         engine.core.setLength(pattern: selectedPattern, length: song.patterns[selectedPattern].length)
@@ -784,7 +792,7 @@ final class Studio {
 
     func setSection(_ id: UUID, repeats: Int) {
         guard let i = song.arrangement.firstIndex(where: { $0.id == id }) else { return }
-        checkpoint(coalescing: true)
+        checkpoint(coalescing: true, kind: .repeats)
         song.arrangement[i].repeats = repeats.clamped(to: 1...SongSection.maxRepeats)
         pushArrangement()
     }
