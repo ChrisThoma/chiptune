@@ -50,8 +50,21 @@ struct ChipStepper: View {
 
     private var readout: some View {
         VStack(spacing: 0) {
-            Text("\(value)").chipFont(15, weight: .bold).foregroundStyle(Theme.text)
-            Text(label).chipFont(8).foregroundStyle(Theme.dim)
+            // The number is what the user actually needs to verify (tempo,
+            // step count); it must never be the part that truncates. Under
+            // width pressure the label below gives way instead, matching the
+            // titleBar's TextField/button tradeoff.
+            Text("\(value)")
+                .chipFont(15, weight: .bold)
+                .foregroundStyle(Theme.text)
+                .lineLimit(1)
+                .fixedSize()
+                .layoutPriority(1)
+            Text(label)
+                .chipFont(8)
+                .foregroundStyle(Theme.dim)
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
         .frame(minWidth: 38)
         .frame(height: Theme.trayHeight)
