@@ -1,4 +1,11 @@
 import SwiftUI
+import UIKit
+
+enum ArrangementCapacityAnnouncement {
+    static func shouldAnnounce(previouslyExceeded: Bool, nowExceeds: Bool) -> Bool {
+        !previouslyExceeded && nowExceeds
+    }
+}
 
 /// The song's play order: a list of sections, each naming a pattern and how
 /// many times it repeats. SONG mode walks this list from the top and loops.
@@ -9,6 +16,9 @@ struct ArrangementView: View {
     /// contents as compact whatever the window behind it is.
     var regularWidth = false
     @Environment(\.dismiss) private var dismiss
+    private var capacityWarning: String {
+        "More than \(Chip.maxChain) plays — sections past that won't sound."
+    }
 
     var body: some View {
         NavigationStack {
@@ -37,7 +47,7 @@ struct ArrangementView: View {
 
                 if studio.song.exceedsChainCapacity {
                     Section {
-                        Label("Arrangement exceeds \(Chip.maxChain)x — trailing sections won't play", systemImage: "exclamationmark.triangle.fill")
+                        Label(capacityWarning, systemImage: "exclamationmark.triangle.fill")
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
@@ -48,6 +58,14 @@ struct ArrangementView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            }
+            .onChange(of: studio.song.exceedsChainCapacity) { exceeded, nowExceeds in
+                guard ArrangementCapacityAnnouncement.shouldAnnounce(
+                    previouslyExceeded: exceeded,
+                    nowExceeds: nowExceeds
+                ) else { return }
+                UIAccessibility.post(notification: .announcement,
+                                     argument: capacityWarning)
             }
             // Without these the List keeps its translucent system background
             // and the grid shows through the sheet. SongListView does the same.
@@ -114,6 +132,8 @@ struct ArrangementView: View {
                     .foregroundStyle(.secondary)
             }
             .fixedSize()
+            .accessibilityLabel("Repeats")
+            .accessibilityValue("\(section.repeats) times")
         }
     }
 }

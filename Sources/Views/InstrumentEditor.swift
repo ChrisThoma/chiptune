@@ -225,18 +225,18 @@ struct InstrumentEditor: View {
 
                 Section {
                     slider(title: "Volume",
-                           value: instrument(\.volume, default: 0.5),
+                           value: instrument(\.volume, default: 0.5, kind: .volume(index)),
                            range: 0...1,
                            display: { "\(Int($0 * 100))%" })
 
                     // Hold used to be the far end of the decay slider, which
                     // meant the triangle shipped droning with nothing on screen
                     // saying so and no obvious way out.
-                    Toggle("Hold", isOn: instrument(\.sustain, default: false))
+                    Toggle("Hold", isOn: instrument(\.sustain, default: false, kind: .sustain(index)))
                         .tint(accent)
 
                     slider(title: "Decay",
-                           value: instrument(\.decay, default: 0.3),
+                           value: instrument(\.decay, default: 0.3, kind: .decay(index)),
                            range: 0.03...4.0,
                            display: { String(format: "%.2fs", $0) })
                         .disabled(held)
@@ -251,7 +251,7 @@ struct InstrumentEditor: View {
 
                 if kind.hasDuty {
                     Section("Pulse width") {
-                        Picker("Duty", selection: instrument(\.duty, default: 0)) {
+                        Picker("Duty", selection: instrument(\.duty, default: 0, kind: .duty(index))) {
                             ForEach(0..<Instrument.dutyLabels.count, id: \.self) { i in
                                 Text(Instrument.dutyLabels[i]).tag(i)
                             }
@@ -267,7 +267,7 @@ struct InstrumentEditor: View {
                 }
 
                 Section("Arpeggio") {
-                    Picker("Shape", selection: instrument(\.arpeggio, default: [])) {
+                    Picker("Shape", selection: instrument(\.arpeggio, default: [], kind: .arpeggio(index))) {
                         ForEach(arps) { arp in
                             Text(arp.label).tag(arp.offsets)
                         }
@@ -350,7 +350,7 @@ struct InstrumentEditor: View {
                 guard studio.song.tracks.indices.contains(index) else { return }
                 // Coalesced: typing a name is a stream of writes and should be
                 // one undo, not one per keystroke.
-                studio.checkpoint(coalescing: true)
+                studio.checkpoint(coalescing: true, kind: .trackName(index))
                 let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
                 studio.song.tracks[index].name =
                     trimmed.isEmpty ? nil : String(newValue.prefix(Track.maxNameLength))
@@ -358,7 +358,8 @@ struct InstrumentEditor: View {
     }
 
     private func instrument<T>(_ keyPath: WritableKeyPath<Instrument, T>,
-                               default fallback: T) -> Binding<T> {
+                               default fallback: T,
+                               kind: Studio.CheckpointKind) -> Binding<T> {
         Binding(
             get: { studio.song.tracks[safe: index]?.instrument[keyPath: keyPath] ?? fallback },
             set: { newValue in
@@ -366,7 +367,7 @@ struct InstrumentEditor: View {
                 // Before the write, so undo restores the sound as it was.
                 // Coalesced: a slider drag is a stream of writes and should be
                 // one undo, not one per pixel.
-                studio.checkpoint(coalescing: true)
+                studio.checkpoint(coalescing: true, kind: kind)
                 studio.song.tracks[index].instrument[keyPath: keyPath] = newValue
                 studio.pushInstrument(index)
             })
@@ -391,7 +392,7 @@ struct InstrumentEditor: View {
     }
 
     private func adjustPulseWidth(_ direction: AccessibilityAdjustmentDirection) {
-        let binding = instrument(\.duty, default: 0)
+        let binding = instrument(\.duty, default: 0, kind: .duty(index))
         guard let next = adjustedIndex(binding.wrappedValue,
                                        count: Instrument.dutyLabels.count,
                                        direction: direction),
@@ -400,7 +401,7 @@ struct InstrumentEditor: View {
     }
 
     private func adjustArpeggio(_ direction: AccessibilityAdjustmentDirection) {
-        let binding = instrument(\.arpeggio, default: [])
+        let binding = instrument(\.arpeggio, default: [], kind: .arpeggio(index))
         let current = arps.firstIndex(where: { $0.offsets == binding.wrappedValue }) ?? 0
         guard let next = adjustedIndex(current, count: arps.count, direction: direction),
               next != current else { return }

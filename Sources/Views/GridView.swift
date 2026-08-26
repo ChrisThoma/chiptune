@@ -242,6 +242,7 @@ private struct GridCell: View {
             // Tap first, long press second. In this order the long press
             // cancels the tap rather than both firing on release.
             .onTapGesture {
+                Haptics.gridCell()
                 studio.placeCursor(track: track, step: step)
                 studio.toggleCell(track: track, step: step)
             }

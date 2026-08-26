@@ -123,4 +123,37 @@ final class LayoutTests: XCTestCase {
         XCTAssertFalse(phone.docksInstrumentEditor)
         XCTAssertFalse(phone.presentsInstrumentAsPopover)
     }
+
+    func testAccessibilityStackMakesTheLandscapeInstrumentEditorReachable() {
+        let landscape = ChipLayout.resolve(size: padLandscape, horizontalSizeClass: .regular)
+        XCTAssertTrue(landscape.docksInstrumentEditor, "precondition")
+
+        let stacked = landscape.withoutDockedInstrumentEditor
+
+        XCTAssertFalse(stacked.docksInstrumentEditor)
+        XCTAssertTrue(stacked.presentsInstrumentAsPopover)
+    }
+
+    func testReviewRequestRetriesAtALaterExportMilestone() {
+        XCTAssertFalse(ReviewPromptPolicy.isDue(successfulExports: 2,
+                                                lastRequestExportCount: 0))
+        XCTAssertTrue(ReviewPromptPolicy.isDue(successfulExports: 3,
+                                               lastRequestExportCount: 0))
+        XCTAssertFalse(ReviewPromptPolicy.isDue(successfulExports: 12,
+                                                lastRequestExportCount: 3))
+        XCTAssertTrue(ReviewPromptPolicy.isDue(successfulExports: 13,
+                                               lastRequestExportCount: 3))
+    }
+
+    func testCapacityWarningAnnouncesOnlyOnThresholdCrossing() {
+        XCTAssertTrue(ArrangementCapacityAnnouncement.shouldAnnounce(
+            previouslyExceeded: false, nowExceeds: true
+        ))
+        XCTAssertFalse(ArrangementCapacityAnnouncement.shouldAnnounce(
+            previouslyExceeded: true, nowExceeds: true
+        ))
+        XCTAssertFalse(ArrangementCapacityAnnouncement.shouldAnnounce(
+            previouslyExceeded: true, nowExceeds: false
+        ))
+    }
 }

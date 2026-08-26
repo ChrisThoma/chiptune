@@ -49,7 +49,7 @@ enum Theme {
 
 extension View {
     func chipFont(_ size: CGFloat, weight: Font.Weight = .semibold) -> some View {
-        font(.system(size: size, weight: weight, design: .monospaced))
+        modifier(ChipFont(size: size, weight: weight))
     }
 
     /// `chipFont`'s companion for SF Symbols, which take no monospaced design.
@@ -61,11 +61,35 @@ extension View {
     /// Groups related controls onto one panel so a row of them reads as a
     /// single object rather than a scatter of identical pills.
     func chipTray() -> some View {
-        frame(height: Theme.trayHeight)
+        modifier(ChipTray())
+    }
+}
+
+private struct ChipTray: ViewModifier {
+    @ScaledMetric(relativeTo: .body) private var height = Theme.trayHeight
+
+    func body(content: Content) -> some View {
+        content
+            .frame(height: height)
             .background(RoundedRectangle(cornerRadius: Theme.trayRadius).fill(Theme.panel))
             // Clipping matters for the scrolling pattern strip: without it the
             // chips slide out over the tray's rounded corners.
             .clipShape(RoundedRectangle(cornerRadius: Theme.trayRadius))
+    }
+}
+
+/// Keeps the compact monospaced tracker face while respecting Dynamic Type.
+private struct ChipFont: ViewModifier {
+    @ScaledMetric(relativeTo: .body) private var scaledSize: CGFloat = 0
+    let weight: Font.Weight
+
+    init(size: CGFloat, weight: Font.Weight) {
+        _scaledSize = ScaledMetric(wrappedValue: size, relativeTo: .body)
+        self.weight = weight
+    }
+
+    func body(content: Content) -> some View {
+        content.font(.system(size: scaledSize, weight: weight, design: .monospaced))
     }
 }
 

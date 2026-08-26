@@ -32,6 +32,7 @@ struct ExportOptions: Equatable, Sendable {
 enum ExportResult: Sendable {
     case success(URL)
     case cancelled
+    case tooLong
     case failed
 }
 
@@ -80,16 +81,23 @@ enum WavExport {
         let options = request.options.clamped
         let folding = options.tailMode == .seamlessLoop
 
-        let core = ChipCore(sampleRate: sampleRate)
-        core.load(song: song)
-        core.setSongMode(true)
-        core.start()
-
         let samplesPerStep = Chip.samplesPerStep(tempo: song.tempo, sampleRate: sampleRate)
         let onePass = samplesPerStep * max(song.arrangementSteps, 1)
         // The chain wraps on its own, so N passes are just a longer render.
         let bodySamples = onePass * options.loopCount
         let tail = Int(sampleRate * tailSeconds)
+
+        // Reject an invalid RIFF size before rendering. The scratch stream is
+        // 32-bit float — twice the eventual WAV's size — so discovering this
+        // after the render can burn minutes and many gigabytes only to report
+        // a predictable format limit.
+        let outputSamples = bodySamples + (folding ? 0 : tail)
+        guard fitsInWav(sampleCount: outputSamples) else { return .tooLong }
+
+        let core = ChipCore(sampleRate: sampleRate)
+        core.load(song: song)
+        core.setSongMode(true)
+        core.start()
 
         // Progress covers the body and the tail, which is the whole render.
         let totalFrames = bodySamples + tail
@@ -226,10 +234,10 @@ enum WavExport {
         // WAV's RIFF header caps a chunk at 32 bits; a render big enough to
         // overflow it can't be written as a valid WAV at all, so fail the
         // export instead of trapping the UInt32 conversion.
-        let dataByteCount = totalSamples * 2
-        guard dataByteCount <= Int(UInt32.max), 36 + dataByteCount <= Int(UInt32.max) else {
-            return .failed
+        guard fitsInWav(sampleCount: totalSamples) else {
+            return .tooLong
         }
+        let dataByteCount = totalSamples * 2
         let dataSize = UInt32(dataByteCount)
 
         var header = Data()
@@ -300,6 +308,12 @@ enum WavExport {
             discard()
             return .failed
         }
+    }
+
+    /// RIFF stores its whole chunk size, including the 36 bytes around sample
+    /// data, in one UInt32. Division avoids overflowing while checking.
+    private static func fitsInWav(sampleCount: Int) -> Bool {
+        sampleCount >= 0 && sampleCount <= (Int(UInt32.max) - 36) / 2
     }
 
     private static func pcm16(_ samples: [Float], scale: Float) -> Data {

@@ -10,6 +10,8 @@ struct ChipStepper: View {
     let range: ClosedRange<Int>
     let onChange: (Int) -> Void
     var onTapValue: (() -> Void)?
+    @ScaledMetric(relativeTo: .body) private var trayHeight = Theme.trayHeight
+    @ScaledMetric(relativeTo: .body) private var buttonWidth: CGFloat = 38
 
     var canDecrease: Bool { value > range.lowerBound }
     var canIncrease: Bool { value < range.upperBound }
@@ -18,32 +20,41 @@ struct ChipStepper: View {
         HStack(spacing: 0) {
             Button { onChange(-1) } label: {
                 Image(systemName: "minus").chipFont(13)
-                    .frame(width: 38, height: Theme.trayHeight)
+                    .frame(width: buttonWidth, height: trayHeight)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(canDecrease ? Theme.text : Theme.dim.opacity(0.4))
             .accessibilityLabel("Decrease \(label)")
+            .accessibilityValue("Current value \(value)")
             .disabled(!canDecrease)
 
             Group {
                 if let onTapValue {
                     Button(action: onTapValue) { readout }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("\(label) \(value), edit")
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(label)
+                        .accessibilityValue("\(value)")
+                        .accessibilityHint("Double tap to edit")
                 } else {
-                    readout.allowsHitTesting(false)
+                    readout
+                        .allowsHitTesting(false)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(label)
+                        .accessibilityValue("\(value)")
                 }
             }
 
             Button { onChange(1) } label: {
                 Image(systemName: "plus").chipFont(13)
-                    .frame(width: 38, height: Theme.trayHeight)
+                    .frame(width: buttonWidth, height: trayHeight)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(canIncrease ? Theme.text : Theme.dim.opacity(0.4))
             .accessibilityLabel("Increase \(label)")
+            .accessibilityValue("Current value \(value)")
             .disabled(!canIncrease)
         }
     }
@@ -67,7 +78,7 @@ struct ChipStepper: View {
                 .truncationMode(.tail)
         }
         .frame(minWidth: 38)
-        .frame(height: Theme.trayHeight)
+        .frame(height: trayHeight)
         .contentShape(Rectangle())
     }
 }

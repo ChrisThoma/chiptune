@@ -220,12 +220,48 @@ final class ExportOptionsTests: XCTestCase {
             return XCTFail("expected .success, got \(result)")
         }
     }
+
+    func testAnOversizedWavIsRejectedBeforeRendering() {
+        var song = Song(name: "Too Long")
+        song.tempo = Chip.tempoRange.lowerBound
+        song.patterns[0].length = Chip.maxSteps
+        song.arrangement = (0..<8).map { _ in
+            SongSection(patternID: song.patterns[0].id,
+                        repeats: SongSection.maxRepeats)
+        }
+        let options = ExportOptions(loopCount: ExportOptions.maxLoopCount)
+        let started = Date()
+
+        let result = WavExport.render(ExportRequest(song: song, options: options))
+
+        guard case .tooLong = result else {
+            return XCTFail("expected .tooLong, got \(result)")
+        }
+        XCTAssertLessThan(Date().timeIntervalSince(started), 1,
+                          "size validation happened after rendering began")
+    }
 }
 
 /// Studio's side of export options: progress published, cancel plumbed
 /// through, and a cancelled export not raising an error.
 @MainActor
 final class StudioExportOptionsTests: XCTestCase {
+
+    func testEvenImmediateCompletionsPublishDistinctAttemptTokens() {
+        let studio = Studio(store: makeTempStore().store, autosaveEnabled: false,
+                            renderer: { _ in .failed })
+        addTeardownBlock { @MainActor in studio.invalidateTimers() }
+
+        let first = studio.export()
+        waitForExport(studio)
+        XCTAssertEqual(studio.completedExportAttempt, first)
+
+        studio.renderer = { _ in .cancelled }
+        let second = studio.export()
+        waitForExport(studio)
+        XCTAssertEqual(studio.completedExportAttempt, second)
+        XCTAssertNotEqual(first, second)
+    }
 
     func testCancelledExportPublishesNoUrlAndNoError() {
         let studio = Studio(store: makeTempStore().store, autosaveEnabled: false,

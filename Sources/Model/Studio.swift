@@ -50,6 +50,9 @@ final class Studio {
     /// 0...1 while `isExporting`. A long arrangement takes real time, and a
     /// spinner with no end in sight reads as a hang.
     var exportProgress: Double = 0
+    /// Monotonic completion token for views that must observe even an export
+    /// which starts and finishes between two SwiftUI render passes.
+    var completedExportAttempt = 0
 
     // MARK: Reported failures
     //
@@ -195,8 +198,9 @@ final class Studio {
     /// it, so time-coalescing only folds edits of the same kind — tapping the
     /// tempo stepper and then a grid cell within the window must stay two
     /// undo steps.
-    enum CheckpointKind {
+    enum CheckpointKind: Equatable {
         case tempo, cell, note, patternLength, repeats
+        case trackName(Int), volume(Int), sustain(Int), decay(Int), duty(Int), arpeggio(Int)
     }
 
     /// `Song` is a value type whose arrays are copy-on-write, so a snapshot is
@@ -1050,8 +1054,10 @@ final class Studio {
     /// Renders the WAV off the main thread; a long arrangement can take a
     /// while, and the render must not freeze the UI. `exportURL` clears at the
     /// start so observers see a fresh value when the file is ready.
-    func export(options: ExportOptions = ExportOptions()) {
-        guard !isExporting else { return }
+    @discardableResult
+    func export(options: ExportOptions = ExportOptions()) -> Int? {
+        guard !isExporting else { return nil }
+        let attempt = completedExportAttempt + 1
         isExporting = true
         exportURL = nil
         exportError = nil
@@ -1084,9 +1090,12 @@ final class Studio {
                 // Deliberately silent. Cancelling is not failing, and an
                 // alert for something the user just asked to stop is noise.
                 break
+            case .tooLong:
+                self.exportError = "Too long for one WAV — lower the repeat count."
             case .failed:
                 self.exportError = "Couldn't export “\(song.name)”. There may not be enough space on the device."
             }
+            self.completedExportAttempt = attempt
         }
 
         Task.detached(priority: .userInitiated) {
@@ -1097,6 +1106,7 @@ final class Studio {
                 isCancelled: { token.isCancelled }))
             await MainActor.run { finish(result) }
         }
+        return attempt
     }
 
     /// Abandons a running export. The renderer notices at its next chunk
