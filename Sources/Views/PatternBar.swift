@@ -23,6 +23,8 @@ private struct StripViewportKey: PreferenceKey {
 /// The patterns strip: pick which block the grid is editing, and set its length.
 struct PatternBar: View {
     @Bindable var studio: Studio
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var trayHeight = Theme.trayHeight
     @State private var renaming: Int?
     @State private var renameText = ""
     /// Pattern indices queued behind a confirmation. Both erase work with no
@@ -33,36 +35,19 @@ struct PatternBar: View {
     @State private var stripViewport: CGFloat = 0
 
     var body: some View {
-        HStack(spacing: 8) {
-            // The tray sits *inside* here rather than around the whole row, so
-            // it hugs the chips and grows with them instead of stretching an
-            // empty panel across the row. `+` is pinned outside the scrolling
-            // part so it can't be scrolled out of reach.
-            HStack(spacing: 0) {
-                ViewThatFits(in: .horizontal) {
-                    chips
-                    scrollingChips
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 8) {
+                    patternTray.frame(maxWidth: .infinity, alignment: .leading)
+                    steps
                 }
-
-                if studio.song.canAddPattern {
-                    TrayDivider()
-                    addButton
+            } else {
+                HStack(spacing: 8) {
+                    patternTray
+                    Spacer(minLength: 12)
+                    steps
                 }
             }
-            .chipTray()
-
-            // Now that the chip tray hugs its contents, STEPS would drift left
-            // with it; this keeps it pinned under BPM so the two steppers line
-            // up as a column down the right edge.
-            Spacer(minLength: 12)
-
-            // Deliberately a separate tray: STEPS belongs to the pattern, not to
-            // the strip of chips beside it, and the gap is what says so.
-            ChipStepper(label: "STEPS",
-                        value: studio.patternLength,
-                        range: Chip.patternLengthRange,
-                        onChange: { studio.setPatternLength(studio.patternLength + $0 * 4) })
-                .chipTray()
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 6)
@@ -104,6 +89,36 @@ struct PatternBar: View {
             // false warning teaches people to distrust the real ones.
             Text("It's removed from the arrangement too. Undo brings it back.")
         }
+    }
+
+    private var patternTray: some View {
+            // The tray sits *inside* here rather than around the whole row, so
+            // it hugs the chips and grows with them instead of stretching an
+            // empty panel across the row. `+` is pinned outside the scrolling
+            // part so it can't be scrolled out of reach.
+            HStack(spacing: 0) {
+                ViewThatFits(in: .horizontal) {
+                    chips
+                    scrollingChips
+                }
+
+                if studio.song.canAddPattern {
+                    TrayDivider()
+                    addButton
+                }
+            }
+            .chipTray()
+    }
+
+    private var steps: some View {
+            // Deliberately a separate tray: STEPS belongs to the pattern, not to
+            // the strip of chips beside it, and the gap is what says so.
+            ChipStepper(label: "STEPS",
+                        value: studio.patternLength,
+                        range: Chip.patternLengthRange,
+                        onChange: { studio.setPatternLength(studio.patternLength + $0 * 4) })
+                .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
+                .chipTray()
     }
 
     private func name(_ index: Int?) -> String {
@@ -167,7 +182,7 @@ struct PatternBar: View {
                 .chipFont(13)
                 .foregroundStyle(Theme.text)
                 // 36pt of fill, but the whole tray height stays tappable.
-                .frame(width: 42, height: Theme.trayHeight)
+                .frame(width: 42, height: trayHeight)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -195,7 +210,7 @@ struct PatternBar: View {
             }
             .padding(.horizontal, 12)
             .frame(minWidth: 40)
-            .frame(height: Theme.trayHeight)
+            .frame(height: trayHeight)
             .contentShape(Rectangle())
             .background(
                 RoundedRectangle(cornerRadius: Theme.innerRadius)

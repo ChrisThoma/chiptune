@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 import UIKit
 
 /// Which screen `AppStore/shoot.sh` asked the app to open on launch.
@@ -41,14 +42,31 @@ enum SongNameFieldAccessibility {
     static let label = "Song title"
 }
 
+enum ReviewPromptPolicy {
+    static let firstRequestExportCount = 3
+    static let retryInterval = 10
+
+    static func isDue(successfulExports: Int, lastRequestExportCount: Int) -> Bool {
+        guard successfulExports >= firstRequestExportCount else { return false }
+        guard lastRequestExportCount > 0 else { return true }
+        guard successfulExports >= lastRequestExportCount else { return false }
+        return successfulExports - lastRequestExportCount >= retryInterval
+    }
+}
+
 struct ContentView: View {
     @Bindable var studio: Studio
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.requestReview) private var requestReview
+    @AppStorage("successfulExportCount") private var successfulExportCount = 0
+    @AppStorage("lastReviewRequestExportCount") private var lastReviewRequestExportCount = 0
     @State private var showingSongs = false
     @State private var showingArrangement = false
     @State private var showingShare = false
     @State private var confirmingClearPattern = false
     @State private var showingExport = false
+    @State private var reviewAfterSharing = false
     @FocusState private var nameFocused: Bool
 
     /// Fixed for the life of the process — the bundle can't change under a
@@ -63,7 +81,9 @@ struct ContentView: View {
             let layout = ChipLayout.resolve(size: geo.size,
                                             horizontalSizeClass: horizontalSizeClass)
             Group {
-                if layout.usesSideKeyboard {
+                if dynamicTypeSize.isAccessibilitySize {
+                    accessibilityEditor(layout, availableHeight: geo.size.height)
+                } else if layout.usesSideKeyboard {
                     wideEditor(layout)
                 } else {
                     VStack(spacing: 0) {
@@ -93,7 +113,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingExport) {
             ExportSheet(studio: studio)
         }
-        .sheet(isPresented: $showingShare) {
+        .sheet(isPresented: $showingShare, onDismiss: requestReviewIfDue) {
             if let url = studio.exportURL {
                 ShareSheet(items: [url])
             }
@@ -103,6 +123,12 @@ struct ContentView: View {
         // URL to land rather than racing the render.
         .onChange(of: studio.exportURL) { _, url in
             guard url != nil else { return }
+            Haptics.exportSucceeded()
+            successfulExportCount += 1
+            reviewAfterSharing = ReviewPromptPolicy.isDue(
+                successfulExports: successfulExportCount,
+                lastRequestExportCount: lastReviewRequestExportCount
+            )
             // The options sheet gets out of the way before the share sheet
             // arrives; two sheets at once is a no-op on iOS.
             showingExport = false
@@ -141,6 +167,18 @@ struct ContentView: View {
         }
     }
 
+    /// Asking after the share sheet closes avoids competing presentations and
+    /// ties the prompt to a moment when the app has demonstrably been useful.
+    private func requestReviewIfDue() {
+        guard reviewAfterSharing else { return }
+        reviewAfterSharing = false
+        // StoreKit decides whether a request is actually shown. Record the
+        // milestone rather than latching forever, so a suppressed request can
+        // be tried again after the app has delivered more value.
+        lastReviewRequestExportCount = successfulExportCount
+        requestReview()
+    }
+
     /// Song name, transport and patterns. Capped and centred rather than
     /// stretched: BPM and STEPS trail their rows so the two steppers read as a
     /// column, and across 1200pt of window that puts the tempo at the far end
@@ -171,6 +209,33 @@ struct ContentView: View {
             KeyboardView(studio: studio)
                 .padding(.top, 10)
         }
+    }
+
+    /// Accessibility text makes the chrome several rows tall. Give the whole
+    /// editor a vertical escape hatch instead of squeezing the grid and piano
+    /// into whatever sliver remains below it.
+    private func accessibilityEditor(_ layout: ChipLayout,
+                                     availableHeight: CGFloat) -> some View {
+        // A landscape iPad normally docks the instrument editor beside the
+        // grid. This accessibility layout deliberately stacks instead, so its
+        // descendants must also stop believing that editor is still docked;
+        // the selected track can then open it as a popover.
+        let stackedLayout = layout.withoutDockedInstrumentEditor
+        return ScrollView {
+            VStack(spacing: 0) {
+                chrome(layout)
+                GridView(studio: studio)
+                    .frame(height: max(360, availableHeight * 0.55))
+                Rectangle()
+                    .fill(Theme.grid.opacity(0.5))
+                    .frame(height: 1)
+                    .padding(.top, 10)
+                    .padding(.horizontal, 14)
+                KeyboardView(studio: studio)
+                    .padding(.top, 10)
+            }
+        }
+        .environment(\.chipLayout, stackedLayout)
     }
 
     /// iPad in landscape. Stacking here would leave the grid a squat band with
@@ -329,8 +394,11 @@ struct ContentView: View {
                 } label: {
                     Label("Clear pattern \(studio.pattern.name)", systemImage: "trash")
                 }
+                Divider()
+                Link(destination: URL(string: "https://individuation.dev/contact/")!) {
+                    Label("Contact support", systemImage: "envelope")
+                }
                 if !build.lines.isEmpty {
-                    Divider()
                     // Which build this is, last in the menu because it's read
                     // rarely and never while writing a part. Tapping copies
                     // the release and commit, since the reason to look is

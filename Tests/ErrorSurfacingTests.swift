@@ -49,6 +49,18 @@ final class ErrorSurfacingTests: XCTestCase {
                       "the message should name the song: \(studio.exportError ?? "nil")")
     }
 
+    func testATooLongExportGetsSpecificAdvice() {
+        let studio = Studio(store: makeTempStore().store, autosaveEnabled: false,
+                            renderer: { _ in .tooLong })
+        addTeardownBlock { @MainActor in studio.invalidateTimers() }
+
+        studio.export()
+        waitForExport(studio)
+
+        XCTAssertEqual(studio.exportError,
+                       "Too long for one WAV — lower the repeat count.")
+    }
+
     func testASuccessfulExportReportsNoError() {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("ok-\(UUID().uuidString).wav")

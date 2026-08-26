@@ -4,6 +4,7 @@ import SwiftUI
 struct KeyboardView: View {
     @Bindable var studio: Studio
     @Environment(\.chipLayout) private var layout
+    @ScaledMetric(relativeTo: .body) private var octaveWidth: CGFloat = 62
     /// Lives on the model rather than here, so the hardware note keys and
     /// these buttons can't end up an octave apart; see `NoteKeys`.
     private var octave: Int { studio.octave }
@@ -60,7 +61,10 @@ struct KeyboardView: View {
             Text("OCT \(octave - 1)")
                 .chipFont(12)
                 .foregroundStyle(Theme.dim)
-                .frame(width: 62)
+                .frame(width: octaveWidth)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Octave")
+                .accessibilityValue("\(octave - 1)")
 
             Button {
                 studio.shiftOctave(1)

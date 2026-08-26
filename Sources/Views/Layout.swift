@@ -50,6 +50,16 @@ struct ChipLayout: Equatable {
     /// the controls instead and needs no popover at all.
     var presentsInstrumentAsPopover: Bool { isRegularWidth && !usesSideKeyboard }
 
+    /// Accessibility Dynamic Type uses one vertically scrolling editor even
+    /// in a landscape iPad window. Match the interaction model to that visual
+    /// layout so track headers open settings instead of looking for a dock
+    /// which is no longer present.
+    var withoutDockedInstrumentEditor: ChipLayout {
+        var copy = self
+        copy.usesSideKeyboard = false
+        return copy
+    }
+
     static let phone = ChipLayout(
         gridRowHeight: 40,
         gridMinColumnWidth: 74,

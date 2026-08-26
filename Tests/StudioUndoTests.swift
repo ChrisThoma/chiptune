@@ -223,6 +223,38 @@ final class StudioUndoTests: XCTestCase {
         XCTAssertFalse(studio.canUndo)
     }
 
+    /// Two slider drags next to each other are two intentions, even when they
+    /// happen inside the same coalescing window.
+    func testDifferentInstrumentControlsDoNotCoalesce() {
+        studio.undoCoalescingWindow = 60
+        let original = studio.song.tracks[0].instrument
+
+        studio.checkpoint(coalescing: true, kind: .volume(0))
+        studio.song.tracks[0].instrument.volume = 0.2
+        studio.checkpoint(coalescing: true, kind: .decay(0))
+        studio.song.tracks[0].instrument.decay = 1.2
+
+        studio.undo()
+
+        XCTAssertEqual(studio.song.tracks[0].instrument.volume, 0.2)
+        XCTAssertEqual(studio.song.tracks[0].instrument.decay, original.decay)
+    }
+
+    func testSameInstrumentControlOnDifferentTracksDoesNotCoalesce() {
+        studio.undoCoalescingWindow = 60
+        let originalSecondVolume = studio.song.tracks[1].instrument.volume
+
+        studio.checkpoint(coalescing: true, kind: .volume(0))
+        studio.song.tracks[0].instrument.volume = 0.2
+        studio.checkpoint(coalescing: true, kind: .volume(1))
+        studio.song.tracks[1].instrument.volume = 0.3
+
+        studio.undo()
+
+        XCTAssertEqual(studio.song.tracks[0].instrument.volume, 0.2)
+        XCTAssertEqual(studio.song.tracks[1].instrument.volume, originalSecondVolume)
+    }
+
     /// A discrete edit is never folded into the stroke before it, however fast
     /// it follows — deleting a pattern must not be undone by accident.
     func testDiscreteEditsDoNotCoalesce() {

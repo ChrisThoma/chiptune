@@ -9,11 +9,10 @@ struct ExportSheet: View {
     @Bindable var studio: Studio
     @Environment(\.dismiss) private var dismiss
     @State private var options = ExportOptions()
-    // Separate from `studio.isExporting`: a short render can finish and flip
-    // that flag back to false before a second rapid tap's action closure
-    // runs, letting it start a stale second render. This flag latches for
-    // the lifetime of this sheet instance instead.
-    @State private var hasStartedExport = false
+    // Separate from `studio.isExporting`: SwiftUI can miss a render that starts
+    // and finishes between update passes. The model's monotonic attempt token
+    // cannot be coalesced away, so failures and cancellations reliably retry.
+    @State private var startedAttempt: Int?
 
     var body: some View {
         NavigationStack {
@@ -61,13 +60,12 @@ struct ExportSheet: View {
                         }
                     } else {
                         Button {
-                            guard !hasStartedExport else { return }
-                            hasStartedExport = true
-                            studio.export(options: options)
+                            guard startedAttempt == nil else { return }
+                            startedAttempt = studio.export(options: options)
                         } label: {
                             Label("Export WAV", systemImage: "square.and.arrow.up")
                         }
-                        .disabled(hasStartedExport)
+                        .disabled(startedAttempt != nil)
                     }
                 }
             }
@@ -84,6 +82,11 @@ struct ExportSheet: View {
                 }
             }
             .tint(Theme.text)
+        }
+        .onChange(of: studio.completedExportAttempt) { _, completedAttempt in
+            guard startedAttempt == completedAttempt,
+                  studio.exportURL == nil else { return }
+            startedAttempt = nil
         }
         .preferredColorScheme(.dark)
     }

@@ -4,7 +4,7 @@ import SwiftUI
 /// a context menu, say — kept in one place so the entrances can't drift apart.
 enum ConfirmationCopy {
     static let clearPattern = "Every track's notes in this pattern are erased."
-    static let deleteTrack = "Its notes in every pattern go with it. This can't be undone."
+    static let deleteTrack = "Its notes in every pattern go with it. You can undo this."
 }
 
 extension Binding where Value == Bool {

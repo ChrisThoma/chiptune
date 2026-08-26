@@ -4,64 +4,30 @@ import SwiftUI
 struct TransportBar: View {
     @Bindable var studio: Studio
     @Binding var showingArrangement: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var trayHeight = Theme.trayHeight
     @State private var editingTempo = false
     @State private var tempoText = ""
 
     var body: some View {
-        HStack(spacing: 8) {
-            // The only saturated fill in the chrome, and the biggest target, so
-            // the eye lands here first.
-            Button {
-                studio.togglePlay()
-            } label: {
-                Image(systemName: studio.isPlaying ? "stop.fill" : "play.fill")
-                    .symbolFont(18)
-                    .foregroundStyle(Theme.onLight)
-                    .frame(width: 56, height: Theme.trayHeight)
-                    .background(
-                        RoundedRectangle(cornerRadius: Theme.trayRadius)
-                            .fill(studio.isPlaying ? Theme.accentRed : Theme.accentGreen)
-                    )
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(studio.isPlaying ? "Stop" : "Play")
-
-            // What plays: the mode you're in and the arrangement behind it.
-            HStack(spacing: 0) {
-                modeToggle
-
-                TrayDivider()
-
-                Button {
-                    showingArrangement = true
-                } label: {
-                    Text("ARR")
-                        .chipFont(11, weight: .semibold)
-                        .foregroundStyle(Theme.text)
-                        .frame(width: 48, height: Theme.trayHeight)
-                        .contentShape(Rectangle())
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        playButton
+                        Spacer(minLength: 0)
+                    }
+                    modeTray.frame(maxWidth: .infinity)
+                    tempoStepper
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Arrangement")
+            } else {
+                HStack(spacing: 8) {
+                    playButton
+                    modeTray
+                    Spacer(minLength: 12)
+                    tempoStepper
+                }
             }
-            .chipTray()
-
-            Spacer(minLength: 12)
-
-            // Trails the row so it lines up with STEPS below — the two steppers
-            // read as a pair rather than as more transport buttons.
-            //
-            // The value is a button as well as a readout — nudging from 120 to
-            // 174 four BPM at a time is nobody's idea of a good afternoon.
-            ChipStepper(label: "BPM",
-                        value: Int(studio.song.tempo),
-                        range: Int(Chip.tempoRange.lowerBound)...Int(Chip.tempoRange.upperBound),
-                        onChange: { studio.setTempo(studio.song.tempo + Double($0) * 4) },
-                        onTapValue: {
-                            tempoText = String(Int(studio.song.tempo))
-                            editingTempo = true
-                        })
-                .chipTray()
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
@@ -79,6 +45,60 @@ struct TransportBar: View {
         }
     }
 
+    /// The only saturated fill in the chrome, and the biggest target, so the
+    /// eye lands here first.
+    private var playButton: some View {
+        Button {
+            Haptics.transport()
+            studio.togglePlay()
+        } label: {
+            Image(systemName: studio.isPlaying ? "stop.fill" : "play.fill")
+                .symbolFont(18)
+                .foregroundStyle(Theme.onLight)
+                .frame(width: 56, height: trayHeight)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.trayRadius)
+                        .fill(studio.isPlaying ? Theme.accentRed : Theme.accentGreen)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(studio.isPlaying ? "Stop" : "Play")
+    }
+
+    private var modeTray: some View {
+        HStack(spacing: 0) {
+            modeToggle
+            TrayDivider()
+            Button { showingArrangement = true } label: {
+                Text("ARR")
+                    .chipFont(11, weight: .semibold)
+                    .foregroundStyle(Theme.text)
+                    .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : 48,
+                           height: trayHeight)
+                    .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Arrangement")
+        }
+        .chipTray()
+    }
+
+    /// The value is a button as well as a readout — nudging from 120 to 174
+    /// four BPM at a time is nobody's idea of a good afternoon.
+    private var tempoStepper: some View {
+        ChipStepper(label: "BPM",
+                    value: Int(studio.song.tempo),
+                    range: Int(Chip.tempoRange.lowerBound)...Int(Chip.tempoRange.upperBound),
+                    onChange: { studio.setTempo(studio.song.tempo + Double($0) * 4) },
+                    onTapValue: {
+                        tempoText = String(Int(studio.song.tempo))
+                        editingTempo = true
+                    })
+            .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
+            .chipTray()
+    }
+
     /// PATT loops the pattern you're editing so you can work on it; SONG plays
     /// the arrangement from the top.
     private var modeToggle: some View {
@@ -86,6 +106,7 @@ struct TransportBar: View {
             segment("PATT", on: !studio.songMode) { studio.setSongMode(false) }
             segment("SONG", on: studio.songMode) { studio.setSongMode(true) }
         }
+        .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
     }
 
     private func segment(_ title: String, on: Bool, action: @escaping () -> Void) -> some View {
@@ -93,7 +114,9 @@ struct TransportBar: View {
             Text(title)
                 .chipFont(11, weight: on ? .bold : .semibold)
                 .foregroundStyle(on ? Theme.onLight : Theme.dim)
-                .frame(width: 52, height: Theme.trayHeight)
+                .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : 52,
+                       height: trayHeight)
+                .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
                 .contentShape(Rectangle())
                 .background(
                     RoundedRectangle(cornerRadius: Theme.innerRadius)
@@ -102,6 +125,7 @@ struct TransportBar: View {
                 )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(title == "PATT" ? "Pattern" : "Song")
         .accessibilityAddTraits(on ? [.isSelected] : [])
     }
 }
