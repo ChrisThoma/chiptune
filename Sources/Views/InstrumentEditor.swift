@@ -1,50 +1,6 @@
 import SwiftUI
 import UIKit
 
-/// A real UIKit accessibility node for controls that iOS 17 bridges to an
-/// empty tab group. Unlike a transparent SwiftUI view, this remains present in
-/// the accessibility hierarchy while the segmented picker supplies the pixels
-/// and direct-touch behavior above it.
-private struct AccessibilityAdjustableControl: UIViewRepresentable {
-    let label: String
-    let value: String
-    let adjust: (AccessibilityAdjustmentDirection) -> Void
-
-    func makeUIView(context: Context) -> AdjustableView {
-        AdjustableView()
-    }
-
-    func updateUIView(_ view: AdjustableView, context: Context) {
-        view.accessibilityLabel = label
-        view.accessibilityValue = value
-        view.adjust = adjust
-    }
-
-    final class AdjustableView: UIView {
-        var adjust: ((AccessibilityAdjustmentDirection) -> Void)?
-
-        override init(frame: CGRect) {
-            super.init(frame: frame)
-            isAccessibilityElement = true
-            accessibilityTraits = .adjustable
-            backgroundColor = .clear
-        }
-
-        @available(*, unavailable)
-        required init?(coder: NSCoder) {
-            fatalError("init(coder:) has not been implemented")
-        }
-
-        override func accessibilityIncrement() {
-            adjust?(.increment)
-        }
-
-        override func accessibilityDecrement() {
-            adjust?(.decrement)
-        }
-    }
-}
-
 /// One track's voice: waveform, level, pulse width and arpeggio.
 ///
 /// Presented over the grid on a phone and on a portrait iPad, and docked into
@@ -430,16 +386,6 @@ struct InstrumentEditor: View {
         case .decrement: return max(current - 1, 0)
         @unknown default: return nil
         }
-    }
-
-    /// Segmented pickers are bridged to empty tab groups on iOS 17. A concrete
-    /// UIKit view supplies the missing adjustable accessibility node.
-    private func accessibilitySelector(
-        label: String,
-        value: String,
-        adjust: @escaping (AccessibilityAdjustmentDirection) -> Void
-    ) -> some View {
-        AccessibilityAdjustableControl(label: label, value: value, adjust: adjust)
     }
 
     private func slider(title: String,

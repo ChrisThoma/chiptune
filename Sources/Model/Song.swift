@@ -447,6 +447,29 @@ struct Song: Codable, Equatable, Identifiable {
         Double(arrangementSteps) * 60.0 / (max(tempo, 1) * Double(Chip.stepsPerBeat))
     }
 
+    // MARK: Export
+
+    /// Longest decay among tracks that can actually be heard ringing out: not
+    /// muted, not sustaining (sustain releases in ~15ms via `core.finish()`,
+    /// nothing to ring), and carrying at least one playable note the sequencer
+    /// actually reaches. `nil` when nothing qualifies.
+    var maxAudibleDecay: Double? {
+        let reachable = Set(chain)
+        var longest: Double?
+        for (index, track) in tracks.enumerated() {
+            guard !track.muted, !track.instrument.sustain else { continue }
+            let plays = patterns.indices.contains(where: { patternIdx in
+                guard reachable.contains(patternIdx) else { return false }
+                let pattern = patterns[patternIdx]
+                guard track.instrument.decay > 0, index < pattern.rows.count else { return false }
+                return pattern.rows[index].prefix(pattern.length).contains { $0 >= 0 && $0 <= 127 }
+            })
+            guard plays else { continue }
+            longest = max(longest ?? 0, track.instrument.decay)
+        }
+        return longest
+    }
+
     // MARK: Track labels
 
     var canAddTrack: Bool { tracks.count < Chip.maxTracks }

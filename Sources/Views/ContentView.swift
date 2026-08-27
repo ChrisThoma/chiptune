@@ -46,11 +46,40 @@ enum ReviewPromptPolicy {
     static let firstRequestExportCount = 3
     static let retryInterval = 10
 
+    /// What became of the share sheet the review prompt is gated behind.
+    /// Cancelling and failing are both "not completed", but kept distinct so
+    /// a failure can still surface through `shareError` without being
+    /// conflated with a plain cancel.
+    enum ShareOutcome { case completed, cancelled, failed }
+
     static func isDue(successfulExports: Int, lastRequestExportCount: Int) -> Bool {
         guard successfulExports >= firstRequestExportCount else { return false }
         guard lastRequestExportCount > 0 else { return true }
         guard successfulExports >= lastRequestExportCount else { return false }
         return successfulExports - lastRequestExportCount >= retryInterval
+    }
+
+    /// A milestone being due only means it's worth asking *if the share the
+    /// user was mid-way through actually went somewhere*. Cancelling or
+    /// failing a share is not a moment to interrupt with a review prompt.
+    static func shouldRequest(eligible: Bool, outcome: ShareOutcome) -> Bool {
+        eligible && outcome == .completed
+    }
+
+    /// The state transition after a share sheet dismisses: whether to
+    /// actually fire StoreKit's request, and what `lastRequestExportCount`
+    /// should become. A skipped request leaves the count untouched, so the
+    /// user keeps their eligibility for the next share that actually
+    /// completes rather than losing the milestone to a cancel.
+    static func afterShareDismiss(eligible: Bool,
+                                  outcome: ShareOutcome,
+                                  successfulExports: Int,
+                                  lastRequestExportCount: Int) -> (shouldRequestReview: Bool,
+                                                                   lastRequestExportCount: Int) {
+        guard shouldRequest(eligible: eligible, outcome: outcome) else {
+            return (false, lastRequestExportCount)
+        }
+        return (true, successfulExports)
     }
 }
 
@@ -67,6 +96,12 @@ struct ContentView: View {
     @State private var confirmingClearPattern = false
     @State private var showingExport = false
     @State private var reviewAfterSharing = false
+    /// What the WAV share sheet's completion handler reported. Reset to
+    /// `.cancelled` each time the sheet is (re-)presented, so a handler that
+    /// never fires — the completion callback is documented as "may not be
+    /// called" for some activities — defaults to "not completed" rather than
+    /// stale-carrying the previous share's outcome.
+    @State private var shareOutcome: ReviewPromptPolicy.ShareOutcome = .cancelled
     @FocusState private var nameFocused: Bool
 
     /// Fixed for the life of the process — the bundle can't change under a
@@ -115,7 +150,12 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingShare, onDismiss: requestReviewIfDue) {
             if let url = studio.exportURL {
-                ShareSheet(items: [url])
+                ShareSheet(items: [url], onComplete: { completed, error in
+                    if let error {
+                        studio.shareError = "Couldn't share the exported file. \(error.localizedDescription)"
+                    }
+                    shareOutcome = completed ? .completed : (error != nil ? .failed : .cancelled)
+                })
             }
         }
         .songShareSheet(for: studio)
@@ -129,6 +169,7 @@ struct ContentView: View {
                 successfulExports: successfulExportCount,
                 lastRequestExportCount: lastReviewRequestExportCount
             )
+            shareOutcome = .cancelled
             // The options sheet gets out of the way before the share sheet
             // arrives; two sheets at once is a no-op on iOS.
             showingExport = false
@@ -170,12 +211,19 @@ struct ContentView: View {
     /// Asking after the share sheet closes avoids competing presentations and
     /// ties the prompt to a moment when the app has demonstrably been useful.
     private func requestReviewIfDue() {
-        guard reviewAfterSharing else { return }
+        // A cancelled or failed share doesn't spend the milestone: only a
+        // completed share advances `lastReviewRequestExportCount`, so the
+        // user keeps their eligibility for the next share that actually goes
+        // somewhere.
+        let result = ReviewPromptPolicy.afterShareDismiss(
+            eligible: reviewAfterSharing,
+            outcome: shareOutcome,
+            successfulExports: successfulExportCount,
+            lastRequestExportCount: lastReviewRequestExportCount)
         reviewAfterSharing = false
-        // StoreKit decides whether a request is actually shown. Record the
-        // milestone rather than latching forever, so a suppressed request can
-        // be tried again after the app has delivered more value.
-        lastReviewRequestExportCount = successfulExportCount
+        lastReviewRequestExportCount = result.lastRequestExportCount
+        guard result.shouldRequestReview else { return }
+        // StoreKit decides whether a request is actually shown.
         requestReview()
     }
 
