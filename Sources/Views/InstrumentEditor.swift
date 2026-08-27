@@ -62,8 +62,14 @@ struct InstrumentEditor: View {
     /// rather than read from the environment.
     var popover = false
     @Environment(\.dismiss) private var dismiss
-    @State private var confirmingClear = false
-    @State private var confirmingDelete = false
+    // Snapshot which track a dialog targets at the moment it's raised, rather
+    // than reading `index` (or `studio.selectedTrack`) again when it resolves:
+    // in the docked layout this view stays alive while the grid's header
+    // buttons keep changing `studio.selectedTrack` underneath it, so a live
+    // read at confirm-time could act on whatever track got selected while the
+    // dialog was still up, not the one the user opened it for.
+    @State private var pendingClearIndex: Int?
+    @State private var pendingDeleteIndex: Int?
 
     private var kind: ChannelKind { studio.song.tracks[safe: index]?.kind ?? .pulse1 }
     private var accent: Color { Theme.color(for: kind) }
@@ -297,11 +303,11 @@ struct InstrumentEditor: View {
                     // Notes live in patterns, so this only empties the one on
                     // screen — the other patterns keep their part.
                     Button("Clear this track in pattern \(studio.pattern.name)", role: .destructive) {
-                        confirmingClear = true
+                        pendingClearIndex = index
                     }
 
                     Button("Delete track", role: .destructive) {
-                        confirmingDelete = true
+                        pendingDeleteIndex = index
                     }
                     .disabled(studio.song.tracks.count <= 1)
                 } footer: {
@@ -315,21 +321,29 @@ struct InstrumentEditor: View {
             .scrollContentBackground(.hidden)
             .background(Theme.background.ignoresSafeArea())
             .confirmationDialog("Clear this track in pattern \(studio.pattern.name)?",
-                                isPresented: $confirmingClear, titleVisibility: .visible) {
-                Button("Clear track", role: .destructive) { studio.clearTrack(index) }
+                                isPresented: Binding(get: { pendingClearIndex != nil },
+                                                      set: { if !$0 { pendingClearIndex = nil } }),
+                                titleVisibility: .visible) {
+                if let target = pendingClearIndex {
+                    Button("Clear track", role: .destructive) { studio.clearTrack(target) }
+                }
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("Its notes in the other patterns are left alone.")
             }
-            .confirmationDialog("Delete \(studio.song.fullLabel(for: index))?",
-                                isPresented: $confirmingDelete, titleVisibility: .visible) {
-                Button("Delete track", role: .destructive) {
-                    // Dismiss first and remove on the next main-actor turn, so
-                    // SwiftUI never re-renders this sheet's bindings against
-                    // the deleted index.
-                    dismiss()
-                    let i = index
-                    DispatchQueue.main.async { studio.removeTrack(at: i) }
+            .confirmationDialog(
+                pendingDeleteIndex.map { "Delete \(studio.song.fullLabel(for: $0))?" } ?? "",
+                isPresented: Binding(get: { pendingDeleteIndex != nil },
+                                      set: { if !$0 { pendingDeleteIndex = nil } }),
+                titleVisibility: .visible) {
+                if let target = pendingDeleteIndex {
+                    Button("Delete track", role: .destructive) {
+                        // Dismiss first and remove on the next main-actor turn, so
+                        // SwiftUI never re-renders this sheet's bindings against
+                        // the deleted index.
+                        dismiss()
+                        DispatchQueue.main.async { studio.removeTrack(at: target) }
+                    }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
