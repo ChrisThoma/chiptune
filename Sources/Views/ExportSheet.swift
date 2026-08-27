@@ -38,6 +38,7 @@ struct ExportSheet: View {
                     }
                     .pickerStyle(.inline)
                     .labelsHidden()
+                    .accessibilityHidden(true)
                 } header: {
                     Text("Ending")
                 } footer: {
@@ -71,6 +72,20 @@ struct ExportSheet: View {
             }
             .scrollContentBackground(.hidden)
             .background(Theme.background.ignoresSafeArea())
+            // Carries the Ending picker's VoiceOver adjustable. Deliberately
+            // not attached inside the Form: a `.background` on the Picker, or
+            // on the Section/header around it, gets duplicated onto every
+            // List row the `.inline` style and the Form generate — landing
+            // VoiceOver on several identical "Ending" elements instead of
+            // one. Attached to the whole Form instead, where it exists
+            // exactly once.
+            .overlay(alignment: .topLeading) {
+                accessibilitySelector(
+                    label: "Ending",
+                    value: options.tailMode == .seamlessLoop ? "Seamless loop" : "Ring out",
+                    adjust: { options.tailMode = options.tailMode.adjusted($0) })
+                    .frame(width: 1, height: 1)
+            }
             .navigationTitle("Export")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -94,7 +109,7 @@ struct ExportSheet: View {
     /// Rough length of the file, so the repeat count means something.
     private var duration: String {
         var seconds = studio.song.arrangementDuration * Double(options.loopCount)
-        if options.tailMode == .ringOut { seconds += 1 }
+        if options.tailMode == .ringOut { seconds += WavExport.tailSeconds(for: studio.song) }
         return Format.clock(seconds)
     }
 }

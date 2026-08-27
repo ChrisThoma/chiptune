@@ -134,6 +134,37 @@ final class LayoutTests: XCTestCase {
         XCTAssertTrue(stacked.presentsInstrumentAsPopover)
     }
 
+    func testReviewRequestOnlyFiresForACompletedShare() {
+        XCTAssertTrue(ReviewPromptPolicy.shouldRequest(eligible: true, outcome: .completed))
+        XCTAssertFalse(ReviewPromptPolicy.shouldRequest(eligible: true, outcome: .cancelled))
+        XCTAssertFalse(ReviewPromptPolicy.shouldRequest(eligible: true, outcome: .failed))
+        XCTAssertFalse(ReviewPromptPolicy.shouldRequest(eligible: false, outcome: .completed))
+    }
+
+    /// A cancelled or failed share must not spend the milestone: the user
+    /// keeps their eligibility for the next share that actually completes.
+    func testCancellingOrFailingAShareLeavesTheMilestoneUnadvanced() {
+        let cancelled = ReviewPromptPolicy.afterShareDismiss(
+            eligible: true, outcome: .cancelled, successfulExports: 5, lastRequestExportCount: 0)
+        XCTAssertFalse(cancelled.shouldRequestReview)
+        XCTAssertEqual(cancelled.lastRequestExportCount, 0, "a cancelled share must not spend the milestone")
+
+        let failed = ReviewPromptPolicy.afterShareDismiss(
+            eligible: true, outcome: .failed, successfulExports: 5, lastRequestExportCount: 0)
+        XCTAssertFalse(failed.shouldRequestReview)
+        XCTAssertEqual(failed.lastRequestExportCount, 0, "a failed share must not spend the milestone")
+
+        let completed = ReviewPromptPolicy.afterShareDismiss(
+            eligible: true, outcome: .completed, successfulExports: 5, lastRequestExportCount: 0)
+        XCTAssertTrue(completed.shouldRequestReview)
+        XCTAssertEqual(completed.lastRequestExportCount, 5, "a completed share spends the milestone")
+
+        let ineligible = ReviewPromptPolicy.afterShareDismiss(
+            eligible: false, outcome: .completed, successfulExports: 5, lastRequestExportCount: 2)
+        XCTAssertFalse(ineligible.shouldRequestReview)
+        XCTAssertEqual(ineligible.lastRequestExportCount, 2, "not due at all, so nothing to advance")
+    }
+
     func testReviewRequestRetriesAtALaterExportMilestone() {
         XCTAssertFalse(ReviewPromptPolicy.isDue(successfulExports: 2,
                                                 lastRequestExportCount: 0))
@@ -155,5 +186,37 @@ final class LayoutTests: XCTestCase {
         XCTAssertFalse(ArrangementCapacityAnnouncement.shouldAnnounce(
             previouslyExceeded: true, nowExceeds: false
         ))
+    }
+
+    // MARK: Export sheet accessibility
+
+    /// The pure mapping VoiceOver's increment/decrement drives, extracted so
+    /// it can be tested without a live accessibility tree. This does not
+    /// prove the picker is wired up — see the simulator accessibility-tree
+    /// check for that.
+    func testTailModeAdjustedMapping() {
+        XCTAssertEqual(ExportOptions.TailMode.seamlessLoop.adjusted(.increment), .ringOut)
+        XCTAssertEqual(ExportOptions.TailMode.ringOut.adjusted(.decrement), .seamlessLoop)
+        XCTAssertEqual(ExportOptions.TailMode.ringOut.adjusted(.increment), .ringOut,
+                       "already at the far end, increment should not wrap")
+        XCTAssertEqual(ExportOptions.TailMode.seamlessLoop.adjusted(.decrement), .seamlessLoop,
+                       "already at the near end, decrement should not wrap")
+    }
+
+    /// The UIKit node itself: a real accessibility element with the adjustable
+    /// trait, whose increment/decrement calls forward to the closure it was
+    /// configured with.
+    func testAdjustableViewIsAnAdjustableAccessibilityElementThatForwardsToItsClosure() {
+        let view = AccessibilityAdjustableControl.AdjustableView()
+        XCTAssertTrue(view.isAccessibilityElement)
+        XCTAssertEqual(view.accessibilityTraits, .adjustable)
+
+        var seen: [AccessibilityAdjustmentDirection] = []
+        view.adjust = { seen.append($0) }
+
+        view.accessibilityIncrement()
+        view.accessibilityDecrement()
+
+        XCTAssertEqual(seen, [.increment, .decrement])
     }
 }

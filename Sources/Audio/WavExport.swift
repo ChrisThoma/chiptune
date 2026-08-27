@@ -52,7 +52,14 @@ enum WavExport {
     static let sampleRate = 44100.0
     private static let chunk = 4096
     /// How long the last notes are given to decay past the end.
-    private static let tailSeconds = 1.0
+    ///
+    /// The envelope hits -60dB at `decay` seconds and is culled to exact zero
+    /// at 4/3 × decay; 1.5× covers that with room to spare. Floor of 1.0 keeps
+    /// today's behavior for short decays; ceiling of 6.0 is 1.5 × the decay
+    /// slider's max (4.0s).
+    static func tailSeconds(for song: Song) -> Double {
+        min(max(1.5 * (song.maxAudibleDecay ?? 0), 1.0), 6.0)
+    }
 
     /// Why a render stopped early. Thrown out of the streaming loops so a
     /// cancel or a failed write unwinds in one hop rather than threading an
@@ -85,7 +92,7 @@ enum WavExport {
         let onePass = samplesPerStep * max(song.arrangementSteps, 1)
         // The chain wraps on its own, so N passes are just a longer render.
         let bodySamples = onePass * options.loopCount
-        let tail = Int(sampleRate * tailSeconds)
+        let tail = Int(sampleRate * tailSeconds(for: song))
 
         // Reject an invalid RIFF size before rendering. The scratch stream is
         // 32-bit float — twice the eventual WAV's size — so discovering this
@@ -201,8 +208,26 @@ enum WavExport {
                               scale: scale,
                               isCancelled: request.isCancelled,
                               to: filename(for: song))
-        if case .success = result { report(totalFrames) }
+        if case .success(let url) = result {
+            report(totalFrames)
+            pruneStaleExports(keeping: url, in: song)
+        }
         return result
+    }
+
+    /// Renaming a song leaves its old export's `.wav` sitting in the same
+    /// per-song temp directory as the new one — storage that accumulates
+    /// silently since nothing else ever visits that directory. Only run once
+    /// the new file is safely written, so a later failure never costs the
+    /// previous export. Best-effort: a cleanup failure doesn't fail the
+    /// export that just succeeded.
+    private static func pruneStaleExports(keeping url: URL, in song: Song) {
+        let dir = url.deletingLastPathComponent()
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return }
+        for entry in entries where entry.pathExtension.lowercased() == "wav" && entry != url {
+            try? fm.removeItem(at: entry)
+        }
     }
 
     private static func filename(for song: Song) -> URL {

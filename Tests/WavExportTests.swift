@@ -85,9 +85,11 @@ final class WavExportTests: XCTestCase {
 
     func testFinalNoteRingsIntoTheStartAndFileEndsHot() throws {
         // 16 steps at 120 BPM = 2 s. The only note starts on the last step
-        // (1.875 s) and decays for 2 s, so on a seamless loop its ring-out
-        // must be audible at the very end of the file AND folded over the
-        // start — while the un-folded middle stays silent.
+        // (1.875 s) and decays for 2 s, so its tail is 3.0 s
+        // (`WavExport.tailSeconds`) — longer than the 2 s pass itself, so the
+        // fold wraps the *whole* head buffer rather than just its first
+        // second. Its ring-out must be audible at the end AND folded over the
+        // start, and now also over the previously-untouched middle.
         var song = TestSongs.empty(tempo: 120)
         song.tracks[0].instrument.decay = 2.0
         song.tracks[0].instrument.volume = 0.8
@@ -107,8 +109,32 @@ final class WavExportTests: XCTestCase {
                              "the last note should still be ringing when the file ends — trailing silence breaks the loop")
         XCTAssertGreaterThan(start, 0.001,
                              "the ring-out past the end should be folded over the file's start")
-        XCTAssertLessThan(middle, 0.0005,
-                          "the stretch with no notes and no fold should be silent")
+        XCTAssertGreaterThan(middle, 0.001,
+                             "with a 3.0s tail wrapping a 2.0s head, even the stretch with no notes of its own now rings from the folded decay")
+    }
+
+    /// The tail no longer stops at a flat 1s: a decay of 2.0 needs 3.0s to
+    /// reach silence, and the fold must reach that far. A song long enough
+    /// that its head buffer isn't wrapped (`bodySamples >= tail`) keeps the
+    /// fold a direct, unambiguous overlay — the exported file's audio 1.2s
+    /// into the tail must come from decay that a 1s tail would never render.
+    func testSeamlessFoldReachesPastTheOldOneSecondBoundary() throws {
+        var song = TestSongs.empty(tempo: 120, length: 64)
+        song.tracks[0].instrument.decay = 2.0
+        song.tracks[0].instrument.volume = 0.9
+        song.patterns[0].rows[0][63] = 72   // rings out only at the very end of an 8s pass
+
+        let url = try XCTUnwrap(WavExport.render(song: song))
+        let samples = try readSamples(url)
+        let sr = 44100
+
+        // 1.2s into the fold (well inside the new 3.0s tail, entirely outside
+        // where an old 1.0s tail could ever have reached), the head buffer is
+        // otherwise silent song audio, so any energy here can only be the
+        // folded decay.
+        let window = RenderHarness.rms(samples[(sr + sr / 5)..<(sr + 2 * sr / 5)])   // 1.2–1.4s
+        XCTAssertGreaterThan(window, 0.001,
+                             "a tail scaled to the decay should still be audibly ringing 1.2s in, past where a flat 1s tail would have already ended")
     }
 
     func testSongShorterThanRingOutStillExports() throws {
@@ -151,5 +177,52 @@ final class WavExportTests: XCTestCase {
         XCTAssertLessThan(RenderHarness.rms(try readSamples(silentURL)[...]), 0.0005,
                           "the silent song's export was overwritten with other audio")
         XCTAssertGreaterThan(RenderHarness.rms(try readSamples(loudURL)[...]), 0.001)
+    }
+
+    // MARK: Pruning
+
+    func testRenamingASongReplacesItsOldExportRatherThanAccumulating() throws {
+        var song = TestSongs.empty(name: "One", tempo: 240)
+        song.tracks[0].instrument.sustain = true
+        song.patterns[0].rows[0][0] = 60
+
+        let firstURL = try XCTUnwrap(WavExport.render(song: song))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: firstURL.path))
+
+        song.name = "Two"
+        let secondURL = try XCTUnwrap(WavExport.render(song: song))
+
+        let dir = firstURL.deletingLastPathComponent()
+        let contents = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            .filter { $0.hasSuffix(".wav") }
+        XCTAssertEqual(Set(contents), ["Two.wav"])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: firstURL.path),
+                       "the stale export should have been pruned")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: secondURL.path))
+    }
+
+    func testFailedRerenderPreservesThePreviousExport() throws {
+        var song = TestSongs.empty(name: "One", tempo: 240)
+        song.tracks[0].instrument.sustain = true
+        song.patterns[0].rows[0][0] = 60
+
+        let firstURL = try XCTUnwrap(WavExport.render(song: song))
+        let firstBytes = try Data(contentsOf: firstURL)
+
+        song.name = "Two"
+        song.tempo = Chip.tempoRange.lowerBound
+        song.patterns[0].length = Chip.maxSteps
+        song.arrangement = (0..<8).map { _ in
+            SongSection(patternID: song.patterns[0].id, repeats: SongSection.maxRepeats)
+        }
+        let secondResult = WavExport.render(ExportRequest(
+            song: song, options: ExportOptions(loopCount: ExportOptions.maxLoopCount)))
+        guard case .tooLong = secondResult else {
+            return XCTFail("expected the second render to fail, got \(secondResult)")
+        }
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: firstURL.path),
+                      "a failed rerender must not touch the previous export")
+        XCTAssertEqual(try Data(contentsOf: firstURL), firstBytes)
     }
 }

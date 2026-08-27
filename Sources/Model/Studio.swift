@@ -1075,8 +1075,17 @@ final class Studio {
         // nested concurrent closure reading a `[weak self]` captured by the
         // detached task — that capture is a var — so nothing inside the
         // detach may name `self` at all.
+        // Bound to `attempt`, not just `isExporting`: a delayed update from
+        // this export landing after `finish()` must not resurrect the bar,
+        // and — because attempts are monotonic — an update from a stale,
+        // already-finished export must not overwrite a later export's
+        // in-flight progress either.
         let progress: @Sendable (Double) -> Void = { [weak self] fraction in
-            Task { @MainActor in self?.exportProgress = fraction }
+            Task { @MainActor in
+                guard let self, self.isExporting,
+                      self.completedExportAttempt < attempt else { return }
+                self.exportProgress = fraction
+            }
         }
         let finish: @MainActor @Sendable (ExportResult) -> Void = { [weak self] result in
             guard let self else { return }

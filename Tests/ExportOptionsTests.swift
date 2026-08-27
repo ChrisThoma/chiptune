@@ -62,12 +62,92 @@ final class ExportOptionsTests: XCTestCase {
     func testRingOutAddsTheTailToTheEnd() throws {
         let song = makeSong()
         let pass = onePassSamples(song)
-        let tail = Int(sampleRate)
+        let tail = Int(sampleRate * WavExport.tailSeconds(for: song))
 
         for count in [1, 3] {
             let url = try render(song, ExportOptions(loopCount: count, tailMode: .ringOut))
             XCTAssertEqual(try samples(url).count, pass * count + tail)
         }
+    }
+
+    /// A long decay must not be chopped off — the tail scales to give it room
+    /// to actually reach silence, and only silence, no audible chop.
+    func testRingOutTailScalesWithDecayAndEndsInTrueSilence() throws {
+        var song = TestSongs.empty(name: "LongDecay", tempo: 240, length: 4)
+        song.tracks[0].instrument.sustain = false
+        song.tracks[0].instrument.decay = 4.0
+        song.tracks[0].instrument.volume = 0.9
+        song.patterns[0].rows[0][3] = 60
+
+        let pass = onePassSamples(song)
+        let url = try render(song, ExportOptions(loopCount: 1, tailMode: .ringOut))
+        let audio = try samples(url)
+
+        XCTAssertEqual(audio.count, pass + Int(sampleRate * 6.0),
+                       "decay 4.0 should push the tail to its 6s ceiling")
+
+        // Culled to exact zero by 5.33s into the tail (4/3 × 4.0); the last
+        // 0.25s of a 6s tail is comfortably past that.
+        let lastQuarterSecond = audio[(audio.count - Int(sampleRate * 0.25))...]
+        XCTAssertEqual(lastQuarterSecond.max() ?? 999, 0, "expected exact digital silence at the end")
+        XCTAssertEqual(lastQuarterSecond.min() ?? 999, 0, "expected exact digital silence at the end")
+    }
+
+    /// `WavExport.tailSeconds(for:)` in isolation: the floor, the scaling, and
+    /// every predicate exclusion that should fall back to the floor.
+    func testTailSecondsFormula() {
+        var short = TestSongs.empty(length: 4)
+        short.tracks[0].instrument.sustain = false
+        short.tracks[0].instrument.decay = 0.2
+        short.patterns[0].rows[0][0] = 60
+        XCTAssertEqual(WavExport.tailSeconds(for: short), 1.0, "short decays keep the 1s floor")
+
+        var scaling = TestSongs.empty(length: 4)
+        scaling.tracks[0].instrument.sustain = false
+        scaling.tracks[0].instrument.decay = 2.0
+        scaling.patterns[0].rows[0][0] = 60
+        XCTAssertEqual(WavExport.tailSeconds(for: scaling), 3.0, "decay 2.0 -> tail 3.0")
+
+        var sustaining = TestSongs.empty(length: 4)
+        sustaining.tracks[0].instrument.sustain = true
+        sustaining.tracks[0].instrument.decay = 4.0
+        sustaining.patterns[0].rows[0][0] = 60
+        XCTAssertEqual(WavExport.tailSeconds(for: sustaining), 1.0, "a sustaining track releases fast, not counted")
+
+        var muted = TestSongs.empty(length: 4)
+        muted.tracks[0].instrument.sustain = false
+        muted.tracks[0].instrument.decay = 4.0
+        muted.tracks[0].muted = true
+        muted.patterns[0].rows[0][0] = 60
+        XCTAssertEqual(WavExport.tailSeconds(for: muted), 1.0, "a muted track can't be heard ringing out")
+
+        // Long decay whose only content is a note in a pattern the chain
+        // never reaches.
+        var orphanPattern = TestSongs.empty(length: 4)
+        orphanPattern.tracks[0].instrument.sustain = false
+        orphanPattern.tracks[0].instrument.decay = 4.0
+        var unreached = Pattern(name: "B", length: 4, trackCount: orphanPattern.tracks.count)
+        unreached.rows[0][0] = 60
+        orphanPattern.patterns.append(unreached)
+        XCTAssertEqual(WavExport.tailSeconds(for: orphanPattern), 1.0,
+                       "a note in a pattern outside the chain is never heard")
+
+        // Long decay whose only note is past the pattern's playable length.
+        var beyondLength = TestSongs.empty(length: 4)
+        beyondLength.tracks[0].instrument.sustain = false
+        beyondLength.tracks[0].instrument.decay = 4.0
+        beyondLength.patterns[0].length = 2
+        beyondLength.patterns[0].rows[0][3] = 60
+        XCTAssertEqual(WavExport.tailSeconds(for: beyondLength), 1.0,
+                       "a note past the pattern's playable length is never reached")
+
+        // Long decay whose only cell is a note-off.
+        var onlyNoteOff = TestSongs.empty(length: 4)
+        onlyNoteOff.tracks[0].instrument.sustain = false
+        onlyNoteOff.tracks[0].instrument.decay = 4.0
+        onlyNoteOff.patterns[0].rows[0][0] = Chip.noteOff
+        XCTAssertEqual(WavExport.tailSeconds(for: onlyNoteOff), 1.0,
+                       "a note-off makes no sound to ring out")
     }
 
     func testDefaultOptionsMatchTheOldBehaviour() throws {
@@ -261,6 +341,72 @@ final class StudioExportOptionsTests: XCTestCase {
         waitForExport(studio)
         XCTAssertEqual(studio.completedExportAttempt, second)
         XCTAssertNotEqual(first, second)
+    }
+
+    /// Spins the run loop briefly so a `Task { @MainActor in ... }` enqueued
+    /// just before this call gets a turn before the assertions run.
+    private func flushMainActor() {
+        let exp = expectation(description: "main actor flush")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { exp.fulfill() }
+        wait(for: [exp], timeout: 1)
+    }
+
+    func testProgressArrivingAfterFinishDoesNotResurrectTheBar() {
+        let stashed = Locked<(@Sendable (Double) -> Void)?>(nil)
+        let studio = Studio(store: makeTempStore().store, autosaveEnabled: false,
+                            renderer: { request in
+            stashed.mutate { $0 = request.progress }
+            return .success(FileManager.default.temporaryDirectory
+                .appendingPathComponent("stale-\(UUID().uuidString).wav"))
+        })
+        addTeardownBlock { @MainActor in studio.invalidateTimers() }
+
+        studio.export()
+        waitForExport(studio)
+        XCTAssertEqual(studio.exportProgress, 0)
+
+        stashed.value?(0.7)
+        flushMainActor()
+
+        XCTAssertEqual(studio.exportProgress, 0,
+                       "a progress update arriving after the export finished must not resurrect the bar")
+    }
+
+    func testStaleProgressFromPreviousExportCannotOverwriteActiveExport() {
+        let stashedA = Locked<(@Sendable (Double) -> Void)?>(nil)
+        let bStarted = expectation(description: "B started")
+        let releaseB = Locked<Bool>(false)
+
+        let studio = Studio(store: makeTempStore().store, autosaveEnabled: false,
+                            renderer: { request in
+            stashedA.mutate { $0 = request.progress }
+            return .success(FileManager.default.temporaryDirectory
+                .appendingPathComponent("a-\(UUID().uuidString).wav"))
+        })
+        addTeardownBlock { @MainActor in studio.invalidateTimers() }
+
+        studio.export()
+        waitForExport(studio)
+
+        studio.renderer = { request in
+            bStarted.fulfill()
+            while !releaseB.value { usleep(1000) }
+            request.progress(0.3)
+            return .success(FileManager.default.temporaryDirectory
+                .appendingPathComponent("b-\(UUID().uuidString).wav"))
+        }
+        studio.export()
+        wait(for: [bStarted], timeout: 10)
+
+        // A's own (stale) progress closure fires while B is mid-flight.
+        stashedA.value?(0.9)
+        flushMainActor()
+
+        XCTAssertNotEqual(studio.exportProgress, 0.9,
+                          "a stale export's progress must not overwrite the active export's bar")
+
+        releaseB.mutate { $0 = true }
+        waitForExport(studio)
     }
 
     func testCancelledExportPublishesNoUrlAndNoError() {
