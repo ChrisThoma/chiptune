@@ -154,9 +154,17 @@ private struct KeyCatcher: UIViewRepresentable {
         // Reclaims the keyboard once whatever borrowed it — the song name
         // field, a rename alert — has given it back. Every edit in the app
         // runs this, so there's no polling and no window where typing is dead.
-        // Guarded on nothing else holding it, or a redraw mid-rename would
+        // Guarded on no *text* still holding it, or a redraw mid-rename would
         // take the keyboard out from under the field being typed into.
-        if view.window != nil, !view.isFirstResponder, UIResponder.currentFirstResponder == nil {
+        //
+        // Deliberately not `currentFirstResponder == nil`: once a text field
+        // has been focused and let go, first responder doesn't come back to
+        // nobody — it settles on a responder that isn't ours and isn't typing
+        // either (the window, SwiftUI's hosting view). That responder is above
+        // this view rather than below it, so presses walk up past the grid and
+        // vanish, and a nil-only guard would never reclaim them again for the
+        // rest of the session.
+        if view.window != nil, !view.isFirstResponder, !UIResponder.textIsFirstResponder {
             view.becomeFirstResponder()
         }
     }
@@ -203,6 +211,17 @@ private extension UIResponder {
         UIApplication.shared.sendAction(#selector(reportAsFirstResponder),
                                         to: nil, from: nil, for: nil)
         return found
+    }
+
+    /// Whether something that takes typing — a text field, a text view, an
+    /// alert's field — currently holds the keyboard. `UITextInput` is what
+    /// every one of those conforms to and nothing else does, which is exactly
+    /// the line that matters here: a responder that isn't typing has no claim
+    /// on the note row.
+    @MainActor
+    static var textIsFirstResponder: Bool {
+        guard let responder = currentFirstResponder else { return false }
+        return responder is UITextInput
     }
 
     @MainActor
