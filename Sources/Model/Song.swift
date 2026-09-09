@@ -23,6 +23,18 @@ enum Chip {
     /// concern like `emptyNote`, so it lives here, not on the audio engine.
     static let noteOff: Int8 = -2
 
+    /// Decodes a raw JSON integer into a valid note value, folding anything
+    /// outside the app's note range (`noteOff...127`) — including a value
+    /// that doesn't even fit in `Int8`, like a corrupt `200` — into
+    /// `emptyNote` rather than failing the whole song's decode. Callers
+    /// decode note arrays as `[Int]` (which `200` fits) and map through this
+    /// instead of decoding `[Int8]` directly, which would trap the decode on
+    /// the raw JSON-number conversion before any app-level check could run.
+    static func clampNote(_ raw: Int) -> Int8 {
+        guard raw >= Int(noteOff), raw <= 127 else { return emptyNote }
+        return Int8(raw)
+    }
+
     /// The tempo every clamp agrees on: model, editor, core, and UI stepper.
     static let tempoRange: ClosedRange<Double> = 40...300
     /// Sequencer resolution — a step is a sixteenth.
@@ -203,7 +215,10 @@ struct Track: Codable, Equatable, Identifiable {
         instrument = try c.decode(Instrument.self, forKey: .instrument)
         muted = try c.decodeIfPresent(Bool.self, forKey: .muted) ?? false
         name = try c.decodeIfPresent(String.self, forKey: .name)
-        legacyNotes = try c.decodeIfPresent([Int8].self, forKey: .notes)
+        // Decoded as [Int] rather than [Int8]: a legacy file with one
+        // out-of-range value (e.g. 200) would otherwise fail Int8's raw
+        // conversion and lose the whole song instead of just that note.
+        legacyNotes = try c.decodeIfPresent([Int].self, forKey: .notes)?.map(Chip.clampNote)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -249,6 +264,29 @@ struct Pattern: Codable, Equatable, Identifiable {
         self.name = name
         self.length = length
         self.rows = Array(repeating: Pattern.emptyRow, count: max(trackCount, 1))
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, name, length, rows }
+
+    /// Written by hand, like `Track`'s, so `rows` decodes each cell as `Int`
+    /// and folds an out-of-range value (past `Int8`'s own range, like a
+    /// corrupt `200`) into `Chip.emptyNote` instead of failing the whole
+    /// pattern's — and song's — decode.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? "A"
+        length = try c.decodeIfPresent(Int.self, forKey: .length) ?? 16
+        let rawRows = try c.decodeIfPresent([[Int]].self, forKey: .rows) ?? []
+        rows = rawRows.map { $0.map(Chip.clampNote) }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encode(length, forKey: .length)
+        try c.encode(rows, forKey: .rows)
     }
 
     static var emptyRow: [Int8] { Array(repeating: Chip.emptyNote, count: Chip.maxSteps) }
