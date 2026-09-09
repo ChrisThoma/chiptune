@@ -164,12 +164,15 @@ final class Studio {
     // MARK: Reporting
 
     /// Writes a song, surfacing a failure instead of dropping it.
-    private func save(_ song: Song, makeCurrent: Bool = true) {
+    @discardableResult
+    private func save(_ song: Song, makeCurrent: Bool = true) -> Bool {
         do {
             try store.save(song, makeCurrent: makeCurrent)
             storageError = nil
+            return true
         } catch {
             storageError = "Couldn't save “\(song.name)”. \(error.localizedDescription)"
+            return false
         }
     }
 
@@ -860,10 +863,11 @@ final class Studio {
 
     /// Autosave keeps the file on disk within a couple of seconds of the last
     /// edit; this forces it out now (backgrounding, opening another song).
-    func saveNow() {
+    @discardableResult
+    func saveNow() -> Bool {
         autosaveTimer?.invalidate()
         autosaveTimer = nil
-        save(song)
+        return save(song)
     }
 
     private func scheduleAutosave() {
@@ -879,7 +883,9 @@ final class Studio {
 
     func newSong() {
         stop()
-        saveNow()
+        // Bail before replacing `song` if the outgoing save failed, so the
+        // failed song stays on screen and `storageError` names it correctly.
+        guard saveNow() else { return }
         resetHistory()
         song = Song(name: "Untitled")
         selectedPattern = 0
@@ -889,7 +895,9 @@ final class Studio {
 
     func open(_ other: Song) {
         stop()
-        saveNow()
+        // Bail before replacing `song` if the outgoing save failed, so the
+        // failed song stays on screen and `storageError` names it correctly.
+        guard saveNow() else { return }
         // Undo does not reach across songs: restoring a snapshot of a song you
         // are no longer editing would silently replace the one you are.
         resetHistory()
