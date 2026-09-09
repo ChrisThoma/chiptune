@@ -187,7 +187,6 @@ struct ContentView: View {
         // matters most: there's no Save button to retry with, so a write that
         // fails quietly is work quietly lost.
         .errorAlert("Save failed", message: $studio.storageError)
-        .errorAlert("Export failed", message: $studio.exportError)
         .errorAlert("Audio unavailable", message: $studio.audioError)
         .errorAlert("Import failed", message: $studio.importError)
         .errorAlert("Share failed", message: $studio.shareError)
