@@ -44,6 +44,11 @@ final class Studio {
     /// Pattern the sequencer is actually on, which in SONG mode is not always
     /// the one being edited.
     var playingPattern: Int = 0
+    /// Arrangement section the sequencer is on in SONG mode. Kept separately
+    /// from `playingPattern`: one pattern can fill several sections, so the
+    /// pattern index can't say which section is sounding — and with repeats it
+    /// can't show progress through a section either.
+    var playingSection: Int = 0
     var exportURL: URL?
     /// True while a WAV render is running off the main thread.
     var isExporting = false
@@ -328,6 +333,9 @@ final class Studio {
         // Each new play-through follows the arrangement again until the user
         // pins a pattern by selecting one.
         followsArrangement = true
+        // `start()` rewinds the chain on the next buffer; say so now rather
+        // than leaving the indicator on the last section until it lands.
+        playingSection = 0
         startPlayheadTimer()
     }
 
@@ -348,7 +356,8 @@ final class Studio {
         let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             guard let self else { return }
             self.applyPlayhead(step: Int(self.engine.core.currentStep),
-                               pattern: Int(self.engine.core.currentPattern))
+                               pattern: Int(self.engine.core.currentPattern),
+                               slot: Int(self.engine.core.currentChainSlot))
         }
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
@@ -357,8 +366,13 @@ final class Studio {
     /// One tick of the playhead: 60 a second from the timer above, and one at a
     /// time from the tests. Lifting it out of the closure is what makes the
     /// follow behaviour reachable without a run loop or a live audio engine.
-    func applyPlayhead(step: Int, pattern: Int) {
+    func applyPlayhead(step: Int, pattern: Int, slot: Int? = nil) {
         playhead = step
+        // Before the pattern guard below: a section's repeats all play the same
+        // pattern, so the slot moves on boundaries the pattern index doesn't.
+        if songMode, let slot, let section = song.sectionIndex(chainSlot: slot) {
+            playingSection = section
+        }
         guard playingPattern != pattern else { return }
         playingPattern = pattern
         // Following the arrangement means the grid should follow too, otherwise

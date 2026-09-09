@@ -92,7 +92,10 @@ struct ArrangementView: View {
     private func row(position: Int, section: SongSection) -> some View {
         let index = studio.song.patternIndex(id: section.patternID)
         let pattern = index.flatMap { studio.song.patterns[safe: $0] }
-        let playing = studio.isPlaying && studio.songMode && studio.playingPattern == index
+        // Keyed on the section, not the pattern: a pattern used by two sections
+        // lit both of them at once, which read as playback never leaving the
+        // first one.
+        let playing = studio.isPlaying && studio.songMode && studio.playingSection == position
 
         return HStack(spacing: 12) {
             Text("\(position + 1)")
