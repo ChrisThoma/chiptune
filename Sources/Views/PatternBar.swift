@@ -51,18 +51,16 @@ struct PatternBar: View {
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 6)
-        .alert("Rename pattern", isPresented: Binding(isPresenting: $renaming)) {
-            TextField("Name", text: Binding(
-                get: { renameText },
-                set: { renameText = String($0.prefix(6)) }))
-            Button("Cancel", role: .cancel) { renaming = nil }
-            Button("Rename") {
-                if let index = renaming { studio.renamePattern(at: index, to: renameText) }
+        // A sheet rather than an alert: a `TextField` inside `.alert` doesn't
+        // reliably send every keystroke back through its binding, so the cap
+        // below could only ever be applied on commit — you typed
+        // "ChorusBridge99", saw all of it, and got "Chorus". An ordinary
+        // TextField in a Form does update live, so the field can show the
+        // truncation as it happens.
+        .sheet(isPresented: Binding(isPresenting: $renaming)) {
+            PatternRenameSheet(studio: studio, index: renaming, text: $renameText) {
                 renaming = nil
             }
-            // Greyed out rather than silently ignored when the name is empty
-            // or already another pattern's.
-            .disabled(renaming.map { studio.acceptablePatternName(renameText, for: $0) == nil } ?? true)
         }
         .confirmationDialog("Clear pattern \(name(clearing))?",
                             isPresented: Binding(isPresenting: $clearing),
@@ -248,5 +246,75 @@ struct PatternBar: View {
             }
             .disabled(studio.song.patterns.count <= 1)
         }
+    }
+}
+
+/// Renaming one pattern. Chips live in a width-limited strip, so a name is
+/// capped at six characters — the field enforces that as you type rather than
+/// quietly cutting the name off when you tap Rename.
+private struct PatternRenameSheet: View {
+    @Bindable var studio: Studio
+    /// The pattern being renamed, snapshotted when the sheet was raised.
+    let index: Int?
+    @Binding var text: String
+    let dismiss: () -> Void
+    @FocusState private var focused: Bool
+
+    /// Matches `Studio.acceptablePatternName`, which is the one that actually
+    /// decides what gets stored.
+    private static let maxLength = 6
+
+    private var accepted: String? {
+        index.flatMap { studio.acceptablePatternName(text, for: $0) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Name", text: $text)
+                        .focused($focused)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .submitLabel(.done)
+                        .onSubmit(commit)
+                        // Ordinary TextFields do fire this on every edit, which
+                        // is the whole reason this isn't an alert any more.
+                        .onChange(of: text) { _, newValue in
+                            let capped = String(newValue.prefix(Self.maxLength))
+                            if capped != newValue { text = capped }
+                        }
+                        .accessibilityLabel("Pattern name")
+                } header: {
+                    Text("Name")
+                } footer: {
+                    Text("Up to \(Self.maxLength) characters — \(text.count) of \(Self.maxLength) used.")
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background.ignoresSafeArea())
+            .navigationTitle("Rename pattern")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Rename", action: commit)
+                        // Greyed out rather than silently ignored when the name
+                        // is empty or already another pattern's.
+                        .disabled(accepted == nil)
+                }
+            }
+        }
+        .compactSheetDetents(true)
+        .preferredColorScheme(.dark)
+        .onAppear { focused = true }
+    }
+
+    private func commit() {
+        guard let index, accepted != nil else { return }
+        studio.renamePattern(at: index, to: text)
+        dismiss()
     }
 }
