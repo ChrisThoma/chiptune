@@ -170,9 +170,6 @@ struct SongListView: View {
             }
         }
         .songShareSheet(for: studio)
-        .errorAlert("Import failed", message: $studio.importError)
-        // The library shares too, from the row's swipe action.
-        .errorAlert("Share failed", message: $studio.shareError)
         .background {
             SongRenameAlertAccessibilityBridge(isPresented: renaming != nil)
         }
