@@ -246,7 +246,7 @@ struct ContentView: View {
     /// the grid across the full width.
     private var stackedEditor: some View {
         VStack(spacing: 0) {
-            GridView(studio: studio)
+            editorGrid
             // The grid used to run straight into the keys; this is the breathing
             // room between the two.
             Rectangle()
@@ -254,9 +254,30 @@ struct ContentView: View {
                 .frame(height: 1)
                 .padding(.top, 10)
                 .padding(.horizontal, 14)
-            KeyboardView(studio: studio)
+            editorKeyboard
                 .padding(.top, 10)
         }
+    }
+
+    /// The grid and the piano, with the rename closed out first.
+    ///
+    /// A grid cell is a tap gesture on a shape and a piano key is a plain
+    /// button, so neither is something UIKit will hand focus to: touching one
+    /// while the song name field is being edited leaves that field first
+    /// responder, and a hardware key then keeps typing into the title instead
+    /// of the pattern. Nothing else takes the focus away — no other focusable
+    /// control, no dismiss affordance — so the editor has to say so itself.
+    ///
+    /// Simultaneous rather than `onTapGesture`, or this would swallow the tap
+    /// the cell or key is there to receive.
+    private var editorGrid: some View {
+        GridView(studio: studio)
+            .simultaneousGesture(TapGesture().onEnded { endRenaming() })
+    }
+
+    private var editorKeyboard: some View {
+        KeyboardView(studio: studio)
+            .simultaneousGesture(TapGesture().onEnded { endRenaming() })
     }
 
     /// Accessibility text makes the chrome several rows tall. Give the whole
@@ -272,14 +293,14 @@ struct ContentView: View {
         return ScrollView {
             VStack(spacing: 0) {
                 chrome(layout)
-                GridView(studio: studio)
+                editorGrid
                     .frame(height: max(360, availableHeight * 0.55))
                 Rectangle()
                     .fill(Theme.grid.opacity(0.5))
                     .frame(height: 1)
                     .padding(.top, 10)
                     .padding(.horizontal, 14)
-                KeyboardView(studio: studio)
+                editorKeyboard
                     .padding(.top, 10)
             }
         }
@@ -297,7 +318,7 @@ struct ContentView: View {
             // on instead of spanning the keyboard column too.
             VStack(spacing: 0) {
                 chrome(layout)
-                GridView(studio: studio)
+                editorGrid
             }
 
             Rectangle()
@@ -326,7 +347,7 @@ struct ContentView: View {
     /// the hands holding it are.
     private var instrumentPanel: some View {
         VStack(spacing: 0) {
-            KeyboardView(studio: studio)
+            editorKeyboard
 
             Rectangle()
                 .fill(Theme.grid.opacity(0.5))
