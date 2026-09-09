@@ -140,6 +140,17 @@ private struct KeyCatcher: UIViewRepresentable {
     }
 
     func updateUIView(_ view: CatcherView, context: Context) {
+        // A presented sheet (InstrumentEditor, ArrangementView, ExportSheet,
+        // SongListView, ...) can put non-text-field controls on screen that
+        // never take first responder away from us, so hardware keys would
+        // otherwise keep reaching the grid underneath. Check the UIKit
+        // hierarchy directly rather than a per-screen @State flag, since some
+        // sheets (InstrumentEditor's) are toggled by state that isn't owned
+        // by this view's ancestor at all.
+        guard view.window?.rootViewController?.presentedViewController == nil else {
+            if view.isFirstResponder { view.resignFirstResponder() }
+            return
+        }
         // Reclaims the keyboard once whatever borrowed it — the song name
         // field, a rename alert — has given it back. Every edit in the app
         // runs this, so there's no polling and no window where typing is dead.
@@ -161,8 +172,14 @@ private struct KeyCatcher: UIViewRepresentable {
         }
 
         override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+            // Checked synchronously here rather than relying solely on
+            // updateUIView: a sheet like InstrumentEditor can be presented by
+            // state this view never observes, so updateUIView may not re-run
+            // until after the very key press that would otherwise leak
+            // through and mutate the grid underneath.
+            let modalPresented = window?.rootViewController?.presentedViewController != nil
             let unhandled = presses.filter { press in
-                guard let key = press.key else { return true }
+                guard !modalPresented, let key = press.key else { return true }
                 return handle?(key) != true
             }
             // Anything not claimed carries on up the chain, so the shortcuts
