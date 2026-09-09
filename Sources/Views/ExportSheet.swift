@@ -103,6 +103,7 @@ struct ExportSheet: View {
                   studio.exportURL == nil else { return }
             startedAttempt = nil
         }
+        .errorAlert("Export failed", message: $studio.exportError)
         .preferredColorScheme(.dark)
     }
 
