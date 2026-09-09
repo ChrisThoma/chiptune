@@ -1,25 +1,5 @@
 import SwiftUI
 
-/// Where the pattern strip is scrolled to, and how much of it there is.
-private struct StripMetrics: Equatable {
-    var offset: CGFloat = 0
-    var content: CGFloat = 0
-}
-
-private struct StripMetricsKey: PreferenceKey {
-    static let defaultValue = StripMetrics()
-    static func reduce(value: inout StripMetrics, nextValue: () -> StripMetrics) {
-        value = nextValue()
-    }
-}
-
-private struct StripViewportKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 /// The patterns strip: pick which block the grid is editing, and set its length.
 struct PatternBar: View {
     @Bindable var studio: Studio
@@ -31,8 +11,6 @@ struct PatternBar: View {
     /// way back, so neither happens straight off a context-menu tap.
     @State private var clearing: Int?
     @State private var deleting: Int?
-    @State private var strip = StripMetrics()
-    @State private var stripViewport: CGFloat = 0
 
     var body: some View {
         Group {
@@ -134,44 +112,43 @@ struct PatternBar: View {
         .padding(.horizontal, 4)
     }
 
-    /// The overflow case. Fades whichever edge still has chips behind it, so a
-    /// half-cut chip isn't the only clue that the strip scrolls.
+    /// The overflow case. `ViewThatFits` only reaches this branch when the plain
+    /// `chips` row is too wide for the tray, so by the time this renders at all
+    /// the strip is *known* to run past both sides once you're scrolling. That's
+    /// the whole signal the fades need, so they're painted flat rather than
+    /// tracked: measuring live scroll offset from inside a `ViewThatFits`
+    /// candidate never worked here — the GeometryReader/PreferenceKey pass runs
+    /// against the sizing probe rather than the instance on screen, so the
+    /// values stayed frozen at zero and the cue was stuck on or stuck off. A
+    /// fade that's a shade early at the very ends beats no cue at all.
     private var scrollingChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             chips
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.preference(
-                            key: StripMetricsKey.self,
-                            value: StripMetrics(offset: geo.frame(in: .named("patternStrip")).minX,
-                                                content: geo.size.width))
-                    }
-                )
         }
-        .coordinateSpace(name: "patternStrip")
-        .background(
-            GeometryReader { geo in
-                Color.clear.preference(key: StripViewportKey.self, value: geo.size.width)
-            }
-        )
-        .onPreferenceChange(StripMetricsKey.self) { strip = $0 }
-        .onPreferenceChange(StripViewportKey.self) { stripViewport = $0 }
-        .mask(edgeFade)
+        // Painted *over* the strip rather than masked out of it. A `.mask` here
+        // has to survive the ScrollView's own compositing, and it also can't be
+        // seen at all unless the alpha it punches reveals something — the tray
+        // panel underneath is the thing the chips should melt into, so draw
+        // that colour directly and skip the round trip.
+        .overlay(alignment: .leading) { fade(.leading) }
+        .overlay(alignment: .trailing) { fade(.trailing) }
     }
 
-    private var edgeFade: some View {
-        // A point of slack keeps the fade from flickering on at the extremes.
-        let leading = strip.offset < -1
-        let trailing = strip.content + strip.offset > stripViewport + 1
-        return LinearGradient(
-            stops: [
-                .init(color: leading ? .clear : .black, location: 0),
-                .init(color: .black, location: leading ? 0.07 : 0),
-                .init(color: .black, location: trailing ? 0.93 : 1),
-                .init(color: trailing ? .clear : .black, location: 1),
-            ],
+    /// How wide each fade is. Roughly a chip's corner plus a little, so it reads
+    /// as "there's more behind this" and not as a smudge.
+    private static let fadeWidth: CGFloat = 20
+
+    private func fade(_ edge: HorizontalEdge) -> some View {
+        LinearGradient(
+            colors: edge == .leading
+                ? [Theme.panel, Theme.panel.opacity(0)]
+                : [Theme.panel.opacity(0), Theme.panel],
             startPoint: .leading,
             endPoint: .trailing)
+            .frame(width: Self.fadeWidth)
+            // Decoration only — a chip under the fade still has to be tappable.
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     private var addButton: some View {
