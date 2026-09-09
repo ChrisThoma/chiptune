@@ -52,7 +52,9 @@ struct PatternBar: View {
         .padding(.horizontal, 12)
         .padding(.bottom, 6)
         .alert("Rename pattern", isPresented: Binding(isPresenting: $renaming)) {
-            TextField("Name", text: $renameText)
+            TextField("Name", text: Binding(
+                get: { renameText },
+                set: { renameText = String($0.prefix(6)) }))
             Button("Cancel", role: .cancel) { renaming = nil }
             Button("Rename") {
                 if let index = renaming { studio.renamePattern(at: index, to: renameText) }
