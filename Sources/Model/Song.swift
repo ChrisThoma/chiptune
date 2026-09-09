@@ -425,6 +425,22 @@ struct Song: Codable, Equatable, Identifiable {
         return out.isEmpty ? [0] : out
     }
 
+    /// Which arrangement section a flattened `chain` slot belongs to, or nil
+    /// when the slot is past everything the arrangement plays. `chain` loses
+    /// section boundaries — three repeats of one section are three identical
+    /// entries — so this walks the same expansion back to a section index.
+    func sectionIndex(chainSlot slot: Int) -> Int? {
+        guard slot >= 0 else { return nil }
+        var remaining = slot
+        for (index, section) in arrangement.enumerated() {
+            guard patternIndex(id: section.patternID) != nil else { continue }
+            let plays = max(section.repeats, 1)
+            if remaining < plays { return index }
+            remaining -= plays
+        }
+        return nil
+    }
+
     /// The full expansion `chain` would need before it gets capped — sections
     /// with a missing pattern don't count, matching what `chain` actually walks.
     var plannedPlaythroughs: Int {

@@ -164,6 +164,13 @@ final class ChipCore {
         set { chainCursor.pointee = newValue }
     }
 
+    /// The chain slot SONG playback is currently on, for the UI to read.
+    /// `currentPattern` alone can't say which arrangement section is sounding:
+    /// the same pattern can appear in several sections, and a section with
+    /// repeats occupies several slots. A racy read like the rest of the
+    /// playhead — worst case it is one buffer stale.
+    var currentChainSlot: Int32 { chainCursor.pointee }
+
     private var sampleCounter: Int32 = 0
     /// One-pole lowpass state, just enough to take the fizz off the aliasing.
     private var lpState: Double = 0
