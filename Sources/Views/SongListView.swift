@@ -156,9 +156,17 @@ struct SongListView: View {
                       allowsMultipleSelection: false) { result in
             switch result {
             case .success(let urls):
-                if let url = urls.first, studio.importSong(from: url) { dismiss() }
+                guard let url = urls.first else { return }
+                // Deferred one runloop tick: presenting the error alert in the
+                // same transaction as the file importer's own dismissal can
+                // cause SwiftUI to silently drop the alert presentation.
+                DispatchQueue.main.async {
+                    if studio.importSong(from: url) { dismiss() }
+                }
             case .failure(let error):
-                studio.importError = error.localizedDescription
+                DispatchQueue.main.async {
+                    studio.importError = error.localizedDescription
+                }
             }
         }
         .songShareSheet(for: studio)
