@@ -158,11 +158,16 @@ final class Studio {
         sessionObserver = observer
     }
 
-    /// Stops the audio engine when the app leaves the foreground and nothing is
-    /// playing. iOS suspends the process anyway without a background-audio
-    /// mode, so this is tidiness rather than a behaviour change.
-    func stopEngineIfIdle() {
-        guard !isPlaying else { return }
+    /// Stops the audio engine when the app leaves the foreground. iOS suspends
+    /// the process anyway without a background-audio mode, so if playback was
+    /// still going, it goes through the same `stop()` the transport button
+    /// uses rather than merely tearing down the engine — otherwise `isPlaying`
+    /// and the rest of the transport state would keep claiming playback is
+    /// ongoing after the audio has actually stopped.
+    func stopEngineForBackground() {
+        if isPlaying {
+            stop()
+        }
         engine.stopEngine()
     }
 
