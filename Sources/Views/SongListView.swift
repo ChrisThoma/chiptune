@@ -191,6 +191,11 @@ struct SongListView: View {
                 return songs.contains { $0.id != renaming?.id && $0.name == trimmed }
             }())
         }
+        // The library is itself a sheet, so a save failure (e.g. from
+        // Duplicate) needs its own presenter here — the one on ContentView is
+        // underneath this sheet and SwiftUI won't surface it. See
+        // `songShareSheet(for:)`'s doc comment for the same reasoning.
+        .errorAlert("Save failed", message: $studio.storageError)
     }
 
     private func reload() {
