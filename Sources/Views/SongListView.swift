@@ -182,9 +182,14 @@ struct SongListView: View {
                 renaming = nil
                 reload()
             }
-            // A blank name is rejected by the model; grey the button out
+            // A blank name, or one that collides with a different existing
+            // song's name, is rejected by the model; grey the button out
             // instead of letting it dismiss and silently do nothing.
-            .disabled(renameText.trimmingCharacters(in: .whitespaces).isEmpty)
+            .disabled({
+                let trimmed = renameText.trimmingCharacters(in: .whitespaces)
+                if trimmed.isEmpty { return true }
+                return songs.contains { $0.id != renaming?.id && $0.name == trimmed }
+            }())
         }
     }
 
