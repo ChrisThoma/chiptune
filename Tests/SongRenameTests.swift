@@ -63,6 +63,34 @@ final class SongRenameTests: XCTestCase {
         XCTAssertEqual(song.name, "Keep me", "a blank rename must leave the name alone")
     }
 
+    /// Two songs sharing a name are indistinguishable in the library list and
+    /// in the "OPEN" indicator, so renaming into a collision with a
+    /// *different* song's name must no-op rather than silently duplicate it.
+    func testRenamingToAnotherSongsNameIsRejected() throws {
+        let other = Song(name: "Taken")
+        temp.save(other)
+        var target = Song(name: "Keep me")
+        temp.save(target)
+
+        studio.rename(target, to: "Taken")
+
+        target = try XCTUnwrap(temp.store.load(id: target.id))
+        XCTAssertEqual(target.name, "Keep me", "a colliding rename must leave the name alone")
+    }
+
+    /// Re-confirming a song's own current name (including different
+    /// whitespace/casing-preserving trim) must not be blocked as a "duplicate"
+    /// of itself.
+    func testRenamingASongToItsOwnCurrentNameIsAllowed() throws {
+        var song = Song(name: "Mine")
+        temp.save(song)
+
+        studio.rename(song, to: "  Mine  ")
+
+        song = try XCTUnwrap(temp.store.load(id: song.id))
+        XCTAssertEqual(song.name, "Mine")
+    }
+
     func testRenameTrimsSurroundingWhitespace() throws {
         var song = Song(name: "Old")
         temp.save(song)

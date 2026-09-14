@@ -939,6 +939,11 @@ final class Studio {
     func rename(_ other: Song, to name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
+        // Two songs sharing a name are indistinguishable in the library list
+        // and in the "OPEN" indicator, so a collision with a *different*
+        // song's name is refused rather than silently renaming into it.
+        let collides = store.loadAll().contains { $0.id != other.id && $0.name == trimmed }
+        guard !collides else { return }
         if other.id == song.id {
             // One step, not folded into whatever came before: a rename from the
             // library is a single deliberate act, unlike typing in the title bar.
