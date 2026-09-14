@@ -172,11 +172,23 @@ private struct KeyCatcher: UIViewRepresentable {
     final class CatcherView: UIView {
         var handle: ((UIKey) -> Bool)?
 
+        /// The one instance actually installed in the view hierarchy (the
+        /// editor has exactly one). Lets a deliberate focus handoff elsewhere
+        /// in the app — ending a song rename — reclaim first responder
+        /// directly, rather than only through `updateUIView` incidentally
+        /// running again. See `HardwareKeyCapture.reclaim()`.
+        static weak var current: CatcherView?
+
         override var canBecomeFirstResponder: Bool { true }
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
-            if window != nil { becomeFirstResponder() }
+            if window != nil {
+                CatcherView.current = self
+                becomeFirstResponder()
+            } else if CatcherView.current === self {
+                CatcherView.current = nil
+            }
         }
 
         override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
@@ -195,6 +207,36 @@ private struct KeyCatcher: UIViewRepresentable {
             if !unhandled.isEmpty {
                 super.pressesBegan(unhandled, with: event)
             }
+        }
+    }
+}
+
+/// Reclaims the hardware-key catcher's first-responder status on demand.
+/// Called directly from wherever the app deliberately hands focus to a text
+/// field and then takes it back — e.g. ending a song rename — instead of
+/// relying solely on `KeyCatcher.updateUIView` happening to run again for
+/// that.
+///
+/// It has to be a separate, explicit call: `nameFocused` going false is a
+/// `@FocusState` owned by `ContentView`, so it invalidates only
+/// `ContentView`'s body, and `updateUIView` runs as part of that same
+/// render pass — before SwiftUI has actually told UIKit to resign the text
+/// field's first-responder status, which happens slightly later. At that
+/// moment `UIResponder.textIsFirstResponder` is still true, so the reclaim
+/// attempt in `updateUIView` no-ops, and nothing else in the app is
+/// guaranteed to force `updateUIView` to run again afterward — leaving
+/// hardware keys dead until relaunch. Deferring to the next run loop turn
+/// gives the resign time to actually land first.
+enum HardwareKeyCapture {
+    @MainActor
+    static func reclaim() {
+        DispatchQueue.main.async {
+            guard let view = KeyCatcher.CatcherView.current,
+                  view.window != nil,
+                  !view.isFirstResponder,
+                  !UIResponder.textIsFirstResponder
+            else { return }
+            view.becomeFirstResponder()
         }
     }
 }

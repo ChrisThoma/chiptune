@@ -423,7 +423,15 @@ struct ContentView: View {
                 .focused($nameFocused)
                 .onSubmit { studio.normalizeSongName() }
                 .onChange(of: nameFocused) { _, focused in
-                    if !focused { studio.normalizeSongName() }
+                    if !focused {
+                        studio.normalizeSongName()
+                        // Covers every path back out of the field (tapping
+                        // away, endRenaming(), a rename alert taking focus),
+                        // since updateUIView reaching KeyCatcher again isn't
+                        // guaranteed to happen, and isn't guaranteed to see
+                        // the field as resigned yet even when it does.
+                        HardwareKeyCapture.reclaim()
+                    }
                 }
 
             // Both close any open rename first, so undo lands on the step the
