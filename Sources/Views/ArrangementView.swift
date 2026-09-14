@@ -86,7 +86,7 @@ struct ArrangementView: View {
 
     private var summary: String {
         let song = studio.song
-        return "\(Format.count(song.chain.count, "pattern")) · \(song.arrangementSteps) steps · \(Format.clock(song.arrangementDuration)) at \(Format.bpm(song.tempo))"
+        return "\(Format.count(Set(song.chain).count, "pattern")) · \(song.arrangementSteps) steps · \(Format.clock(song.arrangementDuration)) at \(Format.bpm(song.tempo))"
     }
 
     private func row(position: Int, section: SongSection) -> some View {
