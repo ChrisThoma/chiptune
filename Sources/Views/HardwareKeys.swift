@@ -233,9 +233,27 @@ enum HardwareKeyCapture {
         DispatchQueue.main.async {
             guard let view = KeyCatcher.CatcherView.current,
                   view.window != nil,
-                  !view.isFirstResponder,
-                  !UIResponder.textIsFirstResponder
+                  !view.isFirstResponder
             else { return }
+            // Deliberately *not* guarded on `!textIsFirstResponder` the way
+            // `updateUIView` is. That guard is right for a redraw, which can
+            // land mid-rename and must not pull the keyboard out from under
+            // a field being typed into. It is wrong here: this is only
+            // called once the app has decided the rename is over, and the
+            // case that has to be fixed is precisely a name field that is
+            // still holding the keyboard — a `@FocusState` flipping to false
+            // is not a promise that SwiftUI has resigned the underlying text
+            // field yet, or ever. Backing off then leaves the field first
+            // responder with nothing scheduled to try again, so every
+            // subsequent hardware key is typed into the song title.
+            //
+            // So take it rather than ask for it. `becomeFirstResponder()`
+            // does route through the current holder's `resignFirstResponder`,
+            // but a text field is entitled to refuse mid-edit; resigning it
+            // first, as its own decision, is the part that actually lands.
+            if let holder = UIResponder.currentFirstResponder, holder !== view {
+                holder.resignFirstResponder()
+            }
             view.becomeFirstResponder()
         }
     }

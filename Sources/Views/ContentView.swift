@@ -234,8 +234,16 @@ struct ContentView: View {
     private func chrome(_ layout: ChipLayout) -> some View {
         VStack(spacing: 0) {
             titleBar
+            // Same reason the grid and the piano close the rename out: these
+            // are buttons and steppers, so UIKit hands them no focus and the
+            // name field above keeps the keyboard — and the hardware keys with
+            // it — while the user is plainly working on something else. The
+            // gesture is attached to each bar rather than the stack, or it
+            // would fire on the tap that opens the name field.
             TransportBar(studio: studio, showingArrangement: $showingArrangement)
+                .simultaneousGesture(TapGesture().onEnded { endRenaming() })
             PatternBar(studio: studio)
+                .simultaneousGesture(TapGesture().onEnded { endRenaming() })
         }
         .frame(maxWidth: layout.chromeMaxWidth)
         .frame(maxWidth: .infinity)
@@ -380,10 +388,20 @@ struct ContentView: View {
     /// controls that act on the song while the field still has focus. Calls
     /// through directly rather than relying on the focus change alone, which
     /// arrives a beat later than the action that triggered it.
+    ///
+    /// The keyboard is taken back unconditionally, even when `nameFocused`
+    /// already reads false: the flag is what SwiftUI intends, not what UIKit
+    /// has done, and the two can disagree. When they do, this tap is the only
+    /// signal that the user is finished with the field — returning early on
+    /// the flag alone left a field that never actually resigned holding every
+    /// hardware key for the rest of the session. Reclaiming when nothing
+    /// borrowed the keyboard is a no-op.
     private func endRenaming() {
-        guard nameFocused else { return }
-        nameFocused = false
-        studio.normalizeSongName()
+        if nameFocused {
+            nameFocused = false
+            studio.normalizeSongName()
+        }
+        HardwareKeyCapture.reclaim()
     }
 
     private var titleBar: some View {
