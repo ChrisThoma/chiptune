@@ -117,7 +117,8 @@ final class ErrorSurfacingTests: XCTestCase {
         addTeardownBlock { @MainActor in studio.invalidateTimers() }
 
         studio.song.name = "Unsaveable"
-        studio.saveNow()
+        XCTAssertFalse(studio.saveNow(),
+                       "a failed save must report failure so callers like the Songs button don't proceed as if it succeeded")
 
         XCTAssertNotNil(studio.storageError, "a save that failed must not do so quietly")
         XCTAssertTrue(studio.storageError?.contains("Unsaveable") ?? false,
@@ -130,7 +131,8 @@ final class ErrorSurfacingTests: XCTestCase {
         addTeardownBlock { @MainActor in studio.invalidateTimers() }
 
         studio.storageError = "something went wrong earlier"
-        studio.saveNow()
+        XCTAssertTrue(studio.saveNow(),
+                      "a successful save must report success so callers like the Songs button can proceed")
 
         XCTAssertNil(studio.storageError)
     }

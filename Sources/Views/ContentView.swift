@@ -394,8 +394,9 @@ struct ContentView: View {
                 // Before the save, or the library lists the name as it was
                 // before whatever is still being typed in the field.
                 endRenaming()
-                studio.saveNow()
-                showingSongs = true
+                if studio.saveNow() {
+                    showingSongs = true
+                }
             } label: {
                 Image(systemName: "music.note.list")
                     .symbolFont(19)
