@@ -66,6 +66,9 @@ struct SongListView: View {
     @State private var renaming: Song?
     @State private var renameText = ""
     @State private var showingImporter = false
+    /// A save failure raised by an action taken here, moved out of the studio
+    /// so only this sheet's alert presents it.
+    @State private var saveError: String?
 
     var body: some View {
         NavigationStack {
@@ -195,7 +198,14 @@ struct SongListView: View {
         // Duplicate) needs its own presenter here — the one on ContentView is
         // underneath this sheet and SwiftUI won't surface it. See
         // `songShareSheet(for:)`'s doc comment for the same reasoning.
-        .errorAlert("Save failed", message: $studio.storageError)
+        //
+        // It is driven by local state rather than `studio.storageError`
+        // directly: two live presenters bound to the same property — the
+        // editor's and this one — try to present at once, and the editor's,
+        // whose view controller is already presenting this sheet, tears the
+        // sheet down instead. Taking the message out of the studio leaves
+        // exactly one presenter for it, the same shape the Rename alert uses.
+        .errorAlert("Save failed", message: $saveError)
     }
 
     private func reload() {
@@ -266,6 +276,13 @@ struct SongListView: View {
     private func duplicateAction(_ song: Song) -> some View {
         Button {
             studio.duplicate(song)
+            // Claim the failure for this sheet's alert and clear it on the
+            // studio, so the editor's presenter underneath stays idle rather
+            // than dismissing the library to present the same message.
+            if let error = studio.storageError {
+                studio.storageError = nil
+                saveError = error
+            }
             reload()
         } label: {
             Label("Duplicate", systemImage: "plus.square.on.square")
