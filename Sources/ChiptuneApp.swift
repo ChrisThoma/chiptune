@@ -59,7 +59,7 @@ struct ChiptuneApp: App {
                 // have fired yet.
                 if phase != .active {
                     studio?.saveNow()
-                    studio?.stopEngineIfIdle()
+                    studio?.stopEngineForBackground()
                 }
             }
         }

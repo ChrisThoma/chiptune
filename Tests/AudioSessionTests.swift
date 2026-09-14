@@ -206,15 +206,18 @@ final class StudioAudioSessionTests: XCTestCase {
         XCTAssertFalse(samples.contains { !$0.isFinite })
     }
 
-    func testBackgroundingStopsTheEngineOnlyWhenIdle() {
-        studio.isPlaying = true
-        studio.stopEngineIfIdle()
-        // Nothing to assert about the engine's internals beyond this: what
-        // matters is that a playing app is not silenced by its own bookkeeping.
-        XCTAssertTrue(studio.isPlaying)
+    func testBackgroundingWhilePlayingStopsPlaybackTruthfully() {
+        pretendPlaying()
+        studio.stopEngineForBackground()
+        // No background-audio mode is declared, so iOS suspends the audio
+        // regardless; the transport state must not keep claiming otherwise.
+        XCTAssertFalse(studio.isPlaying)
+        XCTAssertFalse(studio.engine.isRunning)
+    }
 
+    func testBackgroundingWhileIdleStopsTheEngine() {
         studio.isPlaying = false
-        studio.stopEngineIfIdle()
+        studio.stopEngineForBackground()
         XCTAssertFalse(studio.engine.isRunning)
     }
 }
