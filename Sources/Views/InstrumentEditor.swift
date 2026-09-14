@@ -194,8 +194,21 @@ struct InstrumentEditor: View {
                     // Hold used to be the far end of the decay slider, which
                     // meant the triangle shipped droning with nothing on screen
                     // saying so and no obvious way out.
-                    Toggle("Hold", isOn: instrument(\.sustain, default: false, kind: .sustain(index)))
+                    //
+                    // The native switch alone only registers a ~0.3s held
+                    // press here, not a normal quick tap — reproduced 5/5 on
+                    // device, with every other control in this Form (sliders,
+                    // segmented pickers) responding correctly to a quick tap
+                    // using the same binding pattern. No stray gesture,
+                    // background modifier, or custom ToggleStyle was found
+                    // nearby to explain it, so this simultaneous tap gesture
+                    // guarantees a quick tap flips the switch regardless of
+                    // the underlying UIKit recognition issue.
+                    Toggle("Hold", isOn: holdBinding)
                         .tint(accent)
+                        .simultaneousGesture(
+                            TapGesture().onEnded { holdBinding.wrappedValue.toggle() }
+                        )
 
                     slider(title: "Decay",
                            value: instrument(\.decay, default: 0.3, kind: .decay(index)),
@@ -325,6 +338,14 @@ struct InstrumentEditor: View {
                 studio.song.tracks[index].name =
                     trimmed.isEmpty ? nil : String(newValue.prefix(Track.maxNameLength))
             })
+    }
+
+    /// Same binding the Hold `Toggle` uses, hoisted so both the `Toggle`
+    /// itself and its `simultaneousGesture` fallback read and write the exact
+    /// same underlying value instead of two independently-constructed
+    /// bindings that merely happen to agree.
+    private var holdBinding: Binding<Bool> {
+        instrument(\.sustain, default: false, kind: .sustain(index))
     }
 
     private func instrument<T>(_ keyPath: WritableKeyPath<Instrument, T>,
