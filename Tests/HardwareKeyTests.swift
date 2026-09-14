@@ -181,6 +181,17 @@ final class HardwareKeyTests: XCTestCase {
                        "The note lands on the last step that still exists")
     }
 
+    /// The correction above must not wait for the next keystroke: otherwise
+    /// the cursor ring vanishes off the shortened grid the instant the STEPS
+    /// stepper is used, and only reappears (somewhere the user didn't ask for)
+    /// on the next key.
+    func testShorteningThePatternPullsTheCursorBackInsideImmediately() {
+        studio.setPatternLength(64)
+        studio.selectedStep = 60
+        studio.setPatternLength(16)
+        XCTAssertLessThan(studio.selectedStep, studio.patternLength)
+    }
+
     func testADeletedTrackPullsTheCursorBackInside() {
         studio.selectedTrack = studio.song.tracks.count - 1
         studio.removeTrack(at: studio.song.tracks.count - 1)

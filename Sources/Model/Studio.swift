@@ -723,6 +723,7 @@ final class Studio {
         pinToSelectedPattern()
         song.patterns[selectedPattern].length = length.clamped(to: Chip.patternLengthRange)
         engine.core.setLength(pattern: selectedPattern, length: song.patterns[selectedPattern].length)
+        clampCursor()
     }
 
     /// Adds an empty pattern, appends it to the arrangement, and starts editing it.
