@@ -37,10 +37,18 @@ struct ArrangementView: View {
                             }
                         }
                     } label: {
+                        // The row's own content inset, not the label, was the
+                        // last dead strip: a full-width label still stops 16pt
+                        // short of the cell's trailing edge. Zero the row insets
+                        // and re-apply the 16pt as padding inside the tappable
+                        // shape, so the shape reaches the real edge while the
+                        // text stays aligned with the section rows above.
                         Label("Add section", systemImage: "plus")
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16)
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                             .contentShape(Rectangle())
                     }
+                    .listRowInsets(EdgeInsets())
                 } header: {
                     Text("Play order")
                 } footer: {
