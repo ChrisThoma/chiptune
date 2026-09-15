@@ -38,6 +38,8 @@ struct ArrangementView: View {
                         }
                     } label: {
                         Label("Add section", systemImage: "plus")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                     }
                 } header: {
                     Text("Play order")
