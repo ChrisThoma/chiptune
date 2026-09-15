@@ -17,7 +17,7 @@ Reuse these; never duplicate them.
 
 iPad simulators from a prior hunt (`BugHunt-Chiptune-iPad-A` / `-B`) remain registered but are out of scope for this target; do not drive them.
 
-Current source HEAD: `7f0643f`. Built and installed on both iPhone simulators.
+Current source HEAD: `a30e5e4`. Built and installed on both iPhone simulators for this hunt.
 
 Repository notes report an iOS 26 Simulator dimming artifact on 13-inch iPad sheets; not applicable to this iPhone target.
 
@@ -97,19 +97,19 @@ coverage: discovered | tested: none this hunt | next: build a recognizable loop,
 
 J3 | compose with a hardware keyboard | editor with hardware keyboard connected | Simulator I/O -> Keyboard -> Connect Hardware Keyboard | mapped keys move the cursor, enter/clear notes, control octave/OFF, and play/stop without stealing text-field input
 states/branches: first key reveals cursor; arrow edge; step wrap; pattern shrink; track deletion; rename focus handoff; unsupported/modifier keys
-coverage: discovered | tested: none this hunt | next: note-entry run, cursor boundaries, and focus return after title editing
+coverage: iPhone pass 1 | tested: first-key-reveals-cursor, pattern-length wrap-on-type, title-field decoupling during editing — correct; found hardware-key capture is lost PERMANENTLY after any title-field edit, not recovering on any subsequent UI interaction, only on relaunch — filed. Arrow-key edge/step behavior not testable with current tooling (ui_type cannot send non-printable HID keys) | next: track-deletion cursor recovery, unsupported/modifier-key no-op check, an arrow-key injection method
 
 J4 | create and manage pattern variations | Pattern bar | song below 16-pattern limit | add/duplicate/rename/clear/delete/resize produces the intended pattern and coherent arrangement references
 states/branches: add; duplicate; unique/blank/long rename; 4/64-step bounds; clear cancel/confirm; delete cancel/confirm; final-pattern guard; undo
-coverage: iPhone SIM-A pass 1 | tested: add (works, auto-letters B/C, empty+selected), duplicate via long-press context menu (correctly copies sentinel note content), long rename (BUG: silently truncates to 6 characters, see below), 4-step floor and 64-step ceiling (both correctly disable their stepper button, +/-4 linear increments), delete confirmation dialog (uses truncated name), final-pattern guard (Delete menu item correctly disabled when 1 pattern remains), undo of pattern delete (restores pattern AND its note content intact) | next: blank/duplicate-name rename validation, Clear confirm/cancel, redo, and step-count-change effect on existing note data (steps beyond new count)
+coverage: discovered | tested: prior-hunt pass (pre-fix #2/#2-retry) found add, duplicate, rename, 4/64-step bounds, delete confirmation, final-pattern guard, and undo behavior; rename is now an intentional 6-char-capped sheet with a live counter (fixed by #2/#2-retry), not a defect — re-verify rest fresh this hunt | next: add/duplicate/rename/4-64-step bounds/delete/undo pass, then blank/duplicate-name rename validation, Clear confirm/cancel, redo, and step-count-change effect on existing note data
 
 J5 | arrange and play a complete song | ARR -> ArrangementView -> SONG playback | at least two distinct patterns | sections, pattern choices, order, and repeat counts persist and playback follows the visible arrangement
 states/branches: add/reorder/delete section; repeats 1/16; empty fallback; PATT vs SONG; edit while playing; exactly/over 128 plays
-coverage: discovered | tested: none this hunt | next: two-pattern arrangement, reorder/repeats, SONG playback, and capacity warning
+coverage: iPhone pass 2 | tested: reorder(partial)/delete sections, repeats 1/16 bounds, PATT↔SONG switch, live-edit-while-playing, >128-play-through capacity warning (orange banner shown correctly) — all correct; arrangement summary mislabel (fixed, #9); empty-arrangement branch unreachable (final-section guard, intentional); found "Add section" Menu control appears completely non-functional via tap — the only way a section is ever added is the undocumented side effect of creating a new pattern (filed, #11) | next: confirm #11 isn't a testing-tool Menu-tap artifact before/while fixing; J9 cancel-mid-render remains blocked (simulator DSP render too fast even at max 128-play/4:16 arrangement)
 
 J6 | design and manage a track sound | select track header -> InstrumentEditor/docked editor | existing track | preset/manual parameters, mute, channel kind, rename, duplicate, clear, and delete affect the intended voice and notes
 states/branches: preset/custom; pulse duty; hold/decay; arpeggio; mute/preview; kind switch; duplicate; clear current pattern; delete across patterns; 1/8-track bounds; undo
-coverage: discovered | tested: none this hunt | next: edit one track via the InstrumentEditor sheet, then duplicate/delete with sentinel notes
+coverage: iPhone pass 3 | tested: preset/custom switch, channel-kind switch, duplicate-with-multi-pattern-notes, clear-current-pattern-only, delete-across-patterns+undo, 1/8-track bounds, pulse duty (persist/revert-on-kind-switch), arpeggio (set + kind-switch reset), mute visual toggle — all correct except Hold toggle requires a long-press instead of a normal tap (filed) | next: audio-verification of mute/preview needs a physical device (no audio capture in this toolset)
 
 J7 | manage the song library | Songs -> SongListView | starter or seeded five-song library | create/open/rename/duplicate/share/delete updates the right project and current-song indicator without losing edits
 states/branches: immediate save on open; newest-first sort; new; open; rename validation; duplicate; share; delete non-current/current/last; close/reopen
@@ -117,15 +117,15 @@ coverage: discovered | tested: none this hunt | next: seeded-library create/open
 
 J8 | share and import an editable song | song menu/library Share; Songs -> Add -> Import; open `.chipsong` URL | valid, malformed, legacy, hostile, and duplicate-ID files | valid input becomes a normalized local copy; invalid input explains failure; shared file is usable and named safely
 states/branches: share success/failure/cancel; picker cancel; malformed JSON; ID collision; legacy migration; out-of-range normalization; launch-time URL
-coverage: discovered | tested: none this hunt | next: share then re-import a sentinel song, malformed import, and duplicate-ID import
+coverage: iPhone pass 1 (partial) | tested: malformed-JSON import, valid-JSON-missing-required-fields import, duplicate-ID re-import — all correct (clean "Import failed" alert or fresh-UUID distinct entry, no crash/corruption) | next: share success/cancel via real Files/Mail flow, legacy migration, out-of-range normalization, launch-time cold URL, hostile/oversized files. Lead: the system "Save to Files" document picker from in-app Share appeared to hang navigating the Apps location list — needs a follow-up pass with correct point-based tap coords (first attempt used screenshot-pixel coords) before treating as a real bug.
 
 J9 | export and share a WAV | song menu -> Export WAV | song with audible arrangement | render progress is truthful; cancel/retry works; completed WAV has selected repeat/ending and share appears once
 states/branches: repeats 1/16; seamless/ring-out; progress; cancel; retry; double submit; write failure; oversized RIFF; share cancel/complete/failure
-coverage: discovered | tested: none this hunt | next: normal export/share, cancellation/retry, and rapid repeated Export
+coverage: iPhone pass 1 | tested: repeats 1/16 bounds, seamless/ring-out duration reflection, progress UI, double-submit (single share sheet), share-sheet-once across 3 exports — all correct; stepper buttons stay enabled past bounds rather than disabling (S4, not filed) | next: cancel-mid-render/retry (simulator DSP render too fast to land a cancel tap — needs a much longer arrangement or different technique) and the 128-flattened-playthrough cap warning (needs a multi-section arrangement built first)
 
 J10 | recover edits across undo, autosave, and lifecycle changes | mutate tempo/title/cells/patterns/tracks/arrangement -> undo/relaunch | sentinel edits in one song and at least two songs | unrelated operations undo separately; redo invalidates correctly; autosave preserves the active song without crossing song boundaries
 states/branches: coalesced same-kind edits; unrelated rapid edits; title run; background before debounce; save failure; open/new/delete resets history; 50-entry limit
-coverage: discovered | tested: none this hunt | next: mixed edits, background before debounce, relaunch, and cross-song undo boundary
+coverage: iPhone pass 1 | tested: unrelated-edit segmentation, background-before-debounce save, cross-song autosave boundary, song-switch undo reset, title-edit coalescing, redo invalidation — all correct; discrete BPM-stepper taps don't coalesce (lead, not filed as a bug) | next: 50-entry undo limit, save-failure path, BPM drag/slider coalescing
 
 ## Condition Matrix
 
