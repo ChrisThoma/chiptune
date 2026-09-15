@@ -152,12 +152,22 @@ struct InstrumentEditor: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Name") {
+                Section {
                     // Placeholder rather than a pre-filled value: an untouched
                     // track has no name, and showing "TRI" in the field would
                     // make clearing it look like it did something.
                     TextField(kind.fullName, text: trackName)
                         .accessibilityLabel("Track name")
+                } header: {
+                    Text("Name")
+                } footer: {
+                    // trackName's own setter already caps every keystroke at
+                    // Track.maxNameLength (see below), so typing past the
+                    // limit was silently swallowed with nothing on screen to
+                    // explain why the field stopped changing. This mirrors
+                    // PatternRenameSheet's counter so the cap is visible
+                    // instead of feeling like a stuck keyboard.
+                    Text("Up to \(Track.maxNameLength) characters — \(trackName.wrappedValue.count) of \(Track.maxNameLength) used.")
                 }
 
                 Section("Channel") {
