@@ -98,6 +98,55 @@ final class LayoutTests: XCTestCase {
         }
     }
 
+    // MARK: Chrome tap targets (HIG 1.2, 44pt minimum)
+
+    /// Every chrome control an iPad user taps — tray height, stepper ends,
+    /// the history buttons, the title icons — has to clear the 44pt minimum
+    /// on both axes. `Theme.trayHeight` and the old literal widths were
+    /// phone numbers reused on the iPad without checking.
+    func testPadChromeMetricsMeetTheFortyFourPointMinimum() {
+        let pad = ChipLayout.pad
+        XCTAssertGreaterThanOrEqual(pad.trayHeight, 44)
+        XCTAssertGreaterThanOrEqual(pad.stepperEndWidth, 44)
+        XCTAssertGreaterThanOrEqual(pad.historyButtonWidth, 44)
+        XCTAssertGreaterThanOrEqual(pad.titleIconTargetSize, 44)
+        // These two came in narrower than the rest — 40x52 and 42x52,
+        // measured on the accessibility tree — so they get their own floor
+        // rather than the full 44: 48pt clears the minimum with room for the
+        // pattern name inside.
+        XCTAssertGreaterThanOrEqual(pad.patternChipWidth, 48)
+        XCTAssertGreaterThanOrEqual(pad.patternAddWidth, 48)
+    }
+
+    /// The phone path must render exactly as it did before this layout grew
+    /// pad-only chrome metrics — these are today's numbers, not new ones.
+    func testPhoneChromeMetricsAreUnchanged() {
+        let phone = ChipLayout.phone
+        XCTAssertEqual(phone.trayHeight, Theme.trayHeight)
+        XCTAssertEqual(phone.stepperEndWidth, 38)
+        XCTAssertEqual(phone.historyButtonWidth, 34)
+        XCTAssertEqual(phone.titleIconTargetSize, 44)
+        XCTAssertEqual(phone.titleIconGlyphSize, 19)
+        XCTAssertEqual(phone.patternSegmentWidth, 52)
+        XCTAssertEqual(phone.arrButtonWidth, 48)
+        XCTAssertEqual(phone.patternChipWidth, 40)
+        XCTAssertEqual(phone.patternAddWidth, 42)
+    }
+
+    /// Play button (56) + mode tray (PATT/SONG segments + ARR) + BPM stepper
+    /// (two ends plus the readout) all sit in one row that still has to fit a
+    /// regular-width half Split View — about 640pt of window minus the
+    /// chrome's own horizontal padding.
+    func testPadTransportRowFitsAHalfWidthSplitView() {
+        let pad = ChipLayout.pad
+        let playButtonWidth: CGFloat = 56
+        let modeTrayWidth = pad.patternSegmentWidth * 2 + pad.arrButtonWidth
+        let stepperWidth = pad.stepperEndWidth * 2 + 38 // the BPM readout itself
+        let rowSpacing: CGFloat = 8 + 12 // play/mode gap + mode/stepper spacer
+        let total = playButtonWidth + modeTrayWidth + stepperWidth + rowSpacing
+        XCTAssertLessThanOrEqual(total, 600)
+    }
+
     func testChromeStopsSpreadingOnIPadAndNeverDoesOnIPhone() {
         let pad = ChipLayout.resolve(size: padLandscape, horizontalSizeClass: .regular)
         XCTAssertLessThan(pad.chromeMaxWidth,

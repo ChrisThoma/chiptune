@@ -31,6 +31,36 @@ struct ChipLayout: Equatable {
     /// they centre in whatever space is left, rather than pushing BPM and
     /// STEPS half a metre away from the play button they belong beside.
     var chromeMaxWidth: CGFloat
+    /// Height of the transport/pattern trays and their chips. Phone keeps
+    /// `Theme.trayHeight`, which other, non-chrome code still reads directly;
+    /// the pad path stops reading that constant and gets its own number.
+    var trayHeight: CGFloat
+    /// Width of a stepper's minus/plus ends — the whole reason the phone
+    /// numbers didn't work on a pad: 38pt of end plus the tray's own height
+    /// measured well under 44pt on either axis once the pad grew everything
+    /// else.
+    var stepperEndWidth: CGFloat
+    /// Width of the undo/redo buttons beside the song name. Narrower than
+    /// every other target on purpose — see the call site — so it still has
+    /// its own metric instead of borrowing one of the others.
+    var historyButtonWidth: CGFloat
+    /// The tappable square around a title-bar icon (Songs, the ••• menu).
+    /// Already 44pt on the phone, so the pad value is the same number; kept
+    /// as its own metric so the glyph size beside it has something to sit in.
+    var titleIconTargetSize: CGFloat
+    /// Point size of the glyph inside that square. Grows a little on the pad
+    /// so the icon doesn't look lost in the target around it.
+    var titleIconGlyphSize: CGFloat
+    /// Width of a PATT or SONG segment in the transport's mode toggle.
+    var patternSegmentWidth: CGFloat
+    /// Width of the ARR button beside that toggle.
+    var arrButtonWidth: CGFloat
+    /// Minimum width of a pattern chip in the strip. A floor, not a fixed
+    /// size — the chip still grows for a longer name — so this only needed
+    /// raising, not restructuring, to clear 44pt on the pad.
+    var patternChipWidth: CGFloat
+    /// Width of the "+" button that adds a pattern.
+    var patternAddWidth: CGFloat
     /// iPad-shaped window rather than phone-shaped. Kept as a stored flag
     /// because a popover's *content* is handed a compact size class whatever
     /// the window is — 400pt of popover is compact by any measure — so the
@@ -69,6 +99,15 @@ struct ChipLayout: Equatable {
         keyboardMaxWidth: .infinity,
         keyLabelSize: 9,
         chromeMaxWidth: .infinity,
+        trayHeight: Theme.trayHeight,
+        stepperEndWidth: 38,
+        historyButtonWidth: 34,
+        titleIconTargetSize: 44,
+        titleIconGlyphSize: 19,
+        patternSegmentWidth: 52,
+        arrButtonWidth: 48,
+        patternChipWidth: 40,
+        patternAddWidth: 42,
         isRegularWidth: false,
         usesSideKeyboard: false
     )
@@ -82,6 +121,15 @@ struct ChipLayout: Equatable {
         keyboardMaxWidth: 720,
         keyLabelSize: 11,
         chromeMaxWidth: 720,
+        trayHeight: 52,
+        stepperEndWidth: 48,
+        historyButtonWidth: 44,
+        titleIconTargetSize: 44,
+        titleIconGlyphSize: 21,
+        patternSegmentWidth: 60,
+        arrButtonWidth: 56,
+        patternChipWidth: 48,
+        patternAddWidth: 48,
         isRegularWidth: true,
         usesSideKeyboard: false
     )
