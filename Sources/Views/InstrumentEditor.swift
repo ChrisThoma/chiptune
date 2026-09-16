@@ -453,16 +453,3 @@ struct InstrumentEditor: View {
     }
 }
 
-private extension View {
-    /// A popover takes its size from its content and has no detents, so it
-    /// needs one stated. A sheet does not, and a minimum height taller than
-    /// the medium detent would fight the detent it was given.
-    @ViewBuilder
-    func popoverSized(_ apply: Bool) -> some View {
-        if apply {
-            frame(minWidth: 380, idealWidth: 420, minHeight: 420, idealHeight: 520)
-        } else {
-            self
-        }
-    }
-}

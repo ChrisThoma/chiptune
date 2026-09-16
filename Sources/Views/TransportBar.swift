@@ -5,6 +5,7 @@ struct TransportBar: View {
     @Bindable var studio: Studio
     @Binding var showingArrangement: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.chipLayout) private var layout
     @ScaledMetric(relativeTo: .body) private var trayHeight = Theme.trayHeight
     @State private var editingTempo = false
     @State private var tempoText = ""
@@ -80,6 +81,17 @@ struct TransportBar: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Arrangement")
+            // Anchored to the ARR button so the play order sits beside the
+            // transport that plays it and the grid stays visible behind;
+            // a phone gets the sheet it has always had.
+            .popover(isPresented: $showingArrangement,
+                     attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
+                // `isRegularWidth` comes from the presenting side: a popover's
+                // content is handed a compact size class whatever the window
+                // is, so the view inside can't ask for itself.
+                ArrangementView(studio: studio, regularWidth: layout.isRegularWidth)
+                    .presentationCompactAdaptation(.sheet)
+            }
         }
         .chipTray()
     }

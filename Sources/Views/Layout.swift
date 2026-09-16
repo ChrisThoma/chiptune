@@ -153,6 +153,51 @@ extension View {
     }
 }
 
+extension View {
+    /// A popover takes its size from its content and has no detents, so it
+    /// needs one stated. A sheet does not, and a minimum height taller than
+    /// the medium detent would fight the detent it was given.
+    ///
+    /// The defaults are the instrument editor's numbers, which every popover
+    /// in the app was sized by before this moved out of it; screens with more
+    /// to show pass their own.
+    @ViewBuilder
+    func popoverSized(_ apply: Bool,
+                      minWidth: CGFloat = 380,
+                      idealWidth: CGFloat = 420,
+                      minHeight: CGFloat = 420,
+                      idealHeight: CGFloat = 520) -> some View {
+        if apply {
+            modifier(PopoverSize(minWidth: minWidth, idealWidth: idealWidth,
+                                 minHeight: minHeight, idealHeight: idealHeight))
+        } else {
+            self
+        }
+    }
+}
+
+/// Scaled rather than fixed: a popover is the one presentation that doesn't
+/// grow itself for Dynamic Type — a sheet gets the screen and can scroll into
+/// it — so at the larger text sizes a fixed box clips its own controls.
+private struct PopoverSize: ViewModifier {
+    @ScaledMetric private var minWidth: CGFloat
+    @ScaledMetric private var idealWidth: CGFloat
+    @ScaledMetric private var minHeight: CGFloat
+    @ScaledMetric private var idealHeight: CGFloat
+
+    init(minWidth: CGFloat, idealWidth: CGFloat, minHeight: CGFloat, idealHeight: CGFloat) {
+        _minWidth = ScaledMetric(wrappedValue: minWidth, relativeTo: .body)
+        _idealWidth = ScaledMetric(wrappedValue: idealWidth, relativeTo: .body)
+        _minHeight = ScaledMetric(wrappedValue: minHeight, relativeTo: .body)
+        _idealHeight = ScaledMetric(wrappedValue: idealHeight, relativeTo: .body)
+    }
+
+    func body(content: Content) -> some View {
+        content.frame(minWidth: minWidth, idealWidth: idealWidth,
+                      minHeight: minHeight, idealHeight: idealHeight)
+    }
+}
+
 /// `.medium` is a fine starting height at ordinary text sizes, but at the
 /// accessibility Dynamic Type sizes each Form row is tall enough that the
 /// medium detent shows only the first section's heading — the rest of the
