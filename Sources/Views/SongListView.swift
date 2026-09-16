@@ -69,6 +69,8 @@ struct SongListView: View {
     /// A save failure raised by an action taken here, moved out of the studio
     /// so only this sheet's alert presents it.
     @State private var saveError: String?
+    /// A `.chipsong` is hovering over the library, waiting to be dropped.
+    @State private var dropTargeted = false
 
     var body: some View {
         NavigationStack {
@@ -98,6 +100,27 @@ struct SongListView: View {
                     .scrollContentBackground(.hidden)
                     .listRowSeparatorTint(Theme.grid)
                 }
+            }
+            // Dropping a song file here imports it, the same as the Import
+            // item in the Add menu. Attached out here rather than to the
+            // `List` so an empty library — the one most likely to be dropped
+            // on — is a target too.
+            .dropDestination(for: SongFile.self) { files, _ in
+                guard let file = files.first else { return false }
+                // Deferred one runloop tick for the same reason the file
+                // importer defers: importing (and dismissing) inside the
+                // drop's own transaction can make SwiftUI drop the error
+                // alert's presentation.
+                DispatchQueue.main.async {
+                    if studio.importSong(decoded: file.song) {
+                        reload()
+                        dismiss()
+                    }
+                }
+                return true
+            } isTargeted: { dropTargeted = $0 }
+            .overlay {
+                SongDropBorder(isTargeted: dropTargeted)
             }
             // A song row is a name and a date; across the full width of an
             // iPad form sheet that leaves a long empty gutter after each one,
@@ -247,6 +270,9 @@ struct SongListView: View {
         // Without this the List tints the whole label with the accent colour and
         // every song title renders blue.
         .buttonStyle(.plain)
+        // Drag a song out to Files or another app; the drag writes the same
+        // `.chipsong` the share action does.
+        .draggable(SongFile(song: song))
         .swipeActions(edge: .leading) {
             duplicateAction(song).tint(Theme.panelHigh)
             renameAction(song).tint(Theme.panelHigh)

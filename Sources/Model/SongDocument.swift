@@ -1,3 +1,4 @@
+import CoreTransferable
 import Foundation
 import UniformTypeIdentifiers
 
@@ -100,5 +101,47 @@ enum SongDocument {
         song.id = UUID()
         song.name = "\(song.name) (imported)"
         return song
+    }
+}
+
+/// A song being dragged — into the app from Files or another app, or out of
+/// the library onto anything that takes a file.
+///
+/// Drops arrive as data rather than as a URL: a dropped file's URL is only
+/// valid inside the callback that receives it, and the import work (save,
+/// open, alert on failure) outlives that. So the bytes are taken and decoded
+/// here, and only the outgoing direction deals in files.
+struct SongFile: Transferable {
+    let song: Song
+
+    init(song: Song) {
+        self.song = song
+    }
+
+    /// Decodes dropped bytes. Goes through `SongDocument`, so a drop gets the
+    /// same normalisation — and the same rejection of anything that isn't a
+    /// song — as a file opened from the importer.
+    static func imported(from data: Data) throws -> SongFile {
+        SongFile(song: try SongDocument.decode(data))
+    }
+
+    /// Writes the song out for a drag that leaves the app.
+    func exportedFile() throws -> URL {
+        try SongDocument.write(song)
+    }
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(exportedContentType: SongDocument.contentType) { file in
+            SentTransferredFile(try file.exportedFile())
+        }
+        DataRepresentation(importedContentType: SongDocument.contentType) { data in
+            try SongFile.imported(from: data)
+        }
+        // Songs shared through apps that don't know the `.chipsong` type
+        // arrive as the JSON the format conforms to; the importer accepts
+        // those too, and `decode` is what tells a song from any other JSON.
+        DataRepresentation(importedContentType: .json) { data in
+            try SongFile.imported(from: data)
+        }
     }
 }

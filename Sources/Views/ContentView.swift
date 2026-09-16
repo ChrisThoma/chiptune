@@ -113,6 +113,24 @@ enum ExportFlow {
     }
 }
 
+/// The border that says a dragged song will land here.
+///
+/// Nothing but the border: the editor and the library both already say what
+/// they are, and a drop hint with words in it would cover the thing being
+/// dropped onto.
+struct SongDropBorder: View {
+    let isTargeted: Bool
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .strokeBorder(Theme.accentGreen, lineWidth: 2)
+            .opacity(isTargeted ? 1 : 0)
+            .animation(.easeOut(duration: 0.12), value: isTargeted)
+            // The highlight is feedback, never a target.
+            .allowsHitTesting(false)
+    }
+}
+
 struct ContentView: View {
     @Bindable var studio: Studio
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -137,6 +155,8 @@ struct ContentView: View {
     /// called" for some activities — defaults to "not completed" rather than
     /// stale-carrying the previous share's outcome.
     @State private var shareOutcome: ReviewPromptPolicy.ShareOutcome = .cancelled
+    /// A `.chipsong` is hovering over the editor, waiting to be dropped.
+    @State private var songDropTargeted = false
     @FocusState private var nameFocused: Bool
 
     /// Fixed for the life of the process — the bundle can't change under a
@@ -163,6 +183,15 @@ struct ContentView: View {
                 }
             }
             .environment(\.chipLayout, layout)
+            // Dropping a song file on the editor opens it, the same as
+            // picking it in the importer.
+            .dropDestination(for: SongFile.self) { files, _ in
+                guard let file = files.first else { return false }
+                return studio.importSong(decoded: file.song)
+            } isTargeted: { songDropTargeted = $0 }
+            .overlay {
+                SongDropBorder(isTargeted: songDropTargeted)
+            }
         }
         .background(Theme.background.ignoresSafeArea())
         .preferredColorScheme(.dark)

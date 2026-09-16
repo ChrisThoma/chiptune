@@ -1067,17 +1067,31 @@ final class Studio {
     @discardableResult
     func importSong(from url: URL) -> Bool {
         do {
-            let decoded = try SongDocument.read(contentsOf: url)
-            let existing = store.loadAll().map(\.id)
-            let song = SongDocument.resolvingCollision(decoded, against: existing)
-            save(song, makeCurrent: false)
-            open(song)
-            importError = nil
-            return true
+            return importSong(decoded: try SongDocument.read(contentsOf: url))
         } catch {
             importError = error.localizedDescription
             return false
         }
+    }
+
+    /// Adds an already-decoded song to the library and opens it.
+    ///
+    /// A drag-and-drop arrives as bytes rather than as a file the app can
+    /// re-read, so it decodes for itself and joins the library here — the same
+    /// collision check, save and open the file importer gets.
+    @discardableResult
+    func importSong(decoded incoming: Song) -> Bool {
+        var incoming = incoming
+        // `open` normalises, but only after the song has been written out.
+        // A value the UI can't produce — a NaN tempo — fails to encode, so
+        // without this the import would land in the editor and nowhere else.
+        incoming.normalize()
+        let existing = store.loadAll().map(\.id)
+        let song = SongDocument.resolvingCollision(incoming, against: existing)
+        save(song, makeCurrent: false)
+        open(song)
+        importError = nil
+        return true
     }
 
     /// Copies a song in the library without opening it.
