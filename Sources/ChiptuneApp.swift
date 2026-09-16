@@ -63,6 +63,11 @@ struct ChiptuneApp: App {
                 }
             }
         }
+        // The only home for the app's Command chords: a shortcut on a menu row
+        // inside the editor doesn't fire app-wide on iOS, and one registered in
+        // both places shows up twice when Command is held. They reach the
+        // editor through `FocusedValues.editor`, which `ContentView` publishes.
+        .commands { EditorCommands() }
     }
 }
 
