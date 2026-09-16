@@ -1,9 +1,29 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 enum ArrangementCapacityAnnouncement {
     static func shouldAnnounce(previouslyExceeded: Bool, nowExceeds: Bool) -> Bool {
         !previouslyExceeded && nowExceeds
+    }
+}
+
+/// Identifies a dragged section row for pointer/trackpad reorder outside of
+/// Edit mode. `EditButton` + `.onMove` still handle touch reordering; this is
+/// the trackpad/mouse path HIG 4.6 asks for. The UTType is created on the fly
+/// rather than declared in Info.plist: the drag never leaves this app, so
+/// nothing outside this process needs to resolve the identifier.
+private struct DraggedSection: Codable, Transferable {
+    let id: UUID
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .chiptuneArrangementSection)
+    }
+}
+
+private extension UTType {
+    static var chiptuneArrangementSection: UTType {
+        UTType(exportedAs: "dev.individuation.chiptune.arrangement-section")
     }
 }
 
@@ -152,6 +172,19 @@ struct ArrangementView: View {
             .fixedSize()
             .accessibilityLabel("Repeats")
             .accessibilityValue("\(section.repeats) times")
+        }
+        .contentShape(Rectangle())
+        // Attached to the row container, not the Menu or Stepper, so tapping
+        // either still opens the picker / steps the count instead of starting
+        // a drag.
+        .draggable(DraggedSection(id: section.id))
+        .dropDestination(for: DraggedSection.self) { dragged, _ in
+            guard let dragged = dragged.first,
+                  let draggedIndex = studio.song.arrangement.firstIndex(where: { $0.id == dragged.id })
+            else { return false }
+            let destination = ArrangementReorder.destination(draggedIndex: draggedIndex, overIndex: position)
+            studio.moveSection(from: IndexSet(integer: draggedIndex), to: destination)
+            return true
         }
     }
 }
