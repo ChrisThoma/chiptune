@@ -163,6 +163,7 @@ struct PatternBar: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .hoverEffect(.highlight)
         .accessibilityLabel("Add pattern")
     }
 
@@ -196,6 +197,9 @@ struct PatternBar: View {
             )
         }
         .buttonStyle(.plain)
+        .hoverEffect(.highlight)
+        // Matches the chip's own corners so the glow doesn't spill past it.
+        .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: Theme.innerRadius))
         .accessibilityLabel("Pattern \(pattern.name)")
         .accessibilityAddTraits(selected ? [.isSelected] : [])
         .contextMenu {

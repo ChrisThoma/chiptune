@@ -63,6 +63,9 @@ struct TransportBar: View {
                 )
         }
         .buttonStyle(.plain)
+        .hoverEffect(.highlight)
+        // Matches the fill's own corners so the glow doesn't spill past it.
+        .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: Theme.trayRadius))
         .accessibilityLabel(studio.isPlaying ? "Stop" : "Play")
     }
 
@@ -80,6 +83,7 @@ struct TransportBar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .hoverEffect(.highlight)
             .accessibilityLabel("Arrangement")
             // Anchored to the ARR button so the play order sits beside the
             // transport that plays it and the grid stays visible behind;
@@ -137,6 +141,7 @@ struct TransportBar: View {
                 )
         }
         .buttonStyle(.plain)
+        .hoverEffect(.highlight)
         .accessibilityLabel(title == "PATT" ? "Pattern" : "Song")
         .accessibilityAddTraits(on ? [.isSelected] : [])
     }

@@ -499,6 +499,9 @@ struct ContentView: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
+        .hoverEffect(.highlight)
+        // A dimmed undo/redo shouldn't glow as if it were live.
+        .hoverEffectDisabled(!enabled)
         .accessibilityLabel(label)
     }
 
@@ -536,6 +539,7 @@ struct ContentView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .hoverEffect(.highlight)
             .accessibilityLabel("Songs")
 
             // Bound through `setSongName` rather than at `song.name` directly,
@@ -657,6 +661,7 @@ struct ContentView: View {
                     .foregroundStyle(Theme.text)
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
+                    .hoverEffect(.highlight)
             }
             .accessibilityLabel("Song menu")
             // Anchored to the menu it was chosen from, so the list appears

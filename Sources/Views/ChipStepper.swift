@@ -25,6 +25,9 @@ struct ChipStepper: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(canDecrease ? Theme.text : Theme.dim.opacity(0.4))
+            .hoverEffect(.highlight)
+            // A greyed-out end shouldn't glow as if it still had somewhere to go.
+            .hoverEffectDisabled(!canDecrease)
             .accessibilityLabel("Decrease \(label)")
             .accessibilityValue("Current value \(value)")
             .disabled(!canDecrease)
@@ -33,6 +36,7 @@ struct ChipStepper: View {
                 if let onTapValue {
                     Button(action: onTapValue) { readout }
                         .buttonStyle(.plain)
+                        .hoverEffect(.highlight)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(label)
                         .accessibilityValue("\(value)")
@@ -53,6 +57,8 @@ struct ChipStepper: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(canIncrease ? Theme.text : Theme.dim.opacity(0.4))
+            .hoverEffect(.highlight)
+            .hoverEffectDisabled(!canIncrease)
             .accessibilityLabel("Increase \(label)")
             .accessibilityValue("Current value \(value)")
             .disabled(!canIncrease)
