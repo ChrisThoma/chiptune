@@ -10,8 +10,13 @@ struct ChipStepper: View {
     let range: ClosedRange<Int>
     let onChange: (Int) -> Void
     var onTapValue: (() -> Void)?
-    @ScaledMetric(relativeTo: .body) private var trayHeight = Theme.trayHeight
-    @ScaledMetric(relativeTo: .body) private var buttonWidth: CGFloat = 38
+    @Environment(\.chipLayout) private var layout
+    // See TransportBar's `trayHeight`: the ratio scales for Dynamic Type,
+    // the layout supplies the phone/pad base.
+    @ScaledMetric(relativeTo: .body) private var trayHeightScale: CGFloat = 1
+    @ScaledMetric(relativeTo: .body) private var buttonWidthScale: CGFloat = 1
+    private var trayHeight: CGFloat { layout.trayHeight * trayHeightScale }
+    private var buttonWidth: CGFloat { layout.stepperEndWidth * buttonWidthScale }
 
     var canDecrease: Bool { value > range.lowerBound }
     var canIncrease: Bool { value < range.upperBound }

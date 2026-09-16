@@ -484,17 +484,19 @@ struct ContentView: View {
         }
     }
 
-    /// Narrower than the 44pt targets either side of them — two more of those
-    /// would squeeze the song name to nothing. Still comfortably tappable, and
-    /// dimmed rather than hidden when there's nothing to undo, so the row
-    /// doesn't reflow as you edit.
+    /// Narrower than the 44pt targets either side of them on the phone — two
+    /// more of those would squeeze the song name to nothing — but the pad has
+    /// the room, so `layout.historyButtonWidth` gives it the full 44pt there.
+    /// Still comfortably tappable at either size, and dimmed rather than
+    /// hidden when there's nothing to undo, so the row doesn't reflow as you
+    /// edit.
     private func historyButton(_ symbol: String, label: String, enabled: Bool,
-                               action: @escaping () -> Void) -> some View {
+                               width: CGFloat, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .symbolFont(15, weight: .semibold)
                 .foregroundStyle(enabled ? Theme.text : Theme.dim.opacity(0.4))
-                .frame(width: 34, height: 44)
+                .frame(width: width, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -533,9 +535,9 @@ struct ContentView: View {
                 openSongs()
             } label: {
                 Image(systemName: "music.note.list")
-                    .symbolFont(19)
+                    .symbolFont(layout.titleIconGlyphSize)
                     .foregroundStyle(Theme.text)
-                    .frame(width: 44, height: 44)
+                    .frame(width: layout.titleIconTargetSize, height: layout.titleIconTargetSize)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -572,15 +574,17 @@ struct ContentView: View {
             // Both close any open rename first, so undo lands on the step the
             // user can see rather than on one still being typed.
             historyButton("arrow.uturn.backward", label: "Undo",
-                          enabled: studio.canUndo) { endRenaming(); studio.undo() }
+                          enabled: studio.canUndo,
+                          width: layout.historyButtonWidth) { endRenaming(); studio.undo() }
             historyButton("arrow.uturn.forward", label: "Redo",
-                          enabled: studio.canRedo) { endRenaming(); studio.redo() }
+                          enabled: studio.canRedo,
+                          width: layout.historyButtonWidth) { endRenaming(); studio.redo() }
 
             // Export hangs off the same button the menu does, one layer out:
             // both presentations are anchored to the ••• glyph, and keeping
             // them on separate views means neither modifier has to share a
             // presentation slot with the other.
-            menuButton
+            menuButton(layout)
                 .popover(isPresented: $showingExport,
                          attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
                     ExportSheet(studio: studio, popover: layout.isRegularWidth)
@@ -595,7 +599,7 @@ struct ContentView: View {
         .padding(.bottom, 8)
     }
 
-    private var menuButton: some View {
+    private func menuButton(_ layout: ChipLayout) -> some View {
         Group {
             Menu {
                 Button {
@@ -657,9 +661,9 @@ struct ContentView: View {
                 }
             } label: {
                 Image(systemName: "ellipsis.circle.fill")
-                    .symbolFont(19)
+                    .symbolFont(layout.titleIconGlyphSize)
                     .foregroundStyle(Theme.text)
-                    .frame(width: 44, height: 44)
+                    .frame(width: layout.titleIconTargetSize, height: layout.titleIconTargetSize)
                     .contentShape(Rectangle())
                     .hoverEffect(.highlight)
             }

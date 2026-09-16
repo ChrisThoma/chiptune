@@ -6,7 +6,12 @@ struct TransportBar: View {
     @Binding var showingArrangement: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.chipLayout) private var layout
-    @ScaledMetric(relativeTo: .body) private var trayHeight = Theme.trayHeight
+    // Dynamic Type still has to scale the tray up: this scales as a ratio
+    // against a fixed 1pt base, then multiplies the layout's own tray height
+    // by it, rather than baking a phone-only literal into the ScaledMetric
+    // the way `Theme.trayHeight` used to.
+    @ScaledMetric(relativeTo: .body) private var trayHeightScale: CGFloat = 1
+    private var trayHeight: CGFloat { layout.trayHeight * trayHeightScale }
     @State private var editingTempo = false
     @State private var tempoText = ""
 
@@ -77,7 +82,7 @@ struct TransportBar: View {
                 Text("ARR")
                     .chipFont(11, weight: .semibold)
                     .foregroundStyle(Theme.text)
-                    .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : 48,
+                    .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : layout.arrButtonWidth,
                            height: trayHeight)
                     .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
                     .contentShape(Rectangle())
@@ -130,7 +135,7 @@ struct TransportBar: View {
             Text(title)
                 .chipFont(11, weight: on ? .bold : .semibold)
                 .foregroundStyle(on ? Theme.onLight : Theme.dim)
-                .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : 52,
+                .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : layout.patternSegmentWidth,
                        height: trayHeight)
                 .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
                 .contentShape(Rectangle())

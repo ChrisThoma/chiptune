@@ -4,7 +4,11 @@ import SwiftUI
 struct PatternBar: View {
     @Bindable var studio: Studio
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @ScaledMetric(relativeTo: .body) private var trayHeight = Theme.trayHeight
+    @Environment(\.chipLayout) private var layout
+    // See TransportBar's `trayHeight`: the ratio scales for Dynamic Type,
+    // the layout supplies the phone/pad base.
+    @ScaledMetric(relativeTo: .body) private var trayHeightScale: CGFloat = 1
+    private var trayHeight: CGFloat { layout.trayHeight * trayHeightScale }
     @State private var renaming: Int?
     @State private var renameText = ""
     /// Pattern indices queued behind a confirmation. Both erase work with no
@@ -159,7 +163,7 @@ struct PatternBar: View {
                 .chipFont(13)
                 .foregroundStyle(Theme.text)
                 // 36pt of fill, but the whole tray height stays tappable.
-                .frame(width: 42, height: trayHeight)
+                .frame(width: layout.patternAddWidth, height: trayHeight)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -187,7 +191,7 @@ struct PatternBar: View {
                     .foregroundStyle(selected ? Theme.onLight : (pattern.isEmpty ? Theme.dim : Theme.text))
             }
             .padding(.horizontal, 12)
-            .frame(minWidth: 40)
+            .frame(minWidth: layout.patternChipWidth)
             .frame(height: trayHeight)
             .contentShape(Rectangle())
             .background(
