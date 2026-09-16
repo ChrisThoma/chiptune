@@ -68,8 +68,65 @@ final class LayoutTests: XCTestCase {
     /// The grid has to fit beside the keyboard column with room to spare, or
     /// the side arrangement is worse than the stacked one it replaces.
     func testSideKeyboardLeavesTheGridMostOfTheWindow() {
-        let gridWidth = padLandscape.width - ChipLayout.sideKeyboardWidth
+        let layout = ChipLayout.resolve(size: padLandscape, horizontalSizeClass: .regular)
+        let gridWidth = padLandscape.width - layout.sideColumnWidth
         XCTAssertGreaterThan(gridWidth, padLandscape.width * 0.6)
+    }
+
+    /// A 13-inch iPad in landscape has width for a second octave without the
+    /// grid dropping below what it needs, so the keys get one.
+    func testThirteenInchLandscapeGetsTwoOctavesInAWiderColumn() {
+        let layout = ChipLayout.resolve(size: CGSize(width: 1366, height: 1024),
+                                        horizontalSizeClass: .regular)
+        XCTAssertTrue(layout.usesSideKeyboard)
+        XCTAssertEqual(layout.sideColumnWidth, 560)
+        XCTAssertEqual(layout.keyboardOctaves, 2)
+    }
+
+    /// An 11-inch iPad splits, but the second octave would come out of the
+    /// grid's share, so it keeps the 400pt column and one octave.
+    func testElevenInchLandscapeKeepsOneOctave() {
+        for size in [CGSize(width: 1194, height: 834), CGSize(width: 1210, height: 834)] {
+            let layout = ChipLayout.resolve(size: size, horizontalSizeClass: .regular)
+            XCTAssertTrue(layout.usesSideKeyboard, "\(size.width)pt landscape should still split")
+            XCTAssertEqual(layout.sideColumnWidth, 400, "\(size.width)pt")
+            XCTAssertEqual(layout.keyboardOctaves, 1, "\(size.width)pt")
+        }
+    }
+
+    /// Half of a 13-inch in Split View is regular and tall, so it stacks —
+    /// the wider window behind it must not leak a side column into the slice.
+    func testHalfWidthSplitViewStillStacks() {
+        let layout = ChipLayout.resolve(size: CGSize(width: 683, height: 1024),
+                                        horizontalSizeClass: .regular)
+        XCTAssertFalse(layout.usesSideKeyboard)
+        XCTAssertEqual(layout.keyboardOctaves, 1)
+    }
+
+    /// Whatever column a window earns, the grid keeps its minimum beside it.
+    func testTheGridKeepsItsMinimumBesideEverySideColumn() {
+        for width in stride(from: 600.0, through: 2400.0, by: 1.0) {
+            let layout = ChipLayout.resolve(size: CGSize(width: width, height: 500),
+                                            horizontalSizeClass: .regular)
+            guard layout.usesSideKeyboard else { continue }
+            XCTAssertGreaterThanOrEqual(width - layout.sideColumnWidth,
+                                        ChipLayout.minimumSideGridWidth,
+                                        "\(width)pt window squeezes the grid")
+        }
+    }
+
+    /// The rule the two column sizes turn on, on its own: the wider column is
+    /// only worth taking when the grid can spare it and 160pt besides.
+    func testTheSecondOctaveNeedsTheWiderColumnPlusSlack() {
+        let boundary = ChipLayout.minimumSideGridWidth + 560 + 160
+
+        let wide = ChipLayout.sideColumn(forWindowWidth: boundary)
+        XCTAssertEqual(wide.width, 560)
+        XCTAssertEqual(wide.octaves, 2)
+
+        let narrow = ChipLayout.sideColumn(forWindowWidth: boundary - 1)
+        XCTAssertEqual(narrow.width, 400)
+        XCTAssertEqual(narrow.octaves, 1)
     }
 
     /// The hole the proportions rule left open. Rotation never produces a

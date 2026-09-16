@@ -481,7 +481,7 @@ struct ContentView: View {
                 .padding(.vertical, 12)
 
             instrumentPanel
-                .frame(width: ChipLayout.sideKeyboardWidth)
+                .frame(width: layout.sideColumnWidth)
         }
         // Nothing sits under the grid in this layout, so without this the last
         // step row runs beneath the home indicator.

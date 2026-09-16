@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// One-octave piano used to pick the note that taps write into the grid.
+/// Piano used to pick the note that taps write into the grid. One octave
+/// everywhere except a window wide enough to dock two beside the grid.
 struct KeyboardView: View {
     @Bindable var studio: Studio
     @Environment(\.chipLayout) private var layout
@@ -9,13 +10,43 @@ struct KeyboardView: View {
     /// these buttons can't end up an octave apart; see `NoteKeys`.
     private var octave: Int { studio.octave }
 
-    /// Semitone offsets of the white keys, C through the octave's C.
-    private let whiteOffsets = [0, 2, 4, 5, 7, 9, 11, 12]
-    /// Black keys as (semitone offset, index of the white key it sits after).
-    private let blackKeys: [(offset: Int, after: Int)] = [
+    /// Semitone offsets of one octave's white keys, C up to but not including
+    /// the next C — that closing C belongs to the octave above, and is added
+    /// once at the top so two octaves don't draw it twice in the middle.
+    private let whiteOffsetsInOctave = [0, 2, 4, 5, 7, 9, 11]
+    /// Black keys of one octave as (semitone offset, index of the white key it
+    /// sits after).
+    private let blackKeysInOctave: [(offset: Int, after: Int)] = [
         (1, 0), (3, 1), (6, 3), (8, 4), (10, 5)
     ]
 
+    private var octaveCount: Int { max(1, layout.keyboardOctaves) }
+
+    /// Each octave is the table again a twelfth up, which is what an octave
+    /// is; the seven white keys per octave keep the black keys' `after`
+    /// indices lining up across the join.
+    private var whiteOffsets: [Int] {
+        var offsets: [Int] = []
+        for octave in 0..<octaveCount {
+            offsets += whiteOffsetsInOctave.map { $0 + octave * 12 }
+        }
+        offsets.append(octaveCount * 12)
+        return offsets
+    }
+
+    private var blackKeys: [(offset: Int, after: Int)] {
+        var keys: [(offset: Int, after: Int)] = []
+        for octave in 0..<octaveCount {
+            keys += blackKeysInOctave.map {
+                (offset: $0.offset + octave * 12,
+                 after: $0.after + octave * whiteOffsetsInOctave.count)
+            }
+        }
+        return keys
+    }
+
+    /// The octave buttons name the lowest octave on screen, whether that's
+    /// the only one or the bottom of two.
     private var baseMidi: Int { octave * 12 }
 
     var body: some View {
