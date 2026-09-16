@@ -95,6 +95,7 @@ struct ContentView: View {
     @State private var showingShare = false
     @State private var confirmingClearPattern = false
     @State private var showingExport = false
+    @State private var showingKeyboardHelp = false
     @State private var reviewAfterSharing = false
     /// What the WAV share sheet's completion handler reported. Reset to
     /// `.cancelled` each time the sheet is (re-)presented, so a handler that
@@ -132,6 +133,17 @@ struct ContentView: View {
         .background(Theme.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
         .hardwareKeys(studio: studio)
+        // What the Command chords in `EditorCommands` act on. A scene value
+        // rather than a focused one: nothing in this editor is a focusable
+        // control, so no view ever holds focus and a plain focused value would
+        // stay nil for the whole session.
+        .focusedSceneValue(\.editor, EditorActions(
+            studio: studio,
+            endRenaming: { endRenaming() },
+            openSongs: { openSongs() },
+            openArrangement: { openArrangement() },
+            openExport: { openExport() },
+            confirmClearPattern: { confirmClearPattern() }))
         .sheet(isPresented: $showingSongs) {
             SongListView(studio: studio)
         }
@@ -175,6 +187,11 @@ struct ContentView: View {
             showingExport = false
             showingShare = true
         }
+        // The keyboard asked for whatever is up to close. A counter rather
+        // than a flag, so a second Escape is a second request.
+        .onChange(of: studio.dismissRequests) { _, _ in
+            closePresentation()
+        }
         .confirmationDialog("Clear pattern \(studio.pattern.name)?",
                             isPresented: $confirmingClearPattern,
                             titleVisibility: .visible) {
@@ -205,6 +222,64 @@ struct ContentView: View {
             case .instrument, .none: break
             }
         }
+    }
+
+    /// Everything this view knows to be on screen over the editor. The docked
+    /// or popover instrument editor isn't here: it's owned by the grid, not by
+    /// this view, and it resigns the keyboard the same way a sheet does.
+    private var anyPresented: Bool {
+        showingSongs || showingArrangement || showingExport || showingShare
+            || showingKeyboardHelp || confirmingClearPattern || studio.shareURL != nil
+    }
+
+    /// The four screens a command can open, each behind the same guard. A
+    /// second presentation request while one is up is answered with silence by
+    /// iOS, so the flag would stay set and the screen would appear later, on
+    /// whatever dismissal happened next.
+    private func openSongs() {
+        guard EditorPresentation.canOpen(anyPresented: anyPresented) else { return }
+        // Before the save, or the library lists the name as it was before
+        // whatever is still being typed in the field.
+        endRenaming()
+        if studio.saveNow() {
+            showingSongs = true
+        }
+    }
+
+    private func openArrangement() {
+        guard EditorPresentation.canOpen(anyPresented: anyPresented) else { return }
+        showingArrangement = true
+    }
+
+    private func openExport() {
+        guard EditorPresentation.canOpen(anyPresented: anyPresented) else { return }
+        showingExport = true
+    }
+
+    private func confirmClearPattern() {
+        guard EditorPresentation.canOpen(anyPresented: anyPresented) else { return }
+        confirmingClearPattern = true
+    }
+
+    /// Escape, and Cmd+. with it, arriving from the key catcher — see
+    /// `KeyAction.forPresentedKey` for why it can't come from a command or
+    /// from a sheet's own Close button. Every screen this view presents,
+    /// closed the way that button would — including the export, which has a
+    /// render to call off.
+    ///
+    /// The share sheet is left alone: it's UIKit's, it has its own Cancel, and
+    /// dismissing it from underneath would skip the completion handler the
+    /// review prompt reads. The instrument editor is grid-owned state, so it
+    /// isn't reachable from here either; its Done button stays the way out.
+    private func closePresentation() {
+        if showingExport {
+            studio.cancelExport()
+        }
+        showingSongs = false
+        showingArrangement = false
+        showingExport = false
+        showingKeyboardHelp = false
+        confirmingClearPattern = false
     }
 
     /// Asking after the share sheet closes avoids competing presentations and
@@ -409,12 +484,7 @@ struct ContentView: View {
             // Browsing saved songs used to be buried two levels into the •••
             // menu, which made it feel like the app had no library at all.
             Button {
-                // Before the save, or the library lists the name as it was
-                // before whatever is still being typed in the field.
-                endRenaming()
-                if studio.saveNow() {
-                    showingSongs = true
-                }
+                openSongs()
             } label: {
                 Image(systemName: "music.note.list")
                     .symbolFont(19)
@@ -477,7 +547,7 @@ struct ContentView: View {
                     Label("Share song file", systemImage: "square.and.arrow.up")
                 }
                 Button {
-                    showingExport = true
+                    openExport()
                 } label: {
                     Label(studio.isExporting ? "Exporting…" : "Export WAV",
                           systemImage: "square.and.arrow.up")
@@ -485,11 +555,19 @@ struct ContentView: View {
                 .disabled(studio.isExporting)
                 Divider()
                 Button(role: .destructive) {
-                    confirmingClearPattern = true
+                    confirmClearPattern()
                 } label: {
                     Label("Clear pattern \(studio.pattern.name)", systemImage: "trash")
                 }
                 Divider()
+                // The Cmd-hold overlay lists the chords and can't list anything
+                // else, so the keys that do the actual writing — space, the
+                // arrows, the note row — are only discoverable here.
+                Button {
+                    showingKeyboardHelp = true
+                } label: {
+                    Label("Keyboard shortcuts", systemImage: "keyboard")
+                }
                 Link(destination: URL(string: "https://individuation.dev/contact/")!) {
                     Label("Contact support", systemImage: "envelope")
                 }
@@ -517,6 +595,11 @@ struct ContentView: View {
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("Song menu")
+            // Anchored to the menu it was chosen from, so the list appears
+            // where the finger already is; a phone gets it as a sheet.
+            .popover(isPresented: $showingKeyboardHelp) {
+                KeyboardHelpView()
+            }
         }
         .padding(.horizontal, 12)
         .padding(.top, 4)

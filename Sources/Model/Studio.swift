@@ -34,6 +34,11 @@ final class Studio {
     /// with nothing to move it, a highlighted cell reads as a selection the
     /// user didn't make.
     var hardwareKeyboardInUse = false
+    /// Bumped each time Escape (or Cmd+.) is pressed with something presented.
+    /// A counter rather than a flag because two presses are two requests, and
+    /// a flag that was already true would swallow the second; the editor
+    /// watches it and closes whatever it has up.
+    private(set) var dismissRequests = 0
     /// Index into `song.patterns` — the pattern the grid is editing.
     var selectedPattern: Int = 0
     /// PATT loops the pattern being edited; SONG follows the arrangement.
@@ -254,6 +259,13 @@ final class Studio {
     /// undo step. Called when the name field gives up focus or is submitted.
     private func endCheckpointRun() {
         history.endRun()
+    }
+
+    /// The keyboard asking for whatever is on screen to close. Raised rather
+    /// than acted on: the key catcher is a UIKit view with no idea which
+    /// SwiftUI screen is presented, and the editor that does know is watching.
+    func requestDismiss() {
+        dismissRequests += 1
     }
 
     func undo() {

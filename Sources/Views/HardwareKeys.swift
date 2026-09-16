@@ -48,6 +48,10 @@ enum KeyAction: Equatable {
     case toggleNoteOff
     case clear
     case octave(Int)
+    /// Escape, or Cmd+., while a sheet or popover is up. Says only that the
+    /// user asked to close something — which screen that is, is `ContentView`'s
+    /// to know.
+    case dismiss
 
     /// `nil` for anything the editor doesn't claim, which the responder chain
     /// then carries on past.
@@ -86,6 +90,29 @@ enum KeyAction: Equatable {
             return .type(note)
         }
     }
+
+    /// What a press means while a sheet or popover is up — which is a much
+    /// shorter list: close it, or nothing.
+    ///
+    /// Escape and Cmd+. are UIKit's cancel gesture, and UIKit delivers them
+    /// down the responder chain from the first responder rather than through
+    /// the menu and command system. So neither a `.keyboardShortcut(
+    /// .cancelAction)` on a sheet's own Close button nor one on an app-level
+    /// command is ever consulted: a presented sheet's hosting controller isn't
+    /// on the chain, and commands aren't asked. The catcher is the one thing
+    /// that is on it, so answering here is what makes Escape work at all.
+    ///
+    /// Everything else returns nil and is forwarded on, which is how the
+    /// Command chords keep firing while a sheet is open.
+    static func forPresentedKey(usage: UIKeyboardHIDUsage,
+                                modifiers: UIKeyModifierFlags) -> KeyAction? {
+        switch usage {
+        case .keyboardEscape: return .dismiss
+        // The period alone is a period; only the Command form is the cancel.
+        case .keyboardPeriod where modifiers.contains(.command): return .dismiss
+        default: return nil
+        }
+    }
 }
 
 extension Studio {
@@ -104,6 +131,7 @@ extension Studio {
         case let .octave(delta):
             hardwareKeyboardInUse = true
             shiftOctave(delta)
+        case .dismiss: requestDismiss()
         }
     }
 }
@@ -126,13 +154,21 @@ private struct KeyCatcher: UIViewRepresentable {
 
     func makeUIView(context: Context) -> CatcherView {
         let view = CatcherView()
-        view.handle = { [weak studio] key in
-            guard let studio,
-                  let action = KeyAction.forKey(usage: key.keyCode,
-                                                characters: key.charactersIgnoringModifiers,
-                                                modifiers: key.modifierFlags,
-                                                octave: studio.octave)
-            else { return false }
+        view.handle = { [weak studio] key, modalPresented in
+            guard let studio else { return false }
+            // Two mappings, one keyboard. With a sheet up the editor is not
+            // what's being typed at, so only the cancel gesture is claimed.
+            let action: KeyAction?
+            if modalPresented {
+                action = KeyAction.forPresentedKey(usage: key.keyCode,
+                                                   modifiers: key.modifierFlags)
+            } else {
+                action = KeyAction.forKey(usage: key.keyCode,
+                                          characters: key.charactersIgnoringModifiers,
+                                          modifiers: key.modifierFlags,
+                                          octave: studio.octave)
+            }
+            guard let action else { return false }
             studio.apply(action)
             return true
         }
@@ -140,17 +176,16 @@ private struct KeyCatcher: UIViewRepresentable {
     }
 
     func updateUIView(_ view: CatcherView, context: Context) {
-        // A presented sheet (InstrumentEditor, ArrangementView, ExportSheet,
-        // SongListView, ...) can put non-text-field controls on screen that
-        // never take first responder away from us, so hardware keys would
-        // otherwise keep reaching the grid underneath. Check the UIKit
-        // hierarchy directly rather than a per-screen @State flag, since some
-        // sheets (InstrumentEditor's) are toggled by state that isn't owned
-        // by this view's ancestor at all.
-        guard view.window?.rootViewController?.presentedViewController == nil else {
-            if view.isFirstResponder { view.resignFirstResponder() }
-            return
-        }
+        // Deliberately holds first responder even while a sheet is up. It used
+        // to resign, to stop grid keys reaching the pattern underneath — but
+        // `pressesBegan` already does that job properly, by asking a different
+        // mapping which keys count while something is presented, and resigning
+        // took the catcher off the responder chain. That chain is the only way
+        // Escape and Cmd+. arrive: UIKit sends its cancel gesture down it from
+        // the first responder, never through the command system, so with
+        // nobody on it the chain ran window → application and no sheet could
+        // be closed from the keyboard at all.
+        //
         // Reclaims the keyboard once whatever borrowed it — the song name
         // field, a rename alert — has given it back. Every edit in the app
         // runs this, so there's no polling and no window where typing is dead.
@@ -170,7 +205,9 @@ private struct KeyCatcher: UIViewRepresentable {
     }
 
     final class CatcherView: UIView {
-        var handle: ((UIKey) -> Bool)?
+        /// Takes whether a sheet or popover is up, because that decides which
+        /// of the two mappings the press is read with.
+        var handle: ((UIKey, Bool) -> Bool)?
 
         /// The one instance actually installed in the view hierarchy (the
         /// editor has exactly one). Lets a deliberate focus handoff elsewhere
@@ -196,11 +233,14 @@ private struct KeyCatcher: UIViewRepresentable {
             // updateUIView: a sheet like InstrumentEditor can be presented by
             // state this view never observes, so updateUIView may not re-run
             // until after the very key press that would otherwise leak
-            // through and mutate the grid underneath.
+            // through and mutate the grid underneath. Asked of the UIKit
+            // hierarchy rather than a per-screen @State flag, since some
+            // sheets (InstrumentEditor's) are toggled by state that isn't
+            // owned by this view's ancestor at all.
             let modalPresented = window?.rootViewController?.presentedViewController != nil
             let unhandled = presses.filter { press in
-                guard !modalPresented, let key = press.key else { return true }
-                return handle?(key) != true
+                guard let key = press.key else { return true }
+                return handle?(key, modalPresented) != true
             }
             // Anything not claimed carries on up the chain, so the shortcuts
             // the system owns still work.

@@ -113,6 +113,55 @@ final class HardwareKeyTests: XCTestCase {
         XCTAssertNil(action(.keyboardEscape))
     }
 
+    // MARK: Escape, while something is presented
+
+    /// Escape and Cmd+. are UIKit's cancel gesture: they come down the
+    /// responder chain rather than through the menu system, so a
+    /// `.keyboardShortcut(.cancelAction)` — in a sheet's toolbar or in the
+    /// app's commands — is never consulted for them. The catcher is the only
+    /// thing on that chain while a sheet is up, so it has to answer them.
+    private func presented(_ usage: UIKeyboardHIDUsage,
+                           modifiers: UIKeyModifierFlags = []) -> KeyAction? {
+        KeyAction.forPresentedKey(usage: usage, modifiers: modifiers)
+    }
+
+    func testEscapeAndCommandPeriodDismissWhateverIsPresented() {
+        XCTAssertEqual(presented(.keyboardEscape), .dismiss)
+        XCTAssertEqual(presented(.keyboardPeriod, modifiers: .command), .dismiss)
+    }
+
+    /// Everything else is passed on, so the Command chords the app registers
+    /// as commands still reach the system while a sheet is open.
+    func testNothingElseIsClaimedWhileSomethingIsPresented() {
+        XCTAssertNil(presented(.keyboardSpacebar))
+        XCTAssertNil(presented(.keyboardA))
+        XCTAssertNil(presented(.keyboardDownArrow))
+        XCTAssertNil(presented(.keyboardDeleteOrBackspace))
+        XCTAssertNil(presented(.keyboardE, modifiers: .command),
+                     "Cmd+E is the Export command's, not the catcher's")
+        // A bare period is a period. Only the Command form is the cancel.
+        XCTAssertNil(presented(.keyboardPeriod))
+    }
+
+    /// With nothing presented the editor doesn't claim Escape at all: there's
+    /// nothing to close, and the grid has never used the key.
+    func testEscapeDoesNothingWithNothingPresented() {
+        XCTAssertNil(action(.keyboardEscape))
+        XCTAssertNil(action(.keyboardPeriod, modifiers: .command))
+    }
+
+    /// The press and the dismissal are deliberately separated: the catcher is
+    /// a UIKit view with no idea which SwiftUI screen is up, so it raises a
+    /// request and `ContentView` decides what that closes.
+    func testDismissRaisesARequestForTheEditorToAnswer() {
+        let before = studio.dismissRequests
+        studio.apply(.dismiss)
+        XCTAssertEqual(studio.dismissRequests, before + 1)
+        studio.apply(.dismiss)
+        XCTAssertEqual(studio.dismissRequests, before + 2,
+                       "Two presses are two requests; closing twice isn't a no-op")
+    }
+
     // MARK: The cursor
 
     func testArrowsStopAtTheEdgesRatherThanWrapping() {
