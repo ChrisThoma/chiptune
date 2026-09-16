@@ -11,9 +11,10 @@ enum ArrangementCapacityAnnouncement {
 /// many times it repeats. SONG mode walks this list from the top and loops.
 struct ArrangementView: View {
     @Bindable var studio: Studio
-    /// Presented in an iPad-shaped window, which sizes its own sheets. Passed
-    /// in rather than read from the environment, which reports a sheet's
-    /// contents as compact whatever the window behind it is.
+    /// Presented in an iPad-shaped window, where this arrives as a popover
+    /// over the ARR button rather than as a sheet. Passed in rather than read
+    /// from the environment, which reports a popover's or a sheet's contents
+    /// as compact whatever the window behind it is.
     var regularWidth = false
     @Environment(\.dismiss) private var dismiss
     private var capacityWarning: String {
@@ -91,6 +92,10 @@ struct ArrangementView: View {
             }
         }
         .compactSheetDetents(!regularWidth)
+        // Regular width means this arrived as a popover, which has no detents
+        // and takes whatever size its content states. Taller than the default
+        // because the play order is a list that grows.
+        .popoverSized(regularWidth, idealHeight: 560)
         .preferredColorScheme(.dark)
     }
 

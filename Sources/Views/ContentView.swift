@@ -83,6 +83,36 @@ enum ReviewPromptPolicy {
     }
 }
 
+/// Getting from a finished render to the share sheet.
+///
+/// The export panel and the share sheet are presented by different hosts — the
+/// panel hangs off the ••• menu as a popover, the share sheet off the editor
+/// root — and UIKit will not present the second while the first is still going
+/// away. So the render says what is owed and the panel's disappearance is what
+/// pays it, rather than both flags flipping in one transaction.
+enum ExportFlow {
+    struct Step: Equatable {
+        /// Take the export panel down; the render it was watching is done.
+        var closeExport = false
+        /// Raise the share sheet once that panel has actually gone.
+        var shareWhenExportCloses = false
+        /// Nothing to wait for: raise it now.
+        var shareNow = false
+    }
+
+    static func afterRender(url: URL?, exportPresented: Bool) -> Step {
+        guard url != nil else { return Step() }
+        // With no panel up there is no disappearance to wait for — a queued
+        // share would sit there unspent — so that case goes straight out.
+        guard exportPresented else { return Step(shareNow: true) }
+        return Step(closeExport: true, shareWhenExportCloses: true)
+    }
+
+    static func afterExportClosed(pendingShare: Bool) -> Step {
+        Step(shareNow: pendingShare)
+    }
+}
+
 struct ContentView: View {
     @Bindable var studio: Studio
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -97,6 +127,10 @@ struct ContentView: View {
     @State private var showingExport = false
     @State private var showingKeyboardHelp = false
     @State private var reviewAfterSharing = false
+    /// A finished render owes the user a share sheet, held until the export
+    /// panel has left the screen — `.popover` has no `onDismiss:`, so the
+    /// content's `.onDisappear` is what spends this.
+    @State private var shareWhenExportCloses = false
     /// What the WAV share sheet's completion handler reported. Reset to
     /// `.cancelled` each time the sheet is (re-)presented, so a handler that
     /// never fires — the completion callback is documented as "may not be
@@ -154,12 +188,10 @@ struct ContentView: View {
                 currentSongID: currentSongID
             )
         }
-        .sheet(isPresented: $showingArrangement) {
-            ArrangementView(studio: studio, regularWidth: horizontalSizeClass == .regular)
-        }
-        .sheet(isPresented: $showingExport) {
-            ExportSheet(studio: studio)
-        }
+        // Arrangement and Export are no longer presented here: each hangs off
+        // the control that opens it — ARR in the transport, the ••• menu — so
+        // at regular width it arrives as a popover beside its button with the
+        // grid still visible, and adapts back to a sheet on a phone.
         .sheet(isPresented: $showingShare, onDismiss: requestReviewIfDue) {
             if let url = studio.exportURL {
                 ShareSheet(items: [url], onComplete: { completed, error in
@@ -182,10 +214,12 @@ struct ContentView: View {
                 lastRequestExportCount: lastReviewRequestExportCount
             )
             shareOutcome = .cancelled
-            // The options sheet gets out of the way before the share sheet
-            // arrives; two sheets at once is a no-op on iOS.
-            showingExport = false
-            showingShare = true
+            // The options panel gets out of the way first, and the share sheet
+            // waits for it to actually be gone — see `ExportFlow`.
+            let step = ExportFlow.afterRender(url: url, exportPresented: showingExport)
+            if step.closeExport { showingExport = false }
+            shareWhenExportCloses = step.shareWhenExportCloses
+            if step.shareNow { showingShare = true }
         }
         // The keyboard asked for whatever is up to close. A counter rather
         // than a flag, so a second Escape is a second request.
@@ -282,6 +316,15 @@ struct ContentView: View {
         confirmingClearPattern = false
     }
 
+    /// The export panel has left the screen. If it left behind a rendered
+    /// file, this is the first moment UIKit will present anything else.
+    private func shareAfterExport() {
+        let step = ExportFlow.afterExportClosed(pendingShare: shareWhenExportCloses)
+        shareWhenExportCloses = false
+        guard step.shareNow else { return }
+        showingShare = true
+    }
+
     /// Asking after the share sheet closes avoids competing presentations and
     /// ties the prompt to a moment when the app has demonstrably been useful.
     private func requestReviewIfDue() {
@@ -308,7 +351,7 @@ struct ContentView: View {
     /// so a phone row is untouched.
     private func chrome(_ layout: ChipLayout) -> some View {
         VStack(spacing: 0) {
-            titleBar
+            titleBar(layout)
             // Same reason the grid and the piano close the rename out: these
             // are buttons and steppers, so UIKit hands them no focus and the
             // name field above keeps the keyboard — and the hardware keys with
@@ -479,7 +522,7 @@ struct ContentView: View {
         HardwareKeyCapture.reclaim()
     }
 
-    private var titleBar: some View {
+    private func titleBar(_ layout: ChipLayout) -> some View {
         HStack(spacing: 8) {
             // Browsing saved songs used to be buried two levels into the •••
             // menu, which made it feel like the app had no library at all.
@@ -529,6 +572,27 @@ struct ContentView: View {
             historyButton("arrow.uturn.forward", label: "Redo",
                           enabled: studio.canRedo) { endRenaming(); studio.redo() }
 
+            // Export hangs off the same button the menu does, one layer out:
+            // both presentations are anchored to the ••• glyph, and keeping
+            // them on separate views means neither modifier has to share a
+            // presentation slot with the other.
+            menuButton
+                .popover(isPresented: $showingExport,
+                         attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
+                    ExportSheet(studio: studio, popover: layout.isRegularWidth)
+                        .presentationCompactAdaptation(.sheet)
+                        // A popover has no `onDismiss:`, and the share sheet
+                        // can't be presented until this is off screen.
+                        .onDisappear { shareAfterExport() }
+                }
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 4)
+        .padding(.bottom, 8)
+    }
+
+    private var menuButton: some View {
+        Group {
             Menu {
                 Button {
                     studio.newSong()
@@ -601,8 +665,5 @@ struct ContentView: View {
                 KeyboardHelpView()
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 4)
-        .padding(.bottom, 8)
     }
 }

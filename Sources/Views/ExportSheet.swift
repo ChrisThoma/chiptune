@@ -7,6 +7,11 @@ import SwiftUI
 /// is and a way to stop it.
 struct ExportSheet: View {
     @Bindable var studio: Studio
+    /// Presented as a popover over the ••• menu rather than as a sheet, which
+    /// is what an iPad-shaped window does with it. Passed in rather than read
+    /// from the environment: a popover's content is handed a compact size
+    /// class whatever the window behind it is.
+    var popover = false
     @Environment(\.dismiss) private var dismiss
     @State private var options = ExportOptions()
     // Separate from `studio.isExporting`: SwiftUI can miss a render that starts
@@ -104,6 +109,7 @@ struct ExportSheet: View {
             startedAttempt = nil
         }
         .errorAlert("Export failed", message: $studio.exportError)
+        .popoverSized(popover)
         .preferredColorScheme(.dark)
     }
 

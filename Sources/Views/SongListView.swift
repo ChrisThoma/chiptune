@@ -99,6 +99,11 @@ struct SongListView: View {
                     .listRowSeparatorTint(Theme.grid)
                 }
             }
+            // A song row is a name and a date; across the full width of an
+            // iPad form sheet that leaves a long empty gutter after each one,
+            // so the list is capped and centred and the background keeps the
+            // rest.
+            .frame(maxWidth: 640)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Theme.background.ignoresSafeArea())
             .navigationTitle("Songs")
