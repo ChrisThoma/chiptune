@@ -160,6 +160,57 @@ final class StudioEditingTests: XCTestCase {
         assertCoreMatchesModel("after removePattern")
     }
 
+    /// Deleting a chip earlier in the strip must not drag the grid off the
+    /// pattern being edited — only its index shifts down.
+    func testRemovingAPatternBeforeTheSelectedOneKeepsEditingIt() {
+        studio.addPattern()
+        studio.addPattern()
+        studio.addPattern()
+        studio.selectPattern(2)
+        let edited = studio.song.patterns[2].id
+
+        studio.removePattern(at: 0)
+
+        XCTAssertEqual(studio.selectedPattern, 1, "the edited pattern shifted down one slot")
+        XCTAssertEqual(studio.song.patterns[studio.selectedPattern].id, edited,
+                       "deleting an earlier pattern must not change which one you're editing")
+        XCTAssertEqual(Int(studio.engine.core.focusPattern), studio.selectedPattern,
+                       "the core should follow the selection")
+        assertCoreMatchesModel("after removing a pattern before the selected one")
+    }
+
+    /// Deleting a chip after the selected one leaves the selection untouched.
+    func testRemovingAPatternAfterTheSelectedOneKeepsEditingIt() {
+        studio.addPattern()
+        studio.addPattern()
+        studio.addPattern()
+        studio.selectPattern(1)
+        let edited = studio.song.patterns[1].id
+
+        studio.removePattern(at: 3)
+
+        XCTAssertEqual(studio.selectedPattern, 1)
+        XCTAssertEqual(studio.song.patterns[studio.selectedPattern].id, edited,
+                       "deleting a later pattern must not change which one you're editing")
+        XCTAssertEqual(Int(studio.engine.core.focusPattern), studio.selectedPattern,
+                       "the core should follow the selection")
+        assertCoreMatchesModel("after removing a pattern after the selected one")
+    }
+
+    /// Selecting a shorter pattern must pull the cursor back inside it — a
+    /// step past the end reads and writes nowhere.
+    func testSelectingAShorterPatternPullsTheCursorInside() {
+        studio.addPattern()
+        studio.setPatternLength(4)
+        studio.selectPattern(0)
+        studio.selectedStep = studio.patternLength - 1
+        XCTAssertGreaterThan(studio.selectedStep, 3)
+
+        studio.selectPattern(1)
+
+        XCTAssertEqual(studio.selectedStep, 3, "the cursor should clamp to the shorter pattern")
+    }
+
     func testTheLastPatternCannotBeRemoved() {
         XCTAssertEqual(studio.song.patterns.count, 1)
         studio.removePattern(at: 0)
