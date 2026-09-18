@@ -110,7 +110,10 @@ struct PatternBar: View {
     private var chips: some View {
         HStack(spacing: 4) {
             ForEach(Array(studio.song.patterns.enumerated()), id: \.element.id) { index, pattern in
+                // Spelled out rather than left to `ForEach`'s own identity, so
+                // `scrollTo(pattern.id)` has a target it can't lose.
                 chip(index: index, pattern: pattern)
+                    .id(pattern.id)
             }
         }
         .padding(.horizontal, 4)
@@ -126,8 +129,32 @@ struct PatternBar: View {
     /// values stayed frozen at zero and the cue was stuck on or stuck off. A
     /// fade that's a shade early at the very ends beats no cue at all.
     private var scrollingChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            chips
+        // The reader lives *inside* the `ViewThatFits` candidate rather than
+        // around the whole tray: only this branch owns a ScrollView, and the
+        // sizing probe that renders the other candidate must not be handed a
+        // proxy for a scroll area that isn't on screen.
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                chips
+            }
+            // Adding a pattern selects it, and the new chip lands past the
+            // trailing edge behind the pinned "+" — so with nothing else
+            // happening you tap "+" and no chip looks selected at all. Every
+            // selection change is followed, not just this one: the arrangement
+            // and the hardware keyboard move it too, and a delete shifts it
+            // onto a different pattern.
+            .onChange(of: selectedPatternID) { _, id in
+                guard let id else { return }
+                withAnimation(.easeOut(duration: 0.2)) {
+                    proxy.scrollTo(id, anchor: .center)
+                }
+            }
+            // Coming back to an overflowing strip — first layout, or a rotation
+            // that pushed it past the width — should show the chip you're on.
+            .onAppear {
+                guard let id = selectedPatternID else { return }
+                proxy.scrollTo(id, anchor: .center)
+            }
         }
         // Painted *over* the strip rather than masked out of it. A `.mask` here
         // has to survive the ScrollView's own compositing, and it also can't be
@@ -136,6 +163,13 @@ struct PatternBar: View {
         // that colour directly and skip the round trip.
         .overlay(alignment: .leading) { fade(.leading) }
         .overlay(alignment: .trailing) { fade(.trailing) }
+    }
+
+    /// The scroll target, keyed by identity rather than index: deleting a
+    /// pattern can leave `selectedPattern` on the same index while the chip
+    /// under it is a different one.
+    private var selectedPatternID: UUID? {
+        studio.song.patterns[safe: studio.selectedPattern]?.id
     }
 
     /// How wide each fade is. Roughly a chip's corner plus a little, so it reads
