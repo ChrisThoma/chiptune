@@ -24,7 +24,16 @@ struct InstrumentEditor: View {
     // buttons keep changing `studio.selectedTrack` underneath it, so a live
     // read at confirm-time could act on whatever track got selected while the
     // dialog was still up, not the one the user opened it for.
-    @State private var pendingClearIndex: Int?
+    //
+    // The pattern travels with the track for the same reason one dimension up:
+    // in SONG mode the playhead moves `studio.selectedPattern` at every
+    // arrangement boundary, so a live read would empty the track in whichever
+    // pattern happened to be sounding at confirm time.
+    private struct ClearTarget {
+        let track: Int
+        let pattern: Int
+    }
+    @State private var pendingClear: ClearTarget?
     @State private var pendingDeleteIndex: Int?
 
     private var kind: ChannelKind { studio.song.tracks[safe: index]?.kind ?? .pulse1 }
@@ -282,7 +291,7 @@ struct InstrumentEditor: View {
                     // Notes live in patterns, so this only empties the one on
                     // screen — the other patterns keep their part.
                     Button("Clear this track in pattern \(studio.pattern.name)", role: .destructive) {
-                        pendingClearIndex = index
+                        pendingClear = ClearTarget(track: index, pattern: studio.selectedPattern)
                     }
 
                     Button("Delete track", role: .destructive) {
@@ -299,12 +308,15 @@ struct InstrumentEditor: View {
             // and the grid shows through the sheet. SongListView does the same.
             .scrollContentBackground(.hidden)
             .background(Theme.background.ignoresSafeArea())
-            .confirmationDialog("Clear this track in pattern \(studio.pattern.name)?",
-                                isPresented: Binding(get: { pendingClearIndex != nil },
-                                                      set: { if !$0 { pendingClearIndex = nil } }),
-                                titleVisibility: .visible) {
-                if let target = pendingClearIndex {
-                    Button("Clear track", role: .destructive) { studio.clearTrack(target) }
+            .confirmationDialog(
+                pendingClear.map { "Clear this track in pattern \(studio.song.patterns[safe: $0.pattern]?.name ?? "")?" } ?? "",
+                isPresented: Binding(get: { pendingClear != nil },
+                                     set: { if !$0 { pendingClear = nil } }),
+                titleVisibility: .visible) {
+                if let target = pendingClear {
+                    Button("Clear track", role: .destructive) {
+                        studio.clearTrack(target.track, in: target.pattern)
+                    }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {

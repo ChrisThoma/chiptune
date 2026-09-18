@@ -141,7 +141,12 @@ struct ContentView: View {
     @State private var showingSongs = false
     @State private var showingArrangement = false
     @State private var showingShare = false
-    @State private var confirmingClearPattern = false
+    // Snapshot which pattern the clear dialog targets at the moment it's
+    // raised. In SONG mode the playhead moves `studio.selectedPattern` at every
+    // arrangement boundary while the dialog is up, so reading it again at
+    // confirm time erased whichever pattern playback had reached, not the one
+    // the title named. Same rule as `InstrumentEditor`'s track snapshot.
+    @State private var pendingClearPatternIndex: Int?
     @State private var showingExport = false
     @State private var showingKeyboardHelp = false
     @State private var reviewAfterSharing = false
@@ -255,10 +260,14 @@ struct ContentView: View {
         .onChange(of: studio.dismissRequests) { _, _ in
             closePresentation()
         }
-        .confirmationDialog("Clear pattern \(studio.pattern.name)?",
-                            isPresented: $confirmingClearPattern,
-                            titleVisibility: .visible) {
-            Button("Clear pattern", role: .destructive) { studio.clearPattern() }
+        .confirmationDialog(
+            pendingClearPatternIndex.map { "Clear pattern \(studio.song.patterns[safe: $0]?.name ?? "")?" } ?? "",
+            isPresented: Binding(get: { pendingClearPatternIndex != nil },
+                                 set: { if !$0 { pendingClearPatternIndex = nil } }),
+            titleVisibility: .visible) {
+            if let target = pendingClearPatternIndex {
+                Button("Clear pattern", role: .destructive) { studio.clearPattern(at: target) }
+            }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text(ConfirmationCopy.clearPattern)
@@ -292,7 +301,7 @@ struct ContentView: View {
     /// this view, and it resigns the keyboard the same way a sheet does.
     private var anyPresented: Bool {
         showingSongs || showingArrangement || showingExport || showingShare
-            || showingKeyboardHelp || confirmingClearPattern || studio.shareURL != nil
+            || showingKeyboardHelp || pendingClearPatternIndex != nil || studio.shareURL != nil
     }
 
     /// The four screens a command can open, each behind the same guard. A
@@ -321,7 +330,7 @@ struct ContentView: View {
 
     private func confirmClearPattern() {
         guard EditorPresentation.canOpen(anyPresented: anyPresented) else { return }
-        confirmingClearPattern = true
+        pendingClearPatternIndex = studio.selectedPattern
     }
 
     /// Escape, and Cmd+. with it, arriving from the key catcher — see
@@ -342,7 +351,7 @@ struct ContentView: View {
         showingArrangement = false
         showingExport = false
         showingKeyboardHelp = false
-        confirmingClearPattern = false
+        pendingClearPatternIndex = nil
     }
 
     /// The export panel has left the screen. If it left behind a rendered
