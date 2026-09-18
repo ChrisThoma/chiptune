@@ -111,6 +111,16 @@ enum ExportFlow {
     static func afterExportClosed(pendingShare: Bool) -> Step {
         Step(shareNow: pendingShare)
     }
+
+    /// The export panel can disappear without the Close button ever running —
+    /// a swipe-to-dismiss on the sheet a compact window turns it into, or an
+    /// outside tap on the popover a regular-width one keeps it as. Either way
+    /// `onDisappear` is the one place that sees it happen. A render still
+    /// going at that moment has to be cancelled there too, or its eventual
+    /// success or failure lands on a studio nothing is watching anymore.
+    static func afterPanelDisappeared(isExporting: Bool) -> Bool {
+        isExporting
+    }
 }
 
 /// The border that says a dragged song will land here.
@@ -357,6 +367,9 @@ struct ContentView: View {
     /// The export panel has left the screen. If it left behind a rendered
     /// file, this is the first moment UIKit will present anything else.
     private func shareAfterExport() {
+        if ExportFlow.afterPanelDisappeared(isExporting: studio.isExporting) {
+            studio.cancelExport()
+        }
         let step = ExportFlow.afterExportClosed(pendingShare: shareWhenExportCloses)
         shareWhenExportCloses = false
         guard step.shareNow else { return }

@@ -44,4 +44,19 @@ final class ExportFlowTests: XCTestCase {
         XCTAssertEqual(ExportFlow.afterExportClosed(pendingShare: false),
                        ExportFlow.Step())
     }
+
+    /// The Close button pairs a cancel with its dismiss, but a swipe-to-dismiss
+    /// or an outside tap on the popover reaches `onDisappear` with no cancel
+    /// having happened. A render still in flight at that point must not be
+    /// left to finish unobserved — its eventual error would have nowhere left
+    /// to be shown.
+    func testPanelDisappearingMidRenderAsksForACancel() {
+        XCTAssertTrue(ExportFlow.afterPanelDisappeared(isExporting: true))
+    }
+
+    /// The panel disappearing because the render already finished — success or
+    /// failure — must not re-cancel a render that isn't running.
+    func testPanelDisappearingAfterTheRenderFinishedAsksForNothing() {
+        XCTAssertFalse(ExportFlow.afterPanelDisappeared(isExporting: false))
+    }
 }
