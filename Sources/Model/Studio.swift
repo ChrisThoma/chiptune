@@ -624,20 +624,30 @@ final class Studio {
 
     /// Clears one track in the pattern being edited.
     func clearTrack(_ track: Int) {
-        guard track < song.tracks.count else { return }
-        checkpoint()
-        erase(track)
+        clearTrack(track, in: selectedPattern)
     }
 
-    private func erase(_ track: Int) {
-        guard selectedPattern < song.patterns.count,
+    /// Clears one track in one named pattern. The pattern is named rather than
+    /// read from the selection because a confirmation dialog resolves long
+    /// after it was raised, and in SONG mode the playhead moves the selection
+    /// underneath it — so a live read erases the wrong pattern's part.
+    func clearTrack(_ track: Int, in pattern: Int) {
+        guard track < song.tracks.count, pattern < song.patterns.count else { return }
+        checkpoint()
+        erase(track, in: pattern)
+    }
+
+    private func erase(_ track: Int, in pattern: Int) {
+        guard pattern < song.patterns.count,
               track < song.tracks.count else { return }
         // Batched like `clearPattern(at:)`: one pin, one reconcile pass at the
-        // end — not one per step via `setNote`.
-        pinToSelectedPattern()
+        // end — not one per step via `setNote`. And, like it, only pin when
+        // this is the pattern on screen: clearing a track in B has no business
+        // pinning the grid to A.
+        if pattern == selectedPattern { pinToSelectedPattern() }
         for step in 0..<Chip.maxSteps {
-            song.patterns[selectedPattern].rows[track][step] = Chip.emptyNote
-            engine.core.setNote(pattern: selectedPattern, track: track, step: step,
+            song.patterns[pattern].rows[track][step] = Chip.emptyNote
+            engine.core.setNote(pattern: pattern, track: track, step: step,
                                 note: Chip.emptyNote)
         }
         reconcileRingingVoices()

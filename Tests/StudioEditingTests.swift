@@ -349,6 +349,51 @@ final class StudioEditingTests: XCTestCase {
         XCTAssertEqual(studio.song.patterns[0].rows[0][0], 60, "the other pattern must be untouched")
     }
 
+    /// A confirmation dialog snapshots the pattern it was raised over, so the
+    /// clear has to be able to name one: reading the selection again at confirm
+    /// time erases whatever the playhead dragged the grid to while the dialog
+    /// was up.
+    func testClearTrackInANamedPatternLeavesTheSelectedPatternAlone() {
+        studio.addPattern()
+        studio.selectPattern(0)
+        studio.setNote(track: 0, step: 0, note: 60)
+        studio.selectPattern(1)
+        studio.setNote(track: 0, step: 0, note: 72)
+
+        studio.clearTrack(0, in: 0)
+
+        XCTAssertEqual(studio.song.patterns[0].rows[0][0], Chip.emptyNote)
+        XCTAssertEqual(studio.song.patterns[1].rows[0][0], 72,
+                       "the pattern on screen must be untouched")
+        XCTAssertEqual(studio.selectedPattern, 1,
+                       "clearing another pattern must not move the editor")
+        assertCoreMatchesModel("after clearing a track in another pattern")
+    }
+
+    /// The same snapshot, one dimension up: in SONG mode the playhead moves
+    /// `selectedPattern` at every arrangement boundary, so a clear raised over
+    /// pattern 0 must still empty pattern 0 once the grid has moved on.
+    func testClearPatternAtIndexSurvivesThePlayheadMovingTheSelection() {
+        studio.addPattern()
+        studio.selectPattern(0)
+        studio.setNote(track: 0, step: 0, note: 60)
+        studio.selectPattern(1)
+        studio.setNote(track: 0, step: 0, note: 72)
+        studio.selectPattern(0)
+
+        studio.setSongMode(true)
+        studio.isPlaying = true
+        studio.applyPlayhead(step: 0, pattern: 1)
+        XCTAssertEqual(studio.selectedPattern, 1, "precondition: the grid followed the arrangement")
+
+        studio.clearPattern(at: 0)
+
+        XCTAssertTrue(studio.song.patterns[0].isEmpty, "the pattern the dialog named must be the one cleared")
+        XCTAssertEqual(studio.song.patterns[1].rows[0][0], 72,
+                       "the pattern playback moved to must be untouched")
+        assertCoreMatchesModel("after clearing a pattern the playhead had left")
+    }
+
     func testClearPatternEmptiesEveryTrackInThatPatternOnly() {
         studio.addPattern()
         studio.selectPattern(0)
