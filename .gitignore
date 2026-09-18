@@ -16,3 +16,6 @@ __pycache__/
 # Per-user Xcode state; moot while the whole .xcodeproj is ignored, but the
 # project file being ignored is a choice, not a guarantee.
 xcuserdata/
+
+# Local run directories written by the ios-qa-fix QA skill.
+.qa/
