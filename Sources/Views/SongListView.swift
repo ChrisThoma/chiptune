@@ -67,8 +67,10 @@ struct SongListView: View {
     @State private var renameText = ""
     @State private var showingImporter = false
     /// A save failure raised by an action taken here, moved out of the studio
-    /// so only this sheet's alert presents it.
+    /// so only this sheet's alert presents it. See `claimStorageError()`.
     @State private var saveError: String?
+    /// An import failure, claimed the same way and for the same reason.
+    @State private var importFailure: String?
     /// A `.chipsong` is hovering over the library, waiting to be dropped.
     @State private var dropTargeted = false
 
@@ -175,6 +177,7 @@ struct SongListView: View {
                             titleVisibility: .visible) {
             Button("Delete song", role: .destructive) {
                 if let song = pendingDelete { studio.delete(song) }
+                claimStorageError()
                 pendingDelete = nil
                 reload()
             }
@@ -192,11 +195,16 @@ struct SongListView: View {
                 // same transaction as the file importer's own dismissal can
                 // cause SwiftUI to silently drop the alert presentation.
                 DispatchQueue.main.async {
-                    if studio.importSong(from: url) { dismiss() }
+                    if studio.importSong(from: url) {
+                        dismiss()
+                    } else {
+                        claimImportError()
+                    }
                 }
             case .failure(let error):
                 DispatchQueue.main.async {
                     studio.importError = error.localizedDescription
+                    claimImportError()
                 }
             }
         }
@@ -210,6 +218,7 @@ struct SongListView: View {
             Button("Cancel", role: .cancel) { renaming = nil }
             Button("Rename") {
                 if let song = renaming { studio.rename(song, to: renameText) }
+                claimStorageError()
                 renaming = nil
                 reload()
             }
@@ -222,18 +231,33 @@ struct SongListView: View {
                 return songs.contains { $0.id != renaming?.id && $0.name == trimmed }
             }())
         }
-        // The library is itself a sheet, so a save failure (e.g. from
-        // Duplicate) needs its own presenter here — the one on ContentView is
-        // underneath this sheet and SwiftUI won't surface it. See
-        // `songShareSheet(for:)`'s doc comment for the same reasoning.
-        //
-        // It is driven by local state rather than `studio.storageError`
-        // directly: two live presenters bound to the same property — the
-        // editor's and this one — try to present at once, and the editor's,
-        // whose view controller is already presenting this sheet, tears the
-        // sheet down instead. Taking the message out of the studio leaves
-        // exactly one presenter for it, the same shape the Rename alert uses.
+        // Failures raised in here get their own presenters, bound to local
+        // state rather than to the studio; see `claimStorageError()`.
         .errorAlert("Save failed", message: $saveError)
+        .errorAlert("Import failed", message: $importFailure)
+    }
+
+    /// Moves a storage failure off the studio and onto this sheet's alert.
+    ///
+    /// The library is itself a sheet, so the presenter on ContentView is
+    /// underneath it and SwiftUI won't surface it — see
+    /// `songShareSheet(for:)`'s doc comment for the same reasoning. Worse,
+    /// leaving the message on the studio means two live presenters bound to
+    /// the same property try to present at once, and the editor's, whose view
+    /// controller is already presenting this sheet, tears the sheet down
+    /// instead. Claiming the message leaves exactly one presenter for it.
+    private func claimStorageError() {
+        guard let error = studio.storageError else { return }
+        studio.storageError = nil
+        saveError = error
+    }
+
+    /// The same claim for an import failure, which has the same two-presenter
+    /// problem.
+    private func claimImportError() {
+        guard let error = studio.importError else { return }
+        studio.importError = nil
+        importFailure = error
     }
 
     private func reload() {
@@ -307,13 +331,7 @@ struct SongListView: View {
     private func duplicateAction(_ song: Song) -> some View {
         Button {
             studio.duplicate(song)
-            // Claim the failure for this sheet's alert and clear it on the
-            // studio, so the editor's presenter underneath stays idle rather
-            // than dismissing the library to present the same message.
-            if let error = studio.storageError {
-                studio.storageError = nil
-                saveError = error
-            }
+            claimStorageError()
             reload()
         } label: {
             Label("Duplicate", systemImage: "plus.square.on.square")
