@@ -726,6 +726,8 @@ final class Studio {
         if isPlaying, songMode { followsArrangement = (index == playingPattern) }
         selectedPattern = index
         engine.core.focus(pattern: index)
+        // A shorter pattern can leave the cursor past its last step.
+        clampCursor()
         if !songMode { playingPattern = index }
     }
 
@@ -773,11 +775,14 @@ final class Studio {
         guard song.patterns.count > 1, index < song.patterns.count else { return }
         checkpoint()
         let id = song.patterns[index].id
+        // Follow the pattern being edited, not the slot that was deleted:
+        // dropping a chip from its menu must not yank the grid elsewhere.
+        let survivor = index < selectedPattern ? selectedPattern - 1 : selectedPattern
         song.patterns.remove(at: index)
         song.arrangement.removeAll { $0.patternID == id }
         pushAll()
         pushArrangement()
-        selectPattern(min(index, song.patterns.count - 1))
+        selectPattern(min(survivor, song.patterns.count - 1))
     }
 
     func renamePattern(at index: Int, to name: String) {
