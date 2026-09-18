@@ -1093,7 +1093,20 @@ final class Studio {
         incoming.normalize()
         let existing = store.loadAll().map(\.id)
         let song = SongDocument.resolvingCollision(incoming, against: existing)
-        save(song, makeCurrent: false)
+        do {
+            try store.save(song, makeCurrent: false)
+        } catch {
+            // Written here rather than through `save` so the failure names the
+            // song that failed to import. Going through `save` reported it as
+            // "Couldn't save <the song already open>" — the wrong song and the
+            // wrong operation — and `open` then bailed on that same failed
+            // write, so the import vanished while the caller was told it
+            // worked. `storageError` is cleared with it: one failed write is
+            // one alert, and this is the one that explains it.
+            importError = "Couldn't import “\(song.name)”. \(error.localizedDescription)"
+            storageError = nil
+            return false
+        }
         open(song)
         importError = nil
         return true

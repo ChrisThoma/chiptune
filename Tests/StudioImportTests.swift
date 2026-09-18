@@ -231,6 +231,29 @@ final class StudioImportTests: XCTestCase {
         XCTAssertNil(studio.importError)
     }
 
+    /// An import that can't be written used to be reported as a failed save of
+    /// the song already on screen, and the import itself was dropped without a
+    /// word — the drop and importer paths dismissed as if it had worked.
+    func testAnImportThatCannotBeSavedIsReportedAgainstTheImportedSong() throws {
+        studio.open(Song(name: "On screen"))
+        let onScreen = studio.song.id
+
+        let fm = FileManager.default
+        try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: temp.directory.path)
+        defer {
+            try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: temp.directory.path)
+        }
+
+        XCTAssertFalse(studio.importSong(decoded: Song(name: "Imported Test")))
+
+        XCTAssertEqual(studio.importError?.contains("Imported Test"), true,
+                       "the failure must name the song that failed to import: \(studio.importError ?? "nil")")
+        XCTAssertNil(studio.storageError, "the open song saved fine; only the import failed")
+        XCTAssertEqual(studio.song.id, onScreen, "a failed import must not replace the song on screen")
+        XCTAssertFalse(temp.store.loadAll().contains { $0.name == "Imported Test" },
+                       "the import failed, so it must not be in the library")
+    }
+
     /// A dropped song skips `SongDocument.read`, so the normalisation that
     /// keeps unrepresentable values off the disk and out of the DSP has to
     /// happen on this path too.
