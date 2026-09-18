@@ -357,7 +357,8 @@ struct SongListView: View {
 
     private func detail(_ song: Song) -> String {
         // Monospace is wider than the proportional caption this used to be, so
-        // the clock is dropped to keep the line from wrapping.
-        return "\(Format.bpm(song.tempo)) · \(Format.count(song.patterns.count, "pattern")) · \(Format.clock(song.arrangementDuration)) · \(song.modified.formatted(date: .abbreviated, time: .omitted))"
+        // the clock is dropped to keep the line from wrapping: with it, a
+        // 16-pattern song wrapped onto a second line on a 375pt phone.
+        return "\(Format.bpm(song.tempo)) · \(Format.count(song.patterns.count, "pattern")) · \(song.modified.formatted(date: .abbreviated, time: .omitted))"
     }
 }
