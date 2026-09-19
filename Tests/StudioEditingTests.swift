@@ -630,6 +630,21 @@ final class StudioEditingTests: XCTestCase {
         XCTAssertEqual(studio.song.arrangement[0].repeats, 1)
     }
 
+    func testRepeatsEditsOnDifferentSectionsDoNotCoalesceIntoOneUndoStep() {
+        studio.addSection(patternID: studio.song.patterns[0].id)
+        let first = studio.song.arrangement[0].id
+        let second = studio.song.arrangement[1].id
+
+        studio.setSection(first, repeats: 3)
+        studio.setSection(second, repeats: 5)
+
+        studio.undo()
+        XCTAssertEqual(studio.song.arrangement[1].repeats, 1,
+                       "undoing the second section's edit must not also restore the first section")
+        XCTAssertEqual(studio.song.arrangement[0].repeats, 3,
+                       "the first section's own edit must survive one undo")
+    }
+
     func testArrangementChangesReachTheCore() {
         studio.addPattern()
         let id = studio.song.arrangement[0].id

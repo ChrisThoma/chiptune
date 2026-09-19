@@ -217,8 +217,9 @@ final class Studio {
     /// tempo stepper and then a grid cell within the window must stay two
     /// undo steps.
     enum CheckpointKind: Equatable {
-        case tempo, cell, note, patternLength, repeats
+        case tempo, cell, note, patternLength
         case trackName(Int), volume(Int), sustain(Int), decay(Int), duty(Int), arpeggio(Int)
+        case repeats(UUID)
     }
 
     /// `Song` is a value type whose arrays are copy-on-write, so a snapshot is
@@ -846,7 +847,7 @@ final class Studio {
 
     func setSection(_ id: UUID, repeats: Int) {
         guard let i = song.arrangement.firstIndex(where: { $0.id == id }) else { return }
-        checkpoint(coalescing: true, kind: .repeats)
+        checkpoint(coalescing: true, kind: .repeats(id))
         song.arrangement[i].repeats = repeats.clamped(to: 1...SongSection.maxRepeats)
         pushArrangement()
     }
