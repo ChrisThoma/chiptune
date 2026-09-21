@@ -327,6 +327,26 @@ final class ChipCore {
         if !songMode { currentPattern = slot }
     }
 
+    /// Moves SONG playback to a different chain slot and pattern without
+    /// restarting anything.
+    ///
+    /// Renumbering the song's patterns — deleting one, duplicating one —
+    /// leaves the cursor and the pattern index here naming different music
+    /// than they did a moment ago, because both are raw indices into lists the
+    /// main thread has just rewritten. The main thread works out where the
+    /// sounding pattern and section ended up and says so here, so the step
+    /// under way carries on in the right place rather than jumping to whatever
+    /// took the old number.
+    ///
+    /// Both fields are the ordinary word-sized main/audio-thread race this
+    /// file already runs on: worst case the audio thread crosses a boundary in
+    /// between and one of the two writes lands a beat late. Plain get/set, no
+    /// compound assignment — see the comment above `chainPos`.
+    func retarget(chainSlot: Int, pattern: Int) {
+        chainPos = Int32(min(max(chainSlot, 0), Int(max(chainCount, 1)) - 1))
+        currentPattern = Int32(min(max(pattern, 0), Int(max(patternCount, 1)) - 1))
+    }
+
     /// Switches between looping one pattern and following the arrangement,
     /// restarting the chain so SONG always begins at the top.
     func setSongMode(_ on: Bool) {

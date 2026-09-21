@@ -210,4 +210,103 @@ final class StudioPlayheadTests: XCTestCase {
         XCTAssertEqual(studio.selectedPattern, added)
         XCTAssertFalse(studio.followsArrangement)
     }
+
+    // MARK: Re-indexing the patterns under the sequencer
+
+    /// Deleting or duplicating a pattern renumbers every pattern after it, and
+    /// the core holds its position as raw indices. These tests drive the real
+    /// core through `RenderHarness` so the position being re-pointed is one the
+    /// audio thread actually reached, not one set by hand.
+
+    private func samplesPerStep(tempo: Double) -> Int {
+        Int((RenderHarness.sampleRate * 60.0 / (tempo * 4.0)).rounded())
+    }
+
+    /// `play()` needs a live `AVAudioEngine`; this is the part of it the
+    /// sequencer cares about, done straight to the core.
+    private func startSongPlayback() {
+        pretendPlayingSong()
+        studio.pushAll()
+        studio.engine.core.setSongMode(true)
+        studio.engine.core.start()
+        _ = RenderHarness.renderMono(studio.engine.core, frames: 1)
+    }
+
+    /// Renders `steps` steps and then feeds the core's position to the studio
+    /// the way the 60 Hz timer does.
+    private func advance(steps: Int) {
+        let frames = samplesPerStep(tempo: studio.song.tempo) * steps
+        _ = RenderHarness.renderMono(studio.engine.core, frames: frames)
+        let core = studio.engine.core
+        studio.applyPlayhead(step: Int(core.currentStep),
+                             pattern: Int(core.currentPattern),
+                             slot: Int(core.currentChainSlot))
+    }
+
+    func testDeletingAnEarlierPatternKeepsTheSoundingPatternPlaying() {
+        startSongPlayback()
+        let soundingID = studio.song.patterns[1].id
+        advance(steps: 16)               // over the first boundary, onto slot 1
+        XCTAssertEqual(studio.engine.core.currentChainSlot, 1, "precondition: on the second section")
+        XCTAssertEqual(studio.engine.core.currentPattern, 1)
+        XCTAssertEqual(studio.selectedPattern, 1, "precondition: the grid followed")
+
+        studio.removePattern(at: 0)
+
+        XCTAssertEqual(studio.song.patterns[0].id, soundingID, "premise: it moved to index 0")
+        XCTAssertEqual(studio.engine.core.currentPattern, 0, "the same pattern must keep sounding")
+        XCTAssertEqual(studio.engine.core.currentChainSlot, 0, "and on its own section")
+        XCTAssertEqual(studio.playingPattern, 0)
+        XCTAssertTrue(studio.followsArrangement, "the user never pinned anything")
+        XCTAssertEqual(studio.selectedPattern, 0)
+    }
+
+    /// The copy is inserted right after the original and its section is
+    /// appended, so the sounding pattern's index moves but its slot doesn't.
+    func testDuplicatingAnEarlierPatternKeepsTheSoundingPatternPlaying() {
+        startSongPlayback()
+        let soundingID = studio.song.patterns[1].id
+        advance(steps: 16)
+        XCTAssertEqual(studio.engine.core.currentChainSlot, 1, "precondition: on the second section")
+
+        studio.duplicatePattern(at: 0)
+
+        XCTAssertEqual(studio.song.patterns[2].id, soundingID, "premise: it moved to index 2")
+        XCTAssertEqual(studio.engine.core.currentPattern, 2)
+        XCTAssertEqual(studio.engine.core.currentChainSlot, 1)
+        XCTAssertEqual(studio.playingPattern, 2)
+    }
+
+    /// A section with repeats occupies several slots, and the cursor must keep
+    /// its place within them — not just land back on the section's first play.
+    func testDeletingAnEarlierPatternKeepsTheOffsetWithinTheRepeats() {
+        studio.song.arrangement[1].repeats = 3
+        studio.pushArrangement()
+        startSongPlayback()
+        XCTAssertEqual(studio.song.chain, [0, 1, 1, 1, 2], "the test's premise")
+
+        advance(steps: 32)               // slot 2: the second play of section 1
+        XCTAssertEqual(studio.engine.core.currentChainSlot, 2, "precondition")
+
+        studio.removePattern(at: 0)
+
+        XCTAssertEqual(studio.song.chain, [0, 0, 0, 1])
+        XCTAssertEqual(studio.engine.core.currentPattern, 0)
+        XCTAssertEqual(studio.engine.core.currentChainSlot, 1, "still the section's second play")
+        XCTAssertEqual(studio.playingPattern, 0)
+    }
+
+    /// Deleting the pattern that is sounding has nothing to keep playing, so
+    /// whatever takes the slot takes over. Asserted to hold that line.
+    func testDeletingTheSoundingPatternLetsTheNextSlotTakeOver() {
+        startSongPlayback()
+        advance(steps: 16)
+        XCTAssertEqual(studio.engine.core.currentPattern, 1, "precondition")
+
+        studio.removePattern(at: 1)
+
+        XCTAssertEqual(studio.song.patterns.count, 2)
+        XCTAssertEqual(studio.engine.core.currentPattern, 1, "the pattern now in that slot plays")
+        XCTAssertLessThan(Int(studio.engine.core.currentPattern), studio.song.patterns.count)
+    }
 }
