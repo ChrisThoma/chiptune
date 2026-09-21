@@ -767,11 +767,70 @@ final class Studio {
         return song.patterns.count - 1
     }
 
+    /// Where SONG playback is, in terms that survive a renumbering of the
+    /// patterns: which pattern is sounding, which section it is sounding from,
+    /// and how far into that section's repeats the chain cursor had got.
+    ///
+    /// The core holds both of those as raw indices, so an edit that inserts or
+    /// removes a pattern leaves them pointing at different music than they did
+    /// a moment before. Identities don't move, so the position is recorded as
+    /// ids before the edit and turned back into indices after it.
+    private struct SoundingPosition {
+        let patternID: UUID
+        let sectionID: UUID
+        /// Which play of the section's repeats, counted from its first slot.
+        let offset: Int
+    }
+
+    /// Reads the sequencer's position, or nil when nothing is following the
+    /// arrangement and there is therefore nothing to preserve.
+    private func soundingPosition() -> SoundingPosition? {
+        guard isPlaying, songMode else { return nil }
+        let core = engine.core
+        guard let sounding = song.patterns[safe: Int(core.currentPattern)] else { return nil }
+        let slot = Int(core.currentChainSlot)
+        guard let section = song.sectionIndex(chainSlot: slot),
+              let start = song.chainStart(ofSection: section) else { return nil }
+        return SoundingPosition(patternID: sounding.id,
+                                sectionID: song.arrangement[section].id,
+                                offset: slot - start)
+    }
+
+    /// Points the sequencer back at the music it was playing before the edit.
+    ///
+    /// Call after `pushAll`/`pushArrangement` and before `selectPattern`: the
+    /// follow rearms itself by comparing the new selection against
+    /// `playingPattern`, so that has to already say where playback ended up or
+    /// a delete the user made elsewhere reads as them pinning the grid.
+    ///
+    /// A sounding pattern that the edit deleted is left alone — there is
+    /// nothing to keep playing, so whatever takes its slot takes over.
+    private func restore(_ position: SoundingPosition?) {
+        guard let position, let pattern = song.patternIndex(id: position.patternID) else { return }
+        let slot: Int
+        if let section = song.arrangement.firstIndex(where: { $0.id == position.sectionID }),
+           let start = song.chainStart(ofSection: section) {
+            let repeats = max(song.arrangement[section].repeats, 1)
+            slot = start + min(position.offset, repeats - 1)
+            playingSection = section
+        } else {
+            // The pattern survived but its section didn't. Keep the cursor
+            // where it is rather than inventing a place for it; the next
+            // boundary picks the chain up from there.
+            slot = Int(engine.core.currentChainSlot)
+        }
+        engine.core.retarget(chainSlot: slot, pattern: pattern)
+        playingPattern = pattern
+    }
+
     /// Copies a pattern's notes into a new one — the usual way to write a
     /// variation on a section you already like.
     func duplicatePattern(at index: Int) {
         guard song.canAddPattern, index < song.patterns.count else { return }
         checkpoint()
+        // Inserting shifts every later pattern up a number, the sounding one
+        // included.
+        let sounding = soundingPosition()
         var copy = song.patterns[index]
         copy.id = UUID()
         copy.name = song.nextPatternName()
@@ -779,12 +838,17 @@ final class Studio {
         song.arrangement.append(SongSection(patternID: copy.id))
         pushAll()
         pushArrangement()
+        restore(sounding)
         selectPattern(index + 1)
     }
 
     func removePattern(at index: Int) {
         guard song.patterns.count > 1, index < song.patterns.count else { return }
         checkpoint()
+        // Removing shifts every later pattern down a number and takes this
+        // pattern's sections out of the chain, so both of the sequencer's raw
+        // indices are about to mean something else.
+        let sounding = soundingPosition()
         let id = song.patterns[index].id
         // Follow the pattern being edited, not the slot that was deleted:
         // dropping a chip from its menu must not yank the grid elsewhere.
@@ -793,6 +857,7 @@ final class Studio {
         song.arrangement.removeAll { $0.patternID == id }
         pushAll()
         pushArrangement()
+        restore(sounding)
         selectPattern(min(survivor, song.patterns.count - 1))
     }
 

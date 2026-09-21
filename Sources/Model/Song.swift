@@ -479,6 +479,22 @@ struct Song: Codable, Equatable, Identifiable {
         return nil
     }
 
+    /// The first flattened `chain` slot a section occupies, or nil when the
+    /// section plays nothing — the inverse of `sectionIndex(chainSlot:)`, and
+    /// it skips sections with a missing pattern for the same reason that one
+    /// does: `chain` never expands them.
+    func chainStart(ofSection index: Int) -> Int? {
+        guard index >= 0, index < arrangement.count,
+              patternIndex(id: arrangement[index].patternID) != nil else { return nil }
+        var slot = 0
+        for (i, section) in arrangement.enumerated() {
+            if i == index { return slot }
+            guard patternIndex(id: section.patternID) != nil else { continue }
+            slot += max(section.repeats, 1)
+        }
+        return nil
+    }
+
     /// The full expansion `chain` would need before it gets capped — sections
     /// with a missing pattern don't count, matching what `chain` actually walks.
     var plannedPlaythroughs: Int {

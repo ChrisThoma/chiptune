@@ -177,6 +177,52 @@ final class ChipCoreSequencerTests: XCTestCase {
         XCTAssertEqual(core.currentPattern, 0)
     }
 
+    // MARK: Retargeting
+
+    /// Re-indexing the song's patterns moves the sounding pattern to a new
+    /// index and its section to a new slot; `retarget` is how the main thread
+    /// points the sequencer back at the same music afterwards.
+    func testRetargetMovesThePlaybackPositionWithoutRestartingIt() {
+        // A twice, then B once: chain [0, 0, 1].
+        let song = TestSongs.twoPatterns(lengths: (16, 8), repeats: (2, 1))
+        let sps = samplesPerStep(tempo: 120)
+        let core = makeCore(song, songMode: true)
+
+        _ = RenderHarness.renderMono(core, frames: sps * 4)
+        XCTAssertEqual(core.currentChainSlot, 0, "precondition: still in the first play of A")
+
+        core.retarget(chainSlot: 2, pattern: 1)
+        XCTAssertEqual(core.currentChainSlot, 2)
+        XCTAssertEqual(core.currentPattern, 1)
+
+        // The step count carries over: the cursor was four steps into A, and B
+        // is only eight steps long, so four more steps stay inside B and the
+        // boundary after that wraps to the top of the chain — from slot 2,
+        // which is proof the render loop took the new cursor rather than
+        // carrying on from the slot it was walking.
+        _ = RenderHarness.renderMono(core, frames: sps * 3)
+        XCTAssertEqual(core.currentPattern, 1, "still inside B")
+        XCTAssertEqual(core.currentChainSlot, 2)
+        _ = RenderHarness.renderMono(core, frames: sps * 2)
+        XCTAssertEqual(core.currentChainSlot, 0, "the chain wrapped from the slot it was given")
+        XCTAssertEqual(core.currentPattern, 0)
+    }
+
+    /// Both arguments come from a song that has just been re-indexed, so a
+    /// caller getting them wrong must leave the sequencer somewhere valid.
+    func testRetargetClampsOutOfRangeInputs() {
+        let song = TestSongs.twoPatterns(lengths: (16, 8))
+        let core = makeCore(song, songMode: true)
+
+        core.retarget(chainSlot: 99, pattern: 99)
+        XCTAssertLessThan(core.currentChainSlot, core.chainCount)
+        XCTAssertLessThan(core.currentPattern, core.patternCount)
+
+        core.retarget(chainSlot: -3, pattern: -3)
+        XCTAssertEqual(core.currentChainSlot, 0)
+        XCTAssertEqual(core.currentPattern, 0)
+    }
+
     // MARK: Hostile edits mid-playback
 
     /// The pattern being edited can shrink under the playhead — STEPS is a
