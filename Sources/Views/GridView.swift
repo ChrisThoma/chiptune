@@ -346,7 +346,12 @@ private struct TrackHeader: View {
             }
             .buttonStyle(.plain)
             .hoverEffect(.highlight)
-            .accessibilityLabel(muted ? "Unmute \(name)" : "Mute \(name)")
+            // A label that flips between Mute/Unmute isn't announced after
+            // activation; a value change is, so the label stays put and the
+            // state moves into a toggle value instead.
+            .accessibilityLabel("Mute \(name)")
+            .accessibilityValue(muted ? "On" : "Off")
+            .accessibilityAddTraits(.isToggle)
         }
         .padding(5)
         // A rotation into the side arrangement docks the editor; leaving the

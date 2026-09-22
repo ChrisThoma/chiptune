@@ -1,5 +1,19 @@
 import SwiftUI
 
+/// What a pattern chip tells VoiceOver beyond its name. The green dot and the
+/// dimmed label are visual only; this spells them out.
+enum PatternChipAccessibility {
+    /// nil when there is nothing to add to the label.
+    static func value(playing: Bool, isEmpty: Bool) -> String? {
+        switch (playing, isEmpty) {
+        case (false, false): return nil
+        case (true, false): return "Playing"
+        case (false, true): return "Empty"
+        case (true, true): return "Playing, Empty"
+        }
+    }
+}
+
 /// The patterns strip: pick which block the grid is editing, and set its length.
 struct PatternBar: View {
     @Bindable var studio: Studio
@@ -239,7 +253,23 @@ struct PatternBar: View {
         // Matches the chip's own corners so the glow doesn't spill past it.
         .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: Theme.innerRadius))
         .accessibilityLabel("Pattern \(pattern.name)")
+        .accessibilityValue(PatternChipAccessibility.value(playing: playing, isEmpty: pattern.isEmpty) ?? "")
         .accessibilityAddTraits(selected ? [.isSelected] : [])
+        // The context menu below is unreachable with VoiceOver, so its four
+        // actions are mirrored here as accessibility actions.
+        .accessibilityActions {
+            Button("Rename") {
+                renameText = pattern.name
+                renaming = index
+            }
+            if studio.song.canAddPattern {
+                Button("Duplicate") { studio.duplicatePattern(at: index) }
+            }
+            Button("Clear") { clearing = index }
+            if studio.song.patterns.count > 1 {
+                Button("Delete") { deleting = index }
+            }
+        }
         .contextMenu {
             Button {
                 renameText = pattern.name
