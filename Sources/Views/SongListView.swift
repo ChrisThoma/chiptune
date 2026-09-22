@@ -115,6 +115,8 @@ struct SongListView: View {
     @State private var saveError: String?
     /// An import failure, claimed the same way and for the same reason.
     @State private var importFailure: String?
+    /// A share failure, claimed the same way and for the same reason.
+    @State private var shareFailure: String?
     /// A `.chipsong` is hovering over the library, waiting to be dropped.
     @State private var dropTargeted = false
 
@@ -161,6 +163,8 @@ struct SongListView: View {
                     if studio.importSong(decoded: file.song) {
                         reload()
                         dismiss()
+                    } else {
+                        claimImportError()
                     }
                 }
                 return true
@@ -252,7 +256,13 @@ struct SongListView: View {
                 }
             }
         }
-        .songShareSheet(for: studio)
+        // Deferred one runloop tick, the same as the file importer and the
+        // drop destination above: presenting this alert in the same
+        // transaction as the share sheet's own dismissal can make SwiftUI
+        // drop the alert's presentation.
+        .songShareSheet(for: studio, onFailure: { message in
+            DispatchQueue.main.async { shareFailure = message }
+        })
         .background {
             SongRenameAlertAccessibilityBridge(isPresented: renaming != nil)
         }
@@ -278,6 +288,7 @@ struct SongListView: View {
         // state rather than to the studio; see `claimStorageError()`.
         .errorAlert("Save failed", message: $saveError)
         .errorAlert("Import failed", message: $importFailure)
+        .errorAlert("Share failed", message: $shareFailure)
     }
 
     /// Moves a storage failure off the studio and onto this sheet's alert.
@@ -301,6 +312,14 @@ struct SongListView: View {
         guard let error = studio.importError else { return }
         studio.importError = nil
         importFailure = error
+    }
+
+    /// The same claim for a share failure, which has the same two-presenter
+    /// problem.
+    private func claimShareError() {
+        guard let error = studio.shareError else { return }
+        studio.shareError = nil
+        shareFailure = error
     }
 
     private func reload() {
@@ -384,6 +403,7 @@ struct SongListView: View {
     private func shareAction(_ song: Song) -> some View {
         Button {
             studio.share(song)
+            claimShareError()
         } label: {
             Label("Share song file", systemImage: "square.and.arrow.up")
         }
