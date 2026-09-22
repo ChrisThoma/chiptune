@@ -537,6 +537,11 @@ struct Song: Codable, Equatable, Identifiable {
     /// muted one.
     var hasNotes: Bool { Set(chain).contains { patterns[safe: $0]?.hasNotes ?? false } }
 
+    /// A note in any pattern, arranged or not. Tells "nothing written yet"
+    /// apart from "written somewhere the arrangement never plays", which want
+    /// different advice on the export sheet.
+    var hasNotesAnywhere: Bool { patterns.contains(where: \.hasNotes) }
+
     /// Longest decay among tracks that can actually be heard ringing out: not
     /// muted, not sustaining (sustain releases in ~15ms via `core.finish()`,
     /// nothing to ring), and carrying at least one playable note the sequencer
