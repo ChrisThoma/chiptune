@@ -308,11 +308,10 @@ struct InstrumentEditor: View {
             // and the grid shows through the sheet. SongListView does the same.
             .scrollContentBackground(.hidden)
             .background(Theme.background.ignoresSafeArea())
-            .confirmationDialog(
+            .alert(
                 pendingClear.map { "Clear this track in pattern \(studio.song.patterns[safe: $0.pattern]?.name ?? "")?" } ?? "",
                 isPresented: Binding(get: { pendingClear != nil },
-                                     set: { if !$0 { pendingClear = nil } }),
-                titleVisibility: .visible) {
+                                     set: { if !$0 { pendingClear = nil } })) {
                 if let target = pendingClear {
                     Button("Clear track", role: .destructive) {
                         studio.clearTrack(target.track, in: target.pattern)
@@ -322,11 +321,10 @@ struct InstrumentEditor: View {
             } message: {
                 Text("Its notes in the other patterns are left alone.")
             }
-            .confirmationDialog(
+            .alert(
                 pendingDeleteIndex.map { "Delete \(studio.song.fullLabel(for: $0))?" } ?? "",
                 isPresented: Binding(get: { pendingDeleteIndex != nil },
-                                      set: { if !$0 { pendingDeleteIndex = nil } }),
-                titleVisibility: .visible) {
+                                      set: { if !$0 { pendingDeleteIndex = nil } })) {
                 if let target = pendingDeleteIndex {
                     Button("Delete track", role: .destructive) {
                         // Dismiss first and remove on the next main-actor turn, so

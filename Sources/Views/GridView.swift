@@ -403,8 +403,7 @@ private struct TrackHeader: View {
         }
         // A track carries its notes in every pattern, so this is the most
         // expensive thing a context menu in this app can do.
-        .confirmationDialog("Delete \(name)?", isPresented: $confirmingDelete,
-                            titleVisibility: .visible) {
+        .alert("Delete \(name)?", isPresented: $confirmingDelete) {
             Button("Delete track", role: .destructive) { studio.removeTrack(at: index) }
             Button("Cancel", role: .cancel) {}
         } message: {
