@@ -93,12 +93,23 @@ extension View {
     ///
     /// Sharing the .chipsong is immediate — the file is just the song's
     /// JSON — so it needs no render and no progress.
-    func songShareSheet(for studio: Studio) -> some View {
+    ///
+    /// A completion failure is reported through `onFailure` when the caller
+    /// supplies one (the library claims it onto its own alert state, the same
+    /// way it claims storage/import failures) and falls back to
+    /// `studio.shareError` otherwise, which is what ContentView's own
+    /// presenter reads.
+    func songShareSheet(for studio: Studio, onFailure: ((String) -> Void)? = nil) -> some View {
         sheet(isPresented: Binding(isPresenting: Bindable(studio).shareURL)) {
             if let url = studio.shareURL {
                 ShareSheet(items: [url], onComplete: { _, error in
                     if let error {
-                        studio.shareError = "Couldn't share the song file. \(error.localizedDescription)"
+                        let message = "Couldn't share the song file. \(error.localizedDescription)"
+                        if let onFailure {
+                            onFailure(message)
+                        } else {
+                            studio.shareError = message
+                        }
                     }
                 })
             }
