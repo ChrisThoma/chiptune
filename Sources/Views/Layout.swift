@@ -180,8 +180,8 @@ struct ChipLayout: Equatable {
     ///
     /// The rule: two octaves only when
     /// `width - minimumSideGridWidth >= wideSideKeyboardWidth + wideSideColumnSlack`.
-    /// On the numbers that means 1358pt and up, so the 13-inch iPad (1366 and
-    /// the 1376 M4/M5 models) gets two and every 11-inch and 10.9-inch
+    /// On the numbers that means 1358pt and up, so the 13-inch iPad (1366 on the
+    /// 12.9-inch, 1376 on the M4/M5) gets two and every 11-inch and 10.9-inch
     /// landscape window (1180–1210) keeps one. Pure, so the boundary can be
     /// pinned by a test rather than discovered on a device.
     static func sideColumn(forWindowWidth width: CGFloat) -> (width: CGFloat, octaves: Int) {

@@ -74,8 +74,8 @@ final class LayoutTests: XCTestCase {
     }
 
     /// A 13-inch iPad in landscape has width for a second octave without the
-    /// grid dropping below what it needs, so the keys get one. Both the M4/M5
-    /// (1366) and the earlier (1376) 13-inch landscape widths qualify.
+    /// grid dropping below what it needs, so the keys get one. Both the 12.9-inch
+    /// (1366) and the M4/M5 13-inch (1376) landscape widths qualify.
     func testThirteenInchLandscapeGetsTwoOctavesInAWiderColumn() {
         for size in [CGSize(width: 1366, height: 1024), CGSize(width: 1376, height: 1032)] {
             let layout = ChipLayout.resolve(size: size, horizontalSizeClass: .regular)
@@ -118,7 +118,7 @@ final class LayoutTests: XCTestCase {
     }
 
     /// The rule the two column sizes turn on, on its own: the wider column is
-    /// only worth taking when the grid can spare it and 160pt besides.
+    /// only worth taking when the grid can spare it and the slack besides.
     func testTheSecondOctaveNeedsTheWiderColumnPlusSlack() {
         let boundary = ChipLayout.minimumSideGridWidth
             + ChipLayout.wideSideKeyboardWidth + ChipLayout.wideSideColumnSlack
