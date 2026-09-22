@@ -4,7 +4,13 @@ import SwiftUI
 /// worth keeping. nil when there is nothing to warn about.
 enum ExportNotesFooter {
     static func text(for song: Song) -> String? {
-        guard !song.hasNotes else { return nil }
+        guard !song.hasNotes else {
+            // Muting everything is a legitimate mix, so the export still runs
+            // — it just wouldn't have anything in it.
+            return song.hasAudibleNotes
+                ? nil
+                : "Every track with notes is muted, so the export would be silent."
+        }
         guard song.hasNotesAnywhere else { return "This song has no notes yet." }
         return "Its notes are in a pattern the arrangement doesn't play. Add that pattern to the arrangement to export it."
     }

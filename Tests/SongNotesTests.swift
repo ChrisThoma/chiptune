@@ -61,4 +61,40 @@ final class SongNotesTests: XCTestCase {
         XCTAssertFalse(song.hasNotes)
         XCTAssertTrue(song.hasNotesAnywhere)
     }
+
+    func testAnAllMutedSongHasNoAudibleNotes() {
+        var song = TestSongs.empty()
+        song.patterns[0].rows[0][0] = 60
+        song.tracks[0].muted = true
+
+        XCTAssertTrue(song.hasNotes)
+        XCTAssertFalse(song.hasAudibleNotes)
+
+        song.tracks[0].muted = false
+        XCTAssertTrue(song.hasAudibleNotes)
+    }
+
+    func testOneUnmutedTrackWithNotesIsAudible() {
+        var song = TestSongs.empty()
+        song.patterns[0].rows[0][0] = 60
+        song.patterns[0].rows[1][0] = 64
+        song.tracks[0].muted = true
+
+        XCTAssertTrue(song.hasAudibleNotes)
+    }
+
+    func testAnUnmutedTrackWhoseOnlyNotesAreUnarrangedIsNotAudible() {
+        var song = TestSongs.empty()
+        song.patterns[0].rows[0][0] = 60
+        song.tracks[0].muted = true
+
+        var second = Pattern(name: "B", trackCount: song.tracks.count)
+        second.rows[1][0] = 64
+        song.patterns.append(second)
+
+        XCTAssertFalse(song.hasAudibleNotes)
+
+        song.arrangement.append(SongSection(patternID: second.id))
+        XCTAssertTrue(song.hasAudibleNotes)
+    }
 }
