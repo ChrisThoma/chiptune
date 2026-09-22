@@ -240,7 +240,7 @@ private struct GridCell: View {
                 pressed = pressing
             }
             .accessibilityLabel("\(studio.song.fullLabel(for: track)) step \(step + 1)")
-            .accessibilityValue(filled ? NoteName.label(note) : "empty")
+            .accessibilityValue(filled ? NoteName.label(note) : "Empty")
             // A shape with gestures on it exposes as plain text, and there is
             // no reaching a long press with VoiceOver — so the trait and the
             // preview both have to be spelled out.
@@ -363,6 +363,16 @@ private struct TrackHeader: View {
             RoundedRectangle(cornerRadius: Theme.panelRadius)
                 .stroke(selected ? accent : Color.clear, lineWidth: 1.5)
         )
+        // The context menu below is unreachable with VoiceOver, so its
+        // actions are mirrored here as accessibility actions.
+        .accessibilityActions {
+            if studio.song.canAddTrack {
+                Button("Duplicate") { studio.duplicateTrack(at: index) }
+            }
+            if studio.song.tracks.count > 1 {
+                Button("Delete") { confirmingDelete = true }
+            }
+        }
         // Duplicate and delete also live in the sound editor; this is the
         // shortcut for when you already know what you want.
         .contextMenu {
