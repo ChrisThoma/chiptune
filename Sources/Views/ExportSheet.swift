@@ -71,7 +71,11 @@ struct ExportSheet: View {
                         } label: {
                             Label("Export WAV", systemImage: "square.and.arrow.up")
                         }
-                        .disabled(startedAttempt != nil)
+                        .disabled(startedAttempt != nil || !studio.song.hasNotes)
+                    }
+                } footer: {
+                    if !studio.song.hasNotes {
+                        Text("This song has no notes yet.")
                     }
                 }
             }
