@@ -305,7 +305,13 @@ struct Pattern: Codable, Equatable, Identifiable {
 
     /// A pitch at a step the sequencer reaches. Rests and note-offs don't
     /// count: a pattern of nothing but OFFs renders silence.
-    var hasNotes: Bool { rows.contains { $0.prefix(length).contains { $0 >= 0 && $0 <= 127 } } }
+    var hasNotes: Bool { rows.contains(where: rowHasNotes) }
+
+    /// `hasNotes` for one track's row, so callers that already know which
+    /// track they care about don't repeat the pitch range by hand.
+    func rowHasNotes(_ row: [Int8]) -> Bool {
+        row.prefix(length).contains { $0 >= 0 && $0 <= 127 }
+    }
 
     /// Pads or trims decoded rows so an older or corrupt file can't send the
     /// audio thread past the end of its fixed-size buffers.
@@ -542,6 +548,22 @@ struct Song: Codable, Equatable, Identifiable {
     /// different advice on the export sheet.
     var hasNotesAnywhere: Bool { patterns.contains(where: \.hasNotes) }
 
+    /// Something the export would actually *sound*: a note the arrangement
+    /// plays on a track that isn't muted. Mute is applied inside the synth, so
+    /// a song whose every noted track is muted renders silence — which
+    /// `hasNotes`, by design, still calls a song with notes.
+    var hasAudibleNotes: Bool {
+        let reachable = Set(chain)
+        return tracks.enumerated().contains { index, track in
+            guard !track.muted else { return false }
+            return reachable.contains { patternIdx in
+                guard let pattern = patterns[safe: patternIdx],
+                      let row = pattern.rows[safe: index] else { return false }
+                return pattern.rowHasNotes(row)
+            }
+        }
+    }
+
     /// Longest decay among tracks that can actually be heard ringing out: not
     /// muted, not sustaining (sustain releases in ~15ms via `core.finish()`,
     /// nothing to ring), and carrying at least one playable note the sequencer
@@ -554,8 +576,8 @@ struct Song: Codable, Equatable, Identifiable {
             let plays = patterns.indices.contains(where: { patternIdx in
                 guard reachable.contains(patternIdx) else { return false }
                 let pattern = patterns[patternIdx]
-                guard track.instrument.decay > 0, index < pattern.rows.count else { return false }
-                return pattern.rows[index].prefix(pattern.length).contains { $0 >= 0 && $0 <= 127 }
+                guard track.instrument.decay > 0, let row = pattern.rows[safe: index] else { return false }
+                return pattern.rowHasNotes(row)
             })
             guard plays else { continue }
             longest = max(longest ?? 0, track.instrument.decay)
