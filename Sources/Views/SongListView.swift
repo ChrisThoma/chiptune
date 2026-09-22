@@ -365,7 +365,9 @@ struct SongListView: View {
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             // Full swipe stays off: a song is not recoverable.
-            deleteAction(song)
+            // Without an explicit tint, the NavigationStack's `.tint(Theme.text)`
+            // wins and this destructive swipe renders white instead of red.
+            deleteAction(song).tint(.red)
             shareAction(song).tint(Theme.panelHigh)
         }
         // The same actions again, for anyone who reaches for a long press
