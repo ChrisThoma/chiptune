@@ -231,6 +231,47 @@ final class SongDocumentTests: XCTestCase {
         XCTAssertFalse(instrument.sustain)
     }
 
+    /// A channel kind written by a newer build — or simply corrupt — is one
+    /// track's problem, not the song's. Failing the decode reads to the user
+    /// as their song vanishing from the library.
+    func testATrackWithAnUnknownKindStillLoads() throws {
+        let future = """
+        { "name": "From the future", "tempo": 120, "tracks": [
+            { "kind": 0, "instrument": {} },
+            { "kind": 9, "instrument": { "duty": 2, "volume": 0.8, "decay": 0.35 } } ],
+          "patterns": [ { "id": "\(UUID().uuidString)", "name": "A", "length": 16,
+                          "rows": [[60], [67]] } ],
+          "arrangement": [] }
+        """
+
+        let song = try SongDocument.decode(Data(future.utf8))
+
+        XCTAssertEqual(song.tracks.count, 2)
+        XCTAssertTrue(ChannelKind.allCases.contains(song.tracks[1].kind))
+        XCTAssertEqual(song.patterns[0].rows[1][0], 67)
+    }
+
+    /// Nothing about a track should be mandatory either — a missing instrument
+    /// falls back to the kind's own default rather than losing the song.
+    func testATrackMissingItsInstrumentStillLoads() throws {
+        let sparse = """
+        { "name": "No instrument", "tempo": 120, "tracks": [
+            { "kind": 0, "instrument": {} },
+            { "kind": 2 } ],
+          "patterns": [ { "id": "\(UUID().uuidString)", "name": "A", "length": 16,
+                          "rows": [[60], [67]] } ],
+          "arrangement": [] }
+        """
+
+        let song = try SongDocument.decode(Data(sparse.utf8))
+
+        XCTAssertEqual(song.tracks.count, 2)
+        XCTAssertEqual(song.tracks[1].kind, .triangle)
+        var expected = Instrument.default(for: .triangle)
+        expected.normalize()
+        XCTAssertEqual(song.tracks[1].instrument, expected)
+    }
+
     func testHoldSurvivesARoundTrip() throws {
         var song = makeSong()
         song.tracks[0].instrument.sustain = true

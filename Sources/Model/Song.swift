@@ -211,8 +211,16 @@ struct Track: Codable, Equatable, Identifiable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         // Songs saved before tracks were addable have no id of their own.
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        kind = try c.decode(ChannelKind.self, forKey: .kind)
-        instrument = try c.decode(Instrument.self, forKey: .instrument)
+        // Read as a raw Int rather than a ChannelKind: a value outside 0...3 —
+        // a kind written by a newer build, or plain corruption — would fail the
+        // raw conversion and lose the whole song over one track. A future kind
+        // has no sound here, so it lands on pulse1 and the song still opens.
+        let rawKind = try c.decodeIfPresent(Int.self, forKey: .kind)
+        kind = rawKind.flatMap(ChannelKind.init(rawValue:)) ?? .pulse1
+        // Optional for the same reason every key inside `Instrument` is: a file
+        // missing this should cost a voice's settings, not the whole song.
+        instrument = try c.decodeIfPresent(Instrument.self, forKey: .instrument)
+            ?? .default(for: kind)
         muted = try c.decodeIfPresent(Bool.self, forKey: .muted) ?? false
         name = try c.decodeIfPresent(String.self, forKey: .name)
         // Decoded as [Int] rather than [Int8]: a legacy file with one

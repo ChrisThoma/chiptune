@@ -144,6 +144,29 @@ final class SongStoreTests: XCTestCase {
         XCTAssertEqual(loaded.first?.name, "Readable")
     }
 
+    /// A track kind a newer build wrote is not corruption: the file still has
+    /// everything a song needs, so it belongs in the library rather than
+    /// disappearing off the list with the file left sitting on disk.
+    func testAFileWithAnUnknownTrackKindIsStillListed() throws {
+        let future = """
+        { "id": "\(UUID().uuidString)", "name": "From the future", "tempo": 120,
+          "tracks": [
+            { "kind": 0, "instrument": { "duty": 2, "volume": 0.8, "decay": 0.35 } },
+            { "kind": 9, "instrument": { "duty": 2, "volume": 0.8, "decay": 0.35 } } ],
+          "patterns": [ { "id": "\(UUID().uuidString)", "name": "A", "length": 16,
+                          "rows": [[60], [67]] } ],
+          "arrangement": [] }
+        """
+        try Data(future.utf8)
+            .write(to: temp.directory.appendingPathComponent("\(UUID().uuidString).json"))
+        try Data("{}".utf8)
+            .write(to: temp.directory.appendingPathComponent("\(UUID().uuidString).json"))
+
+        let loaded = store.loadAll()
+        XCTAssertEqual(loaded.map(\.name), ["From the future"],
+                       "the unknown kind should load; {} should still be skipped")
+    }
+
     func testNonJsonFilesAreIgnored() throws {
         temp.save(Song(name: "Readable"))
         try Data("nope".utf8).write(to: temp.directory.appendingPathComponent("stray.wav"))
