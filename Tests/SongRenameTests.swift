@@ -103,13 +103,35 @@ final class SongRenameTests: XCTestCase {
 
     func testRenameFieldInkIsDarkOverAWhiteField() {
         let foreground = SongRenameAlertStyle.textColor(over: .white)
-        XCTAssertGreaterThan(contrastRatio(foreground, .white), 4.5)
+        XCTAssertGreaterThan(SongRenameAlertStyle.contrastRatio(foreground, .white), 4.5)
     }
 
     func testRenameFieldInkIsLightOverADarkField() {
         let dark = UIColor(white: 0.11, alpha: 1)
         let foreground = SongRenameAlertStyle.textColor(over: dark)
-        XCTAssertGreaterThan(contrastRatio(foreground, dark), 4.5)
+        XCTAssertGreaterThan(SongRenameAlertStyle.contrastRatio(foreground, dark), 4.5)
+    }
+
+    /// The old rule picked ink by a 0.5 luminance cut, not by which candidate
+    /// actually contrasts more with the background -- so a mid-grey field
+    /// (0.45-0.74 luminance) got the lower-contrast ink. Every grey must get
+    /// whichever of the two inks wins the contrast ratio outright.
+    func testRenameFieldInkIsTheHigherContrastChoiceOnEveryGrey() {
+        for white in stride(from: 0.0, through: 1.0, by: 0.05) {
+            let background = UIColor(white: white, alpha: 1)
+            let chosen = SongRenameAlertStyle.textColor(over: background)
+            let onLight = UIColor(Theme.onLight)
+            let text = UIColor(Theme.text)
+            let other = chosen == onLight ? text : onLight
+
+            let chosenRatio = SongRenameAlertStyle.contrastRatio(chosen, background)
+            let otherRatio = SongRenameAlertStyle.contrastRatio(other, background)
+
+            XCTAssertGreaterThanOrEqual(
+                chosenRatio, otherRatio,
+                "grey \(white): chosen ink's contrast ratio \(chosenRatio) should be >= the other candidate's \(otherRatio)"
+            )
+        }
     }
 
     func testRenameFieldTakesItsInkFromItsContainer() {
@@ -270,29 +292,6 @@ final class SongRenameTests: XCTestCase {
 
         studio.undo()
         XCTAssertEqual(studio.song.name, "Old")
-    }
-
-    private func contrastRatio(_ first: UIColor, _ second: UIColor) -> CGFloat {
-        let firstLuminance = relativeLuminance(first)
-        let secondLuminance = relativeLuminance(second)
-        return (max(firstLuminance, secondLuminance) + 0.05)
-            / (min(firstLuminance, secondLuminance) + 0.05)
-    }
-
-    private func relativeLuminance(_ color: UIColor) -> CGFloat {
-        var red: CGFloat = 0
-        var green: CGFloat = 0
-        var blue: CGFloat = 0
-        var alpha: CGFloat = 0
-        XCTAssertTrue(color.getRed(&red, green: &green, blue: &blue, alpha: &alpha))
-
-        func linear(_ component: CGFloat) -> CGFloat {
-            component <= 0.04045
-                ? component / 12.92
-                : pow((component + 0.055) / 1.055, 2.4)
-        }
-
-        return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
     }
 
     func testDeleteRemovesTheSongFromTheLibrary() {

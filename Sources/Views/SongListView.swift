@@ -7,10 +7,21 @@ import UIKit
 /// from the field's own container's real background at apply time instead of
 /// a fixed color.
 enum SongRenameAlertStyle {
-    /// The ink to use over a given background: dark ink on a light field,
-    /// light ink on a dark one.
+    /// The ink to use over a given background: whichever of the two theme
+    /// inks actually contrasts more with it, by WCAG contrast ratio -- not a
+    /// fixed luminance cut, which stops being the true crossover once the two
+    /// candidate inks aren't pure black and white.
     static func textColor(over background: UIColor) -> UIColor {
-        relativeLuminance(of: background) > 0.5 ? UIColor(Theme.onLight) : UIColor(Theme.text)
+        let onLight = UIColor(Theme.onLight)
+        let text = UIColor(Theme.text)
+        return contrastRatio(onLight, background) >= contrastRatio(text, background) ? onLight : text
+    }
+
+    /// The WCAG contrast ratio between two colors: (Lmax + 0.05) / (Lmin + 0.05).
+    static func contrastRatio(_ a: UIColor, _ b: UIColor) -> CGFloat {
+        let luminanceA = relativeLuminance(of: a)
+        let luminanceB = relativeLuminance(of: b)
+        return (max(luminanceA, luminanceB) + 0.05) / (min(luminanceA, luminanceB) + 0.05)
     }
 
     /// The first opaque-enough background found walking up from `view`'s own
@@ -32,7 +43,7 @@ enum SongRenameAlertStyle {
         field.textColor = containerBackground(of: field).map(textColor(over:)) ?? .label
     }
 
-    private static func relativeLuminance(of color: UIColor) -> CGFloat {
+    static func relativeLuminance(of color: UIColor) -> CGFloat {
         var red: CGFloat = 0
         var green: CGFloat = 0
         var blue: CGFloat = 0
