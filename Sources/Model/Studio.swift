@@ -882,32 +882,45 @@ final class Studio {
 
     // MARK: Arrangement
 
+    /// Editing the arrangement renumbers the chain the same way editing the
+    /// pattern list renumbers the patterns, so these four take the same care
+    /// of the sequencer's raw slot index: read the sounding position first,
+    /// point the core back at it once the new chain is in.
+
     func addSection(patternID: UUID) {
         checkpoint()
+        let sounding = soundingPosition()
         song.arrangement.append(SongSection(patternID: patternID))
         pushArrangement()
+        restore(sounding)
     }
 
     func removeSection(at offsets: IndexSet) {
         checkpoint()
+        let sounding = soundingPosition()
         song.arrangement.remove(atOffsets: offsets)
         if song.arrangement.isEmpty, let first = song.patterns.first {
             song.arrangement = [SongSection(patternID: first.id)]
         }
         pushArrangement()
+        restore(sounding)
     }
 
     func moveSection(from offsets: IndexSet, to destination: Int) {
         checkpoint()
+        let sounding = soundingPosition()
         song.arrangement.move(fromOffsets: offsets, toOffset: destination)
         pushArrangement()
+        restore(sounding)
     }
 
     func setSection(_ id: UUID, patternID: UUID) {
         guard let i = song.arrangement.firstIndex(where: { $0.id == id }) else { return }
         checkpoint()
+        let sounding = soundingPosition()
         song.arrangement[i].patternID = patternID
         pushArrangement()
+        restore(sounding)
     }
 
     func setSection(_ id: UUID, repeats: Int) {
