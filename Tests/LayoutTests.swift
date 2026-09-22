@@ -179,6 +179,23 @@ final class LayoutTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(1366 - layout.sideColumnWidth, ChipLayout.minimumSideGridWidth)
     }
 
+    // MARK: Grid column width
+
+    /// A brand-new song's four starter tracks, plus the "+" column, must fit
+    /// a 375pt phone without pushing the row into horizontal scroll — the
+    /// floor on a track column can't outrun what four columns actually have
+    /// room for.
+    func testFourStarterTracksFitA375ptPhoneWithoutScrolling() {
+        let song = Song(name: "x")
+        let layout = ChipLayout.phone
+        let width = layout.gridColumnWidth(available: 375, tracks: song.tracks.count,
+                                            canAddTrack: song.canAddTrack)
+        XCTAssertGreaterThanOrEqual(width, layout.gridMinColumnWidth)
+        let total = layout.gridRowWidth(columnWidth: width, tracks: song.tracks.count,
+                                         canAddTrack: song.canAddTrack)
+        XCTAssertLessThanOrEqual(total, 375)
+    }
+
     // MARK: Chrome tap targets (HIG 1.2, 44pt minimum)
 
     /// Every chrome control an iPad user taps — tray height, stepper ends,
@@ -212,6 +229,7 @@ final class LayoutTests: XCTestCase {
         XCTAssertEqual(phone.arrButtonWidth, 48)
         XCTAssertEqual(phone.patternChipWidth, 40)
         XCTAssertEqual(phone.patternAddWidth, 42)
+        XCTAssertEqual(phone.gridMinColumnWidth, 70)
     }
 
     /// Play button (56) + mode tray (PATT/SONG segments + ARR) + BPM stepper

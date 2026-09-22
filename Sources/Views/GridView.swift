@@ -11,9 +11,7 @@ struct GridView: View {
 
     private var rowHeight: CGFloat { layout.gridRowHeight }
     private var gutterWidth: CGFloat { layout.gridGutterWidth }
-    /// Narrow enough to fit a handful of columns, wide enough to stay tappable.
-    private var minColumnWidth: CGFloat { layout.gridMinColumnWidth }
-    private let addColumnWidth: CGFloat = 44
+    private let addColumnWidth: CGFloat = ChipLayout.addColumnWidth
 
     var body: some View {
         GeometryReader { geo in
@@ -46,18 +44,8 @@ struct GridView: View {
     /// Tracks share the width evenly while they fit; past that they take the
     /// minimum and the row overflows into the horizontal scroll.
     private func columnWidth(forAvailable width: CGFloat) -> CGFloat {
-        // Everything in the row that isn't a track column: gutter, the add
-        // button, the 12pt of horizontal padding, and the 2pt gaps between
-        // items — leaving the gaps out clipped the last column by a few
-        // points even when everything "fit".
-        let items = 1 + studio.song.tracks.count + (studio.song.canAddTrack ? 1 : 0)
-        let reserved = gutterWidth
-            + (studio.song.canAddTrack ? addColumnWidth : 0)
-            + 12
-            + CGFloat(items - 1) * 2
-        let available = width - reserved
-        let each = available / CGFloat(max(studio.song.tracks.count, 1))
-        return max(minColumnWidth, each)
+        layout.gridColumnWidth(available: width, tracks: studio.song.tracks.count,
+                                canAddTrack: studio.song.canAddTrack)
     }
 
     private func header(columnWidth: CGFloat) -> some View {
