@@ -53,7 +53,10 @@ struct KeyboardView: View {
         VStack(spacing: 8) {
             controls
             GeometryReader { geo in
-                let whiteWidth = geo.size.width / CGFloat(whiteOffsets.count)
+                // The padding is outside this GeometryReader, so its width is
+                // already the keyboard's inset width.
+                let keys = ChipLayout.KeyboardGeometry(insetWidth: geo.size.width,
+                                                       whiteKeys: whiteOffsets.count)
                 ZStack(alignment: .topLeading) {
                     HStack(spacing: ChipLayout.whiteKeySpacing) {
                         ForEach(whiteOffsets, id: \.self) { offset in
@@ -62,8 +65,8 @@ struct KeyboardView: View {
                     }
                     ForEach(blackKeys, id: \.offset) { black in
                         key(midi: baseMidi + black.offset, black: true)
-                            .frame(width: whiteWidth * 0.58, height: geo.size.height * 0.6)
-                            .offset(x: whiteWidth * CGFloat(black.after + 1) - whiteWidth * 0.29)
+                            .frame(width: keys.blackWidth, height: geo.size.height * 0.6)
+                            .offset(x: keys.blackKeyOffset(after: black.after))
                     }
                 }
             }

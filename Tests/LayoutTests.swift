@@ -349,4 +349,79 @@ final class LayoutTests: XCTestCase {
 
         XCTAssertEqual(seen, [.increment, .decrement])
     }
+
+    // MARK: Keyboard geometry
+
+    /// Two octaves' worth of black keys as KeyboardView lays them out: the
+    /// index of the white key each one sits after, the one-octave table
+    /// repeated seven white keys up for the second octave.
+    private var twoOctaveBlackKeyAfterIndices: [Int] {
+        var indices: [Int] = []
+        for octave in 0..<2 {
+            indices += [0, 1, 3, 4, 5].map { $0 + 7 * octave }
+        }
+        return indices
+    }
+
+    /// The column helper and the view have to agree on how wide a white key
+    /// is, or the keys the 44pt test measures are not the keys being drawn.
+    /// The view starts from the width inside the keyboard's own padding, which
+    /// is the only difference between the two entry points.
+    func testKeyboardGeometryWhiteWidthMatchesTheColumnHelper() {
+        let columns: [(width: CGFloat, octaves: Int)] = [
+            (ChipLayout.sideKeyboardWidth, 1),
+            (ChipLayout.wideSideKeyboardWidth, 2)
+        ]
+        for column in columns {
+            let inset = column.width - 2 * ChipLayout.keyboardHorizontalPadding
+            let geometry = ChipLayout.KeyboardGeometry(insetWidth: inset,
+                                                       whiteKeys: 7 * column.octaves + 1)
+            XCTAssertEqual(geometry.whiteWidth,
+                           ChipLayout.whiteKeyWidth(columnWidth: column.width,
+                                                    octaves: column.octaves),
+                           accuracy: 0.001,
+                           "\(column.octaves)-octave column disagrees with the view")
+        }
+    }
+
+    /// A black key belongs over the seam between the two white keys it sits
+    /// between, which means the centre of the gap — the gap's own width
+    /// included. Dividing the width by the key count instead ignores the
+    /// fourteen 2pt gaps, and the error compounds along the keyboard.
+    func testEveryBlackKeyIsCentredOnTheGapBetweenItsWhiteNeighbours() {
+        let whiteKeys = 15 // two octaves plus the closing C
+        let inset = ChipLayout.wideSideKeyboardWidth - 2 * ChipLayout.keyboardHorizontalPadding
+        let geometry = ChipLayout.KeyboardGeometry(insetWidth: inset, whiteKeys: whiteKeys)
+        let spacing = ChipLayout.whiteKeySpacing
+
+        for after in twoOctaveBlackKeyAfterIndices {
+            let gapCentre = CGFloat(after + 1) * (geometry.whiteWidth + spacing) - spacing / 2
+            XCTAssertEqual(geometry.blackKeyOffset(after: after) + geometry.blackWidth / 2,
+                           gapCentre,
+                           accuracy: 0.001,
+                           "black key after white key \(after) is off its seam")
+        }
+
+        // Why this test exists: the formula it replaces drifts, and by the top
+        // of a two-octave keyboard it misses the seam by more than a point.
+        let topAfter = twoOctaveBlackKeyAfterIndices.last!
+        let naiveWhiteWidth = inset / CGFloat(whiteKeys)
+        let naiveCentre = naiveWhiteWidth * CGFloat(topAfter + 1)
+            - naiveWhiteWidth * 0.29
+            + geometry.blackWidth / 2
+        let trueCentre = CGFloat(topAfter + 1) * (geometry.whiteWidth + spacing) - spacing / 2
+        XCTAssertGreaterThan(abs(naiveCentre - trueCentre), 1,
+                             "the spacing-blind formula should visibly drift by the top key")
+    }
+
+    /// The top black key sits between the last two white keys, so it has to
+    /// finish inside the keyboard rather than hanging off its right edge.
+    func testTheTopBlackKeyStaysInsideTheKeyboard() {
+        let inset = ChipLayout.wideSideKeyboardWidth - 2 * ChipLayout.keyboardHorizontalPadding
+        let geometry = ChipLayout.KeyboardGeometry(insetWidth: inset, whiteKeys: 15)
+        let topAfter = twoOctaveBlackKeyAfterIndices.last!
+        XCTAssertLessThanOrEqual(geometry.blackKeyOffset(after: topAfter) + geometry.blackWidth,
+                                 inset,
+                                 "the top black key overhangs the keyboard")
+    }
 }

@@ -151,12 +151,52 @@ struct ChipLayout: Equatable {
     static let keyboardHorizontalPadding: CGFloat = 10
     static let whiteKeySpacing: CGFloat = 2
 
+    /// Where the keys land inside the keyboard, given the width *inside* its
+    /// horizontal padding — which is what KeyboardView's GeometryReader
+    /// measures, the padding having been applied outside it.
+    ///
+    /// White keys are bare shapes in an `HStack(spacing: whiteKeySpacing)`, so
+    /// the stack shares the width left over after the gaps equally between
+    /// them. Black keys are drawn over that row by offset, and each one belongs
+    /// centred on the seam between the two white keys it sits between — the
+    /// centre of the gap, not of a key boundary. Doing that arithmetic without
+    /// the gaps loses a fraction of a point per key, which compounds into a
+    /// visible lean by the top of a two-octave keyboard.
+    struct KeyboardGeometry {
+        /// `(insetWidth - whiteKeySpacing * (n - 1)) / n`: what the HStack gives
+        /// each white key once the gaps between them are paid for.
+        let whiteWidth: CGFloat
+        /// A black key is 0.58 of a white one — the proportion the keyboard has
+        /// always drawn, now measured against the right white width.
+        let blackWidth: CGFloat
+
+        init(insetWidth: CGFloat, whiteKeys: Int) {
+            let keys = CGFloat(max(whiteKeys, 1))
+            whiteWidth = (insetWidth - ChipLayout.whiteKeySpacing * (keys - 1)) / keys
+            blackWidth = 0.58 * whiteWidth
+        }
+
+        /// Leading offset for the black key sitting after white key `after`
+        /// (zero-based): the centre of the gap that follows that key,
+        /// `(after + 1) * (whiteWidth + spacing) - spacing / 2`, less half the
+        /// black key's width so the key is centred there rather than starting
+        /// there.
+        func blackKeyOffset(after: Int) -> CGFloat {
+            let spacing = ChipLayout.whiteKeySpacing
+            let gapCentre = CGFloat(after + 1) * (whiteWidth + spacing) - spacing / 2
+            return gapCentre - blackWidth / 2
+        }
+    }
+
     /// Width of one white key in a side column showing `octaves` octaves: seven
     /// keys per octave plus the closing C. Pure, so the 44pt floor can be pinned
-    /// by a test instead of discovered on a device.
+    /// by a test instead of discovered on a device. Shares its arithmetic with
+    /// `KeyboardGeometry`, which is what the view draws from, so the key this
+    /// measures is the key on screen.
     static func whiteKeyWidth(columnWidth: CGFloat, octaves: Int) -> CGFloat {
-        let keys = CGFloat(7 * max(octaves, 1) + 1)
-        return (columnWidth - 2 * keyboardHorizontalPadding - whiteKeySpacing * (keys - 1)) / keys
+        let keys = 7 * max(octaves, 1) + 1
+        return KeyboardGeometry(insetWidth: columnWidth - 2 * keyboardHorizontalPadding,
+                                whiteKeys: keys).whiteWidth
     }
 
     /// The keyboard column in the wide layout. Narrow enough to leave the grid
