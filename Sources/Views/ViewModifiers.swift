@@ -58,7 +58,8 @@ func accessibilitySelector(
 /// Confirmation copy that appears at more than one entrance — the ••• menu and
 /// a context menu, say — kept in one place so the entrances can't drift apart.
 enum ConfirmationCopy {
-    static let clearPattern = "Every track's notes in this pattern are erased."
+    static let clearPattern = "Every track's notes in this pattern are erased. Undo brings them back."
+    static let clearTrack = "Its notes in the other patterns are left alone. Undo brings them back."
     static let deleteTrack = "Its notes in every pattern go with it. You can undo this."
 }
 
