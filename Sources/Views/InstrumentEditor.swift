@@ -319,7 +319,7 @@ struct InstrumentEditor: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Its notes in the other patterns are left alone.")
+                Text(ConfirmationCopy.clearTrack)
             }
             .alert(
                 pendingDeleteIndex.map { "Delete \(studio.song.fullLabel(for: $0))?" } ?? "",
