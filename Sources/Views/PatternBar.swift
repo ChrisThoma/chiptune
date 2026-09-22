@@ -58,9 +58,8 @@ struct PatternBar: View {
                 renaming = nil
             }
         }
-        .confirmationDialog("Clear pattern \(name(clearing))?",
-                            isPresented: Binding(isPresenting: $clearing),
-                            titleVisibility: .visible) {
+        .alert("Clear pattern \(name(clearing))?",
+                            isPresented: Binding(isPresenting: $clearing)) {
             Button("Clear pattern", role: .destructive) {
                 // Clears in place — jumping the editor to the cleared pattern
                 // reads as "my work just vanished" when it's still in the one
@@ -72,9 +71,8 @@ struct PatternBar: View {
         } message: {
             Text(ConfirmationCopy.clearPattern)
         }
-        .confirmationDialog("Delete pattern \(name(deleting))?",
-                            isPresented: Binding(isPresenting: $deleting),
-                            titleVisibility: .visible) {
+        .alert("Delete pattern \(name(deleting))?",
+                            isPresented: Binding(isPresenting: $deleting)) {
             Button("Delete pattern", role: .destructive) {
                 if let index = deleting { studio.removePattern(at: index) }
                 deleting = nil

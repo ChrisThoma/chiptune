@@ -270,11 +270,10 @@ struct ContentView: View {
         .onChange(of: studio.dismissRequests) { _, _ in
             closePresentation()
         }
-        .confirmationDialog(
+        .alert(
             pendingClearPatternIndex.map { "Clear pattern \(studio.song.patterns[safe: $0]?.name ?? "")?" } ?? "",
             isPresented: Binding(get: { pendingClearPatternIndex != nil },
-                                 set: { if !$0 { pendingClearPatternIndex = nil } }),
-            titleVisibility: .visible) {
+                                 set: { if !$0 { pendingClearPatternIndex = nil } })) {
             if let target = pendingClearPatternIndex {
                 Button("Clear pattern", role: .destructive) { studio.clearPattern(at: target) }
             }
