@@ -47,6 +47,11 @@ struct ArrangementView: View {
                 Section {
                     ForEach(Array(studio.song.arrangement.enumerated()), id: \.element.id) { position, section in
                         row(position: position, section: section)
+                            // A song needs at least one section, and the model
+                            // refuses to remove the last one — it just puts a
+                            // fresh one back. Don't offer a delete that would
+                            // silently do nothing.
+                            .deleteDisabled(studio.song.arrangement.count <= 1)
                     }
                     .onDelete { studio.removeSection(at: $0) }
                     .onMove { studio.moveSection(from: $0, to: $1) }
