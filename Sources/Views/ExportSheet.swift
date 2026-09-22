@@ -1,5 +1,15 @@
 import SwiftUI
 
+/// What the export section says under its button when the render wouldn't be
+/// worth keeping. nil when there is nothing to warn about.
+enum ExportNotesFooter {
+    static func text(for song: Song) -> String? {
+        guard !song.hasNotes else { return nil }
+        guard song.hasNotesAnywhere else { return "This song has no notes yet." }
+        return "Its notes are in a pattern the arrangement doesn't play. Add that pattern to the arrangement to export it."
+    }
+}
+
 /// Export options, and the progress of the render they kick off.
 ///
 /// A sheet rather than more items in the ••• menu: the render can take real
@@ -74,8 +84,8 @@ struct ExportSheet: View {
                         .disabled(startedAttempt != nil || !studio.song.hasNotes)
                     }
                 } footer: {
-                    if !studio.song.hasNotes {
-                        Text("This song has no notes yet.")
+                    if let text = ExportNotesFooter.text(for: studio.song) {
+                        Text(text)
                     }
                 }
             }

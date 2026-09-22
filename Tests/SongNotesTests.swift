@@ -51,4 +51,14 @@ final class SongNotesTests: XCTestCase {
         }
         XCTAssertTrue(song.hasNotes)
     }
+
+    func testNotesInAnUnarrangedPatternAreStillNotesSomewhere() {
+        var song = TestSongs.empty()
+        var second = Pattern(name: "B", trackCount: song.tracks.count)
+        second.rows[0][0] = 60
+        song.patterns.append(second)
+
+        XCTAssertFalse(song.hasNotes)
+        XCTAssertTrue(song.hasNotesAnywhere)
+    }
 }
