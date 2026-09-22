@@ -1,9 +1,52 @@
 import SwiftUI
 import UIKit
 
+/// The rename alert's text field is native UIKit, not SwiftUI, and its
+/// background flips between OS versions: white on iOS 17's alert, dark on
+/// iOS 26's. SwiftUI never tells us which one we got, so the ink is decided
+/// from the field's own container's real background at apply time instead of
+/// a fixed color.
 enum SongRenameAlertStyle {
-    /// SwiftUI's iOS 17 alert field is white even under our forced dark scheme.
-    static let fieldText = Theme.onLight
+    /// The ink to use over a given background: dark ink on a light field,
+    /// light ink on a dark one.
+    static func textColor(over background: UIColor) -> UIColor {
+        relativeLuminance(of: background) > 0.5 ? UIColor(Theme.onLight) : UIColor(Theme.text)
+    }
+
+    /// The first opaque-enough background found walking up from `view`'s own
+    /// superview, or nil if none of its ancestors have one.
+    static func containerBackground(of view: UIView) -> UIColor? {
+        var candidate = view.superview
+        while let view = candidate {
+            if let background = view.backgroundColor, background.cgColor.alpha > 0.5 {
+                return background
+            }
+            candidate = view.superview
+        }
+        return nil
+    }
+
+    /// Colors `field`'s text from its real container's background, falling
+    /// back to the system label color when no ancestor has one to read.
+    static func apply(to field: UITextField) {
+        field.textColor = containerBackground(of: field).map(textColor(over:)) ?? .label
+    }
+
+    private static func relativeLuminance(of color: UIColor) -> CGFloat {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+
+        func linear(_ component: CGFloat) -> CGFloat {
+            component <= 0.04045
+                ? component / 12.92
+                : pow((component + 0.055) / 1.055, 2.4)
+        }
+
+        return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+    }
 }
 
 extension SongNameFieldAccessibility {
@@ -46,6 +89,7 @@ private struct SongRenameAlertAccessibilityBridge: UIViewRepresentable {
                 while let next = presented?.presentedViewController { presented = next }
                 if let field = (presented as? UIAlertController)?.textFields?.first {
                     SongNameFieldAccessibility.apply(to: field)
+                    SongRenameAlertStyle.apply(to: field)
                 } else if attemptsRemaining > 1 {
                     self.applyLabel(from: view, generation: expectedGeneration,
                                     attemptsRemaining: attemptsRemaining - 1)
@@ -214,7 +258,6 @@ struct SongListView: View {
         }
         .alert("Rename song", isPresented: Binding(isPresenting: $renaming)) {
             TextField("Name", text: $renameText)
-                .foregroundStyle(SongRenameAlertStyle.fieldText)
             Button("Cancel", role: .cancel) { renaming = nil }
             Button("Rename") {
                 if let song = renaming { studio.rename(song, to: renameText) }
