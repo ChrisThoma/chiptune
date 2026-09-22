@@ -101,9 +101,37 @@ final class SongRenameTests: XCTestCase {
         XCTAssertEqual(song.name, "Padded")
     }
 
-    func testRenameAlertTextContrastsWithItsWhiteField() {
-        let foreground = UIColor(SongRenameAlertStyle.fieldText)
+    func testRenameFieldInkIsDarkOverAWhiteField() {
+        let foreground = SongRenameAlertStyle.textColor(over: .white)
         XCTAssertGreaterThan(contrastRatio(foreground, .white), 4.5)
+    }
+
+    func testRenameFieldInkIsLightOverADarkField() {
+        let dark = UIColor(white: 0.11, alpha: 1)
+        let foreground = SongRenameAlertStyle.textColor(over: dark)
+        XCTAssertGreaterThan(contrastRatio(foreground, dark), 4.5)
+    }
+
+    func testRenameFieldTakesItsInkFromItsContainer() {
+        let whiteContainer = UIView()
+        whiteContainer.backgroundColor = .white
+        let whiteField = UITextField()
+        whiteContainer.addSubview(whiteField)
+        SongRenameAlertStyle.apply(to: whiteField)
+        XCTAssertEqual(whiteField.textColor, SongRenameAlertStyle.textColor(over: .white))
+
+        let darkContainer = UIView()
+        darkContainer.backgroundColor = UIColor(white: 0.11, alpha: 1)
+        let darkField = UITextField()
+        darkContainer.addSubview(darkField)
+        SongRenameAlertStyle.apply(to: darkField)
+        XCTAssertEqual(darkField.textColor, SongRenameAlertStyle.textColor(over: darkContainer.backgroundColor!))
+
+        let bareContainer = UIView()
+        let bareField = UITextField()
+        bareContainer.addSubview(bareField)
+        SongRenameAlertStyle.apply(to: bareField)
+        XCTAssertEqual(bareField.textColor, .label)
     }
 
     func testNativeRenameAlertFieldReceivesItsSpokenPurpose() {
