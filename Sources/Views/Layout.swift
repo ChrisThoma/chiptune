@@ -100,7 +100,7 @@ struct ChipLayout: Equatable {
 
     static let phone = ChipLayout(
         gridRowHeight: 40,
-        gridMinColumnWidth: 74,
+        gridMinColumnWidth: 70,
         gridGutterWidth: 28,
         trackHeaderHeight: 81,
         keyboardHeight: 110,
@@ -238,6 +238,39 @@ struct ChipLayout: Equatable {
     /// stacked arrangement — which at least gives it the full width — wins.
     static let minimumSideGridWidth: CGFloat =
         pad.gridGutterWidth + 4 * pad.gridMinColumnWidth + 44 + 12
+
+    /// Width of the "+" button that adds a track, shared with `GridView` so
+    /// the row-width arithmetic below matches what it draws.
+    static let addColumnWidth: CGFloat = 44
+
+    /// Tracks share the available width evenly while they fit; past that they
+    /// take `gridMinColumnWidth` and the row overflows into the horizontal
+    /// scroll.
+    func gridColumnWidth(available width: CGFloat, tracks: Int, canAddTrack: Bool) -> CGFloat {
+        let each = (width - gridRowReserved(tracks: tracks, canAddTrack: canAddTrack))
+            / CGFloat(max(tracks, 1))
+        return max(gridMinColumnWidth, each)
+    }
+
+    /// The full width one grid row draws at, given a column width picked by
+    /// `gridColumnWidth(available:tracks:canAddTrack:)` (or the floor itself).
+    /// Used to check that the starter track count actually fits, rather than
+    /// only that the floor is what it claims to be.
+    func gridRowWidth(columnWidth: CGFloat, tracks: Int, canAddTrack: Bool) -> CGFloat {
+        columnWidth * CGFloat(tracks) + gridRowReserved(tracks: tracks, canAddTrack: canAddTrack)
+    }
+
+    /// Everything in a grid row that isn't a track column: the gutter, the
+    /// add button, the 12pt of horizontal padding, and the 2pt gaps between
+    /// items — leaving the gaps out clipped the last column by a few points
+    /// even when everything "fit".
+    private func gridRowReserved(tracks: Int, canAddTrack: Bool) -> CGFloat {
+        let items = 1 + tracks + (canAddTrack ? 1 : 0)
+        return gridGutterWidth
+            + (canAddTrack ? ChipLayout.addColumnWidth : 0)
+            + 12
+            + CGFloat(items - 1) * 2
+    }
 
     /// Total window width at which the side arrangement becomes possible.
     /// Rotation never lands between these two, but a resized Stage Manager
