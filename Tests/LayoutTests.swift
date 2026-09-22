@@ -74,22 +74,24 @@ final class LayoutTests: XCTestCase {
     }
 
     /// A 13-inch iPad in landscape has width for a second octave without the
-    /// grid dropping below what it needs, so the keys get one.
+    /// grid dropping below what it needs, so the keys get one. Both the M4/M5
+    /// (1366) and the earlier (1376) 13-inch landscape widths qualify.
     func testThirteenInchLandscapeGetsTwoOctavesInAWiderColumn() {
-        let layout = ChipLayout.resolve(size: CGSize(width: 1366, height: 1024),
-                                        horizontalSizeClass: .regular)
-        XCTAssertTrue(layout.usesSideKeyboard)
-        XCTAssertEqual(layout.sideColumnWidth, 560)
-        XCTAssertEqual(layout.keyboardOctaves, 2)
+        for size in [CGSize(width: 1366, height: 1024), CGSize(width: 1376, height: 1032)] {
+            let layout = ChipLayout.resolve(size: size, horizontalSizeClass: .regular)
+            XCTAssertTrue(layout.usesSideKeyboard, "\(size.width)pt landscape should still split")
+            XCTAssertEqual(layout.sideColumnWidth, ChipLayout.wideSideKeyboardWidth, "\(size.width)pt")
+            XCTAssertEqual(layout.keyboardOctaves, 2, "\(size.width)pt")
+        }
     }
 
     /// An 11-inch iPad splits, but the second octave would come out of the
-    /// grid's share, so it keeps the 400pt column and one octave.
+    /// grid's share, so it keeps the narrow column and one octave.
     func testElevenInchLandscapeKeepsOneOctave() {
         for size in [CGSize(width: 1194, height: 834), CGSize(width: 1210, height: 834)] {
             let layout = ChipLayout.resolve(size: size, horizontalSizeClass: .regular)
             XCTAssertTrue(layout.usesSideKeyboard, "\(size.width)pt landscape should still split")
-            XCTAssertEqual(layout.sideColumnWidth, 400, "\(size.width)pt")
+            XCTAssertEqual(layout.sideColumnWidth, ChipLayout.sideKeyboardWidth, "\(size.width)pt")
             XCTAssertEqual(layout.keyboardOctaves, 1, "\(size.width)pt")
         }
     }
@@ -118,14 +120,15 @@ final class LayoutTests: XCTestCase {
     /// The rule the two column sizes turn on, on its own: the wider column is
     /// only worth taking when the grid can spare it and 160pt besides.
     func testTheSecondOctaveNeedsTheWiderColumnPlusSlack() {
-        let boundary = ChipLayout.minimumSideGridWidth + 560 + 160
+        let boundary = ChipLayout.minimumSideGridWidth
+            + ChipLayout.wideSideKeyboardWidth + ChipLayout.wideSideColumnSlack
 
         let wide = ChipLayout.sideColumn(forWindowWidth: boundary)
-        XCTAssertEqual(wide.width, 560)
+        XCTAssertEqual(wide.width, ChipLayout.wideSideKeyboardWidth)
         XCTAssertEqual(wide.octaves, 2)
 
         let narrow = ChipLayout.sideColumn(forWindowWidth: boundary - 1)
-        XCTAssertEqual(narrow.width, 400)
+        XCTAssertEqual(narrow.width, ChipLayout.sideKeyboardWidth)
         XCTAssertEqual(narrow.octaves, 1)
     }
 
@@ -153,6 +156,27 @@ final class LayoutTests: XCTestCase {
             XCTAssertGreaterThan(width, ChipLayout.minimumSideBySideWidth,
                                  "\(width)pt landscape should still split")
         }
+    }
+
+    /// Every white key, in both side columns, has to clear the 44pt tap
+    /// target minimum — a 13-inch window's two-octave column is the one that
+    /// gets tight.
+    func testEveryWhiteKeyIsAtLeast44ptWideInBothSideColumns() {
+        let columns: [(width: CGFloat, octaves: Int, name: String)] = [
+            (ChipLayout.sideKeyboardWidth, 1, "the one-octave column"),
+            (ChipLayout.wideSideKeyboardWidth, 2, "the two-octave column")
+        ]
+        for column in columns {
+            let width = ChipLayout.whiteKeyWidth(columnWidth: column.width, octaves: column.octaves)
+            XCTAssertGreaterThanOrEqual(width, 44, "\(column.name) draws keys under 44pt")
+        }
+    }
+
+    /// A 13-inch iPad's two-octave column still leaves the grid its minimum.
+    func testTheGridKeepsItsMinimumOnAThirteenInch() {
+        let layout = ChipLayout.resolve(size: CGSize(width: 1366, height: 1024),
+                                        horizontalSizeClass: .regular)
+        XCTAssertGreaterThanOrEqual(1366 - layout.sideColumnWidth, ChipLayout.minimumSideGridWidth)
     }
 
     // MARK: Chrome tap targets (HIG 1.2, 44pt minimum)

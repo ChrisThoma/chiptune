@@ -146,29 +146,44 @@ struct ChipLayout: Equatable {
         usesSideKeyboard: false
     )
 
+    /// The keyboard's own horizontal inset and the gap between white keys, shared
+    /// with KeyboardView so the width arithmetic below matches what it draws.
+    static let keyboardHorizontalPadding: CGFloat = 10
+    static let whiteKeySpacing: CGFloat = 2
+
+    /// Width of one white key in a side column showing `octaves` octaves: seven
+    /// keys per octave plus the closing C. Pure, so the 44pt floor can be pinned
+    /// by a test instead of discovered on a device.
+    static func whiteKeyWidth(columnWidth: CGFloat, octaves: Int) -> CGFloat {
+        let keys = CGFloat(7 * max(octaves, 1) + 1)
+        return (columnWidth - 2 * keyboardHorizontalPadding - whiteKeySpacing * (keys - 1)) / keys
+    }
+
     /// The keyboard column in the wide layout. Narrow enough to leave the grid
     /// most of the window, wide enough that eight white keys stay finger-sized.
     static let sideKeyboardWidth: CGFloat = 400
 
     /// The column a 13-inch window can afford: two octaves of white keys, so
     /// a bass line and the melody over it are reachable without paging the
-    /// octave buttons between them.
-    static let wideSideKeyboardWidth: CGFloat = 560
+    /// octave buttons between them. 708 is fifteen 44pt white keys (two
+    /// octaves plus the closing C) plus the fourteen 2pt gaps between them
+    /// plus the keyboard's own 20pt of horizontal inset.
+    static let wideSideKeyboardWidth: CGFloat = 708
 
     /// What the grid must have *over* its minimum before the wider column is
-    /// worth taking. Spending the last 160pt of a 13-inch window on keys would
+    /// worth taking. Spending the last 140pt of a 13-inch window on keys would
     /// buy the second octave by pushing the grid to the edge of usable.
-    static let wideSideColumnSlack: CGFloat = 160
+    static let wideSideColumnSlack: CGFloat = 140
 
     /// Which keyboard column a window of this width gets, and how many octaves
     /// fit in it.
     ///
     /// The rule: two octaves only when
     /// `width - minimumSideGridWidth >= wideSideKeyboardWidth + wideSideColumnSlack`.
-    /// On the numbers that means 1230pt and up, so the 13-inch iPad (1366)
-    /// gets two and every 11-inch and 10.9-inch landscape window (1180–1210)
-    /// keeps one. Pure, so the boundary can be pinned by a test rather than
-    /// discovered on a device.
+    /// On the numbers that means 1358pt and up, so the 13-inch iPad (1366 and
+    /// the 1376 M4/M5 models) gets two and every 11-inch and 10.9-inch
+    /// landscape window (1180–1210) keeps one. Pure, so the boundary can be
+    /// pinned by a test rather than discovered on a device.
     static func sideColumn(forWindowWidth width: CGFloat) -> (width: CGFloat, octaves: Int) {
         let spare = width - minimumSideGridWidth
         if spare >= wideSideKeyboardWidth + wideSideColumnSlack {
