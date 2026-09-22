@@ -220,9 +220,12 @@ struct SongListView: View {
         }
         .preferredColorScheme(.dark)
         .onAppear { reload() }
-        .confirmationDialog("Delete “\(pendingDelete?.name ?? "")”?",
-                            isPresented: Binding(isPresenting: $pendingDelete),
-                            titleVisibility: .visible) {
+        // On iOS 26 iPhone and on every iPad this presents as a popover, and
+        // UIKit drops `.cancel`-role actions from a popover, so a
+        // confirmationDialog here would leave no way out but tapping
+        // outside. `.alert` always presents modally and keeps both buttons.
+        .alert("Delete “\(pendingDelete?.name ?? "")”?",
+               isPresented: Binding(isPresenting: $pendingDelete)) {
             Button("Delete song", role: .destructive) {
                 if let song = pendingDelete { studio.delete(song) }
                 claimStorageError()
