@@ -295,6 +295,10 @@ struct Pattern: Codable, Equatable, Identifiable {
         rows.allSatisfy { $0.allSatisfy { $0 == Chip.emptyNote } }
     }
 
+    /// A pitch at a step the sequencer reaches. Rests and note-offs don't
+    /// count: a pattern of nothing but OFFs renders silence.
+    var hasNotes: Bool { rows.contains { $0.prefix(length).contains { $0 >= 0 && $0 <= 127 } } }
+
     /// Pads or trims decoded rows so an older or corrupt file can't send the
     /// audio thread past the end of its fixed-size buffers.
     mutating func normalize(trackCount: Int) {
@@ -518,6 +522,12 @@ struct Song: Codable, Equatable, Identifiable {
     }
 
     // MARK: Export
+
+    /// Something the export would actually render: a note in a pattern the
+    /// arrangement plays. Muted tracks count — muting is a mix decision, and
+    /// the message this drives says "no notes", which would be a lie for a
+    /// muted one.
+    var hasNotes: Bool { Set(chain).contains { patterns[safe: $0]?.hasNotes ?? false } }
 
     /// Longest decay among tracks that can actually be heard ringing out: not
     /// muted, not sustaining (sustain releases in ~15ms via `core.finish()`,
