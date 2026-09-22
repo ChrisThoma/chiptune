@@ -158,11 +158,13 @@ struct ArrangementView: View {
                 .background(RoundedRectangle(cornerRadius: Theme.innerRadius).fill(Color.secondary.opacity(0.18)))
             }
             .accessibilityLabel("Section \(position + 1), pattern \(pattern?.name ?? "none")")
+            .accessibilityValue(PatternChipAccessibility.value(playing: playing, isEmpty: pattern?.isEmpty ?? true) ?? "")
 
             if playing {
                 Image(systemName: "speaker.wave.2.fill")
                     .font(.caption)
                     .foregroundStyle(.green)
+                    .accessibilityHidden(true)
             }
 
             Spacer()
