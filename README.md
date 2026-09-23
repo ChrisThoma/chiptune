@@ -22,9 +22,20 @@ pattern and a repeat count, and the sections play in order, so a piece can have
 an intro, a verse and a chorus rather than a single loop. `PATT` auditions the
 pattern you're editing; `SONG` plays the whole arrangement.
 
-Songs save as you work and the app reopens the last one you edited. The library
-holds everything you've written, and any song exports to a WAV that renders the
-entire arrangement.
+Songs save as you work and the app reopens the last one you edited, with undo
+and redo throughout. The library holds everything you've written. A song can
+also be shared as a song file and imported on another device.
+
+## Exporting
+
+Any song exports to a WAV of the entire arrangement, played 1 to 16 times over.
+There are two ways to end it:
+
+- **Seamless loop:** the file is exactly that many passes long, and the last
+  notes ring on into the start, so it loops with no gap. Best for dropping into
+  a sampler, a DAW or a video.
+- **Ring out:** the file plays on after the last pass until the final notes
+  fade, so it ends like a finished track.
 
 ## The four channels
 
@@ -35,10 +46,26 @@ The layout follows the NES sound hardware:
 - **Noise:** a 15-bit shift register clocked at a multiple of the note
   frequency, so it comes out pitched rather than as flat hiss
 
-Each channel has its own volume, decay, pulse width and arpeggio, edited from
-the column header. A note-off cuts a sustaining note, which matters most on the
-triangle, since it holds by default. When four channels aren't enough you can
-add more tracks of the same kind.
+Each track has its own volume, decay, pulse width and arpeggio, edited from the
+column header. Presets such as Lead, Pluck and Echo give each channel a starting
+sound, and every control stays adjustable after you pick one. **Hold** makes
+a note sustain instead of decaying. A note-off cuts a sustaining note, which
+matters most on the triangle, since it holds by default. Tracks can be renamed
+and muted. When four channels aren't enough you can add tracks, up to eight in
+all.
+
+## iPad and hardware keyboards
+
+The app runs on iPhone and iPad. On a landscape iPad the keyboard moves beside
+the grid and the instrument editor docks under it, so the sound controls stay
+open while you write.
+
+With a hardware keyboard attached, the grid works like a tracker:
+
+- Arrow keys move the cursor and Space plays or stops.
+- The `A W S E D F T G Y H U J K` row enters notes, and `Z`/`X` change the octave.
+- Delete clears a step. `\` arms a note-off, like the OFF key on screen, and
+  Return writes whatever the on-screen keyboard has selected.
 
 ## How the synth works
 
