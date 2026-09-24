@@ -136,6 +136,7 @@ struct InstrumentEditor: View {
     }
 
     private var editor: some View {
+        ScrollViewReader { proxy in
             Form {
                 Section("Preset") {
                     Menu {
@@ -258,6 +259,7 @@ struct InstrumentEditor: View {
                                                   adjust: adjustPulseWidth)
                         }
                     }
+                    .id("duty")
                 }
 
                 Section("Arpeggio") {
@@ -278,6 +280,7 @@ struct InstrumentEditor: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                .id("arpeggio")
 
                 Section {
                     Button {
@@ -338,6 +341,28 @@ struct InstrumentEditor: View {
             } message: {
                 Text(ConfirmationCopy.deleteTrack)
             }
+            // The screenshot shoot's phone frame lands on this sheet
+            // already open (see `ScreenshotMode.instrument` in
+            // `ContentView`), and the Name/Channel fields at the top of the
+            // Form make for a dull shot — the sound controls further down are
+            // the point. Scrolled only in that mode: an ordinary open should
+            // land where the Form always has, at the top.
+            .task {
+                guard ScreenshotMode.requested == .instrument else { return }
+                // The Form hasn't laid out its rows on the frame this task
+                // starts in; scrolling immediately is a no-op. The shoot's
+                // sheet shots already settle for several seconds before the
+                // screenshot fires, so this wait is invisible to them.
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                // Anchored a little below the top: the sheet's title bar
+                // overlays the first few points of the Form, and `.top`
+                // would tuck the section header underneath it.
+                withAnimation(nil) {
+                    proxy.scrollTo(kind.hasDuty ? "duty" : "arpeggio",
+                                   anchor: UnitPoint(x: 0.5, y: 0.1))
+                }
+            }
+        }
     }
 
     /// Binding into the edited track's instrument that survives the track
