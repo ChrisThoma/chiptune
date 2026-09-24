@@ -22,6 +22,8 @@ enum ScreenshotMode: String, CaseIterable {
     case instrument = "shotEditor"
     case library = "shotLibrary"
     case export = "shotExport"
+    case playing = "shotPlaying"
+    case pattern = "shotPatternB"
 
     static var requested: ScreenshotMode? {
         allCases.first { UserDefaults.standard.bool(forKey: $0.rawValue) }
@@ -300,6 +302,15 @@ struct ContentView: View {
             case .arrangement: showingArrangement = true
             case .library: showingSongs = true
             case .export: showingExport = true
+            // The shot is taken several seconds after launch, so starting the
+            // transport here — same call the PLAY button makes — leaves
+            // plenty of time for the playhead row to be lit by the time the
+            // screenshot fires.
+            case .playing: studio.play()
+            // Pattern B is the second pattern; `make_song.py` gives it 32
+            // steps so this shot can show that patterns aren't all the same
+            // length.
+            case .pattern: studio.selectPattern(1)
             case .instrument, .none: break
             }
         }
