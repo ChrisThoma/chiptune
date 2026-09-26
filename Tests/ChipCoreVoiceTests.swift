@@ -99,7 +99,7 @@ final class ChipCoreVoiceTests: XCTestCase {
 
     /// The NES triangle is a staircase, not a ramp — 16 levels per half cycle,
     /// which is most of why it sounds like a chip and not like a synth.
-    func testTriangleIsQuantisedIntoSixteenLevels() {
+    func testTriangleIsQuantizedIntoSixteenLevels() {
         let note: Int8 = 36
         let period = sampleRate / NoteName.frequency(note)
         let cycles = 4
@@ -112,7 +112,7 @@ final class ChipCoreVoiceTests: XCTestCase {
         // turning points merge, so 30 changes are visible.
         XCTAssertEqual(steps, 30, accuracy: 3, "triangle staircase measured \(steps) steps per cycle")
 
-        // Contrast, so the number above is known to be measuring quantisation
+        // Contrast, so the number above is known to be measuring quantization
         // and not just "the waveform moves": a pulse has two edges a cycle.
         let pulse = render(TestSongs.singleNote(kind: .pulse1, note: note), seconds: 0.5)
         let pulseSteps = Double(RenderHarness.levelSteps(pulse[window])) / Double(cycles)
@@ -211,7 +211,7 @@ final class ChipCoreVoiceTests: XCTestCase {
         for step in 0..<16 { retriggering.patterns[0].rows[0][step] = 60 }
 
         // Baseline: the same voice holding one note, so the comparison is
-        // against the waveform's own largest jump (its quantisation step)
+        // against the waveform's own largest jump (its quantization step)
         // rather than against a number picked out of the air.
         let held = render(TestSongs.singleNote(kind: .triangle, note: 60, tempo: 240), seconds: 1.0)
         let retriggered = render(retriggering, seconds: 1.0)

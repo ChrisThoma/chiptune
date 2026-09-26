@@ -254,10 +254,10 @@ final class StudioImportTests: XCTestCase {
                        "the import failed, so it must not be in the library")
     }
 
-    /// A dropped song skips `SongDocument.read`, so the normalisation that
+    /// A dropped song skips `SongDocument.read`, so the normalization that
     /// keeps unrepresentable values off the disk and out of the DSP has to
     /// happen on this path too.
-    func testADecodedImportIsNormalisedBeforeItIsSaved() {
+    func testADecodedImportIsNormalizedBeforeItIsSaved() {
         var incoming = Song(name: "Hostile")
         incoming.tempo = .nan
 
@@ -265,6 +265,6 @@ final class StudioImportTests: XCTestCase {
 
         XCTAssertFalse(studio.song.tempo.isNaN, "an imported tempo must be usable")
         XCTAssertNotNil(temp.store.load(id: studio.song.id),
-                        "a NaN tempo fails to encode, so an unnormalised import is never saved")
+                        "a NaN tempo fails to encode, so an unnormalized import is never saved")
     }
 }

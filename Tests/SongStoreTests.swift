@@ -291,7 +291,7 @@ final class StudioAutosaveTests: XCTestCase {
         behind.name = "Written elsewhere"
         temp.save(behind)
 
-        let elapsed = expectation(description: "the cancelled timer's window passes")
+        let elapsed = expectation(description: "the canceled timer's window passes")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { elapsed.fulfill() }
         wait(for: [elapsed], timeout: 5)
 

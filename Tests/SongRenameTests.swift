@@ -113,10 +113,10 @@ final class SongRenameTests: XCTestCase {
     }
 
     /// The old rule picked ink by a 0.5 luminance cut, not by which candidate
-    /// actually contrasts more with the background -- so a mid-grey field
-    /// (0.45-0.74 luminance) got the lower-contrast ink. Every grey must get
+    /// actually contrasts more with the background -- so a mid-gray field
+    /// (0.45-0.74 luminance) got the lower-contrast ink. Every gray must get
     /// whichever of the two inks wins the contrast ratio outright.
-    func testRenameFieldInkIsTheHigherContrastChoiceOnEveryGrey() {
+    func testRenameFieldInkIsTheHigherContrastChoiceOnEveryGray() {
         for white in stride(from: 0.0, through: 1.0, by: 0.05) {
             let background = UIColor(white: white, alpha: 1)
             let chosen = SongRenameAlertStyle.textColor(over: background)
@@ -129,7 +129,7 @@ final class SongRenameTests: XCTestCase {
 
             XCTAssertGreaterThanOrEqual(
                 chosenRatio, otherRatio,
-                "grey \(white): chosen ink's contrast ratio \(chosenRatio) should be >= the other candidate's \(otherRatio)"
+                "gray \(white): chosen ink's contrast ratio \(chosenRatio) should be >= the other candidate's \(otherRatio)"
             )
         }
     }

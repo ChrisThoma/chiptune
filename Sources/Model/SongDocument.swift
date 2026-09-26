@@ -65,7 +65,7 @@ enum SongDocument {
 
     /// Decodes a song from raw file contents.
     ///
-    /// Always normalises. This is the only path by which values the UI cannot
+    /// Always normalizes. This is the only path by which values the UI cannot
     /// produce reach the synth — an arpeggio offset big enough to make a voice's
     /// phase increment infinite, a NaN tempo that traps on conversion to a
     /// sample count — so it is also the only place they can be stopped.
@@ -119,7 +119,7 @@ struct SongFile: Transferable {
     }
 
     /// Decodes dropped bytes. Goes through `SongDocument`, so a drop gets the
-    /// same normalisation — and the same rejection of anything that isn't a
+    /// same normalization — and the same rejection of anything that isn't a
     /// song — as a file opened from the importer.
     static func imported(from data: Data) throws -> SongFile {
         SongFile(song: try SongDocument.decode(data))

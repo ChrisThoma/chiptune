@@ -43,7 +43,7 @@ final class TrackNameTests: XCTestCase {
     }
 
     /// The suffix is derived from position among the same kind, so renaming one
-    /// track doesn't shuffle the letter on its neighbour.
+    /// track doesn't shuffle the letter on its neighbor.
     func testDuplicateSuffixesStillApplyToUnnamedTracks() {
         var s = song(kinds: [.triangle, .triangle])
         XCTAssertEqual(s.label(for: 0), "TRI A")
@@ -70,7 +70,7 @@ final class TrackNameTests: XCTestCase {
         XCTAssertEqual(s.fullLabel(for: -1), "")
     }
 
-    // MARK: Sanitising
+    // MARK: Sanitizing
 
     /// Names come out of `.chipsong` files, which are arbitrary JSON. A long
     /// one would push every grid column off screen.
@@ -84,7 +84,7 @@ final class TrackNameTests: XCTestCase {
         XCTAssertLessThanOrEqual(s.tracks[1].name?.count ?? 0, Track.maxNameLength)
     }
 
-    /// A name that is only whitespace normalises away rather than being kept
+    /// A name that is only whitespace normalizes away rather than being kept
     /// as a value the label layer has to keep re-checking.
     func testNormalizeDropsABlankName() {
         var s = song(kinds: [.pulse1])

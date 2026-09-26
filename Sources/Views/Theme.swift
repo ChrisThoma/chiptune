@@ -28,8 +28,8 @@ enum Theme {
     /// The panels those squares sit on.
     static let panelRadius: CGFloat = 8
 
-    /// One accent per channel kind. Tracks are coloured by the sound they make,
-    /// so two triangle tracks share a colour and are told apart by their number.
+    /// One accent per channel kind. Tracks are colored by the sound they make,
+    /// so two triangle tracks share a color and are told apart by their number.
     static let channelColors: [Color] = [
         Color(red: 1.00, green: 0.35, blue: 0.45),   // pulse 1 — red
         Color(red: 1.00, green: 0.78, blue: 0.25),   // pulse 2 — amber

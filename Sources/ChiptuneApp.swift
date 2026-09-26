@@ -6,7 +6,7 @@ struct ChiptuneApp: App {
     /// their own `Studio`s against throwaway stores, so the app's would only
     /// write real Documents underneath them — and building it is what killed
     /// the TSan job in CI: constructing the audio graph goes through
-    /// CoreAudio initialisation, which has an internal RPC timeout that
+    /// CoreAudio initialization, which has an internal RPC timeout that
     /// aborts the whole process when the sanitizer's slowdown blows through
     /// it, before any test has started. XCTest is dyld-inserted at launch,
     /// so the class check is valid this early.

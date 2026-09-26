@@ -32,13 +32,13 @@ final class InstrumentPresetTests: XCTestCase {
     }
 
     /// A hand-tuned value outside the engine's range would be silently rewritten
-    /// the moment the song normalised, so the preset you picked isn't the sound
+    /// the moment the song normalized, so the preset you picked isn't the sound
     /// you'd keep.
-    func testEveryPresetSurvivesNormalisationUnchanged() {
+    func testEveryPresetSurvivesNormalizationUnchanged() {
         for preset in InstrumentPreset.all {
-            var normalised = preset.instrument
-            normalised.normalize()
-            XCTAssertEqual(normalised, preset.instrument,
+            var normalized = preset.instrument
+            normalized.normalize()
+            XCTAssertEqual(normalized, preset.instrument,
                            "preset \"\(preset.name)\" is outside what the engine can play")
         }
     }
@@ -65,8 +65,8 @@ final class InstrumentPresetTests: XCTestCase {
     }
 
     /// What the menu shows when the sound has been edited away from every
-    /// preset — and that it recognises one that hasn't been.
-    func testAPresetIsRecognisedAndAnEditedSoundIsNot() {
+    /// preset — and that it recognizes one that hasn't been.
+    func testAPresetIsRecognizedAndAnEditedSoundIsNot() {
         let bass = try? XCTUnwrap(InstrumentPreset.presets(for: .triangle).first)
         let preset = try! XCTUnwrap(bass)
 

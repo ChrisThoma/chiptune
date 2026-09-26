@@ -7,11 +7,11 @@ import AVFoundation
 /// These post the real notifications by hand. A phone call can't be staged in
 /// a test, but the notification it produces can be — which is exactly why the
 /// observer branches on the userInfo keys and never on the route description
-/// (`AVAudioSessionRouteDescription` has no public initialiser, so a handler
+/// (`AVAudioSessionRouteDescription` has no public initializer, so a handler
 /// that inspected one could not be driven from here at all).
 final class AudioSessionObserverTests: XCTestCase {
 
-    /// A private centre, so these posts can't reach the app's real observers
+    /// A private center, so these posts can't reach the app's real observers
     /// or any other test's.
     private var center: NotificationCenter!
     private var observer: AudioSessionObserver!

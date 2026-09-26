@@ -249,7 +249,7 @@ final class Studio {
     /// this as its first act. The folding rules live on `UndoHistory`.
     ///
     /// Deliberately not driven from `song.didSet`. `pushAll()` reassigns `song`
-    /// (`song = s` after normalising), so a `didSet` hook would record a
+    /// (`song = s` after normalizing), so a `didSet` hook would record a
     /// snapshot for every push — including the ones undo itself performs, which
     /// corrupts the stack the moment you undo twice.
     func checkpoint(coalescing: Bool = false, kind: CheckpointKind? = nil, run: CheckpointRun? = nil) {
@@ -383,7 +383,7 @@ final class Studio {
 
     /// One tick of the playhead: 60 a second from the timer above, and one at a
     /// time from the tests. Lifting it out of the closure is what makes the
-    /// follow behaviour reachable without a run loop or a live audio engine.
+    /// follow behavior reachable without a run loop or a live audio engine.
     func applyPlayhead(step: Int, pattern: Int, slot: Int? = nil) {
         playhead = step
         // Before the pattern guard below: a section's repeats all play the same
@@ -455,7 +455,7 @@ final class Studio {
         }
     }
 
-    /// Tap behaviour: an empty cell takes the selected note; a filled cell
+    /// Tap behavior: an empty cell takes the selected note; a filled cell
     /// overwrites with the selected note, or clears if it already matches.
     func toggleCell(track: Int, step: Int) {
         checkpoint(coalescing: true, kind: .cell)
@@ -539,7 +539,7 @@ final class Studio {
     }
 
     /// The octaves the keyboard can reach — one source for `shiftOctave` and
-    /// for the buttons that grey out at the ends.
+    /// for the buttons that gray out at the ends.
     static let octaveRange = 0...8
 
     /// Shared by the on-screen octave buttons and the hardware ones. The range
@@ -870,7 +870,7 @@ final class Studio {
 
     /// The name a rename would actually store — trimmed and truncated — or nil
     /// when it's empty or collides with another pattern's name. Two chips both
-    /// labelled "A" are indistinguishable in the strip, the ••• menu, and to
+    /// labeled "A" are indistinguishable in the strip, the ••• menu, and to
     /// VoiceOver, so duplicates are refused. The UI uses this to disable the
     /// Rename button rather than letting it silently do nothing.
     func acceptablePatternName(_ name: String, for index: Int) -> String? {
@@ -1068,7 +1068,7 @@ final class Studio {
     ///
     /// Writes straight through to the model rather than holding a draft in the
     /// view: undo restores a snapshot of the *same* song, so a view-side draft
-    /// has no id change to resynchronise on and would re-commit the name the
+    /// has no id change to resynchronize on and would re-commit the name the
     /// undo just removed. Keeping the model authoritative also means autosave
     /// and a background-kill see the name the user can see.
     ///
@@ -1156,7 +1156,7 @@ final class Studio {
     /// Imports a song from a file and opens it.
     ///
     /// The file is arbitrary JSON from outside the app, so it goes through
-    /// `SongDocument` (which normalises) and through the collision check
+    /// `SongDocument` (which normalizes) and through the collision check
     /// (so an imported song can't overwrite one already in the library).
     @discardableResult
     func importSong(from url: URL) -> Bool {
@@ -1176,7 +1176,7 @@ final class Studio {
     @discardableResult
     func importSong(decoded incoming: Song) -> Bool {
         var incoming = incoming
-        // `open` normalises, but only after the song has been written out.
+        // `open` normalizes, but only after the song has been written out.
         // A value the UI can't produce — a NaN tempo — fails to encode, so
         // without this the import would land in the editor and nowhere else.
         incoming.normalize()
@@ -1261,8 +1261,8 @@ final class Studio {
             switch result {
             case .success(let url):
                 self.exportURL = url
-            case .cancelled:
-                // Deliberately silent. Cancelling is not failing, and an
+            case .canceled:
+                // Deliberately silent. Canceling is not failing, and an
                 // alert for something the user just asked to stop is noise.
                 break
             case .tooLong:
@@ -1278,7 +1278,7 @@ final class Studio {
                 song: song,
                 options: options,
                 progress: progress,
-                isCancelled: { token.isCancelled }))
+                isCanceled: { token.isCanceled }))
             await MainActor.run { finish(result) }
         }
         return attempt
@@ -1311,17 +1311,17 @@ final class Studio {
 /// write is seen promptly.
 final class CancelToken: @unchecked Sendable {
     private let lock = NSLock()
-    private var cancelled = false
+    private var canceled = false
 
     func cancel() {
         lock.lock()
-        cancelled = true
+        canceled = true
         lock.unlock()
     }
 
-    var isCancelled: Bool {
+    var isCanceled: Bool {
         lock.lock()
         defer { lock.unlock() }
-        return cancelled
+        return canceled
     }
 }

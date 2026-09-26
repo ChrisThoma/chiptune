@@ -27,7 +27,7 @@ schemes:
           isEnabled: false
         # Thread Sanitizer kills the process on its first report. ChipCore is
         # deliberately lock-free and every one of its parameter writes is a
-        # report, so the default behaviour meant the concurrency suite died on
+        # report, so the default behavior meant the concurrency suite died on
         # the first `tempo` write — before a single XCTAssert ran, and before
         # any race after the first was ever looked for. `halt_on_error=0` makes
         # TSan print and carry on, so the tests actually finish and the CI job

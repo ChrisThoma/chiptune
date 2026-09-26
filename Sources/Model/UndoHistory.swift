@@ -1,7 +1,7 @@
 import Foundation
 
 /// The undo/redo stacks and their folding rules, factored out of `Studio` so
-/// the coalescing behaviour is readable on its own. Knows nothing about songs:
+/// the coalescing behavior is readable on its own. Knows nothing about songs:
 /// `State` is whatever the owner wants restored, `Run` names a batch of edits
 /// that collapses to one step (see `Studio.CheckpointRun`).
 ///

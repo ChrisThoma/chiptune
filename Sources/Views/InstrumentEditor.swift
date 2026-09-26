@@ -110,7 +110,7 @@ struct InstrumentEditor: View {
     }
 
 
-    /// No navigation bar: the column it sits in is already labelled by the
+    /// No navigation bar: the column it sits in is already labeled by the
     /// track header the selection highlights, and a title bar here would read
     /// as a second window inside the editor.
     private var dockedPanel: some View {
