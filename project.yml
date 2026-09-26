@@ -141,6 +141,13 @@ targets:
         # time. A stamp refreshed only when something else changed is a stamp
         # that eventually names the wrong commit.
         basedOnDependencyAnalysis: false
+        # Being last in the list isn't enough on its own: processing
+        # Info.plist isn't a phase, so without this input nothing makes the
+        # stamp wait for it. On an incremental build that reprocessed the
+        # plist, the stamp ran first and the copy landing after it erased
+        # both keys.
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
         script: |
           plist="${TARGET_BUILD_DIR}/${INFOPLIST_PATH}"
 
