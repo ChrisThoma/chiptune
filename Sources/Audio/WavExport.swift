@@ -27,11 +27,11 @@ struct ExportOptions: Equatable, Sendable {
     }
 }
 
-/// The outcome of an export. Cancelling is not failing: the UI must not show
+/// The outcome of an export. Canceling is not failing: the UI must not show
 /// an error for a file the user decided they didn't want.
 enum ExportResult: Sendable {
     case success(URL)
-    case cancelled
+    case canceled
     case tooLong
     case failed
 }
@@ -44,7 +44,7 @@ struct ExportRequest: Sendable {
     /// Called with 0...1 as the render proceeds, on the rendering thread.
     var progress: @Sendable (Double) -> Void = { _ in }
     /// Polled at chunk boundaries. Returning true abandons the render.
-    var isCancelled: @Sendable () -> Bool = { false }
+    var isCanceled: @Sendable () -> Bool = { false }
 }
 
 /// Renders a song offline and writes it out as a 16-bit mono WAV.
@@ -65,7 +65,7 @@ enum WavExport {
     /// cancel or a failed write unwinds in one hop rather than threading an
     /// optional result out of a pointer closure.
     private enum RenderAbort: Error {
-        case cancelled, failed
+        case canceled, failed
     }
 
     /// The simple entry point: one pass, seamless loop, no progress, no cancel.
@@ -137,7 +137,7 @@ enum WavExport {
         func renderBody(into base: UnsafeMutablePointer<Float>) throws {
             var written = 0
             while written < bodySamples {
-                if request.isCancelled() { throw RenderAbort.cancelled }
+                if request.isCanceled() { throw RenderAbort.canceled }
                 let n = min(chunk, bodySamples - written)
                 core.render(frames: n, into: base)
                 let inHead = max(0, min(n, headLen - written))
@@ -158,7 +158,7 @@ enum WavExport {
         func renderTail(into base: UnsafeMutablePointer<Float>) throws {
             var done = 0
             while done < tail {
-                if request.isCancelled() { throw RenderAbort.cancelled }
+                if request.isCanceled() { throw RenderAbort.canceled }
                 let n = min(chunk, tail - done)
                 core.render(frames: n, into: base)
                 if folding {
@@ -189,7 +189,7 @@ enum WavExport {
             try? raw.close()
         } catch {
             try? raw.close()
-            return (error as? RenderAbort) == .cancelled ? .cancelled : .failed
+            return (error as? RenderAbort) == .canceled ? .canceled : .failed
         }
 
         // Summing the overlap can push it past full scale. Scale the whole file
@@ -206,7 +206,7 @@ enum WavExport {
                               bodyURL: rawURL,
                               bodySamples: streamed,
                               scale: scale,
-                              isCancelled: request.isCancelled,
+                              isCanceled: request.isCanceled,
                               to: filename(for: song))
         if case .success(let url) = result {
             report(totalFrames)
@@ -248,7 +248,7 @@ enum WavExport {
     /// to 16-bit in chunks so the whole song is never in memory twice.
     private static func writeWav(head: [Float], bodyURL: URL, bodySamples: Int,
                                  scale: Float,
-                                 isCancelled: @Sendable () -> Bool,
+                                 isCanceled: @Sendable () -> Bool,
                                  to url: URL) -> ExportResult {
         let totalSamples = head.count + bodySamples
         let channels: UInt16 = 1
@@ -308,9 +308,9 @@ enum WavExport {
                 defer { try? body.close() }
                 var remaining = bodySamples
                 while remaining > 0 {
-                    if isCancelled() {
+                    if isCanceled() {
                         discard()
-                        return .cancelled
+                        return .canceled
                     }
                     let n = min(1 << 16, remaining)
                     guard let bytes = try body.read(upToCount: n * MemoryLayout<Float>.size),

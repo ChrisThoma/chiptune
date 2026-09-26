@@ -3,7 +3,7 @@ import XCTest
 
 /// What the grid does while the sequencer runs underneath it.
 ///
-/// The behaviour under test used to live inside a 60 Hz `Timer` closure, which
+/// The behavior under test used to live inside a 60 Hz `Timer` closure, which
 /// made it unreachable: the timer needs a spinning run loop, and arming it
 /// needs `play()`, which needs a real `AVAudioEngine` that may or may not start
 /// on the machine running the suite. `applyPlayhead(step:pattern:)` is that

@@ -74,7 +74,7 @@ enum RenderHarness {
     /// Goertzel magnitude at `frequency` — the energy the signal carries at one
     /// specific frequency, without paying for a whole FFT.
     ///
-    /// Normalised by window length so magnitudes from different-sized windows
+    /// Normalized by window length so magnitudes from different-sized windows
     /// are comparable.
     static func goertzel(_ samples: ArraySlice<Float>, frequency: Double,
                          sampleRate: Double = RenderHarness.sampleRate) -> Double {
@@ -175,7 +175,7 @@ enum RenderHarness {
         return found
     }
 
-    /// Largest jump between neighbouring samples. A retrigger that skips the
+    /// Largest jump between neighboring samples. A retrigger that skips the
     /// de-click fade shows up here as a step the rest of the waveform never
     /// takes.
     static func maxDelta(_ samples: ArraySlice<Float>) -> Double {

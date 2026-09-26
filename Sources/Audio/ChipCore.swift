@@ -1,6 +1,6 @@
 import Foundation
 
-/// A chiptune synthesiser and pattern sequencer.
+/// A chiptune synthesizer and pattern sequencer.
 ///
 /// Everything the render callback touches lives in manually allocated memory so
 /// the audio thread never allocates, locks, or triggers copy-on-write. The main
@@ -156,7 +156,7 @@ final class ChipCore {
     /// across them. That is what makes this placement a guard rather than a
     /// fix: it takes the field out of reach of the one construct — a compound
     /// assignment straight onto storage — that turns this pattern into
-    /// undefined behaviour. Same placement as `transport`, for a weaker
+    /// undefined behavior. Same placement as `transport`, for a weaker
     /// reason, and the same ordinary word-sized race the rest of this file
     /// already runs on.
     private var chainPos: Int32 {
@@ -263,7 +263,7 @@ final class ChipCore {
     ///
     /// Racy by construction: the audio thread can retrigger the voice while the
     /// answer is in flight. A stale answer costs one missed or one extra
-    /// release, never a wrong note, which is why this needs no synchronisation.
+    /// release, never a wrong note, which is why this needs no synchronization.
     func ringingSource(track: Int) -> (pattern: Int, step: Int)? {
         guard track >= 0, track < Chip.maxTracks else { return nil }
         let voice = voices[track]
@@ -416,7 +416,7 @@ final class ChipCore {
         // `render` mutates both in place — `currentStep += 1`, `lpState += …` —
         // and Swift treats a read-modify-write of a stored property as an
         // exclusive access. A main-thread write landing inside one is an
-        // exclusivity violation, which is undefined behaviour, not the harmless
+        // exclusivity violation, which is undefined behavior, not the harmless
         // stale read the rest of this contract trades on: the compiler is
         // entitled to assume nothing else writes for the duration. Thread
         // Sanitizer names it a "Swift access race" rather than a data race, and
@@ -584,7 +584,7 @@ final class ChipCore {
         case .triangle:
             v.phase += v.inc
             if v.phase >= 1 { v.phase -= 1 }
-            // 16 quantisation steps per half cycle, like the NES triangle channel.
+            // 16 quantization steps per half cycle, like the NES triangle channel.
             let tri = v.phase < 0.5 ? v.phase * 4.0 - 1.0 : 3.0 - v.phase * 4.0
             out = (tri * 8.0).rounded(.down) / 8.0
 

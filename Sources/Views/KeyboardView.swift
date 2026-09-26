@@ -72,7 +72,7 @@ struct KeyboardView: View {
             }
             .frame(height: layout.keyboardHeight)
             // On an iPad the keys stop widening partway across the window and
-            // centre; eight white keys spread over the full width are wider
+            // center; eight white keys spread over the full width are wider
             // than a hand and stop looking like an instrument.
             .frame(maxWidth: layout.keyboardMaxWidth)
             .frame(maxWidth: .infinity)
@@ -121,7 +121,7 @@ struct KeyboardView: View {
                 // that says where a tap is about to land.
                 //
                 // Except while OFF is armed, when the line above already reads
-                // "OFF" in the track's colour and the track name is the least
+                // "OFF" in the track's color and the track name is the least
                 // useful thing on screen. A tester's "I don't understand what
                 // the off button does" had nowhere to be answered — the only
                 // prose about it in the app is buried in the sound editor — and

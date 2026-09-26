@@ -124,7 +124,7 @@ final class SongDocumentTests: XCTestCase {
     /// The reason import waited on `Instrument.normalize()`. Every value here
     /// is one the UI's bounded controls cannot produce, and each of them
     /// reaches the DSP directly.
-    func testHostileValuesAreSanitisedOnImport() throws {
+    func testHostileValuesAreSanitizedOnImport() throws {
         let hostile = """
         {
           "id": "\(UUID().uuidString)",
@@ -170,7 +170,7 @@ final class SongDocumentTests: XCTestCase {
 
     // MARK: Hold, before and after it was its own switch
 
-    /// `Instrument` is the one model type that still used the synthesised
+    /// `Instrument` is the one model type that still used the synthesized
     /// `Codable`, whose decoder emits `decode` rather than `decodeIfPresent`
     /// and never applies property defaults. Adding a field to it without a
     /// hand-written decoder would make every file already on disk — including
@@ -211,7 +211,7 @@ final class SongDocumentTests: XCTestCase {
                           "turning hold off should land on a real decay, not the old sentinel")
     }
 
-    /// The synthesised decoder also made every key mandatory, so a file merely
+    /// The synthesized decoder also made every key mandatory, so a file merely
     /// missing "arpeggio" was unreadable. Nothing about an instrument should be.
     func testAnInstrumentMissingEveryOptionalKeyDecodes() throws {
         let sparse = """
@@ -358,9 +358,9 @@ final class SongFileTests: XCTestCase {
         XCTAssertThrowsError(try SongFile.imported(from: data))
     }
 
-    /// The same normalisation the file importer gets — a dropped song reaches
+    /// The same normalization the file importer gets — a dropped song reaches
     /// the DSP by a different door but through the same check.
-    func testDroppedBytesAreNormalised() throws {
+    func testDroppedBytesAreNormalized() throws {
         var song = makeSong()
         song.tempo = 100_000
         let data = try JSONEncoder().encode(song)

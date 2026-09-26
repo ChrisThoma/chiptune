@@ -67,7 +67,7 @@ final class AudioSessionObserver {
     ///
     /// Inspecting the previous route would be the more precise check — "was the
     /// thing that went away our output?" — but `AVAudioSessionRouteDescription`
-    /// has no public initialiser, so a handler that reads it cannot be driven
+    /// has no public initializer, so a handler that reads it cannot be driven
     /// from a test at all. `.oldDeviceUnavailable` already means exactly the
     /// case that matters: something we were playing through is gone.
     private func handleRouteChange(_ note: Notification) {

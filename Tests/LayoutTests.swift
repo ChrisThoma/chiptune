@@ -284,18 +284,18 @@ final class LayoutTests: XCTestCase {
 
     func testReviewRequestOnlyFiresForACompletedShare() {
         XCTAssertTrue(ReviewPromptPolicy.shouldRequest(eligible: true, outcome: .completed))
-        XCTAssertFalse(ReviewPromptPolicy.shouldRequest(eligible: true, outcome: .cancelled))
+        XCTAssertFalse(ReviewPromptPolicy.shouldRequest(eligible: true, outcome: .canceled))
         XCTAssertFalse(ReviewPromptPolicy.shouldRequest(eligible: true, outcome: .failed))
         XCTAssertFalse(ReviewPromptPolicy.shouldRequest(eligible: false, outcome: .completed))
     }
 
-    /// A cancelled or failed share must not spend the milestone: the user
+    /// A canceled or failed share must not spend the milestone: the user
     /// keeps their eligibility for the next share that actually completes.
-    func testCancellingOrFailingAShareLeavesTheMilestoneUnadvanced() {
-        let cancelled = ReviewPromptPolicy.afterShareDismiss(
-            eligible: true, outcome: .cancelled, successfulExports: 5, lastRequestExportCount: 0)
-        XCTAssertFalse(cancelled.shouldRequestReview)
-        XCTAssertEqual(cancelled.lastRequestExportCount, 0, "a cancelled share must not spend the milestone")
+    func testCancelingOrFailingAShareLeavesTheMilestoneUnadvanced() {
+        let canceled = ReviewPromptPolicy.afterShareDismiss(
+            eligible: true, outcome: .canceled, successfulExports: 5, lastRequestExportCount: 0)
+        XCTAssertFalse(canceled.shouldRequestReview)
+        XCTAssertEqual(canceled.lastRequestExportCount, 0, "a canceled share must not spend the milestone")
 
         let failed = ReviewPromptPolicy.afterShareDismiss(
             eligible: true, outcome: .failed, successfulExports: 5, lastRequestExportCount: 0)
@@ -403,19 +403,19 @@ final class LayoutTests: XCTestCase {
     }
 
     /// A black key belongs over the seam between the two white keys it sits
-    /// between, which means the centre of the gap — the gap's own width
+    /// between, which means the center of the gap — the gap's own width
     /// included. Dividing the width by the key count instead ignores the
     /// fourteen 2pt gaps, and the error compounds along the keyboard.
-    func testEveryBlackKeyIsCentredOnTheGapBetweenItsWhiteNeighbours() {
+    func testEveryBlackKeyIsCenteredOnTheGapBetweenItsWhiteNeighbors() {
         let whiteKeys = 15 // two octaves plus the closing C
         let inset = ChipLayout.wideSideKeyboardWidth - 2 * ChipLayout.keyboardHorizontalPadding
         let geometry = ChipLayout.KeyboardGeometry(insetWidth: inset, whiteKeys: whiteKeys)
         let spacing = ChipLayout.whiteKeySpacing
 
         for after in twoOctaveBlackKeyAfterIndices {
-            let gapCentre = CGFloat(after + 1) * (geometry.whiteWidth + spacing) - spacing / 2
+            let gapCenter = CGFloat(after + 1) * (geometry.whiteWidth + spacing) - spacing / 2
             XCTAssertEqual(geometry.blackKeyOffset(after: after) + geometry.blackWidth / 2,
-                           gapCentre,
+                           gapCenter,
                            accuracy: 0.001,
                            "black key after white key \(after) is off its seam")
         }
@@ -424,11 +424,11 @@ final class LayoutTests: XCTestCase {
         // of a two-octave keyboard it misses the seam by more than a point.
         let topAfter = twoOctaveBlackKeyAfterIndices.last!
         let naiveWhiteWidth = inset / CGFloat(whiteKeys)
-        let naiveCentre = naiveWhiteWidth * CGFloat(topAfter + 1)
+        let naiveCenter = naiveWhiteWidth * CGFloat(topAfter + 1)
             - naiveWhiteWidth * 0.29
             + geometry.blackWidth / 2
-        let trueCentre = CGFloat(topAfter + 1) * (geometry.whiteWidth + spacing) - spacing / 2
-        XCTAssertGreaterThan(abs(naiveCentre - trueCentre), 1,
+        let trueCenter = CGFloat(topAfter + 1) * (geometry.whiteWidth + spacing) - spacing / 2
+        XCTAssertGreaterThan(abs(naiveCenter - trueCenter), 1,
                              "the spacing-blind formula should visibly drift by the top key")
     }
 

@@ -1,7 +1,7 @@
 # Chiptune
 
 A step sequencer for iOS that writes NES-style chiptune music. Every sound is
-synthesised as you play it: four channels modelled on the NES, no samples, no
+synthesized as you play it: four channels modeled on the NES, no samples, no
 audio files anywhere in the app.
 
 <p>
@@ -42,7 +42,7 @@ There are two ways to end it:
 The layout follows the NES sound hardware:
 
 - **Pulse 1 and 2:** square waves with selectable duty (12/25/50/75%)
-- **Triangle:** quantised to 16 steps per half cycle, like the real channel
+- **Triangle:** quantized to 16 steps per half cycle, like the real channel
 - **Noise:** a 15-bit shift register clocked at a multiple of the note
   frequency, so it comes out pitched rather than as flat hiss
 

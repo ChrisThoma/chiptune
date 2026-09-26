@@ -110,7 +110,7 @@ struct Instrument: Codable, Equatable {
 
     /// Widest arpeggio offset a file may declare, in semitones — four octaves
     /// either way, far past anything musical and far short of anything that
-    /// overflows the frequency maths.
+    /// overflows the frequency math.
     static let maxArpeggioSemitones = 48
     /// The core reads at most this many offsets; the rest are dead weight.
     static let maxArpeggioSteps = 4
@@ -137,7 +137,7 @@ struct Instrument: Codable, Equatable {
         self.arpeggio = arpeggio
     }
 
-    /// Written by hand, like `Track`'s and `Song`'s, because the synthesised
+    /// Written by hand, like `Track`'s and `Song`'s, because the synthesized
     /// decoder emits `decode` rather than `decodeIfPresent` and never applies
     /// the property defaults above. Under it, adding a single field would have
     /// made every `.chipsong` already written — and the autosave restored at
@@ -182,7 +182,7 @@ struct Instrument: Codable, Equatable {
 
 struct Track: Codable, Equatable, Identifiable {
     /// Stable across insertion and deletion so per-track view state (an open
-    /// editor sheet, say) doesn't jump to a neighbour when a track is removed.
+    /// editor sheet, say) doesn't jump to a neighbor when a track is removed.
     var id: UUID = UUID()
     var kind: ChannelKind
     var instrument: Instrument
@@ -193,7 +193,7 @@ struct Track: Codable, Equatable, Identifiable {
     var name: String?
 
     /// Long enough for "Harmony", short enough that a grid column header can
-    /// still show something recognisable once it truncates.
+    /// still show something recognizable once it truncates.
     static let maxNameLength = 16
 
     /// Notes read out of a file written before patterns existed. `Song`'s
@@ -607,7 +607,7 @@ struct Song: Codable, Equatable, Identifiable {
     }
 
     /// Checked here as well as in `normalizeName` because the labels are drawn
-    /// while the name is being typed, before anything has normalised it.
+    /// while the name is being typed, before anything has normalized it.
     private static func usableName(_ name: String?) -> String? {
         guard let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty else { return nil }

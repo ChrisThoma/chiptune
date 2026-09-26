@@ -30,7 +30,7 @@ final class BuildStampTests: XCTestCase {
         //
         // Asserted against the real bundle, because that's where the counter
         // actually exists to leak from — it's "3" right now, and it would
-        // surface as a parenthesised "(3)". Nothing else in the row can
+        // surface as a parenthesized "(3)". Nothing else in the row can
         // produce a bracket, so this stays true as the numbers change.
         let shipping = BuildStamp()
         XCTAssertFalse(shipping.lines.contains { $0.contains("(") },

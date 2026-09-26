@@ -28,7 +28,7 @@ final class SongPropertyTests: XCTestCase {
     // MARK: Generation
 
     /// Builds a song out of values the UI could never produce: NaN and infinite
-    /// tempos and volumes, arpeggio offsets that overflow the pitch maths, more
+    /// tempos and volumes, arpeggio offsets that overflow the pitch math, more
     /// tracks and patterns than the buffers hold, notes outside MIDI range, and
     /// arrangements pointing at patterns that don't exist.
     private static func hostileSong(using rng: inout SeededRandom) -> Song {
@@ -82,8 +82,8 @@ final class SongPropertyTests: XCTestCase {
 
     // MARK: Properties
 
-    /// `normalize` is the only sanitiser, so running it twice has to be the
-    /// same as running it once — otherwise "normalised" isn't a stable state
+    /// `normalize` is the only sanitizer, so running it twice has to be the
+    /// same as running it once — otherwise "normalized" isn't a stable state
     /// and every caller has to guess how many times to call it.
     func testNormalizeIsIdempotent() {
         forEachSong { song, tag in
@@ -99,7 +99,7 @@ final class SongPropertyTests: XCTestCase {
     func testNormalizeProducesValuesTheEngineCanPlay() {
         forEachSong { song, tag in
             // Hold is a switch rather than a value with a range, so the only
-            // thing normalising can do wrong is change it. Captured before,
+            // thing normalizing can do wrong is change it. Captured before,
             // because normalize clamps the track count.
             let heldBefore = song.tracks.map(\.instrument.sustain)
             var song = song
@@ -178,11 +178,11 @@ final class SongPropertyTests: XCTestCase {
         }
     }
 
-    /// The end of the line: a hostile song, normalised, actually rendered. This
+    /// The end of the line: a hostile song, normalized, actually rendered. This
     /// is the assertion the unclamped-arpeggio bug fails — an infinite phase
     /// increment turns the voice's output into NaN, which then latches in the
     /// master DC blocker and silences the app until it is relaunched.
-    func testAnyNormalisedSongRendersFiniteAudio() {
+    func testAnyNormalizedSongRendersFiniteAudio() {
         forEachSong { song, tag in
             var song = song
             song.normalize()

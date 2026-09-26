@@ -295,7 +295,7 @@ private struct TrackHeader: View {
                 HStack(spacing: 4) {
                     // A column is ~7 characters wide on a four-track phone, so
                     // a name that doesn't fit truncates rather than shrinking
-                    // the header out of step with its neighbours.
+                    // the header out of step with its neighbors.
                     Text(studio.song.label(for: index))
                         .chipFont(13)
                         .lineLimit(1)

@@ -22,7 +22,7 @@ struct TempStore {
         defaults = UserDefaults(suiteName: suiteName)!
         store = SongStore(directory: directory, defaults: defaults)
         // The store itself only creates the directory when it first writes,
-        // which is the right behaviour for the app but leaves the migration
+        // which is the right behavior for the app but leaves the migration
         // tests — which plant a file before the store has ever been used —
         // writing into a directory that isn't there yet.
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

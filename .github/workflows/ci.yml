@@ -146,7 +146,7 @@ jobs:
       # Same cap as the unit-test job. It was first added on the theory that
       # the toolchain/runtime version gap was what crashed this job's app
       # host at launch; the crash reproduced on the matched runtime, and the
-      # result bundle showed the real killer — CoreAudio initialisation
+      # result bundle showed the real killer — CoreAudio initialization
       # timing out under TSan's slowdown (see ChiptuneApp.isTestHost). The
       # cap stays for the reason given above, not as the fix for that.
       - name: Resolve simulator destination
@@ -176,7 +176,7 @@ jobs:
       # The scheme sets TSAN_OPTIONS=halt_on_error=0, so a report no longer
       # kills the host and the tests run to their assertions. Before that they
       # did not: TSan aborted on the first parameter write and neither test
-      # ever reached an XCTAssert, which the judgement below happily read as a
+      # ever reached an XCTAssert, which the judgment below happily read as a
       # pass. The exit code is still swallowed — a report on its own is not a
       # failure here — but the next step now demands that every test finish.
       - name: Test with TSan

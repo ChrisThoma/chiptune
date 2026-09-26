@@ -185,7 +185,7 @@ struct SongListView: View {
             }
             // A song row is a name and a date; across the full width of an
             // iPad form sheet that leaves a long empty gutter after each one,
-            // so the list is capped and centred and the background keeps the
+            // so the list is capped and centered and the background keeps the
             // rest.
             .frame(maxWidth: 640)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -290,7 +290,7 @@ struct SongListView: View {
                 reload()
             }
             // A blank name, or one that collides with a different existing
-            // song's name, is rejected by the model; grey the button out
+            // song's name, is rejected by the model; gray the button out
             // instead of letting it dismiss and silently do nothing.
             .disabled({
                 let trimmed = renameText.trimmingCharacters(in: .whitespaces)
@@ -367,7 +367,7 @@ struct SongListView: View {
             }
             .contentShape(Rectangle())
         }
-        // Without this the List tints the whole label with the accent colour and
+        // Without this the List tints the whole label with the accent color and
         // every song title renders blue.
         .buttonStyle(.plain)
         // Drag a song out to Files or another app; the drag writes the same

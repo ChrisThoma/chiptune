@@ -172,7 +172,7 @@ struct PatternBar: View {
         // has to survive the ScrollView's own compositing, and it also can't be
         // seen at all unless the alpha it punches reveals something — the tray
         // panel underneath is the thing the chips should melt into, so draw
-        // that colour directly and skip the round trip.
+        // that color directly and skip the round trip.
         .overlay(alignment: .leading) { fade(.leading) }
         .overlay(alignment: .trailing) { fade(.trailing) }
     }
@@ -348,7 +348,7 @@ private struct PatternRenameSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Rename", action: commit)
-                        // Greyed out rather than silently ignored when the name
+                        // Grayed out rather than silently ignored when the name
                         // is empty or already another pattern's.
                         .disabled(accepted == nil)
                 }

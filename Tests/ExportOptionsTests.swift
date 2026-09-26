@@ -150,7 +150,7 @@ final class ExportOptionsTests: XCTestCase {
                        "a note-off makes no sound to ring out")
     }
 
-    func testDefaultOptionsMatchTheOldBehaviour() throws {
+    func testDefaultOptionsMatchTheOldBehavior() throws {
         let song = makeSong()
         let plain = try XCTUnwrap(WavExport.render(song: song))
         let explicit = try render(song, ExportOptions())
@@ -255,10 +255,10 @@ final class ExportOptionsTests: XCTestCase {
 
     // MARK: Cancellation
 
-    /// Cancelling is not failing, and it must not leave a half-written file
+    /// Canceling is not failing, and it must not leave a half-written file
     /// behind — one would show up in the share sheet and play as noise.
-    func testCancellingLeavesNoFileAndReportsCancelledRatherThanFailed() throws {
-        var song = makeSong(name: "Cancelled")
+    func testCancelingLeavesNoFileAndReportsCanceledRatherThanFailed() throws {
+        var song = makeSong(name: "Canceled")
         // Long enough that the cancel lands mid-render rather than after it.
         song.tempo = 40
         song.patterns[0].length = 64
@@ -268,34 +268,34 @@ final class ExportOptionsTests: XCTestCase {
         let result = WavExport.render(ExportRequest(
             song: song,
             options: ExportOptions(loopCount: 4, tailMode: .ringOut),
-            isCancelled: {
+            isCanceled: {
                 // Let a few chunks through, then pull the plug.
                 calls.mutate { $0 += 1 }
                 return calls.value > 3
             }))
 
-        guard case .cancelled = result else {
-            return XCTFail("expected .cancelled, got \(result)")
+        guard case .canceled = result else {
+            return XCTFail("expected .canceled, got \(result)")
         }
 
         // No output file for this song, and no raw scratch files left over.
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(song.id.uuidString, isDirectory: true)
         let leftovers = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
-        XCTAssertTrue(leftovers.isEmpty, "a cancelled export left files behind: \(leftovers)")
+        XCTAssertTrue(leftovers.isEmpty, "a canceled export left files behind: \(leftovers)")
     }
 
-    func testCancellingBeforeTheFirstChunkStillCancelsCleanly() {
+    func testCancelingBeforeTheFirstChunkStillCancelsCleanly() {
         let result = WavExport.render(ExportRequest(song: makeSong(),
-                                                    isCancelled: { true }))
-        guard case .cancelled = result else {
-            return XCTFail("expected .cancelled, got \(result)")
+                                                    isCanceled: { true }))
+        guard case .canceled = result else {
+            return XCTFail("expected .canceled, got \(result)")
         }
     }
 
-    func testAnUncancelledExportIsNotReportedAsCancelled() throws {
+    func testAnUncanceledExportIsNotReportedAsCanceled() throws {
         let result = WavExport.render(ExportRequest(song: makeSong(),
-                                                    isCancelled: { false }))
+                                                    isCanceled: { false }))
         guard case .success = result else {
             return XCTFail("expected .success, got \(result)")
         }
@@ -323,7 +323,7 @@ final class ExportOptionsTests: XCTestCase {
 }
 
 /// Studio's side of export options: progress published, cancel plumbed
-/// through, and a cancelled export not raising an error.
+/// through, and a canceled export not raising an error.
 @MainActor
 final class StudioExportOptionsTests: XCTestCase {
 
@@ -336,7 +336,7 @@ final class StudioExportOptionsTests: XCTestCase {
         waitForExport(studio)
         XCTAssertEqual(studio.completedExportAttempt, first)
 
-        studio.renderer = { _ in .cancelled }
+        studio.renderer = { _ in .canceled }
         let second = studio.export()
         waitForExport(studio)
         XCTAssertEqual(studio.completedExportAttempt, second)
@@ -409,16 +409,16 @@ final class StudioExportOptionsTests: XCTestCase {
         waitForExport(studio)
     }
 
-    func testCancelledExportPublishesNoUrlAndNoError() {
+    func testCanceledExportPublishesNoUrlAndNoError() {
         let studio = Studio(store: makeTempStore().store, autosaveEnabled: false,
-                            renderer: { _ in .cancelled })
+                            renderer: { _ in .canceled })
         addTeardownBlock { @MainActor in studio.invalidateTimers() }
 
         studio.export()
         waitForExport(studio)
 
         XCTAssertNil(studio.exportURL)
-        XCTAssertNil(studio.exportError, "cancelling is not an error")
+        XCTAssertNil(studio.exportError, "canceling is not an error")
         XCTAssertEqual(studio.exportProgress, 0)
     }
 
@@ -431,8 +431,8 @@ final class StudioExportOptionsTests: XCTestCase {
             started.fulfill()
             // Spin until the main actor cancels, the way the real renderer
             // polls at chunk boundaries.
-            while !request.isCancelled() { usleep(1000) }
-            return .cancelled
+            while !request.isCanceled() { usleep(1000) }
+            return .canceled
         })
         addTeardownBlock { @MainActor in studio.invalidateTimers() }
 

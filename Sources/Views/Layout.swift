@@ -21,15 +21,15 @@ struct ChipLayout: Equatable {
     var trackHeaderHeight: CGFloat
     /// The white keys, not counting the octave/note row above them.
     var keyboardHeight: CGFloat
-    /// Keys stop growing here and centre in whatever space is left. Eight
+    /// Keys stop growing here and center in whatever space is left. Eight
     /// white keys across an iPad's full width would be 150pt each, which
     /// stops reading as a keyboard.
     var keyboardMaxWidth: CGFloat
     /// Points of type for the note names on the key caps.
     var keyLabelSize: CGFloat
     /// Widest the transport and pattern rows are allowed to get. Past this
-    /// they centre in whatever space is left, rather than pushing BPM and
-    /// STEPS half a metre away from the play button they belong beside.
+    /// they center in whatever space is left, rather than pushing BPM and
+    /// STEPS half a meter away from the play button they belong beside.
     var chromeMaxWidth: CGFloat
     /// Height of the transport/pattern trays and their chips. Phone keeps
     /// `Theme.trayHeight`, which other, non-chrome code still reads directly;
@@ -158,8 +158,8 @@ struct ChipLayout: Equatable {
     /// White keys are bare shapes in an `HStack(spacing: whiteKeySpacing)`, so
     /// the stack shares the width left over after the gaps equally between
     /// them. Black keys are drawn over that row by offset, and each one belongs
-    /// centred on the seam between the two white keys it sits between — the
-    /// centre of the gap, not of a key boundary. Doing that arithmetic without
+    /// centered on the seam between the two white keys it sits between — the
+    /// center of the gap, not of a key boundary. Doing that arithmetic without
     /// the gaps loses a fraction of a point per key, which compounds into a
     /// visible lean by the top of a two-octave keyboard.
     struct KeyboardGeometry {
@@ -177,14 +177,14 @@ struct ChipLayout: Equatable {
         }
 
         /// Leading offset for the black key sitting after white key `after`
-        /// (zero-based): the centre of the gap that follows that key,
+        /// (zero-based): the center of the gap that follows that key,
         /// `(after + 1) * (whiteWidth + spacing) - spacing / 2`, less half the
-        /// black key's width so the key is centred there rather than starting
+        /// black key's width so the key is centered there rather than starting
         /// there.
         func blackKeyOffset(after: Int) -> CGFloat {
             let spacing = ChipLayout.whiteKeySpacing
-            let gapCentre = CGFloat(after + 1) * (whiteWidth + spacing) - spacing / 2
-            return gapCentre - blackWidth / 2
+            let gapCenter = CGFloat(after + 1) * (whiteWidth + spacing) - spacing / 2
+            return gapCenter - blackWidth / 2
         }
     }
 

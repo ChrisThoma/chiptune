@@ -49,10 +49,10 @@ enum ReviewPromptPolicy {
     static let retryInterval = 10
 
     /// What became of the share sheet the review prompt is gated behind.
-    /// Cancelling and failing are both "not completed", but kept distinct so
+    /// Canceling and failing are both "not completed", but kept distinct so
     /// a failure can still surface through `shareError` without being
     /// conflated with a plain cancel.
-    enum ShareOutcome { case completed, cancelled, failed }
+    enum ShareOutcome { case completed, canceled, failed }
 
     static func isDue(successfulExports: Int, lastRequestExportCount: Int) -> Bool {
         guard successfulExports >= firstRequestExportCount else { return false }
@@ -62,7 +62,7 @@ enum ReviewPromptPolicy {
     }
 
     /// A milestone being due only means it's worth asking *if the share the
-    /// user was mid-way through actually went somewhere*. Cancelling or
+    /// user was mid-way through actually went somewhere*. Canceling or
     /// failing a share is not a moment to interrupt with a review prompt.
     static func shouldRequest(eligible: Bool, outcome: ShareOutcome) -> Bool {
         eligible && outcome == .completed
@@ -118,7 +118,7 @@ enum ExportFlow {
     /// a swipe-to-dismiss on the sheet a compact window turns it into, or an
     /// outside tap on the popover a regular-width one keeps it as. Either way
     /// `onDisappear` is the one place that sees it happen. A render still
-    /// going at that moment has to be cancelled there too, or its eventual
+    /// going at that moment has to be canceled there too, or its eventual
     /// success or failure lands on a studio nothing is watching anymore.
     static func afterPanelDisappeared(isExporting: Bool) -> Bool {
         isExporting
@@ -167,11 +167,11 @@ struct ContentView: View {
     /// content's `.onDisappear` is what spends this.
     @State private var shareWhenExportCloses = false
     /// What the WAV share sheet's completion handler reported. Reset to
-    /// `.cancelled` each time the sheet is (re-)presented, so a handler that
+    /// `.canceled` each time the sheet is (re-)presented, so a handler that
     /// never fires — the completion callback is documented as "may not be
     /// called" for some activities — defaults to "not completed" rather than
     /// stale-carrying the previous share's outcome.
-    @State private var shareOutcome: ReviewPromptPolicy.ShareOutcome = .cancelled
+    @State private var shareOutcome: ReviewPromptPolicy.ShareOutcome = .canceled
     /// A `.chipsong` is hovering over the editor, waiting to be dropped.
     @State private var songDropTargeted = false
     @FocusState private var nameFocused: Bool
@@ -244,7 +244,7 @@ struct ContentView: View {
                     if let error {
                         studio.shareError = "Couldn't share the exported file. \(error.localizedDescription)"
                     }
-                    shareOutcome = completed ? .completed : (error != nil ? .failed : .cancelled)
+                    shareOutcome = completed ? .completed : (error != nil ? .failed : .canceled)
                 })
             }
         }
@@ -259,7 +259,7 @@ struct ContentView: View {
                 successfulExports: successfulExportCount,
                 lastRequestExportCount: lastReviewRequestExportCount
             )
-            shareOutcome = .cancelled
+            shareOutcome = .canceled
             // The options panel gets out of the way first, and the share sheet
             // waits for it to actually be gone — see `ExportFlow`.
             let step = ExportFlow.afterRender(url: url, exportPresented: showingExport)
@@ -389,7 +389,7 @@ struct ContentView: View {
     /// Asking after the share sheet closes avoids competing presentations and
     /// ties the prompt to a moment when the app has demonstrably been useful.
     private func requestReviewIfDue() {
-        // A cancelled or failed share doesn't spend the milestone: only a
+        // A canceled or failed share doesn't spend the milestone: only a
         // completed share advances `lastReviewRequestExportCount`, so the
         // user keeps their eligibility for the next share that actually goes
         // somewhere.
@@ -405,7 +405,7 @@ struct ContentView: View {
         requestReview()
     }
 
-    /// Song name, transport and patterns. Capped and centred rather than
+    /// Song name, transport and patterns. Capped and centered rather than
     /// stretched: BPM and STEPS trail their rows so the two steppers read as a
     /// column, and across 1200pt of window that puts the tempo at the far end
     /// of the room from the play button that uses it. The cap is per-layout,
@@ -494,7 +494,7 @@ struct ContentView: View {
     }
 
     /// iPad in landscape. Stacking here would leave the grid a squat band with
-    /// three or four steps visible and a keyboard stretched a metre wide, so
+    /// three or four steps visible and a keyboard stretched a meter wide, so
     /// the keys move into a column of their own and the grid takes the height
     /// back — which is the whole reason to run natively on the thing.
     private func wideEditor(_ layout: ChipLayout) -> some View {

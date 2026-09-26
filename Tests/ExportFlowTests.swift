@@ -14,7 +14,7 @@ final class ExportFlowTests: XCTestCase {
 
     private let url = URL(fileURLWithPath: "/tmp/song.wav")
 
-    /// A render that produced nothing — cancelled, or failed — changes nothing.
+    /// A render that produced nothing — canceled, or failed — changes nothing.
     func testNoURLAsksForNothing() {
         XCTAssertEqual(ExportFlow.afterRender(url: nil, exportPresented: true),
                        ExportFlow.Step())

@@ -31,7 +31,7 @@ struct ChipStepper: View {
             .buttonStyle(.plain)
             .foregroundStyle(canDecrease ? Theme.text : Theme.dim.opacity(0.4))
             .hoverEffect(.highlight)
-            // A greyed-out end shouldn't glow as if it still had somewhere to go.
+            // A grayed-out end shouldn't glow as if it still had somewhere to go.
             .hoverEffectDisabled(!canDecrease)
             .accessibilityLabel("Decrease \(label)")
             .accessibilityValue("Current value \(value)")
