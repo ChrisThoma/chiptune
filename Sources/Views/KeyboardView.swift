@@ -119,15 +119,15 @@ struct KeyboardView: View {
                 // The full label: this slot is flexible, and it's the readout
                 // that says where a tap is about to land.
                 //
-                // Except while OFF is armed, when the line above already reads
-                // "OFF" in the track's color and the track name is the least
+                // Except while REST is armed, when the line above already reads
+                // "REST" in the track's color and the track name is the least
                 // useful thing on screen. A tester's "I don't understand what
                 // the off button does" had nowhere to be answered — the only
                 // prose about it in the app is buried in the sound editor — and
                 // borrowing this line costs no height, so the keyboard can't
                 // jump and the grid doesn't lose a row to it.
                 Text(studio.noteOffArmed
-                     ? "cuts a held note"
+                     ? "silence from here"
                      : studio.song.fullLabel(for: studio.selectedTrack))
                     .chipFont(9)
                     .lineLimit(1)
@@ -145,12 +145,12 @@ struct KeyboardView: View {
             Button {
                 studio.toggleNoteOff()
             } label: {
-                Text("OFF").chipFont(12)
+                Text("REST").chipFont(12)
             }
             .buttonStyle(PadStyle(active: armed))
-            .accessibilityLabel("Note off")
+            .accessibilityLabel("Rest")
             .accessibilityAddTraits(armed ? [.isButton, .isSelected] : .isButton)
-            .accessibilityHint(armed ? "Disarms, back to the note you had" : "Writes a note off")
+            .accessibilityHint(armed ? "Disarms, back to the note you had" : "Writes a rest")
         }
     }
 

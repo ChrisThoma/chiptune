@@ -49,8 +49,8 @@ The layout follows the NES sound hardware:
 Each track has its own volume, decay, pulse width and arpeggio, edited from the
 column header. Presets such as Lead, Pluck and Echo give each channel a starting
 sound, and every control stays adjustable after you pick one. **Hold** makes
-a note sustain instead of decaying. A note-off cuts a sustaining note, which
-matters most on the triangle, since it holds by default. Tracks can be renamed
+a note sustain instead of decaying. A rest (note-off) cuts a sustaining note,
+which matters most on the triangle, since it holds by default. Tracks can be renamed
 and muted. When four channels aren't enough you can add tracks, up to eight in
 all.
 
@@ -64,7 +64,7 @@ With a hardware keyboard attached, the grid works like a tracker:
 
 - Arrow keys move the cursor and Space plays or stops.
 - The `A W S E D F T G Y H U J K` row enters notes, and `Z`/`X` change the octave.
-- Delete clears a step. `\` arms a note-off, like the OFF key on screen, and
+- Delete clears a step. `\` arms a rest, like the REST key on screen, and
   Return writes whatever the on-screen keyboard has selected.
 
 ## How the synth works

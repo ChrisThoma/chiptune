@@ -183,7 +183,7 @@ enum UnmodifiedKeyHelp {
         Row(keys: "A W S E D F T G Y H U J K", action: "Type a note, C upwards"),
         Row(keys: "Z / X", action: "Octave down or up"),
         Row(keys: "Return", action: "Type the selected note"),
-        Row(keys: "\\", action: "Arm or disarm a note off"),
+        Row(keys: "\\", action: "Arm or disarm a rest"),
         Row(keys: "Delete", action: "Clear the step"),
     ]
 }

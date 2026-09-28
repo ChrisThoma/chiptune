@@ -192,7 +192,7 @@ private struct GridCell: View {
         // Every ternary lands in an explicitly typed `let`: as one chained
         // expression this body blows Xcode 16.4's type-check budget (CI's
         // compiler), which 26.5 only happens to tolerate.
-        let title: String = isOff ? "OFF" : (filled ? NoteName.label(note) : "·")
+        let title: String = isOff ? "REST" : (filled ? NoteName.label(note) : "·")
         // Muting fades the fill to 35% over near-black, so the dark
         // note text has to flip light or it scores under 2.6:1.
         let titleColor: Color = filled

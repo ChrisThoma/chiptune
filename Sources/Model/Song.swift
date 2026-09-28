@@ -636,11 +636,11 @@ extension Array {
 enum NoteName {
     static let names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
-    /// MIDI note number -> "C#4". A note-off labels as "OFF" — it's the armed
-    /// note in the keyboard readout and a grid cell's spoken value, and an
-    /// empty string in either place reads as a blank display.
+    /// MIDI note number -> "C#4". A note-off labels as "REST" — it's the
+    /// armed note in the keyboard readout and a grid cell's spoken value, and
+    /// an empty string in either place reads as a blank display.
     static func label(_ midi: Int8) -> String {
-        if midi == Chip.noteOff { return "OFF" }
+        if midi == Chip.noteOff { return "REST" }
         guard midi >= 0 else { return "" }
         let n = Int(midi)
         return "\(names[n % 12])\(n / 12 - 1)"
