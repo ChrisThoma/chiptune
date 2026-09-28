@@ -119,6 +119,40 @@ extension View {
 }
 
 extension View {
+    /// The file importer for bringing a `.chipsong` (or bare JSON) into the
+    /// library, shared by the Songs list's Add menu and the editor's •••
+    /// menu so the two entrances can't drift apart.
+    ///
+    /// `onResult` runs after the import attempt, deferred the same one
+    /// runloop tick as the attempt itself — presenting an error alert in the
+    /// same transaction as the file importer's own dismissal can make SwiftUI
+    /// silently drop the alert's presentation. The library uses it to dismiss
+    /// on success and claim the failure onto its own alert (see
+    /// `SongListView.claimImportError()`); the editor is already showing
+    /// whatever's current and reads `studio.importError` directly, so it has
+    /// nothing further to do and leaves the default.
+    func songFileImporter(isPresented: Binding<Bool>, studio: Studio,
+                          onResult: @escaping (Bool) -> Void = { _ in }) -> some View {
+        fileImporter(isPresented: isPresented,
+                      allowedContentTypes: [SongDocument.contentType, .json],
+                      allowsMultipleSelection: false) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                DispatchQueue.main.async {
+                    onResult(studio.importSong(from: url))
+                }
+            case .failure(let error):
+                DispatchQueue.main.async {
+                    studio.importError = error.localizedDescription
+                    onResult(false)
+                }
+            }
+        }
+    }
+}
+
+extension View {
     /// Presents `message` as a one-button alert and clears it on dismissal, so
     /// the same failure happening twice shows twice.
     func errorAlert(_ title: String, message: Binding<String?>) -> some View {
