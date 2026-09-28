@@ -712,7 +712,7 @@ struct ContentView: View {
                     openExport()
                 } label: {
                     Label(studio.isExporting ? "Exporting…" : "Export WAV",
-                          systemImage: "square.and.arrow.up")
+                          systemImage: "waveform")
                 }
                 .disabled(studio.isExporting)
                 Button {
