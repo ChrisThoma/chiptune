@@ -5,7 +5,6 @@ import SwiftUI
 struct KeyboardView: View {
     @Bindable var studio: Studio
     @Environment(\.chipLayout) private var layout
-    @ScaledMetric(relativeTo: .body) private var octaveWidth: CGFloat = 62
     /// Lives on the model rather than here, so the hardware note keys and
     /// these buttons can't end up an octave apart; see `NoteKeys`.
     private var octave: Int { studio.octave }
@@ -83,31 +82,31 @@ struct KeyboardView: View {
 
     private var controls: some View {
         HStack(spacing: 10) {
-            Button {
-                studio.shiftOctave(-1)
-            } label: {
-                Image(systemName: "chevron.left").chipFont(13)
-            }
-            .buttonStyle(PadStyle())
-            .disabled(octave <= Studio.octaveRange.lowerBound)
-            .accessibilityLabel("Octave down")
-
-            Text("OCT \(octave - 1)")
-                .chipFont(12)
-                .foregroundStyle(Theme.dim)
-                .frame(width: octaveWidth)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Octave")
+            // Paired rather than bracketing a readout: every white key
+            // already shows its own octave in its label ("C4"), and a
+            // tester read the old "OCT 4" text between them as a date.
+            // VoiceOver still gets the number, as each button's value.
+            HStack(spacing: 4) {
+                Button {
+                    studio.shiftOctave(-1)
+                } label: {
+                    Image(systemName: "chevron.left").chipFont(13)
+                }
+                .buttonStyle(PadStyle())
+                .disabled(octave <= Studio.octaveRange.lowerBound)
+                .accessibilityLabel("Octave down")
                 .accessibilityValue("\(octave - 1)")
 
-            Button {
-                studio.shiftOctave(1)
-            } label: {
-                Image(systemName: "chevron.right").chipFont(13)
+                Button {
+                    studio.shiftOctave(1)
+                } label: {
+                    Image(systemName: "chevron.right").chipFont(13)
+                }
+                .buttonStyle(PadStyle())
+                .disabled(octave >= Studio.octaveRange.upperBound)
+                .accessibilityLabel("Octave up")
+                .accessibilityValue("\(octave - 1)")
             }
-            .buttonStyle(PadStyle())
-            .disabled(octave >= Studio.octaveRange.upperBound)
-            .accessibilityLabel("Octave up")
 
             Spacer()
 
