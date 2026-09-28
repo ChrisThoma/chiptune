@@ -14,8 +14,7 @@ struct GridView: View {
     private let addColumnWidth: CGFloat = ChipLayout.addColumnWidth
 
     /// Reorder mode, entered by a long press on a track header. Local to the
-    /// grid: nothing outside it cares, and a song switch or a dismiss request
-    /// ends it anyway.
+    /// grid: nothing outside it cares, and switching songs ends it.
     @State private var reordering = false
     /// The header under the finger while a reorder drag is live.
     @State private var drag: HeaderDrag?
@@ -59,10 +58,8 @@ struct GridView: View {
         .overlay(alignment: .bottom) {
             if reordering { reorderBar.transition(.move(edge: .bottom).combined(with: .opacity)) }
         }
-        // A different song has different tracks; Escape on a hardware
-        // keyboard closes whatever is up, and this counts.
+        // A different song has different tracks.
         .onChange(of: studio.song.id) { _, _ in endReordering() }
-        .onChange(of: studio.dismissRequests) { _, _ in endReordering() }
     }
 
     private func beginReordering() {
@@ -104,7 +101,6 @@ struct GridView: View {
             }
             .buttonStyle(.plain)
             .hoverEffect(.highlight)
-            .keyboardShortcut(.defaultAction)
         }
         .padding(.leading, 16)
         .padding(.trailing, 8)
