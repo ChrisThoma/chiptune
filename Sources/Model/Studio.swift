@@ -974,6 +974,34 @@ final class Studio {
         selectedTrack = min(selectedTrack, song.tracks.count - 1)
     }
 
+    /// Moves a track so it ends up at `destination`, taking its row in every
+    /// pattern with it. `destination` is the final index, not
+    /// `Array.move(fromOffsets:toOffset:)`'s pre-removal offset: a header
+    /// drag knows which column it was dropped on, and that is all it has.
+    func moveTrack(from source: Int, to destination: Int) {
+        guard source != destination,
+              song.tracks.indices.contains(source),
+              song.tracks.indices.contains(destination) else { return }
+        checkpoint()
+        // By identity rather than index: moving any track across the selected
+        // one shifts its index, and the docked editor would jump to a neighbor.
+        let selectedID = song.tracks[safe: selectedTrack]?.id
+        song.tracks.insert(song.tracks.remove(at: source), at: destination)
+        for i in song.patterns.indices where source < song.patterns[i].rows.count {
+            let row = song.patterns[i].rows.remove(at: source)
+            song.patterns[i].rows.insert(row, at: min(destination, song.patterns[i].rows.count))
+        }
+        pushAll()
+        // After `pushAll`, for the reason `removeTrack` gives. Voices are
+        // indexed by track, so a held note would carry on under whichever
+        // track now owns its voice, and nothing aimed at the right index
+        // could stop it.
+        engine.core.releaseAll()
+        if let selectedID, let moved = song.tracks.firstIndex(where: { $0.id == selectedID }) {
+            selectedTrack = moved
+        }
+    }
+
     /// Switches a track's waveform, keeping its notes. Volume/decay/duty come
     /// from the new kind's defaults, since a bass triangle's envelope makes no
     /// sense on noise.
