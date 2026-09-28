@@ -173,6 +173,7 @@ struct ContentView: View {
     // the title named. Same rule as `InstrumentEditor`'s track snapshot.
     @State private var pendingClearPatternIndex: Int?
     @State private var showingExport = false
+    @State private var showingImporter = false
     @State private var showingKeyboardHelp = false
     /// Kept live by `GCKeyboardDidConnect`/`DidDisconnect` below, rather than
     /// read once, because a keyboard can arrive or leave without the view
@@ -307,6 +308,7 @@ struct ContentView: View {
         .errorAlert("Audio unavailable", message: $studio.audioError)
         .errorAlert("Import failed", message: $studio.importError)
         .errorAlert("Share failed", message: $studio.shareError)
+        .songFileImporter(isPresented: $showingImporter, studio: studio)
         // Opens whichever screen the screenshot shoot asked for. Inert unless
         // launched with one of its arguments; see `ScreenshotMode`.
         //
@@ -692,6 +694,11 @@ struct ContentView: View {
                     studio.newSong()
                 } label: {
                     Label("New song", systemImage: "doc.badge.plus")
+                }
+                Button {
+                    showingImporter = true
+                } label: {
+                    Label("Import song…", systemImage: "square.and.arrow.down")
                 }
                 Button {
                     studio.duplicateSong()

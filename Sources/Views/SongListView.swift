@@ -247,27 +247,11 @@ struct SongListView: View {
         } message: {
             Text("This can't be undone.")
         }
-        .fileImporter(isPresented: $showingImporter,
-                      allowedContentTypes: [SongDocument.contentType, .json],
-                      allowsMultipleSelection: false) { result in
-            switch result {
-            case .success(let urls):
-                guard let url = urls.first else { return }
-                // Deferred one runloop tick: presenting the error alert in the
-                // same transaction as the file importer's own dismissal can
-                // cause SwiftUI to silently drop the alert presentation.
-                DispatchQueue.main.async {
-                    if studio.importSong(from: url) {
-                        dismiss()
-                    } else {
-                        claimImportError()
-                    }
-                }
-            case .failure(let error):
-                DispatchQueue.main.async {
-                    studio.importError = error.localizedDescription
-                    claimImportError()
-                }
+        .songFileImporter(isPresented: $showingImporter, studio: studio) { imported in
+            if imported {
+                dismiss()
+            } else {
+                claimImportError()
             }
         }
         // Deferred one runloop tick, the same as the file importer and the
