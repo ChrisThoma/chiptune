@@ -699,11 +699,8 @@ struct ContentView: View {
                     Label("Duplicate song", systemImage: "plus.square.on.square")
                 }
                 Divider()
-                Button {
-                    studio.share(studio.song)
-                } label: {
-                    Label("Share song file", systemImage: "square.and.arrow.up")
-                }
+                // WAV first: it's what most people tap the menu open for, and
+                // the song-file share below it is the less common ask.
                 Button {
                     openExport()
                 } label: {
@@ -711,6 +708,11 @@ struct ContentView: View {
                           systemImage: "square.and.arrow.up")
                 }
                 .disabled(studio.isExporting)
+                Button {
+                    studio.share(studio.song)
+                } label: {
+                    Label("Share song file", systemImage: "square.and.arrow.up")
+                }
                 Divider()
                 Button(role: .destructive) {
                     confirmClearPattern()
