@@ -44,7 +44,7 @@ enum KeyAction: Equatable {
     /// Return: writes whatever the on-screen keyboard is holding, which is the
     /// only way to enter a note off — the letter row has no key for one.
     case typeSelected
-    /// Arms or disarms a note off, mirroring the OFF button.
+    /// Arms or disarms a note off (rest), mirroring the REST button.
     case toggleNoteOff
     case clear
     case octave(Int)

@@ -240,7 +240,7 @@ struct InstrumentEditor: View {
                     Text("Level")
                 } footer: {
                     Text(held
-                         ? "The note sounds until the next one on this track, or an OFF."
+                         ? "The note sounds until the next one on this track, or a rest."
                          : "The note fades out over the decay time.")
                 }
 
