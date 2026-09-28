@@ -66,7 +66,7 @@ The seeded library includes Neon Ascent, Coin Rush, Slow Cartridge, Boss Door, a
 - Title bar: Songs, editable song title, Undo, Redo, and song menu.
 - Transport: Play/Stop, PATT/SONG mode, Arrangement, and BPM controls.
 - Pattern bar: select, add, rename, duplicate, clear, delete, and change step count.
-- Grid: tracks as columns and steps as rows; cells place/replace/clear/preview notes; track headers select, mute, edit, duplicate, clear, or delete tracks.
+- Grid: tracks as columns and steps as rows; cells place/replace/clear/preview notes; track headers select, mute, and open the sound settings (duplicate, clear, delete); long-press enters reorder mode (drag or arrows, Done/tap grid exits).
 - Keyboard: octave, selected note/track, OFF, and one-octave piano controls.
 - Modal/system surfaces: SongListView, ArrangementView, InstrumentEditor, ExportSheet, WAV ShareSheet, song-file ShareSheet, file importer, alerts, confirmation dialogs, support Link, and StoreKit review request.
 - InstrumentEditor is always a sheet on iPhone (compact layout); the popover (regular portrait iPad) and docked (wide landscape iPad) variants do not apply to this target.
@@ -108,7 +108,7 @@ states/branches: add/reorder/delete section; repeats 1/16; empty fallback; PATT 
 coverage: iPhone pass 2 | tested: reorder(partial)/delete sections, repeats 1/16 bounds, PATT↔SONG switch, live-edit-while-playing, >128-play-through capacity warning (orange banner shown correctly) — all correct; arrangement summary mislabel (fixed, #9); empty-arrangement branch unreachable (final-section guard, intentional); found "Add section" Menu control appears completely non-functional via tap — the only way a section is ever added is the undocumented side effect of creating a new pattern (filed, #11) | next: confirm #11 isn't a testing-tool Menu-tap artifact before/while fixing; J9 cancel-mid-render remains blocked (simulator DSP render too fast even at max 128-play/4:16 arrangement)
 
 J6 | design and manage a track sound | select track header -> InstrumentEditor/docked editor | existing track | preset/manual parameters, mute, channel kind, rename, duplicate, clear, and delete affect the intended voice and notes
-states/branches: preset/custom; pulse duty; hold/decay; arpeggio; mute/preview; kind switch; duplicate; clear current pattern; delete across patterns; 1/8-track bounds; undo
+states/branches: preset/custom; pulse duty; hold/decay; arpeggio; mute/preview; kind switch; duplicate; clear current pattern; delete across patterns; reorder (header long-press, drag/arrows, 1-track no-op); 1/8-track bounds; undo
 coverage: iPhone pass 3 | tested: preset/custom switch, channel-kind switch, duplicate-with-multi-pattern-notes, clear-current-pattern-only, delete-across-patterns+undo, 1/8-track bounds, pulse duty (persist/revert-on-kind-switch), arpeggio (set + kind-switch reset), mute visual toggle — all correct except Hold toggle requires a long-press instead of a normal tap (filed) | next: audio-verification of mute/preview needs a physical device (no audio capture in this toolset)
 
 J7 | manage the song library | Songs -> SongListView | starter or seeded five-song library | create/open/rename/duplicate/share/delete updates the right project and current-song indicator without losing edits

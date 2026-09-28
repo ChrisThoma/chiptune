@@ -52,7 +52,8 @@ sound, and every control stays adjustable after you pick one. **Hold** makes
 a note sustain instead of decaying. A note-off cuts a sustaining note, which
 matters most on the triangle, since it holds by default. Tracks can be renamed
 and muted. When four channels aren't enough you can add tracks, up to eight in
-all.
+all. To put them in a different order, long-press a column header and drag it
+sideways; each track's notes move with it.
 
 ## iPad and hardware keyboards
 
