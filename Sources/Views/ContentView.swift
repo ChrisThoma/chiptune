@@ -1,6 +1,7 @@
 import SwiftUI
 import StoreKit
 import UIKit
+import GameController
 
 /// Which screen `AppStore/shoot.sh` asked the app to open on launch.
 ///
@@ -42,6 +43,18 @@ enum SongLibraryPresentation {
 
 enum SongNameFieldAccessibility {
     static let label = "Song title"
+}
+
+enum KeyboardShortcutsMenuVisibility {
+    /// The song menu's "Keyboard shortcuts" row means nothing on a phone that
+    /// has never seen a keyboard, so it stays hidden until one has actually
+    /// said something: connected right now (`keyboardConnected`, kept live
+    /// from `GCKeyboard.coalesced` via the connect/disconnect notifications),
+    /// or connected earlier this session and used, which
+    /// `studio.hardwareKeyboardInUse` remembers even after it's unplugged.
+    static func visible(keyboardConnected: Bool, hardwareKeyboardInUse: Bool) -> Bool {
+        keyboardConnected || hardwareKeyboardInUse
+    }
 }
 
 enum ReviewPromptPolicy {
@@ -161,6 +174,10 @@ struct ContentView: View {
     @State private var pendingClearPatternIndex: Int?
     @State private var showingExport = false
     @State private var showingKeyboardHelp = false
+    /// Kept live by `GCKeyboardDidConnect`/`DidDisconnect` below, rather than
+    /// read once, because a keyboard can arrive or leave without the view
+    /// re-appearing. See `KeyboardShortcutsMenuVisibility`.
+    @State private var hardwareKeyboardConnected = GCKeyboard.coalesced != nil
     @State private var reviewAfterSharing = false
     /// A finished render owes the user a share sheet, held until the export
     /// panel has left the screen — `.popover` has no `onDismiss:`, so the
@@ -313,6 +330,14 @@ struct ContentView: View {
             case .pattern: studio.selectPattern(1)
             case .instrument, .none: break
             }
+        }
+        // Only signal that flips the "Keyboard shortcuts" row without a menu
+        // re-open to trigger a re-read; see `hardwareKeyboardConnected`.
+        .onReceive(NotificationCenter.default.publisher(for: .GCKeyboardDidConnect)) { _ in
+            hardwareKeyboardConnected = GCKeyboard.coalesced != nil
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .GCKeyboardDidDisconnect)) { _ in
+            hardwareKeyboardConnected = GCKeyboard.coalesced != nil
         }
     }
 
@@ -695,11 +720,16 @@ struct ContentView: View {
                 Divider()
                 // The Cmd-hold overlay lists the chords and can't list anything
                 // else, so the keys that do the actual writing — space, the
-                // arrows, the note row — are only discoverable here.
-                Button {
-                    showingKeyboardHelp = true
-                } label: {
-                    Label("Keyboard shortcuts", systemImage: "keyboard")
+                // arrows, the note row — are only discoverable here. Hidden
+                // unless a keyboard has said something this session: see
+                // `KeyboardShortcutsMenuVisibility`.
+                if KeyboardShortcutsMenuVisibility.visible(keyboardConnected: hardwareKeyboardConnected,
+                                                            hardwareKeyboardInUse: studio.hardwareKeyboardInUse) {
+                    Button {
+                        showingKeyboardHelp = true
+                    } label: {
+                        Label("Keyboard shortcuts", systemImage: "keyboard")
+                    }
                 }
                 Link(destination: URL(string: "https://individuation.dev/contact/")!) {
                     Label("Contact support", systemImage: "envelope")
