@@ -16,6 +16,14 @@ enum ExportNotesFooter {
     }
 }
 
+/// Whether the repeats and ending controls can still be changed. They are
+/// frozen for the length of a render: it keeps the settings it started with, so
+/// an edit made mid-render would only make the readout disagree with the file.
+/// Takes the same flag the progress bar and Cancel export are shown from.
+enum ExportControls {
+    static func settingsLocked(isExporting: Bool) -> Bool { isExporting }
+}
+
 /// Export options, and the progress of the render they kick off.
 ///
 /// A sheet rather than more items in the ••• menu: the render can take real
@@ -35,6 +43,10 @@ struct ExportSheet: View {
     // cannot be coalesced away, so failures and cancellations reliably retry.
     @State private var startedAttempt: Int?
 
+    private var settingsLocked: Bool {
+        ExportControls.settingsLocked(isExporting: studio.isExporting)
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -48,6 +60,10 @@ struct ExportSheet: View {
                                 .foregroundStyle(Theme.dim)
                         }
                     }
+                    .disabled(settingsLocked)
+                    // The stepper's own disabled styling is barely visible
+                    // against this row, so dim it explicitly.
+                    .opacity(settingsLocked ? 0.4 : 1)
                 } footer: {
                     Text("The whole arrangement, \(Format.count(options.loopCount, "time")) — \(duration).")
                 }
@@ -60,6 +76,7 @@ struct ExportSheet: View {
                     .pickerStyle(.inline)
                     .labelsHidden()
                     .accessibilityHidden(true)
+                    .disabled(settingsLocked)
                 } header: {
                     Text("Ending")
                 } footer: {
@@ -108,8 +125,12 @@ struct ExportSheet: View {
                 accessibilitySelector(
                     label: "Ending",
                     value: options.tailMode == .seamlessLoop ? "Seamless loop" : "Ring out",
-                    adjust: { options.tailMode = options.tailMode.adjusted($0) })
+                    adjust: { direction in
+                        guard !settingsLocked else { return }
+                        options.tailMode = options.tailMode.adjusted(direction)
+                    })
                     .frame(width: 1, height: 1)
+                    .accessibilityHidden(settingsLocked)
             }
             .navigationTitle("Export")
             .navigationBarTitleDisplayMode(.inline)

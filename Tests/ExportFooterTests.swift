@@ -49,3 +49,14 @@ final class ExportFooterTests: XCTestCase {
                        "Its notes are in a pattern the arrangement doesn't play. Add that pattern to the arrangement to export it.")
     }
 }
+
+final class ExportControlsLockTests: XCTestCase {
+
+    func testSettingsAreLockedWhileARenderIsRunning() {
+        XCTAssertTrue(ExportControls.settingsLocked(isExporting: true))
+    }
+
+    func testSettingsAreEditableWhenNoRenderIsRunning() {
+        XCTAssertFalse(ExportControls.settingsLocked(isExporting: false))
+    }
+}
