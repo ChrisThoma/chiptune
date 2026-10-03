@@ -8,6 +8,20 @@ enum ArrangementCapacityAnnouncement {
     }
 }
 
+/// The Edit pill's decisions, kept apart from the view so the label can only
+/// ever be derived from the same `EditMode` value that drives the rows.
+enum ArrangementEditToggle {
+    static func toggled(_ mode: EditMode) -> EditMode {
+        mode == .inactive ? .active : .inactive
+    }
+
+    static func isEditing(_ mode: EditMode) -> Bool { mode == .active }
+
+    static func title(_ mode: EditMode) -> String {
+        isEditing(mode) ? "Done editing" : "Edit"
+    }
+}
+
 /// Identifies a dragged section row for pointer/trackpad reorder outside of
 /// Edit mode. `EditButton` + `.onMove` still handle touch reordering; this is
 /// the trackpad/mouse path HIG 4.6 asks for. The UTType is created on the fly
@@ -37,6 +51,10 @@ struct ArrangementView: View {
     /// as compact whatever the window behind it is.
     var regularWidth = false
     @Environment(\.dismiss) private var dismiss
+    /// The one source of truth for edit mode. The system `EditButton` read its
+    /// own copy of the environment, which went stale after a reorder rebuilt
+    /// the rows, so the pill and the rows disagreed.
+    @State private var editMode: EditMode = .inactive
     private var capacityWarning: String {
         "More than \(Chip.maxChain) plays — sections past that won't sound."
     }
@@ -95,6 +113,7 @@ struct ArrangementView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            .environment(\.editMode, $editMode)
             .onChange(of: studio.song.exceedsChainCapacity) { exceeded, nowExceeds in
                 guard ArrangementCapacityAnnouncement.shouldAnnounce(
                     previouslyExceeded: exceeded,
@@ -110,7 +129,7 @@ struct ArrangementView: View {
             .navigationTitle("Arrangement")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) { EditButton() }
+                ToolbarItem(placement: .navigationBarLeading) { editPill }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
@@ -122,6 +141,19 @@ struct ArrangementView: View {
         // because the play order is a list that grows.
         .popoverSized(regularWidth, idealHeight: 560)
         .preferredColorScheme(.dark)
+    }
+
+    private var editPill: some View {
+        Button {
+            editMode = ArrangementEditToggle.toggled(editMode)
+        } label: {
+            if ArrangementEditToggle.isEditing(editMode) {
+                Image(systemName: "checkmark")
+            } else {
+                Text("Edit")
+            }
+        }
+        .accessibilityLabel(ArrangementEditToggle.title(editMode))
     }
 
     private var summary: String {
