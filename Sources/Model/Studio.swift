@@ -349,6 +349,7 @@ final class Studio {
         audioError = nil
         pushAll()
         engine.core.setSongMode(songMode)
+        armSongFollow()
         engine.core.start()
         isPlaying = true
         // Each new play-through follows the arrangement again until the user
@@ -358,6 +359,25 @@ final class Studio {
         // than leaving the indicator on the last section until it lands.
         playingSection = 0
         startPlayheadTimer()
+    }
+
+    /// SONG Play starts from the head of the arrangement whatever played before.
+    ///
+    /// `applyPlayhead` ignores a tick whose pattern equals the stored
+    /// `playingPattern`, and that value outlives playback: a stale copy equal
+    /// to the head pattern left the grid on whatever the user had selected.
+    /// So Play re-seeds it from the arrangement itself and moves the grid to
+    /// the head now, rather than waiting on a tick that may never differ.
+    /// PATT mode is untouched.
+    func armSongFollow() {
+        guard songMode else { return }
+        followsArrangement = true
+        guard let head = song.chain.first, head < song.patterns.count else { return }
+        playingPattern = head
+        playingSection = 0
+        selectedPattern = head
+        engine.core.focus(pattern: head)
+        clampCursor()
     }
 
     func stop() {

@@ -310,3 +310,87 @@ final class StudioPlayheadTests: XCTestCase {
         XCTAssertLessThan(Int(studio.engine.core.currentPattern), studio.song.patterns.count)
     }
 }
+
+/// Pressing Play in SONG mode must not depend on earlier playback history.
+@MainActor
+final class StudioSongPlayStartTests: XCTestCase {
+    private var temp: TempStore!
+    private var studio: Studio!
+
+    override func setUp() {
+        super.setUp()
+        temp = makeTempStore()
+        studio = Studio(store: temp.store, autosaveEnabled: false)
+        studio.open(Song(name: "Blank"))
+        studio.addPattern()
+        studio.addPattern()
+        studio.songMode = true
+    }
+
+    override func tearDown() {
+        studio.invalidateTimers()
+        studio = nil
+        temp = nil
+        super.tearDown()
+    }
+
+    /// Stopped, select a non-first pattern, press Play: the grid goes to the
+    /// first sounding pattern, even when the stored playingPattern is stale
+    /// and already equals it (cases 1 and 3 of the report).
+    func testPlayFromAStaleHeadPatternStillMovesTheGridToTheArrangementHead() {
+        studio.playingPattern = 0                 // stale from earlier playback
+        studio.selectPattern(1)                   // stopped: only moves the selection
+        studio.armSongFollow()                    // what play() does
+        studio.isPlaying = true
+
+        studio.applyPlayhead(step: 0, pattern: 0)
+
+        XCTAssertEqual(studio.selectedPattern, 0)
+        XCTAssertEqual(studio.playingPattern, 0)
+        XCTAssertTrue(studio.followsArrangement)
+    }
+
+    /// Same action after earlier playback ended on another pattern (case 2).
+    func testPlayGivesTheSameResultAfterEarlierPlaybackMovedOn() {
+        studio.playingPattern = 2
+        studio.selectPattern(1)
+        studio.armSongFollow()
+        studio.isPlaying = true
+
+        studio.applyPlayhead(step: 0, pattern: 0)
+
+        XCTAssertEqual(studio.selectedPattern, 0)
+        XCTAssertEqual(studio.playingPattern, 0)
+    }
+
+    /// A previous play-through that was pinned by an edit follows again.
+    func testPlayRearmsAPinnedFollow() {
+        studio.isPlaying = true
+        studio.applyPlayhead(step: 0, pattern: 1)
+        studio.selectPattern(2)                   // pins
+        XCTAssertFalse(studio.followsArrangement, "premise")
+        studio.isPlaying = false
+        studio.armSongFollow()
+        XCTAssertTrue(studio.followsArrangement)
+    }
+
+    /// A chip tap while playing still pins the grid after the new start.
+    func testChipTapWhilePlayingStillPins() {
+        studio.armSongFollow()
+        studio.isPlaying = true
+        studio.applyPlayhead(step: 0, pattern: 0)
+        studio.selectPattern(2)
+        studio.applyPlayhead(step: 0, pattern: 1)
+        XCTAssertFalse(studio.followsArrangement)
+        XCTAssertEqual(studio.selectedPattern, 2)
+    }
+
+    /// PATT mode: arming does nothing.
+    func testPatternModeIsUntouched() {
+        studio.songMode = false
+        studio.selectPattern(2)
+        studio.armSongFollow()
+        XCTAssertEqual(studio.selectedPattern, 2)
+        XCTAssertEqual(studio.playingPattern, 2)
+    }
+}
