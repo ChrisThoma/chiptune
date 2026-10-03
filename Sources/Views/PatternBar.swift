@@ -367,7 +367,7 @@ private struct PatternRenameSheet: View {
                         // Ordinary TextFields do fire this on every edit, which
                         // is the whole reason this isn't an alert any more.
                         .onChange(of: text) { _, newValue in
-                            let capped = String(newValue.prefix(Self.maxLength))
+                            let capped = NameCap.clip(newValue, to: Self.maxLength)
                             if capped != newValue { text = capped }
                         }
                         .accessibilityLabel("Pattern name")

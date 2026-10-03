@@ -35,6 +35,11 @@ struct InstrumentEditor: View {
     }
     @State private var pendingClear: ClearTarget?
     @State private var pendingDeleteIndex: Int?
+    /// What the Name field shows. The model only ever holds the clipped name,
+    /// so a field bound straight to it never learns that extra keystrokes were
+    /// dropped; a local draft lets `onChange` clip the display like the
+    /// pattern rename sheet does.
+    @State private var nameDraft = ""
 
     private var kind: ChannelKind { studio.song.tracks[safe: index]?.kind ?? .pulse1 }
     private var accent: Color { Theme.color(for: kind) }
@@ -163,8 +168,20 @@ struct InstrumentEditor: View {
                     // Placeholder rather than a pre-filled value: an untouched
                     // track has no name, and showing "TRI" in the field would
                     // make clearing it look like it did something.
-                    TextField(kind.fullName, text: trackName)
+                    TextField(kind.fullName, text: $nameDraft)
                         .accessibilityLabel("Track name")
+                        .onAppear { nameDraft = trackName.wrappedValue }
+                        .onChange(of: nameDraft) { _, newValue in
+                            let capped = NameCap.clip(newValue, to: Track.maxNameLength)
+                            if capped != newValue { nameDraft = capped }
+                            trackName.wrappedValue = capped
+                        }
+                        .onChange(of: studio.song.tracks[safe: index]?.name) { _, stored in
+                            if let next = NameCap.draftUpdate(draft: nameDraft, stored: stored) {
+                                nameDraft = next
+                            }
+                        }
+                        .onChange(of: index) { _, _ in nameDraft = trackName.wrappedValue }
                 } header: {
                     Text("Name")
                 } footer: {
@@ -174,7 +191,7 @@ struct InstrumentEditor: View {
                     // explain why the field stopped changing. This mirrors
                     // PatternRenameSheet's counter so the cap is visible
                     // instead of feeling like a stuck keyboard.
-                    Text("Up to \(Track.maxNameLength) characters — \(trackName.wrappedValue.count) of \(Track.maxNameLength) used.")
+                    Text("Up to \(Track.maxNameLength) characters — \(nameDraft.count) of \(Track.maxNameLength) used.")
                 }
 
                 Section("Channel") {
