@@ -47,6 +47,9 @@ struct PatternBar: View {
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 6)
+        .reportsPresentation(.patternRename, isPresented: renaming != nil, studio: studio)
+        .reportsPresentation(.patternClear, isPresented: clearing != nil, studio: studio)
+        .reportsPresentation(.patternDelete, isPresented: deleting != nil, studio: studio)
         // A sheet rather than an alert: a `TextField` inside `.alert` doesn't
         // reliably send every keystroke back through its binding, so the cap
         // below could only ever be applied on commit — you typed

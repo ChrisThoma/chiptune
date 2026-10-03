@@ -576,6 +576,7 @@ private struct TrackHeader: View {
                 Button("Move right") { move(index + 1) }
             }
         }
+        .reportsPresentation(.trackSound, isPresented: showingEditor, studio: studio)
         // A popover at regular width, anchored here so the controls sit beside
         // the track they change and the grid stays visible behind them. On a
         // phone this adapts back to the sheet it has always been.

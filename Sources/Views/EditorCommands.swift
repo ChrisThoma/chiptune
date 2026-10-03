@@ -80,6 +80,46 @@ enum EditorShortcut: CaseIterable {
 /// testable without a window.
 enum EditorPresentation {
     static func canOpen(anyPresented: Bool) -> Bool { !anyPresented }
+
+    /// Whether a chord may change the song (undo, redo, new, duplicate, add
+    /// pattern, share). Narrower than `canOpen`: the Songs, Arrangement and
+    /// Export screens are built to survive the song changing under them, so
+    /// Cmd+N there stays a feature. A pattern dialog, the tempo alert or a
+    /// track's sound sheet holds an index or a number read from the song as
+    /// it was, and acts on whatever song is current when confirmed.
+    static func canChangeSong(songBoundPresented: Bool) -> Bool { !songBoundPresented }
+}
+
+/// The presenters that capture state from the current song. Each subview
+/// reports its own flag here (via `reportsPresentation`) so the chords have
+/// one place to ask, without lifting or duplicating the flags themselves.
+struct SongBoundPresenters: Equatable {
+    enum Surface: CaseIterable {
+        case patternRename, patternClear, patternDelete, tempoAlert, trackSound
+    }
+
+    private var active: Set<Surface> = []
+
+    var isPresented: Bool { !active.isEmpty }
+
+    mutating func set(_ surface: Surface, presented: Bool) {
+        if presented { active.insert(surface) } else { active.remove(surface) }
+    }
+}
+
+extension View {
+    /// Mirrors a presentation flag into the studio's shared presenter set.
+    /// Observes only: the flag's own binding is untouched, so no alert or
+    /// sheet is re-bound to anything the view beneath it presents.
+    func reportsPresentation(_ surface: SongBoundPresenters.Surface,
+                             isPresented: Bool, studio: Studio) -> some View {
+        onChange(of: isPresented, initial: true) { _, now in
+            studio.songBoundPresenters.set(surface, presented: now)
+        }
+        .onDisappear {
+            studio.songBoundPresenters.set(surface, presented: false)
+        }
+    }
 }
 
 /// What the commands act on: the studio plus the bits of editor state that
@@ -97,6 +137,8 @@ struct EditorActions: Equatable {
     let openArrangement: () -> Void
     let openExport: () -> Void
     let confirmClearPattern: () -> Void
+    /// False while a dialog, alert or sheet holds state about this song.
+    let canChangeSong: () -> Bool
 
     static func == (lhs: EditorActions, rhs: EditorActions) -> Bool {
         lhs.studio === rhs.studio
@@ -153,7 +195,7 @@ struct EditorCommands: Commands {
     private func button(_ shortcut: EditorShortcut,
                         action: @escaping (EditorActions) -> Void) -> some View {
         Button(shortcut.title) {
-            guard let editor else { return }
+            guard let editor, editor.canChangeSong() else { return }
             // Same as every button in the chrome: commit whatever is in the
             // song-name field first, so the action lands on the state the user
             // can see rather than on one still being typed.

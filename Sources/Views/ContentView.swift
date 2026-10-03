@@ -255,7 +255,8 @@ struct ContentView: View {
             openSongs: { openSongs() },
             openArrangement: { openArrangement() },
             openExport: { openExport() },
-            confirmClearPattern: { confirmClearPattern() }))
+            confirmClearPattern: { confirmClearPattern() },
+            canChangeSong: { EditorPresentation.canChangeSong(songBoundPresented: songBoundPresented) }))
         .sheet(isPresented: $showingSongs) {
             SongListView(studio: studio)
         }
@@ -370,7 +371,14 @@ struct ContentView: View {
     /// this view, and it resigns the keyboard the same way a sheet does.
     private var anyPresented: Bool {
         showingSongs || showingArrangement || showingExport || showingShare
-            || showingKeyboardHelp || pendingClearPatternIndex != nil || studio.shareURL != nil
+            || showingKeyboardHelp || songBoundPresented || studio.shareURL != nil
+    }
+
+    /// The presenters that hold state read from the current song: this
+    /// view's clear-pattern confirmation plus the ones the pattern bar,
+    /// transport and track headers report into the studio.
+    private var songBoundPresented: Bool {
+        pendingClearPatternIndex != nil || studio.songBoundPresenters.isPresented
     }
 
     /// The four screens a command can open, each behind the same guard. A
