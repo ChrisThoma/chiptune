@@ -900,10 +900,7 @@ final class Studio {
     /// VoiceOver, so duplicates are refused. The UI uses this to disable the
     /// Rename button rather than letting it silently do nothing.
     func acceptablePatternName(_ name: String, for index: Int) -> String? {
-        let trimmed = String(name.trimmingCharacters(in: .whitespaces).prefix(6))
-        guard !trimmed.isEmpty else { return nil }
-        let taken = song.patterns.enumerated().contains { $0.offset != index && $0.element.name == trimmed }
-        return taken ? nil : trimmed
+        PatternNameCheck.evaluate(name, among: song.patterns.map(\.name), renaming: index).acceptedName
     }
 
     // MARK: Arrangement
