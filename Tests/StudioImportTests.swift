@@ -81,6 +81,36 @@ final class StudioImportTests: XCTestCase {
         ))
     }
 
+    /// The same delivery over Export, Arrangement or the instrument editor
+    /// used to swap the song under the open surface; every one must close.
+    func testWarmImportClosesEveryPresentedSurface() throws {
+        let previousSongID = studio.song.id
+        let url = try writeSong(studio.song)
+        XCTAssertTrue(studio.importSong(from: url))
+
+        let all = PresentedSurfaces(songs: true, arrangement: true,
+                                    export: true, instrumentEditor: true)
+        let after = all.afterOpeningSong(previousSongID: previousSongID,
+                                         currentSongID: studio.song.id)
+        XCTAssertEqual(after, PresentedSurfaces())
+    }
+
+    func testMalformedImportLeavesPresentedSurfacesAlone() throws {
+        let before = studio.song.id
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("junk-\(UUID().uuidString).chipsong")
+        try Data("nope".utf8).write(to: url)
+        addTeardownBlock { try? FileManager.default.removeItem(at: url) }
+        XCTAssertFalse(studio.importSong(from: url))
+        XCTAssertNotNil(studio.importError)
+        XCTAssertEqual(studio.song.id, before)
+
+        let all = PresentedSurfaces(songs: true, arrangement: true,
+                                    export: true, instrumentEditor: true)
+        XCTAssertEqual(all.afterOpeningSong(previousSongID: before,
+                                            currentSongID: studio.song.id), all)
+    }
+
     func testImportingRubbishReportsAnErrorAndLeavesTheOpenSongAlone() throws {
         studio.open(Song(name: "Working on this"))
         let url = FileManager.default.temporaryDirectory

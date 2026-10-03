@@ -529,6 +529,9 @@ private struct TrackHeader: View {
         .padding(5)
         // A rotation into the side arrangement docks the editor; leaving the
         // popover up as well would show the same controls twice.
+        // A different song opening (import by URL) must not leave this
+        // editing a track of the song that was replaced.
+        .onChange(of: studio.song.id) { _, _ in showingEditor = false }
         .onChange(of: layout.docksInstrumentEditor) { _, docks in
             if docks { showingEditor = false }
         }
