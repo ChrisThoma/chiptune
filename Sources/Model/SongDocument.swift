@@ -58,7 +58,29 @@ enum SongDocument {
             .split(separator: " ", omittingEmptySubsequences: true)
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespaces)
-        return collapsed.isEmpty ? "chiptune" : collapsed
+        let base = truncatedForFileName(collapsed)
+        return base.isEmpty ? "chiptune" : base
+    }
+
+    /// Longest file-name base we will use. File systems cap a name at 255 bytes
+    /// including the extension; 200 UTF-8 bytes leaves ample room and keeps
+    /// the shared name readable.
+    static let maxFileNameBytes = 200
+
+    /// Cuts `base` to at most `maxFileNameBytes` UTF-8 bytes on a character
+    /// boundary (so CJK names are never split mid-scalar), then drops any
+    /// space the cut left at the end. The song's own name is never touched.
+    static func truncatedForFileName(_ base: String) -> String {
+        guard base.utf8.count > maxFileNameBytes else { return base }
+        var out = ""
+        var bytes = 0
+        for ch in base {
+            let n = String(ch).utf8.count
+            if bytes + n > maxFileNameBytes { break }
+            out.append(ch)
+            bytes += n
+        }
+        return out.trimmingCharacters(in: .whitespaces)
     }
 
     // MARK: Import
