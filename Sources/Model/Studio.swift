@@ -79,6 +79,10 @@ final class Studio {
     /// A library delete failed. Kept apart from `storageError` so it can be
     /// titled as a delete, not a save.
     var deleteError: String?
+    /// Song files in the library that would not decode. Set once per file per
+    /// run, at launch or the first library load that sees it.
+    var unreadableSongsNotice: String?
+    @ObservationIgnored private var reportedUnreadable: Set<String> = []
 
     /// Where songs are read and written. Injectable so tests get a temp
     /// directory instead of the real Documents folder.
@@ -112,6 +116,7 @@ final class Studio {
         // Reopen whatever was last on screen. Losing an unsaved loop to a
         // relaunch is not a thing this app should ever do, so every edit
         // autosaves and the last song is restored here.
+        let launchLibrary = store.loadLibrary()
         if let restored = store.loadLast() {
             song = restored
         } else {
@@ -119,8 +124,22 @@ final class Studio {
             seedDemo()
             save(song)
         }
+        noteUnreadable(launchLibrary.unreadable)
         pushAll()
         observeAudioSession()
+    }
+
+    /// Loads the library and reports any file not yet reported this run.
+    func loadLibrary() -> [Song] {
+        let library = store.loadLibrary()
+        noteUnreadable(library.unreadable)
+        return library.songs
+    }
+
+    private func noteUnreadable(_ names: [String]) {
+        let fresh = names.filter { reportedUnreadable.insert($0).inserted }
+        guard !fresh.isEmpty else { return }
+        unreadableSongsNotice = UnreadableSongs.message(count: fresh.count)
     }
 
     // MARK: Audio session

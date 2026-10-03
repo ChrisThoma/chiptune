@@ -331,6 +331,7 @@ struct ContentView: View {
         .errorAlert("Audio unavailable", message: $studio.audioError)
         .errorAlert("Import failed", message: $studio.importError)
         .errorAlert("Share failed", message: $studio.shareError)
+        .errorAlert(UnreadableSongs.title, message: $studio.unreadableSongsNotice)
         .songFileImporter(isPresented: $showingImporter, studio: studio)
         // Opens whichever screen the screenshot shoot asked for. Inert unless
         // launched with one of its arguments; see `ScreenshotMode`.

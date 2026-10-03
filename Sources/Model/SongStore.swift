@@ -88,18 +88,45 @@ struct SongStore {
     }
 
     /// Loads every saved song, newest first. Unreadable files are skipped
-    /// rather than failing the whole load.
-    func loadAll() -> [Song] {
+    /// rather than failing the whole load; use `loadLibrary()` to learn which.
+    func loadAll() -> [Song] { loadLibrary().songs }
+
+    /// The songs that loaded plus the files that did not. Unreadable files are
+    /// only reported, never deleted, renamed or rewritten: the data may still
+    /// be recoverable outside the app.
+    func loadLibrary() -> SongLibrary {
         let files = (try? FileManager.default.contentsOfDirectory(at: ensuringDirectory(),
                                                                   includingPropertiesForKeys: nil)) ?? []
         let decoder = JSONDecoder()
         var songs: [Song] = []
+        var unreadable: [String] = []
         for file in files where file.pathExtension == "json" {
             guard let data = try? Data(contentsOf: file),
-                  var song = try? decoder.decode(Song.self, from: data) else { continue }
+                  var song = try? decoder.decode(Song.self, from: data) else {
+                unreadable.append(file.lastPathComponent)
+                continue
+            }
             song.normalize()
             songs.append(song)
         }
-        return songs.sorted { $0.modified > $1.modified }
+        return SongLibrary(songs: songs.sorted { $0.modified > $1.modified },
+                           unreadable: unreadable.sorted())
+    }
+}
+
+/// What a library load found: the songs, newest first, and the file names that
+/// could not be read.
+struct SongLibrary {
+    var songs: [Song]
+    var unreadable: [String]
+}
+
+/// Wording for the "some song files could not be read" alert.
+enum UnreadableSongs {
+    static let title = "Couldn’t open a song"
+
+    static func message(count: Int) -> String {
+        let subject = count == 1 ? "1 song couldn’t be read" : "\(count) songs couldn’t be read"
+        return "\(subject), so \(count == 1 ? "it isn’t" : "they aren’t") in your library. \(count == 1 ? "The file was" : "The files were") left untouched."
     }
 }
