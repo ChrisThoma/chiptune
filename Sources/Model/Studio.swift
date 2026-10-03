@@ -864,9 +864,23 @@ final class Studio {
         selectPattern(min(survivor, song.patterns.count - 1))
     }
 
+    /// Writes a track's name as it's typed. Coalesced per track so a typing run
+    /// is one undo step.
+    func setTrackName(_ newValue: String, at index: Int) {
+        guard song.tracks.indices.contains(index) else { return }
+        let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let accepted = trimmed.isEmpty ? nil : String(newValue.prefix(Track.maxNameLength))
+        // A write that changes nothing is not an edit: checkpointing it left
+        // phantom Undo steps that restored the name already showing.
+        guard accepted != song.tracks[index].name else { return }
+        checkpoint(coalescing: true, kind: .trackName(index))
+        song.tracks[index].name = accepted
+    }
+
     func renamePattern(at index: Int, to name: String) {
         guard index < song.patterns.count,
-              let accepted = acceptablePatternName(name, for: index) else { return }
+              let accepted = acceptablePatternName(name, for: index),
+              accepted != song.patterns[index].name else { return }
         checkpoint()
         song.patterns[index].name = accepted
     }

@@ -374,15 +374,7 @@ struct InstrumentEditor: View {
     private var trackName: Binding<String> {
         Binding(
             get: { studio.song.tracks[safe: index]?.name ?? "" },
-            set: { newValue in
-                guard studio.song.tracks.indices.contains(index) else { return }
-                // Coalesced: typing a name is a stream of writes and should be
-                // one undo, not one per keystroke.
-                studio.checkpoint(coalescing: true, kind: .trackName(index))
-                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                studio.song.tracks[index].name =
-                    trimmed.isEmpty ? nil : String(newValue.prefix(Track.maxNameLength))
-            })
+            set: { studio.setTrackName($0, at: index) })
     }
 
     /// Same binding the Hold `Toggle` uses, hoisted so both the `Toggle`
