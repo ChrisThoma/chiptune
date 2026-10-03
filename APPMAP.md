@@ -12,12 +12,20 @@ Reuse these; never duplicate them.
 
 | Slot | Name | UDID | Runtime/device |
 |---|---|---|---|
-| SIM-A | BugHunt-Chiptune-iPhone-A | `660775D2-6CB5-4147-BCE2-515915732284` | iOS 17.5, iPhone SE (3rd generation) |
-| SIM-B | BugHunt-Chiptune-iPhone-B | `7363CA73-CAE8-4581-9A85-AD144C05745D` | iOS 26.5, iPhone 16 Pro Max |
+| SIM-A | BugHunt-Chiptune-iPhone-A | `DEE64415-DCDF-4C29-9252-D20243BDE2C6` | iOS 26.5, iPhone SE (3rd generation) |
+| SIM-B | BugHunt-Chiptune-iPhone-B | `DD767673-47C3-41C9-9ED6-8C4BC1B04B37` | iOS 26.5, iPhone 16 Pro Max |
 
 iPad simulators from a prior hunt (`BugHunt-Chiptune-iPad-A` / `-B`) remain registered but are out of scope for this target; do not drive them.
 
-Current source HEAD: `a30e5e4`. Built and installed on both iPhone simulators for this hunt.
+Deployment target is iOS 17.0 but the only installed runtimes are iOS 26.5 and 27.0, so minimum-OS behavior is `unsupported` on this machine: a fix that relies on an iOS 18+ API cannot be checked for iOS 17 users here.
+
+Environment baseline per sim: locale en_US, appearance dark (app forces dark), content size large, no status-bar override. Assert before wave 1 and after every worker, reading the values from the simulator, never from the host:
+
+```sh
+xcrun simctl ui <UDID> appearance            # prints dark
+xcrun simctl ui <UDID> content_size          # prints large
+xcrun simctl spawn <UDID> defaults read -g AppleLocale   # en_US; a "does not exist" error means the default en_US was never overridden
+```
 
 Repository notes report an iOS 26 Simulator dimming artifact on 13-inch iPad sheets; not applicable to this iPhone target.
 
@@ -57,6 +65,19 @@ mkdir -p "$CONTAINER/Documents/Songs"
 python3 AppStore/make_song.py "$CONTAINER/Documents/Songs"
 ```
 
+To import a hand-made song, write a `.chipsong` JSON file (same shape as the files `AppStore/make_song.py` emits; give each copy a fresh song UUID) and deliver it by URL. This is also the way to reach large states such as 16 patterns, 8 tracks or a 129-play arrangement; do not tap them into existence.
+
+```sh
+xcrun simctl openurl <UDID> "file:///absolute/path/fixture.chipsong"
+```
+
+To force save, duplicate, rename, delete and export write failures, make the store read-only, and always restore it afterwards:
+
+```sh
+chmod 555 "$CONTAINER/Documents/Songs"   # probe
+chmod 755 "$CONTAINER/Documents/Songs"   # restore
+```
+
 The seeded library includes Neon Ascent, Coin Rush, Slow Cartridge, Boss Door, and Overworld Sketch. An ordinary empty-store launch instead creates the populated starter song `First Loop` at 132 BPM.
 
 ## Navigation And Surfaces
@@ -89,60 +110,54 @@ The seeded library includes Neon Ascent, Coin Rush, Slow Cartridge, Boss Door, a
 
 J1 | hear and restore the starter song | clean launch -> Splash -> editor -> Play | empty app container or existing saved song | starter audio plays; stop/mode state is truthful; relaunch restores the last song
 states/branches: first launch; existing library; PATT/SONG; play/stop; audio-start failure; background while idle/playing; output loss/interruption
-coverage: discovered | tested: none this hunt | next: clean launch, immediate playback, stop, and relaunch restoration
 
 J2 | compose and revise notes by touch | editor keyboard + step grid | selected pattern/track/note | taps place, replace, clear, preview, and note-off correctly; audio model follows edits; undo/redo restores intent
 states/branches: empty/occupied cell; same/different note; long-press preview; OFF; octave; muted track; sustained note; rapid painting; undo/redo
-coverage: discovered | tested: none this hunt | next: build a recognizable loop, revise it, and undo/redo distinct edits
 
 J3 | compose with a hardware keyboard | editor with hardware keyboard connected | Simulator I/O -> Keyboard -> Connect Hardware Keyboard | mapped keys move the cursor, enter/clear notes, control octave/OFF, and play/stop without stealing text-field input
 states/branches: first key reveals cursor; arrow edge; step wrap; pattern shrink; track deletion; rename focus handoff; unsupported/modifier keys
-coverage: iPhone pass 1 | tested: first-key-reveals-cursor, pattern-length wrap-on-type, title-field decoupling during editing — correct; found hardware-key capture is lost PERMANENTLY after any title-field edit, not recovering on any subsequent UI interaction, only on relaunch — filed. Arrow-key edge/step behavior not testable with current tooling (ui_type cannot send non-printable HID keys) | next: track-deletion cursor recovery, unsupported/modifier-key no-op check, an arrow-key injection method
 
 J4 | create and manage pattern variations | Pattern bar | song below 16-pattern limit | add/duplicate/rename/clear/delete/resize produces the intended pattern and coherent arrangement references
 states/branches: add; duplicate; unique/blank/long rename; 4/64-step bounds; clear cancel/confirm; delete cancel/confirm; final-pattern guard; undo
-coverage: discovered | tested: prior-hunt pass (pre-fix #2/#2-retry) found add, duplicate, rename, 4/64-step bounds, delete confirmation, final-pattern guard, and undo behavior; rename is now an intentional 6-char-capped sheet with a live counter (fixed by #2/#2-retry), not a defect — re-verify rest fresh this hunt | next: add/duplicate/rename/4-64-step bounds/delete/undo pass, then blank/duplicate-name rename validation, Clear confirm/cancel, redo, and step-count-change effect on existing note data
 
 J5 | arrange and play a complete song | ARR -> ArrangementView -> SONG playback | at least two distinct patterns | sections, pattern choices, order, and repeat counts persist and playback follows the visible arrangement
 states/branches: add/reorder/delete section; repeats 1/16; empty fallback; PATT vs SONG; edit while playing; exactly/over 128 plays
-coverage: iPhone pass 2 | tested: reorder(partial)/delete sections, repeats 1/16 bounds, PATT↔SONG switch, live-edit-while-playing, >128-play-through capacity warning (orange banner shown correctly) — all correct; arrangement summary mislabel (fixed, #9); empty-arrangement branch unreachable (final-section guard, intentional); found "Add section" Menu control appears completely non-functional via tap — the only way a section is ever added is the undocumented side effect of creating a new pattern (filed, #11) | next: confirm #11 isn't a testing-tool Menu-tap artifact before/while fixing; J9 cancel-mid-render remains blocked (simulator DSP render too fast even at max 128-play/4:16 arrangement)
 
 J6 | design and manage a track sound | select track header -> InstrumentEditor/docked editor | existing track | preset/manual parameters, mute, channel kind, rename, duplicate, clear, and delete affect the intended voice and notes
 states/branches: preset/custom; pulse duty; hold/decay; arpeggio; mute/preview; kind switch; duplicate; clear current pattern; delete across patterns; reorder (header long-press, drag/arrows, 1-track no-op); 1/8-track bounds; undo
-coverage: iPhone pass 3 | tested: preset/custom switch, channel-kind switch, duplicate-with-multi-pattern-notes, clear-current-pattern-only, delete-across-patterns+undo, 1/8-track bounds, pulse duty (persist/revert-on-kind-switch), arpeggio (set + kind-switch reset), mute visual toggle — all correct except Hold toggle requires a long-press instead of a normal tap (filed) | next: audio-verification of mute/preview needs a physical device (no audio capture in this toolset)
 
 J7 | manage the song library | Songs -> SongListView | starter or seeded five-song library | create/open/rename/duplicate/share/delete updates the right project and current-song indicator without losing edits
 states/branches: immediate save on open; newest-first sort; new; open; rename validation; duplicate; share; delete non-current/current/last; close/reopen
-coverage: discovered | tested: none this hunt | next: seeded-library create/open/rename/duplicate and current/non-current deletion
 
 J8 | share and import an editable song | song menu/library Share; Songs -> Add -> Import; open `.chipsong` URL | valid, malformed, legacy, hostile, and duplicate-ID files | valid input becomes a normalized local copy; invalid input explains failure; shared file is usable and named safely
 states/branches: share success/failure/cancel; picker cancel; malformed JSON; ID collision; legacy migration; out-of-range normalization; launch-time URL
-coverage: iPhone pass 1 (partial) | tested: malformed-JSON import, valid-JSON-missing-required-fields import, duplicate-ID re-import — all correct (clean "Import failed" alert or fresh-UUID distinct entry, no crash/corruption) | next: share success/cancel via real Files/Mail flow, legacy migration, out-of-range normalization, launch-time cold URL, hostile/oversized files. Lead: the system "Save to Files" document picker from in-app Share appeared to hang navigating the Apps location list — needs a follow-up pass with correct point-based tap coords (first attempt used screenshot-pixel coords) before treating as a real bug.
 
 J9 | export and share a WAV | song menu -> Export WAV | song with audible arrangement | render progress is truthful; cancel/retry works; completed WAV has selected repeat/ending and share appears once
 states/branches: repeats 1/16; seamless/ring-out; progress; cancel; retry; double submit; write failure; oversized RIFF; share cancel/complete/failure
-coverage: iPhone pass 1 | tested: repeats 1/16 bounds, seamless/ring-out duration reflection, progress UI, double-submit (single share sheet), share-sheet-once across 3 exports — all correct; stepper buttons stay enabled past bounds rather than disabling (S4, not filed) | next: cancel-mid-render/retry (simulator DSP render too fast to land a cancel tap — needs a much longer arrangement or different technique) and the 128-flattened-playthrough cap warning (needs a multi-section arrangement built first)
 
 J10 | recover edits across undo, autosave, and lifecycle changes | mutate tempo/title/cells/patterns/tracks/arrangement -> undo/relaunch | sentinel edits in one song and at least two songs | unrelated operations undo separately; redo invalidates correctly; autosave preserves the active song without crossing song boundaries
 states/branches: coalesced same-kind edits; unrelated rapid edits; title run; background before debounce; save failure; open/new/delete resets history; 50-entry limit
-coverage: iPhone pass 1 | tested: unrelated-edit segmentation, background-before-debounce save, cross-song autosave boundary, song-switch undo reset, title-edit coalescing, redo invalidation — all correct; discrete BPM-stepper taps don't coalesce (lead, not filed as a bug) | next: 50-entry undo limit, save-failure path, BPM drag/slider coalescing
+
+J11 | reorder tracks by drag | track header long-press (about 0.9 s) -> reorder mode -> drag a header, or per-header arrows -> Done or tap grid | song with at least 3 tracks, notes in more than one pattern, a muted track, a selected track | track order changes in header, grid columns, keyboard track label and every pattern together; notes, names, mute and sound stay with their track; selection follows the moved track; undo restores the old order
+states/branches: enter by long-press; drag one slot left/right; drag to first/last position; drag and release in place; arrows at first/last (stopped control explains itself); drag a muted or selected track; reorder while playing; Done vs tap-grid exit; hardware Return/Escape intentionally do nothing; 1-track no-op; 8-track song; undo/redo after reorder; relaunch persistence
+notes: iOS drag needs a slow `idb ui swipe` with a 0.5 s or longer duration, since `ui_swipe` may do nothing; enter reorder mode with a long-press of 0.9 s (`idb ui tap --duration`); a released drag outside the header strip must not lose the track; the held notes of a ringing track must not hang after a move (moveTrack releases voices)
 
 ## Condition Matrix
 
 Conditions are recorded in each journey's `tested` field after use. They are not JIDs and never substitute for core journey coverage.
 
-| Condition | Stage | Fresh-hunt status |
-|---|---|---|
-| iPhone SE (3rd gen)/iOS 17.5 and iPhone 16 Pro Max/iOS 26.5 | representative target coverage across core journeys | not run |
-| portrait only (iPhone has no landscape/split/docked layout per app contract) | representative iPhone branches | not run |
-| status-bar extremes (top safe area) | applicable Track B layout branch | not run |
-| forced dark appearance | representative Track B states | not run |
-| realistic long names and maximum app-valid data | core journey depth | not run |
-| pseudo-localization | Track B compatibility escalation | not run |
-| RTL locale | changed-environment escalation | not run |
-| accessibility Dynamic Type/contrast/motion settings | accessibility-specific presentation escalation | not run |
-| VoiceOver semantics/focus | accessibility-specific Track A escalation | not run |
-| physical-device audio interruption, route, latency, and timing | hardware-only follow-up; simulator cannot certify | not run |
+| Condition | Stage |
+|---|---|
+| iPhone SE (3rd gen) and iPhone 16 Pro Max, both iOS 26.5 (no iOS 17 runtime installed) | representative target coverage across core journeys |
+| portrait only (iPhone has no landscape/split/docked layout per app contract) | representative iPhone branches |
+| status-bar extremes (top safe area) | applicable Track B layout branch |
+| forced dark appearance | representative Track B states |
+| realistic long names and maximum app-valid data | core journey depth |
+| pseudo-localization | Track B compatibility escalation |
+| RTL locale | changed-environment escalation |
+| accessibility Dynamic Type/contrast/motion settings | accessibility-specific presentation escalation |
+| VoiceOver semantics/focus | accessibility-specific Track A escalation |
+| physical-device audio interruption, route, latency, and timing | hardware-only follow-up; simulator cannot certify |
 
 ## Product Intent And Exclusions
 
@@ -169,3 +184,19 @@ xcodebuild test -project Chiptune.xcodeproj -scheme Chiptune -destination "id=<U
 ```
 
 The unit-test host intentionally suppresses creation of the real app `Studio`, so hosted tests do not exercise the normal launch UI or CoreAudio startup path.
+
+## Tooling Caveats
+
+- First `simctl launch` on a freshly booted sim can hang indefinitely (seen on SIM-B); shutdown and reboot fixes it. macOS has no `timeout` binary, so background the call. Screenshot-verify the frontmost app after launch.
+- Earlier workers leave imported test songs and edited starter songs behind. Start each finder from the clean-state reset above (starter song) or from the seeded five-song library, and say which in the prompt; never rely on a leftover song as a fixture.
+- Act and look in one shell call: `idb ui tap --udid <UDID> <x> <y>; sleep 1; xcrun simctl io <UDID> screenshot <orig>.png; sips -Z 750 <orig>.png --out <view>.png`. The MCP screenshot tool only writes a file, so separate tap, screenshot, downscale and view calls cost four tool calls per interaction.
+- `ui_swipe` may do nothing for drags; use a slow `idb ui swipe --duration 0.5` or longer. Wait about 2 s after a sheet or share-sheet dismissal before the next tap, or the tap is dropped.
+- Tap coordinates are per device. Never reuse SE coordinates on the Pro Max or the reverse; locate the control on the assigned sim.
+- Pass `ui_find_element` search terms as a JSON array of quoted strings; a bare word fails validation.
+- `xcrun simctl terminate` exits 1 when the app is not running and breaks a `&&` chain; follow it with `;`.
+- The harness blocks a leading `sleep N; cmd` longer than a couple of seconds; keep waits short and inside the act-and-look call.
+- Typing into the song title field can trigger autocorrect ("Zq" became "Zach"); use sentinel names that are real words or check the committed text.
+- Undo and Redo are absent from the accessibility tree while a sheet is open; close the sheet before looking them up.
+- zsh treats a bare `==` in `echo` as a command; avoid it in scripts.
+- The in-app song-menu footer build stamp shows the HEAD at build time, which is the previous commit when a build is made before committing, and CFBundleVersion is the same for every local build. Neither proves build identity; use the app path and its mtime.
+- `-NSDoubleLocalizedStrings YES` doubles whole format strings, so one-argument formats show leaked fragments (lld, @) in the BPM and STEPS readouts, Export summary and ARR rows. This is a property of the pseudo-locale, not an app defect (round-3 #6); only clipping, wrapping and lost tap targets under that condition are findings.
