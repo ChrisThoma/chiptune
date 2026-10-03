@@ -130,6 +130,8 @@ struct SongListView: View {
     @State private var importFailure: String?
     /// A share failure, claimed the same way and for the same reason.
     @State private var shareFailure: String?
+    /// Claimed from the studio, like the failures above.
+    @State private var unreadableNotice: String?
     /// A `.chipsong` is hovering over the library, waiting to be dropped.
     @State private var dropTargeted = false
 
@@ -290,6 +292,7 @@ struct SongListView: View {
         .errorAlert("Delete failed", message: $deleteFailure)
         .errorAlert("Import failed", message: $importFailure)
         .errorAlert("Share failed", message: $shareFailure)
+        .errorAlert(UnreadableSongs.title, message: $unreadableNotice)
     }
 
     /// Moves a storage failure off the studio and onto this sheet's alert.
@@ -331,7 +334,13 @@ struct SongListView: View {
     }
 
     private func reload() {
-        songs = studio.store.loadAll()
+        songs = studio.loadLibrary()
+        // An unread-song notice still waiting on the editor (launch alert not
+        // yet shown) moves onto this sheet, the one presenter that is visible.
+        if let notice = studio.unreadableSongsNotice {
+            studio.unreadableSongsNotice = nil
+            unreadableNotice = notice
+        }
     }
 
     private func row(_ song: Song) -> some View {
