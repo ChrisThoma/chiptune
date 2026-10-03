@@ -438,10 +438,21 @@ struct Song: Codable, Equatable, Identifiable {
             tracks[i].instrument.normalize()
             tracks[i].normalizeName()
         }
+        // Everything addressing a track, pattern or section does so by id and
+        // takes the first match, so a repeated id would strand the later one.
+        var seenTracks = Set<UUID>()
+        for i in tracks.indices where !seenTracks.insert(tracks[i].id).inserted {
+            tracks[i].id = UUID()
+        }
 
         if patterns.isEmpty { patterns = [Pattern(name: "A", length: 16, trackCount: tracks.count)] }
         if patterns.count > Chip.maxPatterns { patterns = Array(patterns.prefix(Chip.maxPatterns)) }
         for i in patterns.indices { patterns[i].normalize(trackCount: tracks.count) }
+        // Sections that shared a repeated id keep pointing at the first pattern.
+        var seenPatterns = Set<UUID>()
+        for i in patterns.indices where !seenPatterns.insert(patterns[i].id).inserted {
+            patterns[i].id = UUID()
+        }
 
         let known = Set(patterns.map(\.id))
         arrangement.removeAll { !known.contains($0.patternID) }
@@ -449,6 +460,10 @@ struct Song: Codable, Equatable, Identifiable {
             arrangement[i].repeats = arrangement[i].repeats.clamped(to: 1...SongSection.maxRepeats)
         }
         if arrangement.isEmpty { arrangement = [SongSection(patternID: patterns[0].id)] }
+        var seenSections = Set<UUID>()
+        for i in arrangement.indices where !seenSections.insert(arrangement[i].id).inserted {
+            arrangement[i].id = UUID()
+        }
     }
 
     // MARK: Patterns
