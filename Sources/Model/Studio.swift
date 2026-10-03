@@ -412,6 +412,8 @@ final class Studio {
     }
 
     func setTempo(_ bpm: Double) {
+        // A write that changes nothing is not an edit (it would wipe Redo).
+        guard bpm.clamped(to: Chip.tempoRange) != song.tempo else { return }
         checkpoint(coalescing: true, kind: .tempo)
         song.tempo = bpm.clamped(to: Chip.tempoRange)
         pushTransport()
@@ -637,7 +639,11 @@ final class Studio {
     /// underneath it — so a live read erases the wrong pattern's part.
     func clearTrack(_ track: Int, in pattern: Int) {
         guard track < song.tracks.count, pattern < song.patterns.count else { return }
-        checkpoint()
+        // Already empty: not an edit, so no Undo step and Redo survives. The
+        // rest still runs so the grid pins as before.
+        if song.patterns[pattern].rows[track].contains(where: { $0 != Chip.emptyNote }) {
+            checkpoint()
+        }
         erase(track, in: pattern)
     }
 
@@ -669,8 +675,11 @@ final class Studio {
     func clearPattern(at index: Int) {
         guard index < song.patterns.count else { return }
         // One checkpoint for the lot — a per-track checkpoint would make
-        // undoing a cleared pattern take one press per track.
-        checkpoint()
+        // undoing a cleared pattern take one press per track. Skipped when
+        // the pattern is already empty: not an edit, so Redo survives.
+        if song.patterns[index].rows.contains(where: { $0.contains { $0 != Chip.emptyNote } }) {
+            checkpoint()
+        }
         // Only when it's the pattern on screen. Clearing B from its chip menu
         // doesn't move the editor off A, so it has no business pinning A.
         if index == selectedPattern { pinToSelectedPattern() }
@@ -931,8 +940,19 @@ final class Studio {
         restore(sounding)
     }
 
+    /// Replaces a track's whole instrument with a preset; a no-op when the
+    /// instrument already is that preset.
+    func applyPreset(_ preset: InstrumentPreset, to index: Int) {
+        guard song.tracks.indices.contains(index),
+              song.tracks[index].instrument != preset.instrument else { return }
+        checkpoint()
+        song.tracks[index].instrument = preset.instrument
+        pushInstrument(index)
+    }
+
     func setSection(_ id: UUID, patternID: UUID) {
-        guard let i = song.arrangement.firstIndex(where: { $0.id == id }) else { return }
+        guard let i = song.arrangement.firstIndex(where: { $0.id == id }),
+              song.arrangement[i].patternID != patternID else { return }
         checkpoint()
         let sounding = soundingPosition()
         song.arrangement[i].patternID = patternID
@@ -942,8 +962,10 @@ final class Studio {
 
     func setSection(_ id: UUID, repeats: Int) {
         guard let i = song.arrangement.firstIndex(where: { $0.id == id }) else { return }
+        let accepted = repeats.clamped(to: 1...SongSection.maxRepeats)
+        guard accepted != song.arrangement[i].repeats else { return }
         checkpoint(coalescing: true, kind: .repeats(id))
-        song.arrangement[i].repeats = repeats.clamped(to: 1...SongSection.maxRepeats)
+        song.arrangement[i].repeats = accepted
         pushArrangement()
     }
 
