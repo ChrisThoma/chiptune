@@ -146,6 +146,8 @@ struct KeyboardView: View {
                 studio.toggleNoteOff()
             } label: {
                 Text("REST").chipFont(12)
+                    .lineLimit(1)
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             }
             .buttonStyle(PadStyle(active: armed))
             .accessibilityLabel("Rest")

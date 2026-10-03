@@ -81,6 +81,9 @@ struct GridView: View {
                 }
             }
         }
+        // The header and step columns are fixed-width chrome: past this size
+        // names truncate to "…" and step numbers to "•••".
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .background(Theme.background)
         .overlay(alignment: .bottom) {
             if reordering { reorderBar.transition(.move(edge: .bottom).combined(with: .opacity)) }
