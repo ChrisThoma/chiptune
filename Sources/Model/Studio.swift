@@ -76,6 +76,9 @@ final class Studio {
     var audioError: String?
     /// A save failed. The one that loses work.
     var storageError: String?
+    /// A library delete failed. Kept apart from `storageError` so it can be
+    /// titled as a delete, not a save.
+    var deleteError: String?
 
     /// Where songs are read and written. Injectable so tests get a temp
     /// directory instead of the real Documents folder.
@@ -1134,7 +1137,7 @@ final class Studio {
         } catch {
             // The file is still there, so the song is still real — leave the
             // editor and library alone and say what happened.
-            storageError = "Couldn't delete “\(other.name)”. \(error.localizedDescription)"
+            deleteError = "Couldn't delete “\(other.name)”. \(error.localizedDescription)"
             return
         }
         // Deleting the song on screen: the editor has to move off it, or the

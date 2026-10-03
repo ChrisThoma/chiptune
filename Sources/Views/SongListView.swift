@@ -124,6 +124,8 @@ struct SongListView: View {
     /// A save failure raised by an action taken here, moved out of the studio
     /// so only this sheet's alert presents it. See `claimStorageError()`.
     @State private var saveError: String?
+    /// A delete failure, claimed the same way and titled as a delete.
+    @State private var deleteFailure: String?
     /// An import failure, claimed the same way and for the same reason.
     @State private var importFailure: String?
     /// A share failure, claimed the same way and for the same reason.
@@ -239,7 +241,7 @@ struct SongListView: View {
                isPresented: Binding(isPresenting: $pendingDelete)) {
             Button("Delete song", role: .destructive) {
                 if let song = pendingDelete { studio.delete(song) }
-                claimStorageError()
+                claimDeleteError()
                 pendingDelete = nil
                 reload()
             }
@@ -285,6 +287,7 @@ struct SongListView: View {
         // Failures raised in here get their own presenters, bound to local
         // state rather than to the studio; see `claimStorageError()`.
         .errorAlert("Save failed", message: $saveError)
+        .errorAlert("Delete failed", message: $deleteFailure)
         .errorAlert("Import failed", message: $importFailure)
         .errorAlert("Share failed", message: $shareFailure)
     }
@@ -302,6 +305,13 @@ struct SongListView: View {
         guard let error = studio.storageError else { return }
         studio.storageError = nil
         saveError = error
+    }
+
+    /// The same claim for a delete failure.
+    private func claimDeleteError() {
+        guard let error = studio.deleteError else { return }
+        studio.deleteError = nil
+        deleteFailure = error
     }
 
     /// The same claim for an import failure, which has the same two-presenter
