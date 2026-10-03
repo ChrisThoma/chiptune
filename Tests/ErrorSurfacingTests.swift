@@ -29,7 +29,10 @@ final class ErrorSurfacingTests: XCTestCase {
 
         studio.delete(doomed)
 
-        XCTAssertNotNil(studio.storageError, "a delete that failed must be surfaced")
+        XCTAssertNotNil(studio.deleteError, "a delete that failed must be surfaced")
+        XCTAssertTrue(studio.deleteError?.contains("Doomed") ?? false)
+        XCTAssertNil(studio.storageError,
+                     "a failed delete is not a save failure; it must not borrow the Save failed alert")
     }
 
     // MARK: Export
