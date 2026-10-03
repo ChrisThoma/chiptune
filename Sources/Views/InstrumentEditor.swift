@@ -50,10 +50,7 @@ struct InstrumentEditor: View {
     /// Replaces the whole instrument, and deliberately leaves the track's name
     /// alone — picking "Snare" shouldn't rename a track someone called Drums.
     private func apply(_ preset: InstrumentPreset) {
-        guard studio.song.tracks.indices.contains(index) else { return }
-        studio.checkpoint()
-        studio.song.tracks[index].instrument = preset.instrument
-        studio.pushInstrument(index)
+        studio.applyPreset(preset, to: index)
     }
 
     /// Preset arpeggio shapes; empty offsets mean the note plays straight.
