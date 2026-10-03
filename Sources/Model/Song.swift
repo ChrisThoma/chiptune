@@ -354,7 +354,10 @@ struct SongSection: Codable, Equatable, Identifiable {
 
 struct Song: Codable, Equatable, Identifiable {
     var id: UUID = UUID()
-    var name: String = "Untitled"
+    /// What a new song, or one whose stored name is blank, is called.
+    static let defaultName = "Untitled"
+
+    var name: String = Song.defaultName
     var tempo: Double = 120
     var tracks: [Track]
     var patterns: [Pattern]
@@ -363,7 +366,7 @@ struct Song: Codable, Equatable, Identifiable {
     var arrangement: [SongSection]
     var modified: Date = Date()
 
-    init(name: String = "Untitled") {
+    init(name: String = Song.defaultName) {
         self.name = name
         let tracks = ChannelKind.allCases.map { Track(kind: $0) }
         let pattern = Pattern(name: "A", length: 16, trackCount: tracks.count)
@@ -383,7 +386,7 @@ struct Song: Codable, Equatable, Identifiable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        name = try c.decodeIfPresent(String.self, forKey: .name) ?? "Untitled"
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? Song.defaultName
         tempo = try c.decodeIfPresent(Double.self, forKey: .tempo) ?? 120
         modified = try c.decodeIfPresent(Date.self, forKey: .modified) ?? Date()
         tracks = try c.decode([Track].self, forKey: .tracks)
@@ -421,6 +424,10 @@ struct Song: Codable, Equatable, Identifiable {
     // MARK: Invariants
 
     mutating func normalize() {
+        // Rename refuses a blank name, so a blank one arriving by import (or
+        // an old file) would be a song the library cannot show or identify.
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        name = trimmedName.isEmpty ? Song.defaultName : trimmedName
         // Not just a clamp: `min`/`max` pass NaN straight through, and the
         // sequencer converts the tempo to an Int32 sample count — which traps
         // on a NaN rather than merely sounding wrong.
