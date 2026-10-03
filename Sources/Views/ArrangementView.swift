@@ -151,12 +151,17 @@ struct ArrangementView: View {
                 HStack(spacing: 5) {
                     Text(pattern?.name ?? "?")
                         .font(.system(.body, design: .monospaced).bold())
+                        // Names are capped at 6 characters, so they must never
+                        // wrap; edit mode's delete/drag controls squeeze the row.
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                     Image(systemName: "chevron.up.chevron.down").font(.caption2)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(RoundedRectangle(cornerRadius: Theme.innerRadius).fill(Color.secondary.opacity(0.18)))
             }
+            .layoutPriority(1)
             .accessibilityLabel("Section \(position + 1), pattern \(pattern?.name ?? "none")")
             .accessibilityValue(PatternChipAccessibility.value(playing: playing, isEmpty: pattern?.isEmpty ?? true) ?? "")
 
