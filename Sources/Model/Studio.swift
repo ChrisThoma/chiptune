@@ -556,8 +556,13 @@ final class Studio {
         hardwareKeyboardInUse = true
         clampCursor()
         guard !song.tracks.isEmpty else { return }
-        checkpoint(coalescing: true, kind: .note)
-        setNote(track: selectedTrack, step: selectedStep, note: note)
+        // A cell that already holds this note is not an edit (it would wipe Redo).
+        if self.note(track: selectedTrack, step: selectedStep) != note {
+            checkpoint(coalescing: true, kind: .note)
+            setNote(track: selectedTrack, step: selectedStep, note: note)
+        } else {
+            pinToSelectedPattern()
+        }
         selectedNote = note
         audition(note)
         advanceCursor()
@@ -569,8 +574,12 @@ final class Studio {
         hardwareKeyboardInUse = true
         clampCursor()
         guard !song.tracks.isEmpty else { return }
-        checkpoint(coalescing: true, kind: .note)
-        setNote(track: selectedTrack, step: selectedStep, note: Chip.emptyNote)
+        if note(track: selectedTrack, step: selectedStep) != Chip.emptyNote {
+            checkpoint(coalescing: true, kind: .note)
+            setNote(track: selectedTrack, step: selectedStep, note: Chip.emptyNote)
+        } else {
+            pinToSelectedPattern()
+        }
         advanceCursor()
     }
 
