@@ -137,50 +137,34 @@ struct ArrangementView: View {
         // first one.
         let playing = studio.isPlaying && studio.songMode && studio.playingSection == position
 
-        return HStack(spacing: 12) {
-            Text("\(position + 1)")
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 18, alignment: .trailing)
+        // Width budget: on a 375 pt iPhone SE in edit mode the delete circle
+        // and drag handle leave roughly 50 pt less than a Pro Max row. The
+        // marker sharing the number slot, the tight spacing, the gapless
+        // Spacer and the compact repeat label recover that without touching
+        // the Menu's or Stepper's tappable size; the name scales before it
+        // would ever truncate.
+        return HStack(spacing: 6) {
+            leading(ArrangementRowLeading.content(position: position, playing: playing))
 
-            Menu {
-                ForEach(studio.song.patterns) { candidate in
-                    Button(candidate.name) { studio.setSection(section.id, patternID: candidate.id) }
-                }
-            } label: {
-                HStack(spacing: 5) {
-                    Text(pattern?.name ?? "?")
-                        .font(.system(.body, design: .monospaced).bold())
-                        // Names are capped at 6 characters, so they must never
-                        // wrap; edit mode's delete/drag controls squeeze the row.
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                    Image(systemName: "chevron.up.chevron.down").font(.caption2)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(RoundedRectangle(cornerRadius: Theme.innerRadius).fill(Color.secondary.opacity(0.18)))
+            // The Spacer shares the Menu's slot so it costs no HStack gap of
+            // its own, without widening the Menu's tappable label.
+            HStack(spacing: 0) {
+                patternMenu(position: position, section: section, pattern: pattern, playing: playing)
+                Spacer(minLength: 0)
             }
             .layoutPriority(1)
-            .accessibilityLabel("Section \(position + 1), pattern \(pattern?.name ?? "none")")
-            .accessibilityValue(PatternChipAccessibility.value(playing: playing, isEmpty: pattern?.isEmpty ?? true) ?? "")
 
-            if playing {
-                Image(systemName: "speaker.wave.2.fill")
-                    .font(.caption)
-                    .foregroundStyle(.green)
-                    .accessibilityHidden(true)
-            }
+            Text("×\(section.repeats)")
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .fixedSize()
+                .accessibilityHidden(true)
 
-            Spacer()
-
-            Stepper(value: Binding(get: { section.repeats },
+            Stepper("Repeats",
+                    value: Binding(get: { section.repeats },
                                    set: { studio.setSection(section.id, repeats: $0) }),
-                    in: 1...SongSection.maxRepeats) {
-                Text("×\(section.repeats)")
-                    .font(.body.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
+                    in: 1...SongSection.maxRepeats)
+            .labelsHidden()
             .fixedSize()
             .accessibilityLabel("Repeats")
             .accessibilityValue("\(section.repeats) times")
@@ -198,5 +182,47 @@ struct ArrangementView: View {
             studio.moveSection(from: IndexSet(integer: draggedIndex), to: destination)
             return true
         }
+    }
+
+    private func patternMenu(position: Int, section: SongSection, pattern: Pattern?, playing: Bool) -> some View {
+        Menu {
+            ForEach(studio.song.patterns) { candidate in
+                Button(candidate.name) { studio.setSection(section.id, patternID: candidate.id) }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Text(pattern?.name ?? "?")
+                    .font(.system(.body, design: .monospaced).bold())
+                    // Names are capped at 6 characters, so they must never
+                    // wrap; edit mode's delete/drag controls squeeze the row.
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                Image(systemName: "chevron.up.chevron.down").font(.caption2)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: Theme.innerRadius).fill(Color.secondary.opacity(0.18)))
+        }
+        .accessibilityLabel("Section \(position + 1), pattern \(pattern?.name ?? "none")")
+        .accessibilityValue(PatternChipAccessibility.value(playing: playing, isEmpty: pattern?.isEmpty ?? true) ?? "")
+    }
+
+    /// The section number, or the green playing marker in its place.
+    @ViewBuilder
+    private func leading(_ content: ArrangementRowLeading) -> some View {
+        Group {
+            switch content {
+            case .number(let number):
+                Text(number)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            case .playingMarker:
+                Image(systemName: "speaker.wave.2.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(width: 18, alignment: .trailing)
     }
 }
