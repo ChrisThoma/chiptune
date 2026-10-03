@@ -4,6 +4,30 @@ import SwiftUI
 ///
 /// A song can hold up to `Chip.maxTracks` tracks, so the columns keep a usable
 /// tap width and the whole grid scrolls sideways once they stop fitting.
+/// Keeps the step-number column at the leading edge of a grid that scrolls
+/// sideways: each label is shifted by how far the grid has scrolled.
+enum GridPinning {
+    static func labelOffset(scrollX: CGFloat) -> CGFloat { max(0, scrollX) }
+}
+
+/// Reports the horizontal scroll offset where the system can (iOS 18+); on
+/// iOS 17 the step labels simply scroll with the grid as they always did.
+private struct HorizontalOffsetReader: ViewModifier {
+    @Binding var offset: CGFloat
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.x + geometry.contentInsets.leading
+            } action: { _, new in
+                offset = new
+            }
+        } else {
+            content
+        }
+    }
+}
+
 struct GridView: View {
     @Bindable var studio: Studio
     /// Row height, gutter and column floor all grow on iPad; see `ChipLayout`.
@@ -18,6 +42,8 @@ struct GridView: View {
     @State private var reordering = false
     /// The header under the finger while a reorder drag is live.
     @State private var drag: HeaderDrag?
+    /// How far the grid is scrolled sideways; the step labels counter it.
+    @State private var scrollX: CGFloat = 0
 
     private struct HeaderDrag: Equatable {
         var id: UUID
@@ -41,6 +67,7 @@ struct GridView: View {
                         steps(columnWidth: columnWidth)
                     }
                 }
+                .modifier(HorizontalOffsetReader(offset: $scrollX))
                 // A new track lands selected at the trailing edge, past where
                 // the row was clipped — without this the column (and the "+"
                 // beside it) is off screen with nothing hinting that the
@@ -282,7 +309,12 @@ struct GridView: View {
             Text(String(format: "%02d", step))
                 .chipFont(11)
                 .foregroundStyle(step % 4 == 0 ? Theme.text : Theme.dim)
-                .frame(width: gutterWidth)
+                .frame(width: gutterWidth, height: rowHeight)
+                // Pinned: counter the horizontal scroll, over an opaque
+                // backing so cells slide underneath instead of through.
+                .background(Theme.background)
+                .offset(x: GridPinning.labelOffset(scrollX: scrollX))
+                .zIndex(2)
 
             ForEach(Array(studio.song.tracks.enumerated()), id: \.element.id) { index, track in
                 GridCell(studio: studio, track: index, step: step)
