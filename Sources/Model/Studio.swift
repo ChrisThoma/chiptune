@@ -1203,6 +1203,10 @@ final class Studio {
     var shareError: String?
     /// A `.chipsong` file written out and waiting to be shared.
     var shareURL: URL?
+    /// Which of the editor's dialogs, alerts and sheets are up and hold state
+    /// about the current song. Reported by the views that own them; read by
+    /// the Command chords. Not persisted, not part of the song.
+    var songBoundPresenters = SongBoundPresenters()
 
     /// Writes `other` out as a `.chipsong` and publishes the URL for a share
     /// sheet to pick up.

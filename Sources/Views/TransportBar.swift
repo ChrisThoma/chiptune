@@ -37,6 +37,7 @@ struct TransportBar: View {
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
+        .reportsPresentation(.tempoAlert, isPresented: editingTempo, studio: studio)
         .alert("Tempo", isPresented: $editingTempo) {
             TextField("BPM", text: $tempoText)
                 .keyboardType(.numberPad)
