@@ -112,7 +112,7 @@ final class Studio {
         if let restored = store.loadLast() {
             song = restored
         } else {
-            song = Song(name: "Untitled")
+            song = Song(name: Song.defaultName)
             seedDemo()
             save(song)
         }
@@ -1041,7 +1041,7 @@ final class Studio {
         // failed song stays on screen and `storageError` names it correctly.
         guard saveNow() else { return }
         resetHistory()
-        song = Song(name: "Untitled")
+        song = Song(name: Song.defaultName)
         selectedPattern = 0
         pushAll()
         saveNow()
@@ -1148,7 +1148,7 @@ final class Studio {
             next.normalize()
             song = next
         } else {
-            song = Song(name: "Untitled")
+            song = Song(name: Song.defaultName)
         }
         selectedPattern = 0
         songMode = false
