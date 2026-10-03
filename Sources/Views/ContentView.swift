@@ -41,6 +41,20 @@ enum SongLibraryPresentation {
     }
 }
 
+/// Every surface that edits or exports the open song. A different song
+/// opening (an import by URL, say) must close all of them, or they would keep
+/// editing and exporting a song the title bar no longer names.
+struct PresentedSurfaces: Equatable {
+    var songs = false
+    var arrangement = false
+    var export = false
+    var instrumentEditor = false
+
+    func afterOpeningSong(previousSongID: UUID, currentSongID: UUID) -> PresentedSurfaces {
+        previousSongID == currentSongID ? self : PresentedSurfaces()
+    }
+}
+
 enum SongNameFieldAccessibility {
     static let label = "Song title"
 }
@@ -251,6 +265,14 @@ struct ContentView: View {
                 previousSongID: previousSongID,
                 currentSongID: currentSongID
             )
+            let after = PresentedSurfaces(songs: showingSongs,
+                                          arrangement: showingArrangement,
+                                          export: showingExport)
+                .afterOpeningSong(previousSongID: previousSongID,
+                                  currentSongID: currentSongID)
+            if showingExport && !after.export { studio.cancelExport() }
+            showingArrangement = after.arrangement
+            showingExport = after.export
         }
         // Arrangement and Export are no longer presented here: each hangs off
         // the control that opens it — ARR in the transport, the ••• menu — so
