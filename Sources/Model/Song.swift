@@ -448,6 +448,7 @@ struct Song: Codable, Equatable, Identifiable {
         if patterns.isEmpty { patterns = [Pattern(name: "A", length: 16, trackCount: tracks.count)] }
         if patterns.count > Chip.maxPatterns { patterns = Array(patterns.prefix(Chip.maxPatterns)) }
         for i in patterns.indices { patterns[i].normalize(trackCount: tracks.count) }
+        normalizePatternNames()
         // Sections that shared a repeated id keep pointing at the first pattern.
         var seenPatterns = Set<UUID>()
         for i in patterns.indices where !seenPatterns.insert(patterns[i].id).inserted {
@@ -476,6 +477,38 @@ struct Song: Codable, Equatable, Identifiable {
     /// this way, and the 65 belongs in exactly one place.
     static func letter(_ index: Int) -> String {
         String(UnicodeScalar(UInt8(65 + min(index, 25))))
+    }
+
+    /// Holds an imported or old file's pattern names to what the pattern bar
+    /// enforces: trimmed, at most `PatternNameCheck.maxLength` characters, not
+    /// blank, and unique. The first holder of a name keeps it; a blank or
+    /// repeated one takes the first unused letter. Valid unique names are
+    /// untouched, so running this again changes nothing.
+    mutating func normalizePatternNames() {
+        let limit = PatternNameCheck.maxLength
+        var kept = Set<String>()
+        var needsName: [Int] = []
+        for i in patterns.indices {
+            let trimmed = patterns[i].name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let clipped = NameCap.clip(trimmed, to: limit)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !clipped.isEmpty, kept.insert(clipped).inserted {
+                patterns[i].name = clipped
+            } else {
+                needsName.append(i)
+            }
+        }
+        var next = 0
+        for i in needsName {
+            var candidate = Song.letter(next)
+            while kept.contains(candidate), next < 25 {
+                next += 1
+                candidate = Song.letter(next)
+            }
+            if kept.contains(candidate) { candidate = String(patterns[i].id.uuidString.prefix(limit)) }
+            kept.insert(candidate)
+            patterns[i].name = candidate
+        }
     }
 
     /// First unused letter, so deleting B and adding again gives you B back.
