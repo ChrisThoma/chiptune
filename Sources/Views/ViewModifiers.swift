@@ -55,6 +55,53 @@ func accessibilitySelector(
     AccessibilityAdjustableControl(label: label, value: value, adjust: adjust)
 }
 
+/// SwiftUI drops modifiers from alert TextFields on iOS 17. This inert bridge
+/// hands the UITextField SwiftUI creates to `configure` (the song rename and
+/// tempo alerts give it a spoken label), leaving the alert itself and all of
+/// its binding/action behavior native to SwiftUI.
+struct AlertTextFieldBridge: UIViewRepresentable {
+    let isPresented: Bool
+    let configure: (UITextField) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.isUserInteractionEnabled = false
+        view.isAccessibilityElement = false
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        context.coordinator.generation += 1
+        context.coordinator.configure = configure
+        guard isPresented else { return }
+        context.coordinator.applyLabel(from: view,
+                                       generation: context.coordinator.generation)
+    }
+
+    final class Coordinator {
+        var generation = 0
+        var configure: (UITextField) -> Void = { _ in }
+
+        func applyLabel(from view: UIView, generation expectedGeneration: Int,
+                        attemptsRemaining: Int = 100) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { [weak self, weak view] in
+                guard let self, let view,
+                      self.generation == expectedGeneration else { return }
+                var presented = view.window?.rootViewController
+                while let next = presented?.presentedViewController { presented = next }
+                if let field = (presented as? UIAlertController)?.textFields?.first {
+                    self.configure(field)
+                } else if attemptsRemaining > 1 {
+                    self.applyLabel(from: view, generation: expectedGeneration,
+                                    attemptsRemaining: attemptsRemaining - 1)
+                }
+            }
+        }
+    }
+}
+
 /// Confirmation copy that appears at more than one entrance — the ••• menu and
 /// a context menu, say — kept in one place so the entrances can't drift apart.
 enum ConfirmationCopy {

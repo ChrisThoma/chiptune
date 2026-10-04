@@ -66,50 +66,6 @@ extension SongNameFieldAccessibility {
     }
 }
 
-/// SwiftUI drops modifiers from alert TextFields on iOS 17. This inert bridge
-/// labels the UITextField SwiftUI creates, leaving the alert itself and
-/// all of its binding/action behavior native to SwiftUI.
-private struct SongRenameAlertAccessibilityBridge: UIViewRepresentable {
-    let isPresented: Bool
-
-    func makeCoordinator() -> Coordinator { Coordinator() }
-
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: .zero)
-        view.isUserInteractionEnabled = false
-        view.isAccessibilityElement = false
-        return view
-    }
-
-    func updateUIView(_ view: UIView, context: Context) {
-        context.coordinator.generation += 1
-        guard isPresented else { return }
-        context.coordinator.applyLabel(from: view,
-                                       generation: context.coordinator.generation)
-    }
-
-    final class Coordinator {
-        var generation = 0
-
-        func applyLabel(from view: UIView, generation expectedGeneration: Int,
-                        attemptsRemaining: Int = 100) {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { [weak self, weak view] in
-                guard let self, let view,
-                      self.generation == expectedGeneration else { return }
-                var presented = view.window?.rootViewController
-                while let next = presented?.presentedViewController { presented = next }
-                if let field = (presented as? UIAlertController)?.textFields?.first {
-                    SongNameFieldAccessibility.apply(to: field)
-                    SongRenameAlertStyle.apply(to: field)
-                } else if attemptsRemaining > 1 {
-                    self.applyLabel(from: view, generation: expectedGeneration,
-                                    attemptsRemaining: attemptsRemaining - 1)
-                }
-            }
-        }
-    }
-}
-
 /// Browse, open, duplicate and delete saved songs. Everything is autosaved, so
 /// this is the whole library rather than a list of things you remembered to save.
 struct SongListView: View {
@@ -266,7 +222,10 @@ struct SongListView: View {
             DispatchQueue.main.async { shareFailure = message }
         })
         .background {
-            SongRenameAlertAccessibilityBridge(isPresented: renaming != nil)
+            AlertTextFieldBridge(isPresented: renaming != nil) { field in
+                SongNameFieldAccessibility.apply(to: field)
+                SongRenameAlertStyle.apply(to: field)
+            }
         }
         .alert("Rename song", isPresented: Binding(isPresenting: $renaming)) {
             TextField("Name", text: $renameText)
