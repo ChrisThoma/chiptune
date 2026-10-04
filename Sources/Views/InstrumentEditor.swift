@@ -339,7 +339,7 @@ struct InstrumentEditor: View {
                 Text(ConfirmationCopy.clearTrack)
             }
             .alert(
-                pendingDeleteIndex.map { "Delete \(studio.song.fullLabel(for: $0))?" } ?? "",
+                pendingDeleteIndex.map { ConfirmationCopy.deleteTrackTitle(studio.song.fullLabel(for: $0)) } ?? "",
                 isPresented: Binding(get: { pendingDeleteIndex != nil },
                                       set: { if !$0 { pendingDeleteIndex = nil } })) {
                 if let target = pendingDeleteIndex {

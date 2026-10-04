@@ -107,7 +107,20 @@ struct AlertTextFieldBridge: UIViewRepresentable {
 enum ConfirmationCopy {
     static let clearPattern = "Every track's notes in this pattern are erased. Undo brings them back."
     static let clearTrack = "Its notes in the other patterns are left alone. Undo brings them back."
-    static let deleteTrack = "Its notes in every pattern go with it. You can undo this."
+    static let deleteTrack = "Its notes in every pattern go with it. Undo brings it back."
+    // No "can't be undone" here: removePattern checkpoints, and a false
+    // warning teaches people to distrust the real ones.
+    static let deletePattern = "It's removed from the arrangement too. Undo brings it back."
+
+    /// Names the object the way the pattern delete does: a custom track name
+    /// like "Bass" alone read as "Delete Bass?".
+    static func deleteTrackTitle(_ label: String) -> String {
+        "Delete track \(label)?"
+    }
+
+    static func deletePatternTitle(_ name: String) -> String {
+        "Delete pattern \(name)?"
+    }
 }
 
 extension Binding where Value == Bool {

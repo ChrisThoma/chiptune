@@ -37,4 +37,23 @@ final class ConfirmationCopyTests: XCTestCase {
         XCTAssertTrue(studio.canUndo)
         XCTAssertTrue(ConfirmationCopy.clearTrack.hasSuffix("Undo brings them back."))
     }
+
+    // MARK: Delete
+    //
+    // The track and pattern deletes sit one sheet apart and both checkpoint,
+    // so they promise Undo in the same words and name what they delete the
+    // same way: a custom track name like "Bass" read as "Delete Bass?".
+
+    func testDeleteTrackCopyPromisesUndoInTheSameWordsAsDeletePattern() {
+        studio.addTrack(kind: .pulse1)
+        studio.removeTrack(at: 1)
+        XCTAssertTrue(studio.canUndo)
+        XCTAssertTrue(ConfirmationCopy.deleteTrack.hasSuffix("Undo brings it back."))
+        XCTAssertTrue(ConfirmationCopy.deletePattern.hasSuffix("Undo brings it back."))
+    }
+
+    func testDeleteTitlesNameWhatIsDeleted() {
+        XCTAssertEqual(ConfirmationCopy.deleteTrackTitle("Bass"), "Delete track Bass?")
+        XCTAssertEqual(ConfirmationCopy.deletePatternTitle("A"), "Delete pattern A?")
+    }
 }
