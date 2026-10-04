@@ -1,4 +1,17 @@
 import SwiftUI
+import UIKit
+
+/// The spoken name for the tempo alert's field. It opens holding the current
+/// tempo, so its "BPM" placeholder never shows and VoiceOver read a bare
+/// number with nothing saying what it was. "BPM" matches the stepper the
+/// alert opens from.
+enum TempoFieldAccessibility {
+    static let label = "BPM"
+
+    static func apply(to field: UITextField) {
+        field.accessibilityLabel = label
+    }
+}
 
 /// Play/stop, tempo, and the pattern/song mode switch.
 struct TransportBar: View {
@@ -38,6 +51,10 @@ struct TransportBar: View {
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
         .reportsPresentation(.tempoAlert, isPresented: editingTempo, studio: studio)
+        .background {
+            AlertTextFieldBridge(isPresented: editingTempo,
+                                 configure: TempoFieldAccessibility.apply)
+        }
         .alert("Tempo", isPresented: $editingTempo) {
             TextField("BPM", text: $tempoText)
                 .keyboardType(.numberPad)
