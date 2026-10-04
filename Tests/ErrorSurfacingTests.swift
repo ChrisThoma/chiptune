@@ -128,6 +128,32 @@ final class ErrorSurfacingTests: XCTestCase {
                       "the message should name the song: \(studio.storageError ?? "nil")")
     }
 
+    /// A read-only Songs folder (the round-5 repro: chmod 555, then tap
+    /// Songs). The system's text names the song's internal file — a UUID
+    /// with `.json` — which means nothing to the person reading the alert.
+    func testAReadOnlyStoreSaysWhyWithoutTheRawErrorOrFileName() throws {
+        let temp = makeTempStore()
+        let studio = Studio(store: temp.store, autosaveEnabled: false)
+        addTeardownBlock { @MainActor in studio.invalidateTimers() }
+        studio.song.name = "Locked In"
+
+        let fm = FileManager.default
+        try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: temp.directory.path)
+        addTeardownBlock {
+            try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: temp.directory.path)
+        }
+
+        XCTAssertFalse(studio.saveNow())
+
+        let message = try XCTUnwrap(studio.storageError)
+        XCTAssertTrue(message.contains("“Locked In”"), message)
+        XCTAssertFalse(message.contains(studio.song.id.uuidString), message)
+        XCTAssertFalse(message.contains(".json"), message)
+        XCTAssertFalse(message.contains("folder"), "the folder is the system's detail: \(message)")
+        XCTAssertTrue(message.lowercased().contains("permission"), message)
+        XCTAssertTrue(message.hasSuffix("Try again."), message)
+    }
+
     func testASuccessfulSaveClearsAPreviousFailure() throws {
         let temp = makeTempStore()
         let studio = Studio(store: temp.store, autosaveEnabled: false)
