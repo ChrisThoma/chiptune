@@ -74,7 +74,7 @@ struct PatternBar: View {
         } message: {
             Text(ConfirmationCopy.clearPattern)
         }
-        .alert("Delete pattern \(name(deleting))?",
+        .alert(ConfirmationCopy.deletePatternTitle(name(deleting)),
                             isPresented: Binding(isPresenting: $deleting)) {
             Button("Delete pattern", role: .destructive) {
                 if let index = deleting { studio.removePattern(at: index) }
@@ -82,9 +82,7 @@ struct PatternBar: View {
             }
             Button("Cancel", role: .cancel) { deleting = nil }
         } message: {
-            // No "can't be undone" here: removePattern checkpoints, and a
-            // false warning teaches people to distrust the real ones.
-            Text("It's removed from the arrangement too. Undo brings it back.")
+            Text(ConfirmationCopy.deletePattern)
         }
     }
 
