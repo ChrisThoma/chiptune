@@ -14,6 +14,12 @@ enum Format {
         "\(n) \(noun)\(n == 1 ? "" : "s")"
     }
 
+    /// `57%` for a 0...1 level. Rounded, not truncated: `0.57 * 100` lands a
+    /// hair under 57, and `Int` of it read a level set to 57 back as 56.
+    static func percent(_ fraction: Double) -> String {
+        "\(Int((fraction * 100).rounded()))%"
+    }
+
     /// `120 BPM`.
     static func bpm(_ tempo: Double) -> String {
         "\(Int(tempo)) BPM"

@@ -223,7 +223,7 @@ struct InstrumentEditor: View {
                     slider(title: "Volume",
                            value: instrument(\.volume, default: 0.5, kind: .volume(index)),
                            range: 0...1,
-                           display: { "\(Int($0 * 100))%" })
+                           display: Format.percent)
 
                     // Hold used to be the far end of the decay slider, which
                     // meant the triangle shipped droning with nothing on screen
