@@ -308,6 +308,9 @@ final class StudioPlayheadTests: XCTestCase {
         XCTAssertEqual(studio.song.patterns.count, 2)
         XCTAssertEqual(studio.engine.core.currentPattern, 1, "the pattern now in that slot plays")
         XCTAssertLessThan(Int(studio.engine.core.currentPattern), studio.song.patterns.count)
+        XCTAssertEqual(Int(studio.engine.core.currentPattern),
+                       studio.song.chain[Int(studio.engine.core.currentChainSlot)],
+                       "what plays is what the arrangement has in that slot")
     }
 }
 
