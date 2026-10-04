@@ -1307,7 +1307,7 @@ final class Studio {
             // stale alert fires on the next unrelated state change.
             shareError = nil
         } catch {
-            shareError = "Couldn't prepare “\(other.name)” to share. \(error.localizedDescription)"
+            shareError = ShareFailureMessage.songFile(name: other.name, error: error)
         }
     }
 
