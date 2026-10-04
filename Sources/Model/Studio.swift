@@ -845,6 +845,8 @@ final class Studio {
         let sectionID: UUID
         /// Which play of the section's repeats, counted from its first slot.
         let offset: Int
+        /// The sections after it, in order: who takes over if it is deleted.
+        let followingSectionIDs: [UUID]
     }
 
     /// Reads the sequencer's position, or nil when nothing is following the
@@ -858,7 +860,8 @@ final class Studio {
               let start = song.chainStart(ofSection: section) else { return nil }
         return SoundingPosition(patternID: sounding.id,
                                 sectionID: song.arrangement[section].id,
-                                offset: slot - start)
+                                offset: slot - start,
+                                followingSectionIDs: song.arrangement[(section + 1)...].map(\.id))
     }
 
     /// Points the sequencer back at the music it was playing before the edit.
@@ -874,43 +877,43 @@ final class Studio {
     /// rebuilt chain takes over instead.
     private func restore(_ position: SoundingPosition?) {
         guard let position else { return }
-        guard let pattern = song.patternIndex(id: position.patternID) else {
-            resumeInNewChain()
-            return
-        }
-        let slot: Int
+        let chain = song.chain
+        var target: (section: Int, slot: Int)?
         if let section = song.arrangement.firstIndex(where: { $0.id == position.sectionID }),
            let start = song.chainStart(ofSection: section) {
+            // The same section instance: keep its play-through, clamped into
+            // a repeats count the edit may have changed.
             let repeats = max(song.arrangement[section].repeats, 1)
-            slot = start + min(position.offset, repeats - 1)
-            playingSection = section
+            target = (section, start + min(position.offset, repeats - 1))
         } else {
-            // The pattern survived but its section didn't. Keep the cursor
-            // where it is rather than inventing a place for it; the next
-            // boundary picks the chain up from there. Unless the pattern is
-            // now in no section at all: then it must not keep sounding.
-            guard song.chain.contains(pattern) else {
-                resumeInNewChain()
-                return
+            // The sounding section is gone: the next surviving one takes over
+            // from its first play, and past the last the arrangement wraps.
+            for id in position.followingSectionIDs {
+                if let section = song.arrangement.firstIndex(where: { $0.id == id }),
+                   let start = song.chainStart(ofSection: section) {
+                    target = (section, start)
+                    break
+                }
             }
-            slot = Int(engine.core.currentChainSlot)
         }
-        engine.core.retarget(chainSlot: slot, pattern: pattern)
-        playingPattern = pattern
-    }
-
-    /// The sounding pattern is gone, so the section that follows takes over
-    /// its place: the cursor keeps its slot number (held inside the shorter
-    /// chain) and the pattern comes from that slot of the new chain, never from
-    /// the core's stale pattern index. Does not move the grid.
-    private func resumeInNewChain() {
-        let chain = song.chain
-        let slot = min(max(Int(engine.core.currentChainSlot), 0), chain.count - 1)
+        var slot = target?.slot ?? 0
+        if !chain.indices.contains(slot) { slot = 0 }
         let pattern = chain[slot]
         guard pattern < song.patterns.count else { return }
         engine.core.retarget(chainSlot: slot, pattern: pattern)
         playingPattern = pattern
         playingSection = song.sectionIndex(chainSlot: slot) ?? 0
+    }
+
+    /// After an edit that moved playback, a grid that follows the arrangement
+    /// goes to what now sounds; a pinned grid stays where the user put it.
+    private func carryGridToSounding(_ position: SoundingPosition?) {
+        guard position != nil, followsArrangement,
+              playingPattern < song.patterns.count,
+              selectedPattern != playingPattern else { return }
+        selectedPattern = playingPattern
+        engine.core.focus(pattern: playingPattern)
+        clampCursor()
     }
 
     /// Copies a pattern's notes into a new one — the usual way to write a
@@ -1006,6 +1009,7 @@ final class Studio {
         song.arrangement.append(SongSection(patternID: patternID))
         pushArrangement()
         restore(sounding)
+        carryGridToSounding(sounding)
     }
 
     func removeSection(at offsets: IndexSet) {
@@ -1017,6 +1021,7 @@ final class Studio {
         }
         pushArrangement()
         restore(sounding)
+        carryGridToSounding(sounding)
     }
 
     func moveSection(from offsets: IndexSet, to destination: Int) {
@@ -1025,6 +1030,7 @@ final class Studio {
         song.arrangement.move(fromOffsets: offsets, toOffset: destination)
         pushArrangement()
         restore(sounding)
+        carryGridToSounding(sounding)
     }
 
     /// Replaces a track's whole instrument with a preset; a no-op when the
@@ -1045,6 +1051,7 @@ final class Studio {
         song.arrangement[i].patternID = patternID
         pushArrangement()
         restore(sounding)
+        carryGridToSounding(sounding)
     }
 
     func setSection(_ id: UUID, repeats: Int) {
@@ -1052,8 +1059,11 @@ final class Studio {
         let accepted = repeats.clamped(to: 1...SongSection.maxRepeats)
         guard accepted != song.arrangement[i].repeats else { return }
         checkpoint(coalescing: true, kind: .repeats(id))
+        let sounding = soundingPosition()
         song.arrangement[i].repeats = accepted
         pushArrangement()
+        restore(sounding)
+        carryGridToSounding(sounding)
     }
 
     // MARK: Tracks
