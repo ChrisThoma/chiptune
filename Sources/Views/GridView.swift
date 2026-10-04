@@ -519,6 +519,7 @@ private struct TrackHeader: View {
             // reaches the header's drag gesture instead of a dead button.
             .allowsHitTesting(!reordering)
             .accessibilityLabel(name)
+            .accessibilityAddTraits(SelectionAccessibility.traits(selected: selected))
             .accessibilityHint(selected && !layout.docksInstrumentEditor
                                ? "Opens sound settings"
                                : "Selects this track")

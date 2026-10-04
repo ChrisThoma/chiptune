@@ -151,7 +151,7 @@ struct KeyboardView: View {
             }
             .buttonStyle(PadStyle(active: armed))
             .accessibilityLabel("Rest")
-            .accessibilityAddTraits(armed ? [.isButton, .isSelected] : .isButton)
+            .accessibilityAddTraits(SelectionAccessibility.traits(selected: armed))
             .accessibilityHint(armed ? "Disarms, back to the note you had" : "Writes a rest")
         }
     }
@@ -186,8 +186,9 @@ struct KeyboardView: View {
             }
             .accessibilityLabel("Note \(NoteName.label(note))")
             // A shape with a tap gesture exposes as plain text/container;
-            // VoiceOver needs the trait to announce the key as tappable.
-            .accessibilityAddTraits(.isButton)
+            // VoiceOver needs the trait to announce the key as tappable, and
+            // the lit key as the current one.
+            .accessibilityAddTraits(SelectionAccessibility.traits(selected: selected))
     }
 }
 
