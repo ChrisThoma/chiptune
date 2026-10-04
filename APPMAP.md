@@ -177,6 +177,7 @@ Conditions are recorded in each journey's `tested` field after use. They are not
 - `Tests/Support/TempStore.swift`: isolated Documents and UserDefaults storage.
 - `Tests/Fixtures/golden-demo.wav`: deterministic DSP golden output.
 - `AppStore/make_song.py`: five-song visual/library fixture.
+- Generated large-state fixtures (git-ignored, regenerate with `python3 .qa/hunt-2026-10-03/fixtures/gen_fixtures.py`): `bpm300_longname.chipsong` (300 BPM, 33-character name, 3 patterns), `ten_patterns.chipsong`, `plays129.chipsong` (S1-S8 at 16 repeats plus S9 once), `plays128.chipsong` (S1-S8 at 16 repeats; S9 defined but unused), `one_track.chipsong`, `eight_tracks.chipsong` (track 3 muted). Deliver each with `xcrun simctl openurl <UDID> "file:///abs/path/<file>.chipsong"`. Shape: plain JSON with `id, name, tempo, modified, tracks, patterns, arrangement`; `tempo` is the BPM key; `modified` is seconds since 2001-01-01; each pattern's `rows` holds one 64-entry list per track regardless of `length`; arrangement entries are `{id, patternID, repeats}`.
 - There is extensive hosted unit coverage but no XCUITest or snapshot-test target.
 
 ```sh
@@ -200,3 +201,7 @@ The unit-test host intentionally suppresses creation of the real app `Studio`, s
 - zsh treats a bare `==` in `echo` as a command; avoid it in scripts.
 - The in-app song-menu footer build stamp shows the HEAD at build time, which is the previous commit when a build is made before committing, and CFBundleVersion is the same for every local build. Neither proves build identity; use the app path and its mtime.
 - `-NSDoubleLocalizedStrings YES` doubles whole format strings, so one-argument formats show leaked fragments (lld, @) in the BPM and STEPS readouts, Export summary and ARR rows. This is a property of the pseudo-locale, not an app defect (round-3 #6); only clipping, wrapping and lost tap targets under that condition are findings.
+- `idb` is not on PATH inside scripts: use the full path from `which idb` or the pyenv shim path, or the first run of every script silently no-ops.
+- A real RTL layout needs `-NSForceRightToLeftWritingDirection YES`; `-AppleLanguages "(ar)" -AppleLocale ar_SA` alone leaves the app LTR (no Arabic localization), so RTL is unsupported for real users.
+- The accessibility walker renders a Stepper as two Buttons, reports a dimmed bound button as enabled, and shows Volume and Decay slider values as null; ui_find_element on the visible label is the cross-check. The pattern chip menu opens with `idb ui tap --duration 1.0` on a chip and its actions are also exposed as accessibility custom actions.
+- A verification build must come from `git archive <commit>` into a scratch directory under `build/`, then `xcodegen generate` and `xcodebuild` with its own `-derivedDataPath`; a build from the working tree can include another agent's uncommitted edits.
