@@ -33,7 +33,9 @@ enum ExportResult: Sendable {
     case success(URL)
     case canceled
     case tooLong
-    case failed
+    /// Carries the write error so the alert can say whether it was a
+    /// permission or a disk-space problem rather than guessing.
+    case failed(Error)
 }
 
 /// Everything one export needs. Bundled into a struct so the injectable
@@ -62,8 +64,9 @@ enum WavExport {
     }
 
     /// Why a render stopped early. Thrown out of the streaming loops so a
-    /// cancel or a failed write unwinds in one hop rather than threading an
-    /// optional result out of a pointer closure.
+    /// cancel unwinds in one hop rather than threading an optional result out
+    /// of a pointer closure. A failed write throws its own error instead, so
+    /// the alert can name the cause.
     private enum RenderAbort: Error {
         case canceled, failed
     }
@@ -120,8 +123,15 @@ enum WavExport {
 
         let fm = FileManager.default
         let rawURL = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".raw")
-        guard fm.createFile(atPath: rawURL.path, contents: nil),
-              let raw = try? FileHandle(forWritingTo: rawURL) else { return .failed }
+        // `Data().write` rather than `createFile`, which only returns false:
+        // the thrown error is what tells a read-only folder from a full disk.
+        let raw: FileHandle
+        do {
+            try Data().write(to: rawURL)
+            raw = try FileHandle(forWritingTo: rawURL)
+        } catch {
+            return .failed(error)
+        }
         defer { try? fm.removeItem(at: rawURL) }
 
         // The stretch the tail folds over. Kept in memory; everything after it
@@ -146,7 +156,7 @@ enum WavExport {
                     for i in inHead..<n { bodyPeak = max(bodyPeak, abs(base[i])) }
                     let bytes = Data(bytes: base + inHead,
                                      count: (n - inHead) * MemoryLayout<Float>.size)
-                    do { try raw.write(contentsOf: bytes) } catch { throw RenderAbort.failed }
+                    try raw.write(contentsOf: bytes)
                 }
                 written += n
                 report(written)
@@ -172,7 +182,7 @@ enum WavExport {
                 } else {
                     for i in 0..<n { bodyPeak = max(bodyPeak, abs(base[i])) }
                     let bytes = Data(bytes: base, count: n * MemoryLayout<Float>.size)
-                    do { try raw.write(contentsOf: bytes) } catch { throw RenderAbort.failed }
+                    try raw.write(contentsOf: bytes)
                 }
                 done += n
                 report(bodySamples + done)
@@ -189,7 +199,7 @@ enum WavExport {
             try? raw.close()
         } catch {
             try? raw.close()
-            return (error as? RenderAbort) == .canceled ? .canceled : .failed
+            return (error as? RenderAbort) == .canceled ? .canceled : .failed(error)
         }
 
         // Summing the overlap can push it past full scale. Scale the whole file
@@ -285,8 +295,13 @@ enum WavExport {
 
         let fm = FileManager.default
         try? fm.removeItem(at: url)
-        guard fm.createFile(atPath: url.path, contents: nil),
-              let out = try? FileHandle(forWritingTo: url) else { return .failed }
+        let out: FileHandle
+        do {
+            try Data().write(to: url)
+            out = try FileHandle(forWritingTo: url)
+        } catch {
+            return .failed(error)
+        }
 
         /// A half-written WAV left on disk is worse than no file — it would
         /// show up in the share sheet and play as noise.
@@ -327,7 +342,7 @@ enum WavExport {
             return .success(url)
         } catch {
             discard()
-            return .failed
+            return .failed(error)
         }
     }
 
