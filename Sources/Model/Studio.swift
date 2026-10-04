@@ -302,6 +302,10 @@ final class Studio {
     }
 
     private func apply(_ snapshot: Snapshot) {
+        // Undo and redo renumber patterns and chain slots just as the edits
+        // they reverse did, so the sequencer is re-aimed the same way: read
+        // where it is in the song being replaced, point it back there after.
+        let sounding = soundingPosition()
         song = snapshot.song
         pushAll()
         pushArrangement()
@@ -320,6 +324,7 @@ final class Studio {
         // is left to aim at, and any note still sounding may belong to a cell
         // the restored song no longer has.
         engine.core.releaseAll()
+        restore(sounding)
         if !songMode { playingPattern = selectedPattern }
         // The next edit starts a fresh coalescing window rather than folding
         // itself into whatever was undone. Same for a named run: typing after
@@ -882,7 +887,12 @@ final class Studio {
         } else {
             // The pattern survived but its section didn't. Keep the cursor
             // where it is rather than inventing a place for it; the next
-            // boundary picks the chain up from there.
+            // boundary picks the chain up from there. Unless the pattern is
+            // now in no section at all: then it must not keep sounding.
+            guard song.chain.contains(pattern) else {
+                resumeInNewChain()
+                return
+            }
             slot = Int(engine.core.currentChainSlot)
         }
         engine.core.retarget(chainSlot: slot, pattern: pattern)
@@ -933,16 +943,19 @@ final class Studio {
         // Follow the pattern being edited, not the slot that was deleted:
         // dropping a chip from its menu must not yank the grid elsewhere.
         let survivor = index < selectedPattern ? selectedPattern - 1 : selectedPattern
+        let deletesSelection = index == selectedPattern
         song.patterns.remove(at: index)
         song.arrangement.removeAll { $0.patternID == id }
         pushAll()
         pushArrangement()
         restore(sounding)
-        // The deleted pattern was the one sounding and the grid was following
-        // it: follow the arrangement to what sounds now, so the grid never
-        // shows a pattern that is in no section.
-        if let sounding, followsArrangement,
-           song.patternIndex(id: sounding.patternID) == nil,
+        // During SONG playback the grid follows the arrangement to what sounds
+        // now when it was following the deleted, sounding pattern, or when the
+        // pattern it was pinned to is the one deleted (a pin on a pattern that
+        // no longer exists is void). Otherwise the grid would land on whatever
+        // pattern inherited the number, which may be in no section at all.
+        let soundingDeleted = sounding.map { song.patternIndex(id: $0.patternID) == nil } ?? false
+        if sounding != nil, deletesSelection || (followsArrangement && soundingDeleted),
            playingPattern < song.patterns.count {
             selectPattern(playingPattern)
             return

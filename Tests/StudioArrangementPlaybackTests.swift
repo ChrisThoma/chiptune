@@ -198,4 +198,102 @@ final class StudioArrangementPlaybackTests: XCTestCase {
         XCTAssertFalse(studio.followsArrangement)
         XCTAssertEqual(Int(studio.engine.core.currentPattern), studio.song.chain.first!)
     }
+
+    // MARK: Undo and redo while the song plays (round-4 #13, second pass)
+
+    /// The reported shape: pattern 1 is in no section (arrangement A x4, D x8),
+    /// A is sounding and gets deleted. Returns the ids of A and D.
+    @discardableResult
+    private func deleteSoundingAWithAnUnarrangedMiddlePattern() -> (a: UUID, d: UUID) {
+        studio.removeSection(at: IndexSet(integer: 1))   // arrangement A x4, D x8
+        let ids = (a: studio.song.patterns[0].id, d: studio.song.patterns[2].id)
+        startSongPlayback()
+        advance(steps: 3)
+        XCTAssertEqual(studio.engine.core.currentPattern, 0, "precondition: A is sounding")
+        studio.removePattern(at: 0)                      // patterns C, D; chain D x8
+        XCTAssertEqual(studio.song.patterns[Int(studio.engine.core.currentPattern)].id, ids.d,
+                       "precondition: D took over")
+        return ids
+    }
+
+    private func assertCoreFollowsTheArrangement(_ message: String,
+                                                 file: StaticString = #filePath, line: UInt = #line) {
+        let core = studio.engine.core
+        let chain = studio.song.chain
+        let slot = Int(core.currentChainSlot)
+        XCTAssertTrue(chain.indices.contains(slot), "\(message): slot in range", file: file, line: line)
+        XCTAssertEqual(Int(core.currentPattern), chain[safe: slot] ?? -1,
+                       "\(message): the core must run the pattern its chain slot names", file: file, line: line)
+        XCTAssertEqual(studio.playingPattern, Int(core.currentPattern),
+                       "\(message): the dot names what sounds", file: file, line: line)
+        XCTAssertTrue(chain.contains(studio.playingPattern),
+                      "\(message): the dot is on a pattern in the arrangement", file: file, line: line)
+    }
+
+    /// Undo puts A, C, D back but the core still held the raw index of D in
+    /// the two-pattern list, which after the undo names C — a pattern in no
+    /// section — until the next boundary.
+    func testUndoingTheDeleteKeepsTheSoundingPatternPlaying() {
+        let ids = deleteSoundingAWithAnUnarrangedMiddlePattern()
+
+        studio.undo()
+
+        assertCoreFollowsTheArrangement("after undo")
+        XCTAssertEqual(studio.song.patterns[studio.playingPattern].id, ids.d, "D keeps sounding")
+        XCTAssertEqual(Int(studio.engine.core.currentChainSlot), 4, "from D's first slot")
+    }
+
+    /// Run 2 of the verifier: after the undo the arrangement wraps back to A,
+    /// and A is deleted again while it sounds. The grid used to stay on the
+    /// pattern that inherited A's number — C, in no section — pinned.
+    func testDeletingTheSoundingPatternAgainAfterAnUndoFollowsTheArrangement() {
+        let ids = deleteSoundingAWithAnUnarrangedMiddlePattern()
+        studio.undo()
+        for _ in 0..<400 where !(studio.engine.core.currentChainSlot == 0 && studio.engine.core.currentPattern == 0) {
+            advance(steps: 1)
+        }
+        XCTAssertEqual(studio.engine.core.currentPattern, 0, "precondition: A sounds again")
+        XCTAssertEqual(studio.song.patterns[studio.selectedPattern].id, ids.a, "precondition: the grid is on A")
+
+        studio.removePattern(at: 0)
+
+        assertCoreFollowsTheArrangement("after the second delete")
+        XCTAssertEqual(studio.song.patterns[studio.selectedPattern].id, ids.d,
+                       "the grid must not stay on a pattern that is in no section")
+        XCTAssertTrue(studio.followsArrangement)
+    }
+
+    /// Redo of the delete while A sounds again: A leaves the chain, and the
+    /// core must move to what the arrangement still holds.
+    func testRedoingTheDeleteWhileItsPatternSoundsResumesInTheArrangement() {
+        deleteSoundingAWithAnUnarrangedMiddlePattern()
+        studio.undo()
+        for _ in 0..<400 where !(studio.engine.core.currentChainSlot == 0 && studio.engine.core.currentPattern == 0) {
+            advance(steps: 1)
+        }
+        XCTAssertEqual(studio.engine.core.currentPattern, 0, "precondition: A sounds again")
+
+        studio.redo()
+
+        assertCoreFollowsTheArrangement("after redo")
+    }
+
+    /// Undo of an arrangement edit renumbers the chain back, so the core's
+    /// raw slot has to be re-aimed exactly as the edit itself did.
+    func testUndoingASectionDeleteKeepsTheSoundingSectionPlaying() {
+        let soundingID = soundC()
+        studio.removeSection(at: IndexSet(integer: 0))
+        XCTAssertEqual(studio.engine.core.currentChainSlot, 0, "precondition")
+
+        studio.undo()
+
+        assertCoreFollowsTheArrangement("after undo")
+        XCTAssertEqual(studio.song.patterns[studio.playingPattern].id, soundingID)
+        XCTAssertEqual(Int(studio.engine.core.currentChainSlot), 4, "C's first repeat again")
+
+        studio.redo()
+
+        assertCoreFollowsTheArrangement("after redo")
+        XCTAssertEqual(Int(studio.engine.core.currentChainSlot), 0)
+    }
 }
