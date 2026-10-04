@@ -198,8 +198,8 @@ struct ArrangementView: View {
                     in: 1...SongSection.maxRepeats)
             .labelsHidden()
             .fixedSize()
-            .accessibilityLabel("Repeats")
-            .accessibilityValue("\(section.repeats) times")
+            .accessibilityLabel(RepeatsAccessibility.label(position: position))
+            .accessibilityValue(RepeatsAccessibility.value(section.repeats))
         }
         .contentShape(Rectangle())
         // Attached to the row container, not the Menu or Stepper, so tapping
