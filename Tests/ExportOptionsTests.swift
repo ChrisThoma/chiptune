@@ -329,7 +329,7 @@ final class StudioExportOptionsTests: XCTestCase {
 
     func testEvenImmediateCompletionsPublishDistinctAttemptTokens() {
         let studio = Studio(store: makeTempStore().store, autosaveEnabled: false,
-                            renderer: { _ in .failed })
+                            renderer: { _ in .failed(CocoaError(.fileWriteUnknown)) })
         addTeardownBlock { @MainActor in studio.invalidateTimers() }
 
         let first = studio.export()

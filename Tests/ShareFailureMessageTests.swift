@@ -72,3 +72,31 @@ final class SaveFailureMessageTests: XCTestCase {
         XCTAssertLessThan(msg.count, 140)
     }
 }
+
+/// The Export failed alert's reason. A failed `FileHandle` write reports the
+/// POSIX cause underneath a generic Cocoa write error, so the reason looks one
+/// level down before giving up on naming it.
+final class WriteFailureReasonTests: XCTestCase {
+    func testAnUnderlyingPosixCauseIsNamed() {
+        let full = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteUnknown.rawValue,
+                           userInfo: [NSUnderlyingErrorKey: NSError(domain: NSPOSIXErrorDomain, code: Int(ENOSPC))])
+        let denied = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteUnknown.rawValue,
+                             userInfo: [NSUnderlyingErrorKey: NSError(domain: NSPOSIXErrorDomain, code: Int(EACCES))])
+        XCTAssertEqual(WriteFailureMessage.reason(for: full, file: "WAV file"),
+                       "There isn't enough free space to write the WAV file.")
+        XCTAssertEqual(WriteFailureMessage.reason(for: denied, file: "WAV file"),
+                       "The app doesn't have permission to write the WAV file.")
+    }
+
+    func testExportWordsMatchSaveAndShare() {
+        let denied = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteNoPermission.rawValue)
+        XCTAssertEqual(WriteFailureMessage.export(name: "Neon Ascent", error: denied),
+                       "Couldn't export “Neon Ascent”. The app doesn't have permission to write the WAV file. Try again.")
+    }
+
+    func testAnUnknownCauseSaysSoPlainly() {
+        let unknown = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteUnknown.rawValue)
+        XCTAssertEqual(WriteFailureMessage.reason(for: unknown, file: "WAV file"),
+                       "The WAV file couldn't be written.")
+    }
+}

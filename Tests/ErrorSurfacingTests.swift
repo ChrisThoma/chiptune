@@ -39,7 +39,7 @@ final class ErrorSurfacingTests: XCTestCase {
 
     func testAFailedExportIsReported() {
         let studio = Studio(store: makeTempStore().store, autosaveEnabled: false,
-                            renderer: { _ in .failed })
+                            renderer: { _ in .failed(CocoaError(.fileWriteUnknown)) })
         addTeardownBlock { @MainActor in studio.invalidateTimers() }
 
         studio.export()
@@ -50,6 +50,34 @@ final class ErrorSurfacingTests: XCTestCase {
         XCTAssertNotNil(studio.exportError, "the export failed and said nothing")
         XCTAssertTrue(studio.exportError?.contains(studio.song.name) ?? false,
                       "the message should name the song: \(studio.exportError ?? "nil")")
+    }
+
+    /// The round-5 repro: a read-only temp folder, so the WAV can't be
+    /// written. The alert used to blame disk space for every failure, which
+    /// sends someone off deleting photos for a permission problem.
+    func testAReadOnlyTempFolderBlamesPermissionNotSpace() throws {
+        let studio = Studio(store: makeTempStore().store, autosaveEnabled: false)
+        addTeardownBlock { @MainActor in studio.invalidateTimers() }
+        studio.open(Song(name: "Locked Out"))
+
+        let fm = FileManager.default
+        let tmp = fm.temporaryDirectory.path
+        let original = try XCTUnwrap(fm.attributesOfItem(atPath: tmp)[.posixPermissions])
+        try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: tmp)
+        addTeardownBlock {
+            try? fm.setAttributes([.posixPermissions: original], ofItemAtPath: tmp)
+        }
+
+        studio.export()
+        waitForExport(studio)
+        try fm.setAttributes([.posixPermissions: original], ofItemAtPath: tmp)
+
+        XCTAssertNil(studio.exportURL)
+        let message = try XCTUnwrap(studio.exportError)
+        XCTAssertTrue(message.contains("“Locked Out”"), message)
+        XCTAssertTrue(message.lowercased().contains("permission"), message)
+        XCTAssertFalse(message.lowercased().contains("space"), message)
+        XCTAssertTrue(message.hasSuffix("Try again."), message)
     }
 
     func testATooLongExportGetsSpecificAdvice() {
@@ -82,7 +110,7 @@ final class ErrorSurfacingTests: XCTestCase {
     /// for the next alert to show.
     func testRetryingAfterAFailureClearsTheMessage() {
         let studio = Studio(store: makeTempStore().store, autosaveEnabled: false,
-                            renderer: { _ in .failed })
+                            renderer: { _ in .failed(CocoaError(.fileWriteUnknown)) })
         addTeardownBlock { @MainActor in studio.invalidateTimers() }
 
         studio.export()

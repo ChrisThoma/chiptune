@@ -13,6 +13,11 @@ enum WriteFailureMessage {
         "Couldn't save \(shown(name)). \(reason(for: error, file: "song file")) Try again."
     }
 
+    /// "Couldn't export “Name”. <reason> Try again."
+    static func export(name: String, error: Error) -> String {
+        "Couldn't export \(shown(name)). \(reason(for: error, file: "WAV file")) Try again."
+    }
+
     /// The song's name in quotes, clipped with an ellipsis past `nameLimit`
     /// characters, or "this song" when it's blank.
     static func shown(_ name: String) -> String {
@@ -27,16 +32,27 @@ enum WriteFailureMessage {
     }
 
     static func reason(for error: Error, file: String) -> String {
-        let ns = error as NSError
+        switch cause(of: error as NSError) {
+        case .permission: return "The app doesn't have permission to write the \(file)."
+        case .space: return "There isn't enough free space to write the \(file)."
+        case .other: return "The \(file) couldn't be written."
+        }
+    }
+
+    private enum Cause { case permission, space, other }
+
+    /// A failed `FileHandle` write wraps its POSIX cause in a generic Cocoa
+    /// write error, so an unrecognized error is looked under before giving up.
+    private static func cause(of ns: NSError) -> Cause {
         switch (ns.domain, ns.code) {
         case (NSCocoaErrorDomain, NSFileWriteNoPermissionError),
              (NSPOSIXErrorDomain, Int(EACCES)), (NSPOSIXErrorDomain, Int(EPERM)):
-            return "The app doesn't have permission to write the \(file)."
+            return .permission
         case (NSCocoaErrorDomain, NSFileWriteOutOfSpaceError),
              (NSPOSIXErrorDomain, Int(ENOSPC)):
-            return "There isn't enough free space to write the \(file)."
+            return .space
         default:
-            return "The \(file) couldn't be written."
+            return (ns.userInfo[NSUnderlyingErrorKey] as? NSError).map(cause(of:)) ?? .other
         }
     }
 }

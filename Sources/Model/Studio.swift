@@ -1435,8 +1435,8 @@ final class Studio {
                 break
             case .tooLong:
                 self.exportError = "Too long for one WAV — lower the repeat count."
-            case .failed:
-                self.exportError = "Couldn't export “\(song.name)”. There may not be enough space on the device."
+            case .failed(let error):
+                self.exportError = WriteFailureMessage.export(name: song.name, error: error)
             }
             self.completedExportAttempt = attempt
         }
