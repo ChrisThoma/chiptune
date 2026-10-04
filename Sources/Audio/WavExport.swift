@@ -231,12 +231,7 @@ enum WavExport {
     }
 
     static func filename(for song: Song) -> URL {
-        let safe = song.name
-            .components(separatedBy: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: " -_")).inverted)
-            .joined()
-            .trimmingCharacters(in: .whitespaces)
-        let truncated = SongDocument.truncatedForFileName(safe)
-        let base = truncated.isEmpty ? "chiptune" : truncated
+        let base = SongDocument.safeName(song)
         // A per-song directory keeps the shared file's display name clean while
         // stopping two same-named songs from overwriting each other's export.
         let dir = FileManager.default.temporaryDirectory

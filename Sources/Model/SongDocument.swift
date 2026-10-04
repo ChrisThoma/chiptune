@@ -49,7 +49,8 @@ enum SongDocument {
         return url
     }
 
-    private static func safeName(_ song: Song) -> String {
+    /// The one file-name base both the song-file and WAV exports use.
+    static func safeName(_ song: Song) -> String {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: " -_"))
         // Stripping a character out of the middle of a name leaves the spaces
         // that were around it, so "My Song / v2" would become "My Song  v2".
