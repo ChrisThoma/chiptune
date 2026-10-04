@@ -863,10 +863,16 @@ final class Studio {
     /// `playingPattern`, so that has to already say where playback ended up or
     /// a delete the user made elsewhere reads as them pinning the grid.
     ///
-    /// A sounding pattern that the edit deleted is left alone — there is
-    /// nothing to keep playing, so whatever takes its slot takes over.
+    /// A sounding pattern that the edit deleted has no place to carry on from,
+    /// and the core's raw indices now name whichever pattern inherited the
+    /// number, which may be in no section at all. The next section in the
+    /// rebuilt chain takes over instead.
     private func restore(_ position: SoundingPosition?) {
-        guard let position, let pattern = song.patternIndex(id: position.patternID) else { return }
+        guard let position else { return }
+        guard let pattern = song.patternIndex(id: position.patternID) else {
+            resumeInNewChain()
+            return
+        }
         let slot: Int
         if let section = song.arrangement.firstIndex(where: { $0.id == position.sectionID }),
            let start = song.chainStart(ofSection: section) {
@@ -881,6 +887,20 @@ final class Studio {
         }
         engine.core.retarget(chainSlot: slot, pattern: pattern)
         playingPattern = pattern
+    }
+
+    /// The sounding pattern is gone, so the section that follows takes over
+    /// its place: the cursor keeps its slot number (held inside the shorter
+    /// chain) and the pattern comes from that slot of the new chain, never from
+    /// the core's stale pattern index. Does not move the grid.
+    private func resumeInNewChain() {
+        let chain = song.chain
+        let slot = min(max(Int(engine.core.currentChainSlot), 0), chain.count - 1)
+        let pattern = chain[slot]
+        guard pattern < song.patterns.count else { return }
+        engine.core.retarget(chainSlot: slot, pattern: pattern)
+        playingPattern = pattern
+        playingSection = song.sectionIndex(chainSlot: slot) ?? 0
     }
 
     /// Copies a pattern's notes into a new one — the usual way to write a
@@ -918,6 +938,15 @@ final class Studio {
         pushAll()
         pushArrangement()
         restore(sounding)
+        // The deleted pattern was the one sounding and the grid was following
+        // it: follow the arrangement to what sounds now, so the grid never
+        // shows a pattern that is in no section.
+        if let sounding, followsArrangement,
+           song.patternIndex(id: sounding.patternID) == nil,
+           playingPattern < song.patterns.count {
+            selectPattern(playingPattern)
+            return
+        }
         selectPattern(min(survivor, song.patterns.count - 1))
     }
 

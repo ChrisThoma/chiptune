@@ -155,4 +155,47 @@ final class StudioArrangementPlaybackTests: XCTestCase {
         XCTAssertEqual(studio.engine.core.currentPattern, 1)
         XCTAssertEqual(studio.playingPattern, 1)
     }
+
+    // MARK: Deleting the sounding pattern
+
+    /// Round-4 #13. A is sounding (slot 0) and is deleted. Its sections leave
+    /// the chain, so nothing identifies a place to carry on from; the core used
+    /// to keep its raw index and run whichever pattern inherited the number,
+    /// one that is in no section. Playback has to resume from the head of the
+    /// remaining arrangement.
+    func testDeletingTheSoundingPatternResumesFromTheArrangementHead() {
+        startSongPlayback()
+        advance(steps: 3)
+        XCTAssertEqual(studio.engine.core.currentPattern, 0, "precondition: A is sounding")
+        studio.removeSection(at: IndexSet(integer: 1))   // arrangement A, D
+        let dID = studio.song.patterns[2].id
+
+        studio.removePattern(at: 0)                      // A goes; patterns C, D
+        _ = RenderHarness.renderMono(studio.engine.core, frames: 64)
+
+        let head = studio.song.chain.first!
+        XCTAssertEqual(studio.song.patterns[head].id, dID, "premise: D heads the chain")
+        XCTAssertEqual(Int(studio.engine.core.currentPattern), head, "core must run a pattern that is in the arrangement")
+        XCTAssertEqual(Int(studio.engine.core.currentChainSlot), 0)
+        XCTAssertEqual(studio.playingPattern, head)
+        XCTAssertEqual(studio.playingSection, 0)
+        XCTAssertEqual(studio.selectedPattern, head, "the grid follows the arrangement to what now sounds")
+        XCTAssertTrue(studio.followsArrangement)
+    }
+
+    /// Same, but the user had pinned the grid on another pattern: the pin stays,
+    /// the sound still moves to the arrangement.
+    func testDeletingTheSoundingPatternKeepsAPinnedGridPinned() {
+        startSongPlayback()
+        advance(steps: 3)
+        studio.removeSection(at: IndexSet(integer: 1))   // arrangement A, D
+        studio.selectPattern(1)                          // pin the grid on C
+        let cID = studio.song.patterns[1].id
+
+        studio.removePattern(at: 0)                      // patterns C, D
+
+        XCTAssertEqual(studio.song.patterns[studio.selectedPattern].id, cID)
+        XCTAssertFalse(studio.followsArrangement)
+        XCTAssertEqual(Int(studio.engine.core.currentPattern), studio.song.chain.first!)
+    }
 }
