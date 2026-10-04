@@ -43,3 +43,32 @@ final class ShareFailureMessageTests: XCTestCase {
         XCTAssertTrue(msg.contains("song"))
     }
 }
+
+/// The Save failed alert, built from the same pieces as Share failed above.
+final class SaveFailureMessageTests: XCTestCase {
+    private func cocoa(_ code: Int) -> NSError {
+        NSError(domain: NSCocoaErrorDomain, code: code,
+                userInfo: [NSLocalizedDescriptionKey: "You don’t have permission to save the file “0C1D.json” in the folder “Songs”."])
+    }
+
+    func testRawSystemTextIsNotPastedAndTheReasonIsKept() {
+        let msg = WriteFailureMessage.save(name: "Neon Ascent", error: cocoa(CocoaError.fileWriteNoPermission.rawValue))
+        XCTAssertEqual(msg, "Couldn't save “Neon Ascent”. The app doesn't have permission to write the song file. Try again.")
+    }
+
+    func testSpaceAndOtherReasonsDiffer() {
+        let space = WriteFailureMessage.save(name: "A", error: cocoa(CocoaError.fileWriteOutOfSpace.rawValue))
+        let other = WriteFailureMessage.save(name: "A", error: cocoa(CocoaError.fileWriteUnknown.rawValue))
+        XCTAssertTrue(space.contains("enough free space"))
+        XCTAssertTrue(other.contains("couldn't be written"))
+        XCTAssertFalse(other.contains(".json"))
+    }
+
+    func testLongNameIsClipped() {
+        let name = String(repeating: "N", count: 300)
+        let msg = WriteFailureMessage.save(name: name, error: cocoa(CocoaError.fileWriteUnknown.rawValue))
+        XCTAssertFalse(msg.contains(name))
+        XCTAssertTrue(msg.contains("…"))
+        XCTAssertLessThan(msg.count, 140)
+    }
+}

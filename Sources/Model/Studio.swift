@@ -208,7 +208,7 @@ final class Studio {
             storageError = nil
             return true
         } catch {
-            storageError = "Couldn't save “\(song.name)”. \(error.localizedDescription)"
+            storageError = WriteFailureMessage.save(name: song.name, error: error)
             return false
         }
     }
