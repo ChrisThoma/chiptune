@@ -20,9 +20,9 @@ struct PlainStepper: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            stepButton("minus", enabled: canDecrease) { value -= 1 }
+            stepButton("minus", enabled: canDecrease) { step(-1) }
             Divider().frame(height: 18)
-            stepButton("plus", enabled: canIncrease) { value += 1 }
+            stepButton("plus", enabled: canIncrease) { step(1) }
         }
         .background(Capsule().fill(Color.secondary.opacity(0.18)))
         .accessibilityElement(children: .ignore)
@@ -30,14 +30,26 @@ struct PlainStepper: View {
         .accessibilityValue(accessibilityValue)
         .accessibilityAdjustableAction { direction in
             switch direction {
-            case .increment: if canIncrease { value += 1 }
-            case .decrement: if canDecrease { value -= 1 }
+            case .increment: step(1)
+            case .decrement: step(-1)
             @unknown default: break
             }
         }
         // After the accessibility element is formed, so VoiceOver reads it
         // as dimmed rather than as an adjustable that silently does nothing.
         .disabled(!isEnabled)
+    }
+
+    /// One step from `value`, held at the ends of `range`; a locked stepper
+    /// stays where it is.
+    static func stepped(_ value: Int, by delta: Int, in range: ClosedRange<Int>,
+                        isEnabled: Bool) -> Int {
+        guard isEnabled else { return value }
+        return min(max(value + delta, range.lowerBound), range.upperBound)
+    }
+
+    private func step(_ delta: Int) {
+        value = Self.stepped(value, by: delta, in: range, isEnabled: isEnabled)
     }
 
     private func stepButton(_ symbol: String, enabled: Bool, action: @escaping () -> Void) -> some View {
