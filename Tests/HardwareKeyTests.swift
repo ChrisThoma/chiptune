@@ -265,6 +265,31 @@ final class HardwareKeyTests: XCTestCase {
                        "Once it's visible, taps and arrows agree on where it is")
     }
 
+    /// Left and Right ask the grid to follow the cursor sideways, each press
+    /// its own request: on an iPhone with eight tracks the cursor otherwise
+    /// walks off screen and Return writes into a column nobody can see.
+    func testLeftAndRightAskTheGridToShowTheCursorColumn() {
+        let start = studio.revealRequest.generation
+
+        studio.apply(.move(track: 1, step: 0))
+        XCTAssertEqual(studio.revealRequest, .init(generation: start + 1, reason: .cursor))
+        studio.apply(.move(track: -1, step: 0))
+        XCTAssertEqual(studio.revealRequest, .init(generation: start + 2, reason: .cursor))
+    }
+
+    /// Up and Down scroll the rows, not the columns, and a tap selects
+    /// whatever it lands on without the grid sliding out from under it.
+    func testUpDownAndTapsRequestNoReveal() {
+        let start = studio.revealRequest
+
+        studio.apply(.move(track: 0, step: 1))
+        studio.apply(.move(track: 0, step: -1))
+        studio.placeCursor(track: 2, step: 3)
+        studio.selectedTrack = 1
+
+        XCTAssertEqual(studio.revealRequest, start)
+    }
+
     // MARK: Octave
 
     func testTheOctaveIsSharedAndStaysInTheKeyboardsRange() {

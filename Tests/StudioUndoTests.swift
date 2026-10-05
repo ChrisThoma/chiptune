@@ -289,27 +289,27 @@ final class StudioUndoTests: XCTestCase {
     // MARK: Grid reveal
 
     /// The grid brings the selected column on screen after an Undo or Redo
-    /// moves the selection, and only then: a counter, so it can tell an undo
-    /// from an arrow key or a tap that moved the selection the same way.
-    func testUndoAndRedoEachBumpTheUndoRedoGeneration() {
+    /// moves the selection, and only then: a counted request, so it can tell
+    /// an undo from a tap that moved the selection the same way.
+    func testUndoAndRedoEachRequestAReveal() {
         studio.toggleCell(track: 0, step: 0)
-        let start = studio.undoRedoGeneration
+        let start = studio.revealRequest.generation
 
         studio.undo()
-        XCTAssertEqual(studio.undoRedoGeneration, start + 1)
+        XCTAssertEqual(studio.revealRequest, .init(generation: start + 1, reason: .undoRedo))
         studio.redo()
-        XCTAssertEqual(studio.undoRedoGeneration, start + 2)
+        XCTAssertEqual(studio.revealRequest, .init(generation: start + 2, reason: .undoRedo))
     }
 
-    func testEditsSelectionAndAnEmptyUndoLeaveTheGenerationAlone() {
-        let start = studio.undoRedoGeneration
+    func testEditsSelectionAndAnEmptyUndoRequestNoReveal() {
+        let start = studio.revealRequest
 
         studio.undo()
         studio.redo()
         studio.toggleCell(track: 0, step: 0)
         studio.selectedTrack = 2
 
-        XCTAssertEqual(studio.undoRedoGeneration, start,
+        XCTAssertEqual(studio.revealRequest, start,
                        "only an undo or redo that ran may ask the grid to scroll")
     }
 

@@ -15,31 +15,40 @@ enum GridPinning {
 /// An import, a song switch, an undone delete or a duplicate all select a
 /// track that need not be the last one, and the grid used to be left at its
 /// trailing edge with that header scrolled out of sight. An Undo or Redo that
-/// hands the selection to another track is brought on screen the same way.
+/// hands the selection to another track is brought on screen the same way,
+/// and a Left or Right arrow just far enough to show the cursor's column.
 enum GridReveal {
     struct Trigger: Equatable {
         var songID: UUID
         var trackCount: Int
         var selectedTrack: Int
-        var undoRedoGeneration: Int
+        var reveal: Studio.RevealRequest
     }
 
     enum Target: Equatable {
         /// The last track and the "+" beside it.
         case trailingEdge
+        /// Centred in the row.
         case track(Int)
+        /// Scrolled only as far as it takes to show the whole column, and not
+        /// at all if it's already showing.
+        case nearest(Int)
     }
 
     /// Nil leaves the scroll where the user put it: a delete or an edit that
-    /// adds no column has nothing new to show, and a selection moved by the
-    /// arrow keys, a tap or playback is scrolled by whatever moved it.
+    /// adds no column has nothing new to show, and a selection moved by a
+    /// tap, a reorder drag or playback is scrolled by whatever moved it.
     static func target(from old: Trigger, to new: Trigger) -> Target? {
-        let undoMovedSelection = new.undoRedoGeneration != old.undoRedoGeneration
-            && new.selectedTrack != old.selectedTrack
-        guard new.songID != old.songID || new.trackCount > old.trackCount || undoMovedSelection
-        else { return nil }
         let last = max(new.trackCount - 1, 0)
         let selected = min(max(new.selectedTrack, 0), last)
+        let songOrCountChanged = new.songID != old.songID || new.trackCount > old.trackCount
+        let requested = new.reveal != old.reveal
+        if requested, new.reveal.reason == .cursor, !songOrCountChanged {
+            return .nearest(selected)
+        }
+        let undoMovedSelection = requested && new.reveal.reason == .undoRedo
+            && new.selectedTrack != old.selectedTrack
+        guard songOrCountChanged || undoMovedSelection else { return nil }
         return selected == last ? .trailingEdge : .track(selected)
     }
 }
@@ -110,7 +119,8 @@ struct GridView: View {
                 // beside it) is off screen with nothing hinting that the
                 // header scrolls. A song swap, an undone delete or an Undo
                 // that moves the selection picks a column anywhere in the
-                // row; that one is brought on screen.
+                // row; that one is brought on screen. An arrow key nudges
+                // the row only as far as the cursor's column needs.
                 .onChange(of: revealTrigger) { old, new in
                     guard let target = GridReveal.target(from: old, to: new) else { return }
                     withAnimation(.easeOut(duration: 0.2)) {
@@ -122,6 +132,12 @@ struct GridView: View {
                             // to that end with the step numbers showing.
                             if let id = studio.song.tracks[safe: index]?.id {
                                 proxy.scrollTo(id, anchor: .center)
+                            }
+                        case .nearest(let index):
+                            // No anchor: the least scroll that shows the
+                            // whole of the column's cursor frame.
+                            if let id = studio.song.tracks[safe: index]?.id {
+                                proxy.scrollTo(CursorFrameID(track: id), anchor: nil)
                             }
                         }
                     }
@@ -195,10 +211,17 @@ struct GridView: View {
     /// Scroll target for the header row's trailing edge.
     static let trailingEdgeID = "gridTrailingEdge"
 
+    /// Scroll target for a column the arrow keys move the cursor onto.
+    private struct CursorFrameID: Hashable { var track: UUID }
+
+    /// How much of the grid's leading edge the pinned step numbers hide once
+    /// it scrolls: the row's 6 pt inset, the gutter and the 2 pt gap after it.
+    private var pinnedStepsWidth: CGFloat { 6 + gutterWidth + 2 }
+
     private var revealTrigger: GridReveal.Trigger {
         GridReveal.Trigger(songID: studio.song.id, trackCount: studio.song.tracks.count,
                            selectedTrack: studio.selectedTrack,
-                           undoRedoGeneration: studio.undoRedoGeneration)
+                           reveal: studio.revealRequest)
     }
 
     /// Tracks share the width evenly while they fit; past that they take the
@@ -217,6 +240,14 @@ struct GridView: View {
                 TrackHeader(studio: studio, index: index, reordering: reordering, lifted: lifted,
                             move: { destination in move(index, to: destination) })
                     .frame(width: columnWidth)
+                    // What an arrow key scrolls into view: the column plus
+                    // the strip the pinned step numbers cover, so a column
+                    // revealed from the left lands beside them, not under.
+                    .background(alignment: .trailing) {
+                        Color.clear
+                            .frame(width: columnWidth + pinnedStepsWidth, height: 1)
+                            .id(CursorFrameID(track: track.id))
+                    }
                     // The track's own identity, the same one the ForEach
                     // keys on, so a reorder doesn't rebuild the header.
                     .id(track.id)
