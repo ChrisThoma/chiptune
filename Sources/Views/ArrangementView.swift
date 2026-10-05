@@ -192,14 +192,7 @@ struct ArrangementView: View {
                 .fixedSize()
                 .accessibilityHidden(true)
 
-            Stepper("Repeats",
-                    value: Binding(get: { section.repeats },
-                                   set: { studio.setSection(section.id, repeats: $0) }),
-                    in: 1...SongSection.maxRepeats)
-            .labelsHidden()
-            .fixedSize()
-            .accessibilityLabel(RepeatsAccessibility.label(position: position))
-            .accessibilityValue(RepeatsAccessibility.value(section.repeats))
+            repeatsStepper(position: position, section: section)
         }
         .contentShape(Rectangle())
         // Attached to the row container, not the Menu or Stepper, so tapping
@@ -237,6 +230,48 @@ struct ArrangementView: View {
         }
         .accessibilityLabel("Section \(position + 1), pattern \(pattern?.name ?? "none")")
         .accessibilityValue(PatternChipAccessibility.value(playing: playing, isEmpty: pattern?.isEmpty ?? true) ?? "")
+    }
+
+    /// The repeat count's minus/plus pair. Not the system `Stepper`: on iOS 26
+    /// that is a `UIStepper` drawing through a hosted graph of its own, and
+    /// UIKit never releases one once its sheet closes, so every open and
+    /// close of this screen kept a stepper per row alive. Same size as the
+    /// system one, and one adjustable element for VoiceOver as it was.
+    private func repeatsStepper(position: Int, section: SongSection) -> some View {
+        let canDecrease = section.repeats > 1
+        let canIncrease = section.repeats < SongSection.maxRepeats
+        let step = { (delta: Int) in
+            studio.setSection(section.id, repeats: section.repeats + delta)
+        }
+        return HStack(spacing: 0) {
+            stepButton("minus", enabled: canDecrease) { step(-1) }
+            Divider().frame(height: 18)
+            stepButton("plus", enabled: canIncrease) { step(1) }
+        }
+        .background(Capsule().fill(Color.secondary.opacity(0.18)))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(RepeatsAccessibility.label(position: position))
+        .accessibilityValue(RepeatsAccessibility.value(section.repeats))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: if canIncrease { step(1) }
+            case .decrement: if canDecrease { step(-1) }
+            @unknown default: break
+            }
+        }
+    }
+
+    private func stepButton(_ symbol: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.body.weight(.medium))
+                .frame(width: 46, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(enabled ? Color.primary : Color.secondary.opacity(0.4))
+        .hoverEffect(.highlight)
+        .disabled(!enabled)
     }
 
     /// The section number, or the green playing marker in its place.
