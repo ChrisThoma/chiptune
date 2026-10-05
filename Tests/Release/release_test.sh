@@ -91,12 +91,13 @@ echo "release.sh: the version comes from project.yml"
 
 assert_eq "reads MARKETING_VERSION"      "2.5" "$(marketing_version "$(fixture_project 2.5 17)")"
 assert_eq "reads CURRENT_PROJECT_VERSION" "17" "$(build_number     "$(fixture_project 2.5 17)")"
-assert_eq "reads the real project.yml"  "1.0" "$(marketing_version "$ROOT/project.yml")"
-# The expectation is parsed out of project.yml by different means than the
+# The expectations are parsed out of project.yml by different means than the
 # code under test, not written down: a literal here turns every
-# './scripts/release.sh bump' into a test failure, which is how this line
-# broke CI the first time a build actually shipped.
+# './scripts/release.sh bump' into a test failure, which is how these lines
+# broke CI the first time a build actually shipped, and again at 1.0.1.
+real_marketing="$(awk -F'"' '/MARKETING_VERSION:/ {print $2; exit}' "$ROOT/project.yml")"
 real_build="$(awk -F'"' '/CURRENT_PROJECT_VERSION:/ {print $2; exit}' "$ROOT/project.yml")"
+assert_eq "reads the real project.yml"  "$real_marketing" "$(marketing_version "$ROOT/project.yml")"
 assert_eq "reads the real build number" "$real_build" "$(build_number "$ROOT/project.yml")"
 
 echo
@@ -117,14 +118,15 @@ echo "release.sh: an ipa is verified against project.yml before it can be upload
 # Built from whatever project.yml currently ships, for the same reason the
 # build number above is parsed rather than written down: this fixture is
 # "the right artifact", and what's right moves with every bump.
-matching="$(fixture_ipa "$(marketing_version "$ROOT/project.yml")" "$real_build" 1 2)"
+matching="$(fixture_ipa "$real_marketing" "$real_build" 1 2)"
 assert_ok "accepts the ipa the project asked for" \
     verify_ipa "$matching" "$ROOT/project.yml"
 
 # The regression. build/export/Chiptune.ipa was 1.0 (2) while project.yml said
 # 1.0 (4), and every doc pointed at it. This is the assertion that would have
-# caught the build that went to TestFlight.
-stale="$(fixture_ipa 1.0 2 1 2)"
+# caught the build that went to TestFlight. Same train as the project, so
+# only the build number can be what it rejects.
+stale="$(fixture_ipa "$real_marketing" 2 1 2)"
 assert_fails "rejects a stale build number" "build 2" \
     verify_ipa "$stale" "$ROOT/project.yml"
 
@@ -137,7 +139,7 @@ assert_fails "rejects the wrong marketing version" "1.1" \
 # Builds 1 and 2 were iPhone-only. Device family decides which screenshot sets
 # App Store Connect demands, so an iPhone-only binary is the wrong artifact
 # even when its numbers happen to line up.
-phone_only="$(fixture_ipa 1.0 4 1)"
+phone_only="$(fixture_ipa "$real_marketing" "$real_build" 1)"
 assert_fails "rejects an iphone-only build when the project says 1,2" "device family" \
     verify_ipa "$phone_only" "$ROOT/project.yml"
 
