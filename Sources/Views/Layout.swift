@@ -260,7 +260,8 @@ struct ChipLayout: Equatable {
     /// the BPM stepper, the spacing and spacer between them and the row's own
     /// padding. Nothing in it compresses, so drawn in a window narrower than
     /// this it would widen the whole stacked editor and push the grid and keys
-    /// sideways; `TransportBar` stacks instead (see `transportRowFits`).
+    /// sideways; `TransportBar` breaks it into rows instead (see
+    /// `transportForm`).
     /// `stepperEndScale` is the Dynamic Type ratio the stepper ends grow by.
     func transportRowMinimumWidth(stepperEndScale: CGFloat = 1) -> CGFloat {
         ChipLayout.chromeRowPadding * 2
@@ -284,11 +285,46 @@ struct ChipLayout: Equatable {
     }
 
     /// Whether the single transport row fits a chrome `width` wide. When it
-    /// doesn't, `TransportBar` falls back to the stacked form whatever the
-    /// text size. The view decides with `ViewThatFits` against the widths it
-    /// actually draws; this is the same sum, so tests can say which wins.
+    /// doesn't, `TransportBar` falls back to two rows or the stacked form
+    /// whatever the text size (see `transportForm`). The view decides with
+    /// `ViewThatFits` against the widths it actually draws; this is the same
+    /// sum, so tests can say which wins.
     func transportRowFits(width: CGFloat, stepperEndScale: CGFloat = 1) -> Bool {
         transportRowMinimumWidth(stepperEndScale: stepperEndScale) <= width
+    }
+
+    /// The narrowest the two-row transport draws: play and the mode tray at
+    /// their row widths side by side, then the BPM stepper full width under
+    /// them, so it needs the wider of those two rows.
+    func transportTwoRowMinimumWidth(stepperEndScale: CGFloat = 1) -> CGFloat {
+        ChipLayout.chromeRowPadding * 2
+            + max(ChipLayout.playButtonWidth + ChipLayout.chromeRowSpacing + transportModeTrayWidth,
+                  transportStepperWidth(stepperEndScale: stepperEndScale))
+    }
+
+    /// The shapes `TransportBar` takes below accessibility text sizes, which
+    /// always stack.
+    enum TransportForm: Equatable {
+        /// Play, the mode tray and BPM on one row.
+        case row
+        /// Play and the mode tray, then BPM full width under them.
+        case twoRows
+        /// Play, the mode tray and BPM each on a row of their own.
+        case stacked
+    }
+
+    /// Which form a chrome `width` wide gets: the single row when it fits,
+    /// then two rows, then the stacked form as the last resort. Each step
+    /// down costs the grid a row of chrome, so this takes the first that
+    /// fits. `TransportBar`'s `ViewThatFits` tries them in the same order.
+    func transportForm(width: CGFloat, stepperEndScale: CGFloat = 1) -> TransportForm {
+        if transportRowFits(width: width, stepperEndScale: stepperEndScale) {
+            return .row
+        }
+        if transportTwoRowMinimumWidth(stepperEndScale: stepperEndScale) <= width {
+            return .twoRows
+        }
+        return .stacked
     }
 
     /// PATT and SONG segments, the hairline and ARR.

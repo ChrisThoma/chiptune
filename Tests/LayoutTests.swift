@@ -263,32 +263,58 @@ final class LayoutTests: XCTestCase {
     func testTransportKeepsOneRowAtStandardTextOnTheSEAndProMax() {
         XCTAssertTrue(ChipLayout.phone.transportRowFits(width: 375, stepperEndScale: 1))
         XCTAssertTrue(ChipLayout.phone.transportRowFits(width: 440, stepperEndScale: 1))
+        XCTAssertEqual(ChipLayout.phone.transportForm(width: 375, stepperEndScale: 1), .row)
+        XCTAssertEqual(ChipLayout.phone.transportForm(width: 440, stepperEndScale: 1), .row)
+    }
+
+    /// The row needs about 409pt at extra-extra-extra-large, which a 440pt
+    /// Pro Max still has.
+    func testProMaxKeepsOneRowAtLargestStandardText() {
+        XCTAssertEqual(ChipLayout.phone.transportForm(width: 440, stepperEndScale: xxxLargeStepperEndScale),
+                       .row)
     }
 
     /// At extra-extra-extra-large the BPM ends grow to 57pt and the row needs
     /// about 409pt. It never compressed, so on a 375pt SE it widened the
     /// stacked editor and shoved the grid and keys 17pt right off the screen.
-    /// It has to fall back to the stacked form, which fits.
-    func testTransportStacksWhenTheRowOverflowsAnSEAtLargestStandardText() {
+    /// Three rows fit but left about a step and a half of grid; play and the
+    /// mode tray still share a row (241pt), so only BPM drops under them.
+    func testTransportTakesTwoRowsWhenTheRowOverflowsAnSEAtLargestStandardText() {
         let phone = ChipLayout.phone
         XCTAssertGreaterThan(phone.transportRowMinimumWidth(stepperEndScale: xxxLargeStepperEndScale), 375)
         XCTAssertFalse(phone.transportRowFits(width: 375, stepperEndScale: xxxLargeStepperEndScale))
-        XCTAssertLessThanOrEqual(phone.transportStackMinimumWidth(stepperEndScale: xxxLargeStepperEndScale), 375)
+        XCTAssertEqual(phone.transportTwoRowMinimumWidth(stepperEndScale: xxxLargeStepperEndScale), 241)
+        XCTAssertEqual(phone.transportForm(width: 375, stepperEndScale: xxxLargeStepperEndScale), .twoRows)
     }
 
     /// A compact iPad window (Slide Over, a narrow Split View slice) is about
     /// 320pt and gets the phone layout. The row's 371pt can't fit there even
-    /// at standard text, so it has to stack, and the stacked form has to fit
-    /// at every non-accessibility size.
-    func testCompactIPadWindowStacksTheTransport() {
+    /// at standard text, but play and the mode tray (241pt, which the BPM
+    /// stepper under them never outgrows below accessibility sizes) do, so it
+    /// takes two rows at every non-accessibility size.
+    func testCompactIPadWindowTakesTwoTransportRows() {
         let slideOver = CGSize(width: 320, height: 1210)
         let layout = ChipLayout.resolve(size: slideOver, horizontalSizeClass: .compact)
         XCTAssertEqual(layout, .phone)
         XCTAssertGreaterThan(layout.transportRowMinimumWidth(), slideOver.width)
         XCTAssertFalse(layout.transportRowFits(width: slideOver.width, stepperEndScale: 1))
-        XCTAssertLessThanOrEqual(layout.transportStackMinimumWidth(stepperEndScale: 1), slideOver.width)
-        XCTAssertLessThanOrEqual(layout.transportStackMinimumWidth(stepperEndScale: xxxLargeStepperEndScale),
+        XCTAssertLessThanOrEqual(layout.transportTwoRowMinimumWidth(stepperEndScale: 1), slideOver.width)
+        XCTAssertLessThanOrEqual(layout.transportTwoRowMinimumWidth(stepperEndScale: xxxLargeStepperEndScale),
                                  slideOver.width)
+        XCTAssertEqual(layout.transportForm(width: slideOver.width, stepperEndScale: 1), .twoRows)
+        XCTAssertEqual(layout.transportForm(width: slideOver.width, stepperEndScale: xxxLargeStepperEndScale),
+                       .twoRows)
+    }
+
+    /// Narrower than play and the mode tray side by side, the transport
+    /// stacks all three, and the stacked form still fits there.
+    func testTransportStacksOnlyWhenTwoRowsDontFit() {
+        let phone = ChipLayout.phone
+        let twoRows = phone.transportTwoRowMinimumWidth(stepperEndScale: xxxLargeStepperEndScale)
+        XCTAssertEqual(phone.transportForm(width: twoRows, stepperEndScale: xxxLargeStepperEndScale), .twoRows)
+        XCTAssertEqual(phone.transportForm(width: twoRows - 1, stepperEndScale: xxxLargeStepperEndScale), .stacked)
+        XCTAssertLessThanOrEqual(phone.transportStackMinimumWidth(stepperEndScale: xxxLargeStepperEndScale),
+                                 twoRows - 1)
     }
 
     func testChromeStopsSpreadingOnIPadAndNeverDoesOnIPhone() {
