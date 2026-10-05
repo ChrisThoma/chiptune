@@ -254,6 +254,43 @@ final class LayoutTests: XCTestCase {
         XCTAssertLessThanOrEqual(ChipLayout.phone.transportRowMinimumWidth(), 375)
     }
 
+    /// What the stepper ends grow by at extra-extra-extra-large, the largest
+    /// non-accessibility text size: 38pt ends measured 57pt on an iPhone SE.
+    private let xxxLargeStepperEndScale: CGFloat = 57.0 / 38.0
+
+    /// At standard text the single row is what the SE and the Pro Max show,
+    /// unchanged by the stacked fallback.
+    func testTransportKeepsOneRowAtStandardTextOnTheSEAndProMax() {
+        XCTAssertTrue(ChipLayout.phone.transportRowFits(width: 375, stepperEndScale: 1))
+        XCTAssertTrue(ChipLayout.phone.transportRowFits(width: 440, stepperEndScale: 1))
+    }
+
+    /// At extra-extra-extra-large the BPM ends grow to 57pt and the row needs
+    /// about 409pt. It never compressed, so on a 375pt SE it widened the
+    /// stacked editor and shoved the grid and keys 17pt right off the screen.
+    /// It has to fall back to the stacked form, which fits.
+    func testTransportStacksWhenTheRowOverflowsAnSEAtLargestStandardText() {
+        let phone = ChipLayout.phone
+        XCTAssertGreaterThan(phone.transportRowMinimumWidth(stepperEndScale: xxxLargeStepperEndScale), 375)
+        XCTAssertFalse(phone.transportRowFits(width: 375, stepperEndScale: xxxLargeStepperEndScale))
+        XCTAssertLessThanOrEqual(phone.transportStackMinimumWidth(stepperEndScale: xxxLargeStepperEndScale), 375)
+    }
+
+    /// A compact iPad window (Slide Over, a narrow Split View slice) is about
+    /// 320pt and gets the phone layout. The row's 371pt can't fit there even
+    /// at standard text, so it has to stack, and the stacked form has to fit
+    /// at every non-accessibility size.
+    func testCompactIPadWindowStacksTheTransport() {
+        let slideOver = CGSize(width: 320, height: 1210)
+        let layout = ChipLayout.resolve(size: slideOver, horizontalSizeClass: .compact)
+        XCTAssertEqual(layout, .phone)
+        XCTAssertGreaterThan(layout.transportRowMinimumWidth(), slideOver.width)
+        XCTAssertFalse(layout.transportRowFits(width: slideOver.width, stepperEndScale: 1))
+        XCTAssertLessThanOrEqual(layout.transportStackMinimumWidth(stepperEndScale: 1), slideOver.width)
+        XCTAssertLessThanOrEqual(layout.transportStackMinimumWidth(stepperEndScale: xxxLargeStepperEndScale),
+                                 slideOver.width)
+    }
+
     func testChromeStopsSpreadingOnIPadAndNeverDoesOnIPhone() {
         let pad = ChipLayout.resolve(size: padLandscape, horizontalSizeClass: .regular)
         XCTAssertLessThan(pad.chromeMaxWidth,

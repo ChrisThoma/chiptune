@@ -31,23 +31,17 @@ struct TransportBar: View {
     var body: some View {
         Group {
             if dynamicTypeSize.isAccessibilitySize {
-                VStack(spacing: 8) {
-                    HStack(spacing: 8) {
-                        playButton
-                        Spacer(minLength: 0)
-                    }
-                    modeTray.frame(maxWidth: .infinity)
-                    tempoStepper
-                }
+                stacked
             } else {
-                // Every width in this row is fixed but the spacer's, so it
-                // has to add up within the narrowest phone; see
-                // `ChipLayout.transportRowMinimumWidth`.
-                HStack(spacing: ChipLayout.chromeRowSpacing) {
-                    playButton
-                    modeTray
-                    Spacer(minLength: ChipLayout.transportTrayGap)
-                    tempoStepper
+                // Every width in the row is fixed but the spacer's, so it
+                // can't compress: drawn wider than the window, it widened the
+                // whole stacked editor and pushed the grid and keys off the
+                // right edge (a 375pt SE at extra-extra-extra-large, a 320pt
+                // Slide Over window at any size). Stack whenever it doesn't
+                // fit; `ChipLayout.transportRowFits` is the same sum.
+                ViewThatFits(in: .horizontal) {
+                    row
+                    stacked
                 }
             }
         }
@@ -69,6 +63,28 @@ struct TransportBar: View {
             }
         } message: {
             Text("40 to 300 BPM")
+        }
+    }
+
+    /// Play, the mode tray and BPM side by side, BPM pushed to the far end.
+    private var row: some View {
+        HStack(spacing: ChipLayout.chromeRowSpacing) {
+            playButton
+            modeTray(stretched: false)
+            Spacer(minLength: ChipLayout.transportTrayGap)
+            tempoStepper(stretched: false)
+        }
+    }
+
+    /// Play on a row of its own, then the mode tray and BPM full width under it.
+    private var stacked: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                playButton
+                Spacer(minLength: 0)
+            }
+            modeTray(stretched: true).frame(maxWidth: .infinity)
+            tempoStepper(stretched: true)
         }
     }
 
@@ -95,17 +111,19 @@ struct TransportBar: View {
         .accessibilityLabel(studio.isPlaying ? "Stop" : "Play")
     }
 
-    private var modeTray: some View {
+    /// `stretched` drops the fixed segment widths so the tray fills the
+    /// stacked layout's full row.
+    private func modeTray(stretched: Bool) -> some View {
         HStack(spacing: 0) {
-            modeToggle
+            modeToggle(stretched: stretched)
             TrayDivider()
             Button { showingArrangement = true } label: {
                 Text("ARR")
                     .chipFont(11, weight: .semibold)
                     .foregroundStyle(Theme.text)
-                    .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : layout.arrButtonWidth,
+                    .frame(width: stretched ? nil : layout.arrButtonWidth,
                            height: trayHeight)
-                    .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
+                    .frame(maxWidth: stretched ? .infinity : nil)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -128,7 +146,7 @@ struct TransportBar: View {
 
     /// The value is a button as well as a readout — nudging from 120 to 174
     /// four BPM at a time is nobody's idea of a good afternoon.
-    private var tempoStepper: some View {
+    private func tempoStepper(stretched: Bool) -> some View {
         ChipStepper(label: "BPM",
                     value: Int(studio.song.tempo),
                     range: Int(Chip.tempoRange.lowerBound)...Int(Chip.tempoRange.upperBound),
@@ -137,28 +155,29 @@ struct TransportBar: View {
                         tempoText = String(Int(studio.song.tempo))
                         editingTempo = true
                     })
-            .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
+            .frame(maxWidth: stretched ? .infinity : nil)
             .chipTray()
     }
 
     /// PATT loops the pattern you're editing so you can work on it; SONG plays
     /// the arrangement from the top.
-    private var modeToggle: some View {
+    private func modeToggle(stretched: Bool) -> some View {
         HStack(spacing: 0) {
-            segment("PATT", on: !studio.songMode) { studio.setSongMode(false) }
-            segment("SONG", on: studio.songMode) { studio.setSongMode(true) }
+            segment("PATT", on: !studio.songMode, stretched: stretched) { studio.setSongMode(false) }
+            segment("SONG", on: studio.songMode, stretched: stretched) { studio.setSongMode(true) }
         }
-        .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
+        .frame(maxWidth: stretched ? .infinity : nil)
     }
 
-    private func segment(_ title: String, on: Bool, action: @escaping () -> Void) -> some View {
+    private func segment(_ title: String, on: Bool, stretched: Bool,
+                         action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .chipFont(11, weight: on ? .bold : .semibold)
                 .foregroundStyle(on ? Theme.onLight : Theme.dim)
-                .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : layout.patternSegmentWidth,
+                .frame(width: stretched ? nil : layout.patternSegmentWidth,
                        height: trayHeight)
-                .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
+                .frame(maxWidth: stretched ? .infinity : nil)
                 .contentShape(Rectangle())
                 .background(
                     RoundedRectangle(cornerRadius: Theme.innerRadius)
