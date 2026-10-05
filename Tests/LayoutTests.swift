@@ -246,6 +246,14 @@ final class LayoutTests: XCTestCase {
         XCTAssertLessThanOrEqual(total, 600)
     }
 
+    /// Nothing in the transport row compresses, so at 383pt it made the
+    /// stacked editor 383pt wide on a 375pt iPhone SE: the grid and keys sat
+    /// 4pt right of where they belong and the last track column lost 4pt off
+    /// the screen edge.
+    func testPhoneTransportRowFitsA375ptScreen() {
+        XCTAssertLessThanOrEqual(ChipLayout.phone.transportRowMinimumWidth(), 375)
+    }
+
     func testChromeStopsSpreadingOnIPadAndNeverDoesOnIPhone() {
         let pad = ChipLayout.resolve(size: padLandscape, horizontalSizeClass: .regular)
         XCTAssertLessThan(pad.chromeMaxWidth,

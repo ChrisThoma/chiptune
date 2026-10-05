@@ -40,15 +40,18 @@ struct TransportBar: View {
                     tempoStepper
                 }
             } else {
-                HStack(spacing: 8) {
+                // Every width in this row is fixed but the spacer's, so it
+                // has to add up within the narrowest phone; see
+                // `ChipLayout.transportRowMinimumWidth`.
+                HStack(spacing: ChipLayout.chromeRowSpacing) {
                     playButton
                     modeTray
-                    Spacer(minLength: 12)
+                    Spacer(minLength: ChipLayout.transportTrayGap)
                     tempoStepper
                 }
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, ChipLayout.chromeRowPadding)
         .padding(.bottom, 8)
         .reportsPresentation(.tempoAlert, isPresented: editingTempo, studio: studio)
         .background {
@@ -79,7 +82,7 @@ struct TransportBar: View {
             Image(systemName: studio.isPlaying ? "stop.fill" : "play.fill")
                 .symbolFont(18)
                 .foregroundStyle(Theme.onLight)
-                .frame(width: 56, height: trayHeight)
+                .frame(width: ChipLayout.playButtonWidth, height: trayHeight)
                 .background(
                     RoundedRectangle(cornerRadius: Theme.trayRadius)
                         .fill(studio.isPlaying ? Theme.accentRed : Theme.accentGreen)

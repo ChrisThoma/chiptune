@@ -95,10 +95,12 @@ private struct ChipFont: ViewModifier {
 
 /// Hairline between segments inside a `chipTray`.
 struct TrayDivider: View {
+    static let width: CGFloat = 1
+
     var body: some View {
         Rectangle()
             .fill(Theme.divider)
-            .frame(width: 1)
+            .frame(width: Self.width)
             .padding(.vertical, 8)
     }
 }

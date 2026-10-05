@@ -243,6 +243,36 @@ struct ChipLayout: Equatable {
     /// the row-width arithmetic below matches what it draws.
     static let addColumnWidth: CGFloat = 44
 
+    /// The transport row's fixed pieces, shared with `TransportBar` and
+    /// `ChipStepper` so the width arithmetic below matches what they draw.
+    static let chromeRowPadding: CGFloat = 12
+    static let chromeRowSpacing: CGFloat = 8
+    static let playButtonWidth: CGFloat = 56
+    static let stepperReadoutMinWidth: CGFloat = 38
+    /// The least room the spacer between the mode tray and the BPM stepper
+    /// keeps, on top of the row spacing either side of it. Zero: the 16pt of
+    /// spacing already parts the two trays, and the 12pt this used to be took
+    /// the row to 383pt, past a 375pt iPhone SE. Wider phones never reach the
+    /// floor, so the spacer still pushes BPM to the far end there.
+    static let transportTrayGap: CGFloat = 0
+
+    /// The narrowest the transport row can draw: play, the PATT/SONG/ARR tray,
+    /// the BPM stepper, the spacing and spacer between them and the row's own
+    /// padding. Nothing in it compresses, so a window narrower than this
+    /// widens the whole stacked editor and pushes the grid and keys sideways.
+    /// `stepperEndScale` is the Dynamic Type ratio the stepper ends grow by.
+    func transportRowMinimumWidth(stepperEndScale: CGFloat = 1) -> CGFloat {
+        let modeTray = patternSegmentWidth * 2 + TrayDivider.width + arrButtonWidth
+        let stepper = stepperEndWidth * stepperEndScale * 2 + ChipLayout.stepperReadoutMinWidth
+        return ChipLayout.chromeRowPadding * 2
+            + ChipLayout.playButtonWidth
+            + modeTray
+            + ChipLayout.transportTrayGap
+            + stepper
+            // Between play, the mode tray, the spacer and the stepper.
+            + ChipLayout.chromeRowSpacing * 3
+    }
+
     /// Tracks share the available width evenly while they fit; past that they
     /// take `gridMinColumnWidth` and the row overflows into the horizontal
     /// scroll.

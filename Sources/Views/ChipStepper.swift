@@ -88,7 +88,7 @@ struct ChipStepper: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
-        .frame(minWidth: 38)
+        .frame(minWidth: ChipLayout.stepperReadoutMinWidth)
         .frame(height: trayHeight)
         .contentShape(Rectangle())
     }
