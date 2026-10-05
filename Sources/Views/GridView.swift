@@ -7,7 +7,38 @@ import SwiftUI
 /// Keeps the step-number column at the leading edge of a grid that scrolls
 /// sideways: each label is shifted by how far the grid has scrolled.
 enum GridPinning {
+    /// The rows' leading inset, before the step number.
+    static let rowInset: CGFloat = 6
+    /// The gap between the step number and the first column, and between columns.
+    static let columnGap: CGFloat = 2
+
+    /// The cursor ring's stroke, centred on the cell's edge.
+    static let cursorRingWidth: CGFloat = 2
+
     static func labelOffset(scrollX: CGFloat) -> CGFloat { max(0, scrollX) }
+
+    /// How much of the grid's leading edge the pinned step numbers hide once
+    /// it scrolls: the inset, the gutter and the gap after it.
+    static func stripWidth(gutterWidth: CGFloat) -> CGFloat {
+        rowInset + gutterWidth + columnGap
+    }
+
+    /// How far left of a column an arrow-key reveal keeps clear: the strip
+    /// plus the ring's outer half, so a column revealed from the left lands
+    /// beside the backing with its whole cursor ring showing.
+    static func revealClearance(gutterWidth: CGFloat) -> CGFloat {
+        stripWidth(gutterWidth: gutterWidth) + cursorRingWidth / 2
+    }
+
+    /// The step label's opaque backing, in the label's own coordinates. Once
+    /// the grid scrolls it spans the whole strip, so a column sliding under
+    /// shows neither in the inset before the label nor in the gap after it.
+    /// At rest it's the gutter alone: nothing is underneath, and the first
+    /// column's edge stroke and cursor ring spill into the gap.
+    static func backing(gutterWidth: CGFloat, scrollX: CGFloat) -> (leading: CGFloat, width: CGFloat) {
+        guard scrollX > 0 else { return (leading: 0, width: gutterWidth) }
+        return (leading: -rowInset, width: stripWidth(gutterWidth: gutterWidth))
+    }
 }
 
 /// Where the grid scrolls sideways when the song or its track count changes
@@ -214,10 +245,6 @@ struct GridView: View {
     /// Scroll target for a column the arrow keys move the cursor onto.
     private struct CursorFrameID: Hashable { var track: UUID }
 
-    /// How much of the grid's leading edge the pinned step numbers hide once
-    /// it scrolls: the row's 6 pt inset, the gutter and the 2 pt gap after it.
-    private var pinnedStepsWidth: CGFloat { 6 + gutterWidth + 2 }
-
     private var revealTrigger: GridReveal.Trigger {
         GridReveal.Trigger(songID: studio.song.id, trackCount: studio.song.tracks.count,
                            selectedTrack: studio.selectedTrack,
@@ -232,7 +259,7 @@ struct GridView: View {
     }
 
     private func header(columnWidth: CGFloat) -> some View {
-        HStack(spacing: 2) {
+        HStack(spacing: GridPinning.columnGap) {
             // Height-constrained so it doesn't stretch the header row.
             Color.clear.frame(width: gutterWidth, height: 1)
             ForEach(Array(studio.song.tracks.enumerated()), id: \.element.id) { index, track in
@@ -245,7 +272,8 @@ struct GridView: View {
                     // revealed from the left lands beside them, not under.
                     .background(alignment: .trailing) {
                         Color.clear
-                            .frame(width: columnWidth + pinnedStepsWidth, height: 1)
+                            .frame(width: columnWidth + GridPinning.revealClearance(gutterWidth: gutterWidth),
+                                   height: 1)
                             .id(CursorFrameID(track: track.id))
                     }
                     // The track's own identity, the same one the ForEach
@@ -272,7 +300,7 @@ struct GridView: View {
             }
         }
         .id(GridView.trailingEdgeID)
-        .padding(.horizontal, 6)
+        .padding(.horizontal, GridPinning.rowInset)
         .padding(.bottom, 4)
     }
 
@@ -395,14 +423,22 @@ struct GridView: View {
     }
 
     private func row(step: Int, columnWidth: CGFloat) -> some View {
-        HStack(spacing: 2) {
+        let backing = GridPinning.backing(gutterWidth: gutterWidth, scrollX: scrollX)
+        return HStack(spacing: GridPinning.columnGap) {
             Text(String(format: "%02d", step))
                 .chipFont(11)
                 .foregroundStyle(step % 4 == 0 ? Theme.text : Theme.dim)
                 .frame(width: gutterWidth, height: rowHeight)
                 // Pinned: counter the horizontal scroll, over an opaque
-                // backing so cells slide underneath instead of through.
-                .background(Theme.background)
+                // backing so cells slide underneath instead of through. It
+                // carries the playhead highlight, so the playing row stays
+                // lit across the strip rather than going dark under it.
+                .background(alignment: .leading) {
+                    rowHighlight(step: step)
+                        .background(Theme.background)
+                        .frame(width: backing.width)
+                        .offset(x: backing.leading)
+                }
                 .offset(x: GridPinning.labelOffset(scrollX: scrollX))
                 .zIndex(2)
 
@@ -418,13 +454,13 @@ struct GridView: View {
                 Color.clear.frame(width: addColumnWidth, height: 1)
             }
         }
-        .padding(.horizontal, 6)
+        .padding(.horizontal, GridPinning.rowInset)
         .frame(height: rowHeight)
-        .background(
-            showsPlayhead && studio.playhead == step
-                ? Color.white.opacity(0.14)
-                : Color.clear
-        )
+        .background(rowHighlight(step: step))
+    }
+
+    private func rowHighlight(step: Int) -> Color {
+        showsPlayhead && studio.playhead == step ? Color.white.opacity(0.14) : Color.clear
     }
 
 }
@@ -497,7 +533,7 @@ private struct GridCell: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.cellRadius)
-                    .stroke(cursorRing, lineWidth: 2)
+                    .stroke(cursorRing, lineWidth: GridPinning.cursorRingWidth)
             )
             // What `.buttonStyle(.plain)` used to do. Without it a tap has no
             // touch-down feedback at all and the grid reads as a picture.
