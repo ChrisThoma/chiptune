@@ -14,11 +14,14 @@ enum GridPinning {
 /// under it: to the selected track, so the column notes go into is on screen.
 /// An import, a song switch, an undone delete or a duplicate all select a
 /// track that need not be the last one, and the grid used to be left at its
-/// trailing edge with that header scrolled out of sight.
+/// trailing edge with that header scrolled out of sight. An Undo or Redo that
+/// hands the selection to another track is brought on screen the same way.
 enum GridReveal {
     struct Trigger: Equatable {
         var songID: UUID
         var trackCount: Int
+        var selectedTrack: Int
+        var undoRedoGeneration: Int
     }
 
     enum Target: Equatable {
@@ -28,11 +31,15 @@ enum GridReveal {
     }
 
     /// Nil leaves the scroll where the user put it: a delete or an edit that
-    /// adds no column has nothing new to show.
-    static func target(from old: Trigger, to new: Trigger, selectedTrack: Int) -> Target? {
-        guard new.songID != old.songID || new.trackCount > old.trackCount else { return nil }
+    /// adds no column has nothing new to show, and a selection moved by the
+    /// arrow keys, a tap or playback is scrolled by whatever moved it.
+    static func target(from old: Trigger, to new: Trigger) -> Target? {
+        let undoMovedSelection = new.undoRedoGeneration != old.undoRedoGeneration
+            && new.selectedTrack != old.selectedTrack
+        guard new.songID != old.songID || new.trackCount > old.trackCount || undoMovedSelection
+        else { return nil }
         let last = max(new.trackCount - 1, 0)
-        let selected = min(max(selectedTrack, 0), last)
+        let selected = min(max(new.selectedTrack, 0), last)
         return selected == last ? .trailingEdge : .track(selected)
     }
 }
@@ -101,12 +108,11 @@ struct GridView: View {
                 // A new track lands selected at the trailing edge, past where
                 // the row was clipped — without this the column (and the "+"
                 // beside it) is off screen with nothing hinting that the
-                // header scrolls. A song swap or an undone delete selects a
-                // column anywhere in the row; that one is brought on screen.
+                // header scrolls. A song swap, an undone delete or an Undo
+                // that moves the selection picks a column anywhere in the
+                // row; that one is brought on screen.
                 .onChange(of: revealTrigger) { old, new in
-                    guard let target = GridReveal.target(from: old, to: new,
-                                                         selectedTrack: studio.selectedTrack)
-                    else { return }
+                    guard let target = GridReveal.target(from: old, to: new) else { return }
                     withAnimation(.easeOut(duration: 0.2)) {
                         switch target {
                         case .trailingEdge:
@@ -190,7 +196,9 @@ struct GridView: View {
     static let trailingEdgeID = "gridTrailingEdge"
 
     private var revealTrigger: GridReveal.Trigger {
-        GridReveal.Trigger(songID: studio.song.id, trackCount: studio.song.tracks.count)
+        GridReveal.Trigger(songID: studio.song.id, trackCount: studio.song.tracks.count,
+                           selectedTrack: studio.selectedTrack,
+                           undoRedoGeneration: studio.undoRedoGeneration)
     }
 
     /// Tracks share the width evenly while they fit; past that they take the

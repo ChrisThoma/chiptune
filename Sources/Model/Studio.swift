@@ -39,6 +39,10 @@ final class Studio {
     /// a flag that was already true would swallow the second; the editor
     /// watches it and closes whatever it has up.
     private(set) var dismissRequests = 0
+    /// Bumped by each Undo or Redo that restored a snapshot. The grid watches
+    /// it to bring a selection the undo moved back on screen, without
+    /// scrolling for the arrow keys, taps and playback that move it too.
+    private(set) var undoRedoGeneration = 0
     /// Index into `song.patterns` — the pattern the grid is editing.
     var selectedPattern: Int = 0
     /// PATT loops the pattern being edited; SONG follows the arrangement.
@@ -330,6 +334,7 @@ final class Studio {
         // itself into whatever was undone. Same for a named run: typing after
         // an undo must not fold into the step the undo just restored.
         history.closeFolding()
+        undoRedoGeneration += 1
     }
 
     private func resetHistory() {
