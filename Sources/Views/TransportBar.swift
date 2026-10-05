@@ -37,10 +37,13 @@ struct TransportBar: View {
                 // can't compress: drawn wider than the window, it widened the
                 // whole stacked editor and pushed the grid and keys off the
                 // right edge (a 375pt SE at extra-extra-extra-large, a 320pt
-                // Slide Over window at any size). Stack whenever it doesn't
-                // fit; `ChipLayout.transportRowFits` is the same sum.
+                // Slide Over window at any size). When it doesn't fit, drop
+                // BPM to a row of its own, and stack all three only when play
+                // and the mode tray don't fit side by side either. The order
+                // matches `ChipLayout.transportForm`, which is the same sums.
                 ViewThatFits(in: .horizontal) {
                     row
+                    twoRows
                     stacked
                 }
             }
@@ -73,6 +76,19 @@ struct TransportBar: View {
             modeTray(stretched: false)
             Spacer(minLength: ChipLayout.transportTrayGap)
             tempoStepper(stretched: false)
+        }
+    }
+
+    /// Play and the mode tray at their row widths, then BPM full width under
+    /// them: a row of chrome less than `stacked`, which the grid gets back.
+    private var twoRows: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: ChipLayout.chromeRowSpacing) {
+                playButton
+                modeTray(stretched: false)
+                Spacer(minLength: 0)
+            }
+            tempoStepper(stretched: true)
         }
     }
 
