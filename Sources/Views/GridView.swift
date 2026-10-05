@@ -10,6 +10,33 @@ enum GridPinning {
     static func labelOffset(scrollX: CGFloat) -> CGFloat { max(0, scrollX) }
 }
 
+/// Where the grid scrolls sideways when the song or its track count changes
+/// under it: to the selected track, so the column notes go into is on screen.
+/// An import, a song switch, an undone delete or a duplicate all select a
+/// track that need not be the last one, and the grid used to be left at its
+/// trailing edge with that header scrolled out of sight.
+enum GridReveal {
+    struct Trigger: Equatable {
+        var songID: UUID
+        var trackCount: Int
+    }
+
+    enum Target: Equatable {
+        /// The last track and the "+" beside it.
+        case trailingEdge
+        case track(Int)
+    }
+
+    /// Nil leaves the scroll where the user put it: a delete or an edit that
+    /// adds no column has nothing new to show.
+    static func target(from old: Trigger, to new: Trigger, selectedTrack: Int) -> Target? {
+        guard new.songID != old.songID || new.trackCount > old.trackCount else { return nil }
+        let last = max(new.trackCount - 1, 0)
+        let selected = min(max(selectedTrack, 0), last)
+        return selected == last ? .trailingEdge : .track(selected)
+    }
+}
+
 /// Reports the horizontal scroll offset where the system can (iOS 18+); on
 /// iOS 17 the step labels simply scroll with the grid as they always did.
 private struct HorizontalOffsetReader: ViewModifier {
@@ -68,15 +95,29 @@ struct GridView: View {
                     }
                 }
                 .modifier(HorizontalOffsetReader(offset: $scrollX))
+                .onChange(of: studio.song.tracks.count) { _, _ in
+                    if !studio.song.canReorderTracks { endReordering() }
+                }
                 // A new track lands selected at the trailing edge, past where
                 // the row was clipped — without this the column (and the "+"
                 // beside it) is off screen with nothing hinting that the
-                // header scrolls.
-                .onChange(of: studio.song.tracks.count) { old, new in
-                    if !studio.song.canReorderTracks { endReordering() }
-                    guard new > old else { return }
+                // header scrolls. A song swap or an undone delete selects a
+                // column anywhere in the row; that one is brought on screen.
+                .onChange(of: revealTrigger) { old, new in
+                    guard let target = GridReveal.target(from: old, to: new,
+                                                         selectedTrack: studio.selectedTrack)
+                    else { return }
                     withAnimation(.easeOut(duration: 0.2)) {
-                        proxy.scrollTo(GridView.trailingEdgeID, anchor: .trailing)
+                        switch target {
+                        case .trailingEdge:
+                            proxy.scrollTo(GridView.trailingEdgeID, anchor: .trailing)
+                        case .track(let index):
+                            // Centred, so a column next to either end clamps
+                            // to that end with the step numbers showing.
+                            if let id = studio.song.tracks[safe: index]?.id {
+                                proxy.scrollTo(id, anchor: .center)
+                            }
+                        }
                     }
                 }
             }
@@ -148,6 +189,10 @@ struct GridView: View {
     /// Scroll target for the header row's trailing edge.
     static let trailingEdgeID = "gridTrailingEdge"
 
+    private var revealTrigger: GridReveal.Trigger {
+        GridReveal.Trigger(songID: studio.song.id, trackCount: studio.song.tracks.count)
+    }
+
     /// Tracks share the width evenly while they fit; past that they take the
     /// minimum and the row overflows into the horizontal scroll.
     private func columnWidth(forAvailable width: CGFloat) -> CGFloat {
@@ -164,6 +209,9 @@ struct GridView: View {
                 TrackHeader(studio: studio, index: index, reordering: reordering, lifted: lifted,
                             move: { destination in move(index, to: destination) })
                     .frame(width: columnWidth)
+                    // The track's own identity, the same one the ForEach
+                    // keys on, so a reorder doesn't rebuild the header.
+                    .id(track.id)
                     .offset(x: columnOffset(index: index, id: track.id, columnWidth: columnWidth))
                     .zIndex(lifted ? 1 : 0)
                     // Simultaneous, so the name and mute buttons inside keep
