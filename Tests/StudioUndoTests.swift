@@ -286,6 +286,33 @@ final class StudioUndoTests: XCTestCase {
         XCTAssertEqual(studio.song.patterns[0].rows[1][1], Chip.emptyNote)
     }
 
+    // MARK: Grid reveal
+
+    /// The grid brings the selected column on screen after an Undo or Redo
+    /// moves the selection, and only then: a counter, so it can tell an undo
+    /// from an arrow key or a tap that moved the selection the same way.
+    func testUndoAndRedoEachBumpTheUndoRedoGeneration() {
+        studio.toggleCell(track: 0, step: 0)
+        let start = studio.undoRedoGeneration
+
+        studio.undo()
+        XCTAssertEqual(studio.undoRedoGeneration, start + 1)
+        studio.redo()
+        XCTAssertEqual(studio.undoRedoGeneration, start + 2)
+    }
+
+    func testEditsSelectionAndAnEmptyUndoLeaveTheGenerationAlone() {
+        let start = studio.undoRedoGeneration
+
+        studio.undo()
+        studio.redo()
+        studio.toggleCell(track: 0, step: 0)
+        studio.selectedTrack = 2
+
+        XCTAssertEqual(studio.undoRedoGeneration, start,
+                       "only an undo or redo that ran may ask the grid to scroll")
+    }
+
     // MARK: Bounds and lifecycle
 
     func testTheStackIsCapped() {
