@@ -51,18 +51,25 @@ struct ExportSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    Stepper(value: $options.loopCount, in: 1...ExportOptions.maxLoopCount) {
-                        HStack {
-                            Text("Repeats")
-                            Spacer()
-                            Text("\(options.loopCount)×")
-                                .chipFont(15, weight: .bold)
-                                .foregroundStyle(Theme.dim)
-                        }
+                    HStack {
+                        // The stepper carries both for VoiceOver, as one
+                        // adjustable "Repeats" element.
+                        Text("Repeats")
+                            .accessibilityHidden(true)
+                        Spacer()
+                        Text("\(options.loopCount)×")
+                            .chipFont(15, weight: .bold)
+                            .foregroundStyle(Theme.dim)
+                            .accessibilityHidden(true)
+                        // Not the system Stepper; see PlainStepper.
+                        PlainStepper(value: $options.loopCount,
+                                     range: 1...ExportOptions.maxLoopCount,
+                                     isEnabled: !settingsLocked,
+                                     accessibilityLabel: "Repeats",
+                                     accessibilityValue: Format.count(options.loopCount, "time"))
                     }
-                    .disabled(settingsLocked)
                     // The stepper's own disabled styling is barely visible
-                    // against this row, so dim it explicitly.
+                    // against this row, so dim the whole row explicitly.
                     .opacity(settingsLocked ? 0.4 : 1)
                 } footer: {
                     Text("The whole arrangement, \(Format.count(options.loopCount, "time")) — \(duration).")
