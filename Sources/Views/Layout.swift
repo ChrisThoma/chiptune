@@ -258,19 +258,47 @@ struct ChipLayout: Equatable {
 
     /// The narrowest the transport row can draw: play, the PATT/SONG/ARR tray,
     /// the BPM stepper, the spacing and spacer between them and the row's own
-    /// padding. Nothing in it compresses, so a window narrower than this
-    /// widens the whole stacked editor and pushes the grid and keys sideways.
+    /// padding. Nothing in it compresses, so drawn in a window narrower than
+    /// this it would widen the whole stacked editor and push the grid and keys
+    /// sideways; `TransportBar` stacks instead (see `transportRowFits`).
     /// `stepperEndScale` is the Dynamic Type ratio the stepper ends grow by.
     func transportRowMinimumWidth(stepperEndScale: CGFloat = 1) -> CGFloat {
-        let modeTray = patternSegmentWidth * 2 + TrayDivider.width + arrButtonWidth
-        let stepper = stepperEndWidth * stepperEndScale * 2 + ChipLayout.stepperReadoutMinWidth
-        return ChipLayout.chromeRowPadding * 2
+        ChipLayout.chromeRowPadding * 2
             + ChipLayout.playButtonWidth
-            + modeTray
+            + transportModeTrayWidth
             + ChipLayout.transportTrayGap
-            + stepper
+            + transportStepperWidth(stepperEndScale: stepperEndScale)
             // Between play, the mode tray, the spacer and the stepper.
             + ChipLayout.chromeRowSpacing * 3
+    }
+
+    /// The narrowest the stacked transport draws: play on its own row, then
+    /// the mode tray, then the BPM stepper, so it needs only the widest of the
+    /// three. The mode tray stretches when stacked; its fixed row width is an
+    /// upper bound on what it needs.
+    func transportStackMinimumWidth(stepperEndScale: CGFloat = 1) -> CGFloat {
+        ChipLayout.chromeRowPadding * 2
+            + max(ChipLayout.playButtonWidth + ChipLayout.chromeRowSpacing,
+                  transportModeTrayWidth,
+                  transportStepperWidth(stepperEndScale: stepperEndScale))
+    }
+
+    /// Whether the single transport row fits a chrome `width` wide. When it
+    /// doesn't, `TransportBar` falls back to the stacked form whatever the
+    /// text size. The view decides with `ViewThatFits` against the widths it
+    /// actually draws; this is the same sum, so tests can say which wins.
+    func transportRowFits(width: CGFloat, stepperEndScale: CGFloat = 1) -> Bool {
+        transportRowMinimumWidth(stepperEndScale: stepperEndScale) <= width
+    }
+
+    /// PATT and SONG segments, the hairline and ARR.
+    private var transportModeTrayWidth: CGFloat {
+        patternSegmentWidth * 2 + TrayDivider.width + arrButtonWidth
+    }
+
+    /// Two stepper ends and the readout between them.
+    private func transportStepperWidth(stepperEndScale: CGFloat) -> CGFloat {
+        stepperEndWidth * stepperEndScale * 2 + ChipLayout.stepperReadoutMinWidth
     }
 
     /// Tracks share the available width evenly while they fit; past that they
