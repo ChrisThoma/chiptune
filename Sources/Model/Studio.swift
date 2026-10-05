@@ -39,10 +39,11 @@ final class Studio {
     /// a flag that was already true would swallow the second; the editor
     /// watches it and closes whatever it has up.
     private(set) var dismissRequests = 0
-    /// Bumped by each Undo or Redo that restored a snapshot. The grid watches
-    /// it to bring a selection the undo moved back on screen, without
-    /// scrolling for the arrow keys, taps and playback that move it too.
-    private(set) var undoRedoGeneration = 0
+    /// Asks the grid to bring the selected track's column on screen. Bumped by
+    /// each Undo or Redo that restored a snapshot and by each Left or Right
+    /// arrow, so the grid can tell those from the taps, reorder drags and
+    /// playback that move the selection too and keep their own scrolling.
+    private(set) var revealRequest = RevealRequest()
     /// Index into `song.patterns` — the pattern the grid is editing.
     var selectedPattern: Int = 0
     /// PATT loops the pattern being edited; SONG follows the arrangement.
@@ -334,7 +335,7 @@ final class Studio {
         // itself into whatever was undone. Same for a named run: typing after
         // an undo must not fold into the step the undo just restored.
         history.closeFolding()
-        undoRedoGeneration += 1
+        revealRequest.bump(.undoRedo)
     }
 
     private func resetHistory() {
@@ -539,6 +540,11 @@ final class Studio {
 
     /// Arrow-key movement. Stops at the edges rather than wrapping: an arrow
     /// held down should come to rest somewhere predictable.
+    ///
+    /// Left and Right also ask the grid to follow sideways: with more tracks
+    /// than fit, the cursor would otherwise walk off screen and Return write
+    /// into a column nobody can see. Asked even at the end of the row, so a
+    /// cursor scrolled out of sight comes back the way a caret does.
     func moveCursor(track trackDelta: Int = 0, step stepDelta: Int = 0) {
         hardwareKeyboardInUse = true
         clampCursor()
@@ -546,6 +552,7 @@ final class Studio {
             .clamped(to: 0...max(song.tracks.count - 1, 0))
         selectedStep = (selectedStep + stepDelta)
             .clamped(to: 0...max(patternLength - 1, 0))
+        if trackDelta != 0 { revealRequest.bump(.cursor) }
     }
 
     /// Follows a tap, but only once the keyboard is in play. A touch-only
@@ -1473,6 +1480,29 @@ final class Studio {
         let drums: [Int8] = [60, -1, -1, 60, -1, -1, 60, -1, -1, 60, -1, -1, 60, -1, 60, -1]
         for (i, notes) in [lead, harmony, bass, drums].enumerated() {
             for (step, n) in notes.enumerated() { song.patterns[0].rows[i][step] = n }
+        }
+    }
+}
+
+extension Studio {
+    /// A request for the grid to bring the selected track's column on screen.
+    /// Counted rather than flagged, because two presses are two requests and
+    /// a flag that was already set would swallow the second.
+    struct RevealRequest: Equatable {
+        enum Reason: Equatable {
+            /// A snapshot was restored. Revealed only when that moved the
+            /// selection, and centred, since it may land anywhere in the row.
+            case undoRedo
+            /// Left or Right. Scrolled just far enough, like a text caret.
+            case cursor
+        }
+
+        var generation = 0
+        var reason = Reason.undoRedo
+
+        mutating func bump(_ reason: Reason) {
+            generation += 1
+            self.reason = reason
         }
     }
 }
