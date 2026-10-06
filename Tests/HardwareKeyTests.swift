@@ -162,6 +162,55 @@ final class HardwareKeyTests: XCTestCase {
                        "Two presses are two requests; closing twice isn't a no-op")
     }
 
+    // MARK: Holding a key
+
+    /// UIKit sends a hardware press once, however long it's held, so holding
+    /// Down moved one step. The arrows repeat; nothing that writes does, since
+    /// a held letter filling the track with one note is never what was meant,
+    /// and a held Space would start and stop playback over and over.
+    func testOnlyTheArrowsRepeat() {
+        XCTAssertTrue(KeyRepeat.repeats(.move(track: 0, step: 1)))
+        XCTAssertTrue(KeyRepeat.repeats(.move(track: -1, step: 0)))
+        for action: KeyAction in [.togglePlay, .type(60), .typeSelected, .toggleNoteOff,
+                                  .clear, .octave(1), .dismiss] {
+            XCTAssertFalse(KeyRepeat.repeats(action), "\(action) must not repeat")
+        }
+    }
+
+    /// The system's own text-field repeat is about this: a pause long enough
+    /// that a tap never repeats, then a steady walk.
+    func testTheRepeatWaitsThenWalks() {
+        XCTAssertEqual(KeyRepeat.initialDelay, 0.4)
+        XCTAssertEqual(KeyRepeat.interval, 0.08)
+    }
+
+    func testAHeldKeyRepeatsAfterTheDelayAndStopsWhenReleased() {
+        let repeater = KeyRepeater()
+        var fires = 0
+        repeater.start(usage: .keyboardDownArrow) { fires += 1 }
+
+        let early = expectation(description: "before the delay")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { early.fulfill() }
+        wait(for: [early], timeout: 2)
+        XCTAssertEqual(fires, 0, "A tap shorter than the delay doesn't repeat")
+
+        let held = expectation(description: "held")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { held.fulfill() }
+        wait(for: [held], timeout: 2)
+        XCTAssertGreaterThanOrEqual(fires, 2, "Held past the delay, it walks")
+
+        // Letting go of a different key leaves this one repeating.
+        repeater.stop(usage: .keyboardUpArrow)
+        XCTAssertTrue(repeater.isRepeating)
+        repeater.stop(usage: .keyboardDownArrow)
+        XCTAssertFalse(repeater.isRepeating)
+        let stopped = fires
+        let after = expectation(description: "released")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { after.fulfill() }
+        wait(for: [after], timeout: 2)
+        XCTAssertEqual(fires, stopped, "Released, it stops")
+    }
+
     // MARK: The cursor
 
     func testArrowsStopAtTheEdgesRatherThanWrapping() {
