@@ -26,6 +26,22 @@ enum ArrangementPopoverAnchor {
     }
 }
 
+/// Play's shape. Its height grows with the tray for Dynamic Type, so a fixed
+/// 56pt width under a fixed 18pt glyph made it a tall thin pill with a speck
+/// in it at accessibility sizes. Where Play has a row to itself (the stacked
+/// form) it takes the whole row, and the glyph grows with the text. The
+/// default-size glyph and the row forms' 56pt width are unchanged.
+enum TransportPlayShape {
+    /// The fixed width, or nil to fill the row.
+    static func width(fillsRow: Bool) -> CGFloat? {
+        fillsRow ? nil : ChipLayout.playButtonWidth
+    }
+
+    static func glyphSize(scale: CGFloat) -> CGFloat {
+        18 * scale
+    }
+}
+
 /// Play/stop, tempo, and the pattern/song mode switch.
 struct TransportBar: View {
     @Bindable var studio: Studio
@@ -102,7 +118,7 @@ struct TransportBar: View {
     /// Play, the mode tray and BPM side by side, BPM pushed to the far end.
     private var row: some View {
         HStack(spacing: ChipLayout.chromeRowSpacing) {
-            playButton
+            playButton()
             modeTray(stretched: false)
             Spacer(minLength: ChipLayout.transportTrayGap)
             tempoStepper(stretched: false)
@@ -114,7 +130,7 @@ struct TransportBar: View {
     private var twoRows: some View {
         VStack(spacing: 8) {
             HStack(spacing: ChipLayout.chromeRowSpacing) {
-                playButton
+                playButton()
                 modeTray(stretched: false)
                 Spacer(minLength: 0)
             }
@@ -122,13 +138,10 @@ struct TransportBar: View {
         }
     }
 
-    /// Play on a row of its own, then the mode tray and BPM full width under it.
+    /// Play, the mode tray and BPM, each full width on a row of its own.
     private var stacked: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                playButton
-                Spacer(minLength: 0)
-            }
+            playButton(fillsRow: true)
             modeTray(stretched: true).frame(maxWidth: .infinity)
             tempoStepper(stretched: true)
         }
@@ -143,15 +156,16 @@ struct TransportBar: View {
 
     /// The only saturated fill in the chrome, and the biggest target, so the
     /// eye lands here first.
-    private var playButton: some View {
+    private func playButton(fillsRow: Bool = false) -> some View {
         Button {
             Haptics.transport()
             studio.togglePlay()
         } label: {
             Image(systemName: studio.isPlaying ? "stop.fill" : "play.fill")
-                .symbolFont(18)
+                .symbolFont(TransportPlayShape.glyphSize(scale: trayHeightScale))
                 .foregroundStyle(Theme.onLight)
-                .frame(width: ChipLayout.playButtonWidth, height: trayHeight)
+                .frame(width: TransportPlayShape.width(fillsRow: fillsRow), height: trayHeight)
+                .frame(maxWidth: fillsRow ? .infinity : nil)
                 .background(
                     RoundedRectangle(cornerRadius: Theme.trayRadius)
                         .fill(studio.isPlaying ? Theme.accentRed : Theme.accentGreen)
