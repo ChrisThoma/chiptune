@@ -87,7 +87,8 @@ enum GridReveal {
 /// Whether playback drags the step rows along with the playhead. Only when
 /// the pattern's rows don't all fit: a 16-step pattern on an iPhone shows
 /// about half its rows, and used to play off screen under a "more than 16
-/// steps" rule, while one that fits (iPad) stays where the user left it.
+/// steps" rule, while one that fits (iPad) stays where the user left it. Even
+/// then, only when the playing row leaves the view; see `anchor`.
 enum GridFollow {
     /// The rows' gap and the stack's padding above and below, as `steps` lays them out.
     static let rowSpacing: CGFloat = 2
@@ -101,6 +102,35 @@ enum GridFollow {
     static func follows(steps: Int, rowHeight: CGFloat, viewportHeight: CGFloat) -> Bool {
         contentHeight(steps: steps, rowHeight: rowHeight) > viewportHeight
     }
+
+    /// Where a step's scroll lands, or nil to leave the grid where it is.
+    ///
+    /// Only a playing row that's clipped or off screen moves the grid, and
+    /// then to the top, so the rows after it are in view for the rest of the
+    /// page. Re-centring on every step nudged a 13-inch iPad in portrait, one
+    /// row short of fitting, up and down all bar long; now it moves at the
+    /// last row and at the wrap. `scrollY` is nil where the offset can't be
+    /// read (iOS 17), which centres on every step as before.
+    static func anchor(playhead: Int, steps: Int, rowHeight: CGFloat,
+                       viewportHeight: CGFloat, scrollY: CGFloat?) -> UnitPoint? {
+        guard follows(steps: steps, rowHeight: rowHeight, viewportHeight: viewportHeight)
+        else { return nil }
+        guard let scrollY else { return .center }
+        let top = verticalPadding + CGFloat(playhead) * (rowHeight + rowSpacing)
+        // Half a point either way, for offsets that land a fraction off.
+        let inView = top >= scrollY - 0.5
+            && top + rowHeight <= scrollY + viewportHeight + 0.5
+        return inView ? nil : .top
+    }
+
+    /// How long a follow scroll animates: half a step, up to 0.15 s. One that
+    /// outlasts its step is still moving when the next step asks for another,
+    /// and SwiftUI drops that one — at 132 BPM the wrap back to 00 was lost
+    /// every other bar, leaving the grid scrolled down with 00 out of sight.
+    static func scrollDuration(tempo: Double) -> Double {
+        let step = 60 / (max(tempo, 1) * Double(Chip.stepsPerBeat))
+        return min(0.15, step / 2)
+    }
 }
 
 /// Reports the horizontal scroll offset where the system can (iOS 18+); on
@@ -112,6 +142,24 @@ private struct HorizontalOffsetReader: ViewModifier {
         if #available(iOS 18.0, *) {
             content.onScrollGeometryChange(for: CGFloat.self) { geometry in
                 geometry.contentOffset.x + geometry.contentInsets.leading
+            } action: { _, new in
+                offset = new
+            }
+        } else {
+            content
+        }
+    }
+}
+
+/// The step rows' vertical scroll offset, where the system can report it
+/// (iOS 18+). Left nil on iOS 17, where playback centres on every step.
+private struct VerticalOffsetReader: ViewModifier {
+    @Binding var offset: CGFloat?
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top
             } action: { _, new in
                 offset = new
             }
@@ -139,6 +187,8 @@ struct GridView: View {
     @State private var scrollX: CGFloat = 0
     /// The step rows' visible height, for deciding whether playback scrolls.
     @State private var stepsViewportHeight: CGFloat = 0
+    /// How far the step rows are scrolled, for whether the playing row is in view.
+    @State private var stepsScrollY: CGFloat?
 
     private struct HeaderDrag: Equatable {
         var id: UUID
@@ -358,12 +408,15 @@ struct GridView: View {
                 .padding(.vertical, GridFollow.verticalPadding)
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stepsViewportHeight = $0 }
+            .modifier(VerticalOffsetReader(offset: $stepsScrollY))
             .onChange(of: studio.playhead) { _, step in
                 guard showsPlayhead,
-                      GridFollow.follows(steps: studio.patternLength, rowHeight: rowHeight,
-                                         viewportHeight: stepsViewportHeight) else { return }
-                withAnimation(.easeOut(duration: 0.15)) {
-                    proxy.scrollTo(step, anchor: .center)
+                      let anchor = GridFollow.anchor(playhead: step, steps: studio.patternLength,
+                                                     rowHeight: rowHeight,
+                                                     viewportHeight: stepsViewportHeight,
+                                                     scrollY: stepsScrollY) else { return }
+                withAnimation(.easeOut(duration: GridFollow.scrollDuration(tempo: studio.song.tempo))) {
+                    proxy.scrollTo(step, anchor: anchor)
                 }
             }
             // A pattern switch (yours, or the arrangement's) should put you at
