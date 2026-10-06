@@ -88,6 +88,13 @@ enum EditorPresentation {
     /// track's sound sheet holds an index or a number read from the song as
     /// it was, and acts on whatever song is current when confirmed.
     static func canChangeSong(songBoundPresented: Bool) -> Bool { !songBoundPresented }
+
+    /// Whether a chord's menu row shows as enabled. The same two conditions the
+    /// action itself guards on, so a chord that would do nothing is dimmed in
+    /// the Cmd-hold overlay instead of looking pressable.
+    static func commandEnabled(hasEditor: Bool, canChangeSong: Bool) -> Bool {
+        hasEditor && canChangeSong
+    }
 }
 
 /// The presenters that capture state from the current song. Each subview
@@ -190,8 +197,9 @@ struct EditorCommands: Commands {
     /// than around the row: a `CommandsBuilder` has no `if let`, and
     /// `Commands.body` isn't guaranteed to re-evaluate when an `@Observable`
     /// changes, so `.disabled` here is a hint to the overlay and never the
-    /// thing that keeps an action safe. Every action below no-ops or guards on
-    /// its own.
+    /// thing that keeps an action safe: the guard in the action still does
+    /// that, and `.disabled` only keeps the overlay from showing a blocked
+    /// chord as live.
     private func button(_ shortcut: EditorShortcut,
                         action: @escaping (EditorActions) -> Void) -> some View {
         Button(shortcut.title) {
@@ -203,7 +211,8 @@ struct EditorCommands: Commands {
             action(editor)
         }
         .keyboardShortcut(shortcut.key, modifiers: shortcut.modifiers)
-        .disabled(editor == nil)
+        .disabled(!EditorPresentation.commandEnabled(
+            hasEditor: editor != nil, canChangeSong: editor?.canChangeSong() ?? false))
     }
 }
 
