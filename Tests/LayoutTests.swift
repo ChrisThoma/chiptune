@@ -108,7 +108,7 @@ final class LayoutTests: XCTestCase {
     /// Whatever column a window earns, the grid keeps its minimum beside it.
     func testTheGridKeepsItsMinimumBesideEverySideColumn() {
         for width in stride(from: 600.0, through: 2400.0, by: 1.0) {
-            let layout = ChipLayout.resolve(size: CGSize(width: width, height: 500),
+            let layout = ChipLayout.resolve(size: CGSize(width: width, height: 800),
                                             horizontalSizeClass: .regular)
             guard layout.usesSideKeyboard else { continue }
             XCTAssertGreaterThanOrEqual(width - layout.sideColumnWidth,
@@ -183,6 +183,58 @@ final class LayoutTests: XCTestCase {
         XCTAssertEqual(ChipLayout.resolve(size: padLandscape, horizontalSizeClass: .regular)
                         .withoutDockedInstrumentEditor.editorAxis,
                        .vertical)
+    }
+
+    /// The stacked pad editor's chrome, track headers and keys stand about
+    /// 525pt whatever the window, so a short Stage Manager window left the
+    /// grid less than a row and pushed controls out of the bottom. Below room
+    /// for a handful of rows, the editor scrolls instead, with the grid given
+    /// a floor of its own.
+    func testShortWindowsScrollTheEditorRatherThanStarveTheGrid() {
+        for size in [CGSize(width: 900, height: 600), CGSize(width: 1000, height: 500),
+                     CGSize(width: 1200, height: 400), CGSize(width: 700, height: 520)] {
+            let layout = ChipLayout.resolve(size: size, horizontalSizeClass: .regular)
+            XCTAssertTrue(layout.scrollsEditor, "\(size)")
+            XCTAssertFalse(layout.usesSideKeyboard,
+                           "\(size): the scrolling editor stacks, so nothing may think it's docked")
+        }
+        // A compact window that short gets the same treatment.
+        XCTAssertTrue(ChipLayout.resolve(size: CGSize(width: 400, height: 480),
+                                         horizontalSizeClass: .compact).scrollsEditor)
+    }
+
+    func testOrdinaryWindowsKeepTheFixedEditor() {
+        let windows: [(CGSize, UserInterfaceSizeClass)] = [
+            (CGSize(width: 768, height: 1024), .regular),   // iPad mini portrait, roughly
+            (CGSize(width: 1024, height: 1322), .regular),  // 13-inch portrait less the bars
+            (CGSize(width: 1133, height: 700), .regular),   // iPad mini landscape less the bars
+            (CGSize(width: 1376, height: 988), .regular),   // 13-inch landscape less the bars
+            (CGSize(width: 683, height: 980), .regular),    // half a 13-inch
+            (CGSize(width: 375, height: 647), .compact),    // iPhone SE less the bars
+            (CGSize(width: 402, height: 778), .compact),    // iPhone 17 less the bars
+        ]
+        for (size, sizeClass) in windows {
+            XCTAssertFalse(ChipLayout.resolve(size: size, horizontalSizeClass: sizeClass).scrollsEditor,
+                           "\(size)")
+        }
+    }
+
+    /// The rule itself: whatever doesn't scroll leaves the grid at least
+    /// `minimumGridRows` rows once its fixed parts are paid for.
+    func testEveryFixedEditorLeavesTheGridItsMinimumRows() {
+        for sizeClass in [UserInterfaceSizeClass.compact, .regular] {
+            for width in stride(from: 320.0, through: 1400.0, by: 20.0) {
+                for height in stride(from: 300.0, through: 1400.0, by: 10.0) {
+                    let layout = ChipLayout.resolve(size: CGSize(width: width, height: height),
+                                                    horizontalSizeClass: sizeClass)
+                    guard !layout.scrollsEditor else { continue }
+                    let grid = height - layout.editorFixedHeight
+                    XCTAssertGreaterThanOrEqual(
+                        grid / (layout.gridRowHeight + 2), CGFloat(ChipLayout.minimumGridRows),
+                        "\(width)×\(height) \(sizeClass) leaves the grid \(grid)pt")
+                }
+            }
+        }
     }
 
     /// The threshold has to sit under every window an iPad can actually be

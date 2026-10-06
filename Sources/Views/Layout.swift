@@ -79,6 +79,20 @@ struct ChipLayout: Equatable {
     /// the window is regular-width, wider than it is tall, and wide enough to
     /// give both halves a usable share.
     var usesSideKeyboard: Bool
+    /// About what the title, transport and pattern rows stand together,
+    /// measured on device. An estimate rather than a layout input: the views
+    /// size themselves, and this only decides whether a window is too short
+    /// for the fixed editor (see `scrollsEditor`).
+    var chromeHeight: CGFloat
+    /// What the stacked arrangement spends under the grid: the divider, the
+    /// gaps either side of it, the octave row and the keys. Measured, like
+    /// `chromeHeight`.
+    var stackedKeysHeight: CGFloat
+    /// The window is too short for the fixed editor to show `minimumGridRows`
+    /// rows, so the whole editor scrolls instead and the grid gets a floor of
+    /// its own. Always stacked: a scrolling side column would have nothing to
+    /// scroll against.
+    var scrollsEditor = false
     /// The selected track's sound controls live permanently in the side
     /// column instead of arriving over the grid as a sheet. Only the side
     /// arrangement has anywhere to put them.
@@ -125,7 +139,9 @@ struct ChipLayout: Equatable {
         isRegularWidth: false,
         sideColumnWidth: sideKeyboardWidth,
         keyboardOctaves: 1,
-        usesSideKeyboard: false
+        usesSideKeyboard: false,
+        chromeHeight: 158,
+        stackedKeysHeight: 184
     )
 
     static let pad = ChipLayout(
@@ -149,7 +165,9 @@ struct ChipLayout: Equatable {
         isRegularWidth: true,
         sideColumnWidth: sideKeyboardWidth,
         keyboardOctaves: 1,
-        usesSideKeyboard: false
+        usesSideKeyboard: false,
+        chromeHeight: 174,
+        stackedKeysHeight: 248
     )
 
     /// The keyboard's own horizontal inset and the gap between white keys, shared
@@ -396,7 +414,35 @@ struct ChipLayout: Equatable {
     /// grid. So the class decides which set of numbers, and the proportions
     /// decide the arrangement.
     static func resolve(size: CGSize, horizontalSizeClass: UserInterfaceSizeClass?) -> ChipLayout {
-        guard horizontalSizeClass == .regular else { return .phone }
+        var layout = horizontalSizeClass == .regular
+            ? arrangedPad(size: size)
+            : ChipLayout.phone
+        if size.height - layout.editorFixedHeight
+            < CGFloat(minimumGridRows) * (layout.gridRowHeight + 2) {
+            // Too short for the fixed editor in either arrangement, and the
+            // side one is no way out — it saves the keys' height but not the
+            // chrome's. Back to stacked metrics, scrolled.
+            layout = horizontalSizeClass == .regular ? .pad : .phone
+            layout.scrollsEditor = true
+        }
+        return layout
+    }
+
+    /// The fewest grid rows the fixed editor is allowed to show. Below this
+    /// it's hard to see a part as a part, and the window's height is better
+    /// spent scrolling past the chrome to a grid that has room.
+    static let minimumGridRows = 4
+
+    /// Everything in the fixed editor that isn't grid rows: the chrome, the
+    /// track headers with the gap under them, and either the keys under the
+    /// grid or the side arrangement's bottom inset.
+    var editorFixedHeight: CGFloat {
+        chromeHeight + trackHeaderHeight + 7 + (usesSideKeyboard ? 8 : stackedKeysHeight)
+    }
+
+    /// The regular-width metrics, in whichever arrangement the window's
+    /// proportions pick.
+    private static func arrangedPad(size: CGSize) -> ChipLayout {
         var layout = ChipLayout.pad
         layout.usesSideKeyboard = size.width > size.height
             && size.width >= minimumSideBySideWidth
