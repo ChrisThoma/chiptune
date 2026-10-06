@@ -83,6 +83,12 @@ struct ChipLayout: Equatable {
     /// column instead of arriving over the grid as a sheet. Only the side
     /// arrangement has anywhere to put them.
     var docksInstrumentEditor: Bool { usesSideKeyboard }
+    /// Which way the grid and the keys run: one after the other down the
+    /// window, or side by side. Only the container's axis changes between the
+    /// two, so the chrome, grid and keys keep their place in the view tree
+    /// across a rotation rather than being torn down and rebuilt — which took
+    /// an export in progress, an open alert and the popovers with them.
+    var editorAxis: Axis { usesSideKeyboard ? .horizontal : .vertical }
     /// Anchored to the track header that opened it, keeping the grid visible,
     /// rather than a sheet over the whole editor. The side arrangement docks
     /// the controls instead and needs no popover at all.
