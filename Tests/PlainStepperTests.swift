@@ -24,3 +24,19 @@ final class PlainStepperTests: XCTestCase {
         XCTAssertEqual(PlainStepper.stepped(3, by: -1, in: 1...16, isEnabled: false), 3)
     }
 }
+
+/// Voice Control and Full Keyboard Access can't swipe an adjustable element,
+/// so the stepper also offers its two steps as named actions, worded as the
+/// system `Stepper` words them.
+final class PlainStepperActionTests: XCTestCase {
+
+    func testActionsAreNamedAsTheSystemStepperNamesThem() {
+        XCTAssertEqual(PlainStepper.incrementActionName, "Increment")
+        XCTAssertEqual(PlainStepper.decrementActionName, "Decrement")
+    }
+
+    func testActionsStepByOneInTheirDirection() {
+        XCTAssertEqual(PlainStepper.delta(forIncrement: true), 1)
+        XCTAssertEqual(PlainStepper.delta(forIncrement: false), -1)
+    }
+}

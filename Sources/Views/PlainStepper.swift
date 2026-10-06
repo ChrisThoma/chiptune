@@ -30,15 +30,26 @@ struct PlainStepper: View {
         .accessibilityValue(accessibilityValue)
         .accessibilityAdjustableAction { direction in
             switch direction {
-            case .increment: step(1)
-            case .decrement: step(-1)
+            case .increment: step(Self.delta(forIncrement: true))
+            case .decrement: step(Self.delta(forIncrement: false))
             @unknown default: break
             }
         }
+        // Swiping needs VoiceOver; Voice Control and Full Keyboard Access
+        // reach the two steps through these. A locked or capped stepper
+        // makes them no-ops through `step`, and `.disabled` below dims them.
+        .accessibilityAction(named: Self.incrementActionName) { step(Self.delta(forIncrement: true)) }
+        .accessibilityAction(named: Self.decrementActionName) { step(Self.delta(forIncrement: false)) }
         // After the accessibility element is formed, so VoiceOver reads it
         // as dimmed rather than as an adjustable that silently does nothing.
         .disabled(!isEnabled)
     }
+
+    /// Worded as the system `Stepper` words its actions.
+    static let incrementActionName = "Increment"
+    static let decrementActionName = "Decrement"
+
+    static func delta(forIncrement increment: Bool) -> Int { increment ? 1 : -1 }
 
     /// One step from `value`, held at the ends of `range`; a locked stepper
     /// stays where it is.
