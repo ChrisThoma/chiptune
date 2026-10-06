@@ -248,6 +248,9 @@ struct ContentView: View {
                 SongDropBorder(isTargeted: songDropTargeted)
             }
         }
+        // The window, not the window less the on-screen keyboard; see
+        // `ChipLayout.measurementIgnoresSafeArea`.
+        .ignoresSafeArea(ChipLayout.measurementIgnoresSafeArea)
         .background(Theme.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
         .hardwareKeys(studio: studio)
