@@ -4,9 +4,16 @@ import Foundation
 /// the arrangement summary — three screens that must describe a song the same
 /// way, and used to do it with three copies of the same `String(format:)`.
 enum Format {
-    /// `1:07` — minutes and zero-padded seconds, truncating.
+    /// `1:07` — minutes and zero-padded seconds, rounded. Under ten seconds
+    /// it keeps a tenth, `0:01.8`: the starter song exports in 1.8 s, and a
+    /// truncated "0:01" undersold it by nearly half.
     static func clock(_ seconds: TimeInterval) -> String {
-        String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
+        let tenths = Int((max(seconds, 0) * 10).rounded())
+        if tenths > 0, tenths < 100 {
+            return String(format: "0:%02d.%d", tenths / 10, tenths % 10)
+        }
+        let whole = Int(max(seconds, 0).rounded())
+        return String(format: "%d:%02d", whole / 60, whole % 60)
     }
 
     /// `3 patterns`, `1 pattern`. English-only, like the rest of the UI.
