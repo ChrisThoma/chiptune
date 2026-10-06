@@ -13,6 +13,19 @@ enum TempoFieldAccessibility {
     }
 }
 
+/// Where the arrangement popover points. ARR is drawn in whichever of the
+/// transport's forms fits, so the popover can't live on the button itself:
+/// each form built its own copy, and crossing a form boundary with it open
+/// swapped the anchor out and dismissed it. The transport presents it once
+/// and aims it at ARR's last laid-out frame, or at the whole bar before
+/// there is one.
+enum ArrangementPopoverAnchor {
+    static func rect(arrFrame: CGRect?) -> CGRect? {
+        guard let arrFrame, !arrFrame.isEmpty else { return nil }
+        return arrFrame
+    }
+}
+
 /// Play/stop, tempo, and the pattern/song mode switch.
 struct TransportBar: View {
     @Bindable var studio: Studio
@@ -27,6 +40,9 @@ struct TransportBar: View {
     private var trayHeight: CGFloat { layout.trayHeight * trayHeightScale }
     @State private var editingTempo = false
     @State private var tempoText = ""
+    /// ARR's frame in the bar's own space, for the popover's arrow.
+    @State private var arrFrame: CGRect?
+    private static let space = "TransportBar"
 
     var body: some View {
         Group {
@@ -50,6 +66,20 @@ struct TransportBar: View {
         }
         .padding(.horizontal, ChipLayout.chromeRowPadding)
         .padding(.bottom, 8)
+        .coordinateSpace(.named(Self.space))
+        // Declared once, outside the `ViewThatFits`, so a form change while
+        // it's open moves the arrow rather than replacing the presentation.
+        // Anchored to ARR so the play order sits beside the transport that
+        // plays it and the grid stays visible behind; a phone gets the sheet
+        // it has always had.
+        .popover(isPresented: $showingArrangement,
+                 attachmentAnchor: arrangementAnchor, arrowEdge: .top) {
+            // `isRegularWidth` comes from the presenting side: a popover's
+            // content is handed a compact size class whatever the window
+            // is, so the view inside can't ask for itself.
+            ArrangementView(studio: studio, regularWidth: layout.isRegularWidth)
+                .presentationCompactAdaptation(.sheet)
+        }
         .reportsPresentation(.tempoAlert, isPresented: editingTempo, studio: studio)
         .background {
             AlertTextFieldBridge(isPresented: editingTempo,
@@ -104,6 +134,13 @@ struct TransportBar: View {
         }
     }
 
+    private var arrangementAnchor: PopoverAttachmentAnchor {
+        if let rect = ArrangementPopoverAnchor.rect(arrFrame: arrFrame) {
+            return .rect(.rect(rect))
+        }
+        return .rect(.bounds)
+    }
+
     /// The only saturated fill in the chrome, and the biggest target, so the
     /// eye lands here first.
     private var playButton: some View {
@@ -145,16 +182,8 @@ struct TransportBar: View {
             .buttonStyle(.plain)
             .hoverEffect(.highlight)
             .accessibilityLabel("Arrangement")
-            // Anchored to the ARR button so the play order sits beside the
-            // transport that plays it and the grid stays visible behind;
-            // a phone gets the sheet it has always had.
-            .popover(isPresented: $showingArrangement,
-                     attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
-                // `isRegularWidth` comes from the presenting side: a popover's
-                // content is handed a compact size class whatever the window
-                // is, so the view inside can't ask for itself.
-                ArrangementView(studio: studio, regularWidth: layout.isRegularWidth)
-                    .presentationCompactAdaptation(.sheet)
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.space)) } action: {
+                arrFrame = $0
             }
         }
         .chipTray()
