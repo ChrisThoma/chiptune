@@ -55,12 +55,8 @@ struct ChiptuneApp: App {
                 }
             }
             .onChange(of: scenePhase) { _, phase in
-                // Backgrounding is the one moment autosave's debounce might not
-                // have fired yet.
-                if phase != .active {
-                    studio?.saveNow()
-                    studio?.stopEngineForBackground()
-                }
+                if ScenePhasePolicy.savesNow(entering: phase) { studio?.saveNow() }
+                if ScenePhasePolicy.stopsEngine(entering: phase) { studio?.stopEngineForBackground() }
             }
         }
         // The only home for the app's Command chords: a shortcut on a menu row
@@ -69,6 +65,15 @@ struct ChiptuneApp: App {
         // editor through `FocusedValues.editor`, which `ContentView` publishes.
         .commands { EditorCommands() }
     }
+}
+
+/// What leaving the foreground does. Any phase but `.active` saves: that is
+/// the one moment autosave's debounce might not have fired yet. Only
+/// `.background` stops the engine. Control Center and a notification peek
+/// just make the scene `.inactive`, and used to cut the song off.
+enum ScenePhasePolicy {
+    static func savesNow(entering phase: ScenePhase) -> Bool { phase != .active }
+    static func stopsEngine(entering phase: ScenePhase) -> Bool { phase == .background }
 }
 
 /// Shown while the app boots. Four bars, one per starting channel.
