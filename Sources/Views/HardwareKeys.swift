@@ -115,6 +115,54 @@ enum KeyAction: Equatable {
     }
 }
 
+/// Which held keys repeat, and how fast. UIKit sends a hardware press once
+/// however long it's held, so without this holding Down moved one step.
+enum KeyRepeat {
+    /// Long enough that an ordinary tap never repeats; about the system's own.
+    static let initialDelay: TimeInterval = 0.4
+    static let interval: TimeInterval = 0.08
+
+    /// Only the arrows. A held letter filling a track with one note, or a held
+    /// Space starting and stopping playback, is never what was meant.
+    static func repeats(_ action: KeyAction) -> Bool {
+        if case .move = action { return true }
+        return false
+    }
+}
+
+/// Fires a held key again, first after `KeyRepeat.initialDelay` and then every
+/// `interval`, until that key is let go. One key at a time: pressing another
+/// arrow takes over, the way a text field's repeat does.
+final class KeyRepeater {
+    private var timer: Timer?
+    private var usage: UIKeyboardHIDUsage?
+
+    var isRepeating: Bool { timer != nil }
+
+    func start(usage: UIKeyboardHIDUsage, fire: @escaping () -> Void) {
+        stop()
+        self.usage = usage
+        timer = Timer.scheduledTimer(withTimeInterval: KeyRepeat.initialDelay,
+                                     repeats: false) { [weak self] _ in
+            fire()
+            self?.timer = Timer.scheduledTimer(withTimeInterval: KeyRepeat.interval,
+                                               repeats: true) { _ in fire() }
+        }
+    }
+
+    /// Letting go of some other key leaves this one repeating.
+    func stop(usage: UIKeyboardHIDUsage) {
+        guard usage == self.usage else { return }
+        stop()
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+        usage = nil
+    }
+}
+
 extension Studio {
     /// Runs a decoded key press. Split from the decoding so the mapping stays
     /// a pure function and this stays the only place a press changes anything.
@@ -155,7 +203,7 @@ private struct KeyCatcher: UIViewRepresentable {
     func makeUIView(context: Context) -> CatcherView {
         let view = CatcherView()
         view.handle = { [weak studio] key, modalPresented in
-            guard let studio else { return false }
+            guard let studio else { return nil }
             // Two mappings, one keyboard. With a sheet up the editor is not
             // what's being typed at, so only the cancel gesture is claimed.
             let action: KeyAction?
@@ -168,9 +216,9 @@ private struct KeyCatcher: UIViewRepresentable {
                                           modifiers: key.modifierFlags,
                                           octave: studio.octave)
             }
-            guard let action else { return false }
+            guard let action else { return nil }
             studio.apply(action)
-            return true
+            return action
         }
         return view
     }
@@ -206,8 +254,12 @@ private struct KeyCatcher: UIViewRepresentable {
 
     final class CatcherView: UIView {
         /// Takes whether a sheet or popover is up, because that decides which
-        /// of the two mappings the press is read with.
-        var handle: ((UIKey, Bool) -> Bool)?
+        /// of the two mappings the press is read with. Returns what the press
+        /// did, or nil if it wasn't claimed.
+        var handle: ((UIKey, Bool) -> KeyAction?)?
+
+        /// Walks a held arrow; see `KeyRepeat`.
+        private let repeater = KeyRepeater()
 
         /// The one instance actually installed in the view hierarchy (the
         /// editor has exactly one). Lets a deliberate focus handoff elsewhere
@@ -223,9 +275,17 @@ private struct KeyCatcher: UIViewRepresentable {
             if window != nil {
                 CatcherView.current = self
                 becomeFirstResponder()
-            } else if CatcherView.current === self {
-                CatcherView.current = nil
+            } else {
+                repeater.stop()
+                if CatcherView.current === self { CatcherView.current = nil }
             }
+        }
+
+        // A text field taking the keyboard mid-hold never sends this view the
+        // release, so the repeat would walk on under it.
+        override func resignFirstResponder() -> Bool {
+            repeater.stop()
+            return super.resignFirstResponder()
         }
 
         override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
@@ -237,16 +297,47 @@ private struct KeyCatcher: UIViewRepresentable {
             // hierarchy rather than a per-screen @State flag, since some
             // sheets (InstrumentEditor's) are toggled by state that isn't
             // owned by this view's ancestor at all.
-            let modalPresented = window?.rootViewController?.presentedViewController != nil
             let unhandled = presses.filter { press in
-                guard let key = press.key else { return true }
-                return handle?(key, modalPresented) != true
+                guard let key = press.key,
+                      let action = handle?(key, modalPresented) else { return true }
+                if KeyRepeat.repeats(action) {
+                    repeater.start(usage: key.keyCode) { [weak self] in
+                        // Asked again on every repeat: a sheet that opens
+                        // mid-hold reads the arrow with its own mapping, which
+                        // doesn't claim it, and that ends the walk.
+                        guard let self else { return }
+                        if self.handle?(key, self.modalPresented) == nil {
+                            self.repeater.stop()
+                        }
+                    }
+                }
+                return false
             }
             // Anything not claimed carries on up the chain, so the shortcuts
             // the system owns still work.
             if !unhandled.isEmpty {
                 super.pressesBegan(unhandled, with: event)
             }
+        }
+
+        override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+            stopRepeating(presses)
+            super.pressesEnded(presses, with: event)
+        }
+
+        override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+            stopRepeating(presses)
+            super.pressesCancelled(presses, with: event)
+        }
+
+        private func stopRepeating(_ presses: Set<UIPress>) {
+            for press in presses {
+                if let key = press.key { repeater.stop(usage: key.keyCode) }
+            }
+        }
+
+        private var modalPresented: Bool {
+            window?.rootViewController?.presentedViewController != nil
         }
     }
 }
