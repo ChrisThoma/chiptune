@@ -426,8 +426,8 @@ struct ContentView: View {
     ///
     /// The share sheet is left alone: it's UIKit's, it has its own Cancel, and
     /// dismissing it from underneath would skip the completion handler the
-    /// review prompt reads. The instrument editor is grid-owned state, so it
-    /// isn't reachable from here either; its Done button stays the way out.
+    /// review prompt reads. The instrument editor is grid-owned state, so its
+    /// track header watches the same request and closes it there.
     private func closePresentation() {
         if showingExport {
             studio.cancelExport()
