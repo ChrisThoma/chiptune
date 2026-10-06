@@ -739,6 +739,10 @@ private struct TrackHeader: View {
         .onChange(of: layout.docksInstrumentEditor) { _, docks in
             if docks { showingEditor = false }
         }
+        // Escape or Cmd+. from the key catcher. `ContentView` answers the same
+        // request for the screens it owns; this one is the header's, so the
+        // header closes it, the way Done does.
+        .onChange(of: studio.dismissRequests) { _, _ in showingEditor = false }
         // The screenshot shoot opens this from a launch argument. Driven from
         // here rather than from `ContentView` so the shot shows the real
         // presentation for the window it was taken in; see `ScreenshotMode`.
