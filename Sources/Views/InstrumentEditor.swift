@@ -131,6 +131,9 @@ struct InstrumentEditor: View {
                 .padding(.bottom, 6)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Sound settings for \(studio.song.fullLabel(for: index))")
+                // VoiceOver reaches this column only after every grid cell
+                // and the keyboard; as a heading, the rotor jumps straight here.
+                .accessibilityAddTraits(.isHeader)
 
                 editor
             }
