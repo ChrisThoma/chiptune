@@ -46,3 +46,20 @@ final class EditorPresentationTests: XCTestCase {
         XCTAssertFalse(presenters.isPresented)
     }
 }
+
+/// The Cmd-hold overlay lists every chord; one that is blocked must show as
+/// dimmed rather than enabled and do nothing when pressed.
+final class EditorCommandEnabledTests: XCTestCase {
+
+    func testEnabledOnlyWithAnEditorAndNothingSongBoundUp() {
+        XCTAssertTrue(EditorPresentation.commandEnabled(hasEditor: true, canChangeSong: true))
+    }
+
+    func testDimmedWhileADialogOrSheetHoldsTheSong() {
+        XCTAssertFalse(EditorPresentation.commandEnabled(hasEditor: true, canChangeSong: false))
+    }
+
+    func testDimmedWithNoEditor() {
+        XCTAssertFalse(EditorPresentation.commandEnabled(hasEditor: false, canChangeSong: true))
+    }
+}
