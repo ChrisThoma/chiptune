@@ -168,6 +168,23 @@ final class LayoutTests: XCTestCase {
                       "If this ever stacks, the keyboard stops mattering here and the test can go")
     }
 
+    /// The two arrangements are one editor laid along different axes, not two
+    /// editors: rotating swaps the axis and nothing else, so the chrome, grid
+    /// and keys keep their place in the view tree, and with it an export in
+    /// progress, an open alert or a popover.
+    func testTheArrangementIsAnAxisOfOneEditor() {
+        XCTAssertEqual(ChipLayout.resolve(size: padPortrait, horizontalSizeClass: .regular).editorAxis,
+                       .vertical)
+        XCTAssertEqual(ChipLayout.resolve(size: padLandscape, horizontalSizeClass: .regular).editorAxis,
+                       .horizontal)
+        XCTAssertEqual(ChipLayout.resolve(size: phonePortrait, horizontalSizeClass: .compact).editorAxis,
+                       .vertical)
+        // The accessibility stack lays the keys under the grid whatever the window.
+        XCTAssertEqual(ChipLayout.resolve(size: padLandscape, horizontalSizeClass: .regular)
+                        .withoutDockedInstrumentEditor.editorAxis,
+                       .vertical)
+    }
+
     /// The threshold has to sit under every window an iPad can actually be
     /// held in landscape at, or rotating one would stack it.
     func testEveryLandscapeIPadIsWideEnoughToSplit() {

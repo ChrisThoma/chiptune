@@ -222,13 +222,8 @@ struct ContentView: View {
             Group {
                 if dynamicTypeSize.isAccessibilitySize {
                     accessibilityEditor(layout, availableHeight: geo.size.height)
-                } else if layout.usesSideKeyboard {
-                    wideEditor(layout)
                 } else {
-                    VStack(spacing: 0) {
-                        chrome(layout)
-                        stackedEditor
-                    }
+                    editor(layout)
                 }
             }
             .environment(\.chipLayout, layout)
@@ -495,20 +490,79 @@ struct ContentView: View {
         .frame(maxWidth: .infinity)
     }
 
+    /// The editor in both of its arrangements.
+    ///
     /// Phone, and any iPad window taller than it is wide: the keys sit under
     /// the grid across the full width.
-    private var stackedEditor: some View {
-        VStack(spacing: 0) {
-            editorGrid
-            // The grid used to run straight into the keys; this is the breathing
-            // room between the two.
+    ///
+    /// iPad in landscape: stacking would leave the grid a squat band with
+    /// three or four steps visible and a keyboard stretched a meter wide, so
+    /// the keys move into a column of their own and the grid takes the height
+    /// back — which is the whole reason to run natively on the thing. The
+    /// chrome rides above the grid rather than the whole window, so the
+    /// transport and the pattern strip stay over the thing they act on
+    /// instead of spanning the keyboard column too.
+    ///
+    /// One tree for both, with only the container's axis switching (see
+    /// `ChipLayout.editorAxis`). Two branches gave the chrome, grid and keys
+    /// a different identity in each, so a rotation, or a Stage Manager window
+    /// crossing the split threshold, rebuilt all of it: an export rendering
+    /// behind the ••• popover was canceled, and the tempo alert, the pattern
+    /// rename and the popovers this view owns lost their state.
+    private func editor(_ layout: ChipLayout) -> some View {
+        let side = layout.editorAxis == .horizontal
+        let arrangement = side
+            ? AnyLayout(HStackLayout(spacing: 0))
+            : AnyLayout(VStackLayout(spacing: 0))
+        return arrangement {
+            VStack(spacing: 0) {
+                chrome(layout)
+                editorGrid
+            }
+
+            // The grid used to run straight into the keys; this is the
+            // breathing room between the two, whichever way they meet.
             Rectangle()
                 .fill(Theme.grid.opacity(0.5))
-                .frame(height: 1)
-                .padding(.top, 10)
-                .padding(.horizontal, 14)
+                .frame(width: side ? 1 : nil, height: side ? nil : 1)
+                .padding(.top, side ? 12 : 10)
+                .padding(.bottom, side ? 12 : 0)
+                .padding(.horizontal, side ? 0 : 14)
+
+            keyPanel(layout)
+                .frame(width: side ? layout.sideColumnWidth : nil)
+        }
+        // Nothing sits under the grid in the side arrangement, so without
+        // this the last step row runs beneath the home indicator.
+        .padding(.bottom, side ? 8 : 0)
+    }
+
+    /// The keys, and in the side column the selected track's sound under
+    /// them.
+    ///
+    /// The keyboard alone left most of that column empty, and the one thing
+    /// worth putting beside a keyboard is the voice it plays. Docking the
+    /// instrument controls there also takes the editor off the sheet path,
+    /// which on an iPad covered the grid every time you nudged a decay — and
+    /// nudging a decay is something you do against the part you just wrote.
+    ///
+    /// Keys sit above the controls rather than below: they're what your hands
+    /// go to, and the bottom edge of a 13-inch iPad is a long way from where
+    /// the hands holding it are.
+    private func keyPanel(_ layout: ChipLayout) -> some View {
+        VStack(spacing: 0) {
             editorKeyboard
-                .padding(.top, 10)
+                .padding(.top, layout.docksInstrumentEditor ? 0 : 10)
+
+            if layout.docksInstrumentEditor {
+                Rectangle()
+                    .fill(Theme.grid.opacity(0.5))
+                    .frame(height: 1)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 10)
+
+                InstrumentEditor(studio: studio, index: studio.selectedTrack, docked: true)
+            }
         }
     }
 
@@ -558,58 +612,6 @@ struct ContentView: View {
             }
         }
         .environment(\.chipLayout, stackedLayout)
-    }
-
-    /// iPad in landscape. Stacking here would leave the grid a squat band with
-    /// three or four steps visible and a keyboard stretched a meter wide, so
-    /// the keys move into a column of their own and the grid takes the height
-    /// back — which is the whole reason to run natively on the thing.
-    private func wideEditor(_ layout: ChipLayout) -> some View {
-        HStack(spacing: 0) {
-            // The chrome rides above the grid rather than the whole window, so
-            // the transport and the pattern strip stay over the thing they act
-            // on instead of spanning the keyboard column too.
-            VStack(spacing: 0) {
-                chrome(layout)
-                editorGrid
-            }
-
-            Rectangle()
-                .fill(Theme.grid.opacity(0.5))
-                .frame(width: 1)
-                .padding(.vertical, 12)
-
-            instrumentPanel
-                .frame(width: layout.sideColumnWidth)
-        }
-        // Nothing sits under the grid in this layout, so without this the last
-        // step row runs beneath the home indicator.
-        .padding(.bottom, 8)
-    }
-
-    /// The side column: keys on top, the selected track's sound underneath.
-    ///
-    /// The keyboard alone left most of this column empty, and the one thing
-    /// worth putting beside a keyboard is the voice it plays. Docking the
-    /// instrument controls here also takes the editor off the sheet path,
-    /// which on an iPad covered the grid every time you nudged a decay — and
-    /// nudging a decay is something you do against the part you just wrote.
-    ///
-    /// Keys sit above the controls rather than below: they're what your hands
-    /// go to, and the bottom edge of a 13-inch iPad is a long way from where
-    /// the hands holding it are.
-    private var instrumentPanel: some View {
-        VStack(spacing: 0) {
-            editorKeyboard
-
-            Rectangle()
-                .fill(Theme.grid.opacity(0.5))
-                .frame(height: 1)
-                .padding(.horizontal, 14)
-                .padding(.bottom, 10)
-
-            InstrumentEditor(studio: studio, index: studio.selectedTrack, docked: true)
-        }
     }
 
     /// Narrower than the 44pt targets either side of them on the phone — two
