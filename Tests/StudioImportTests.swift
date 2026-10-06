@@ -120,7 +120,7 @@ final class StudioImportTests: XCTestCase {
 
         XCTAssertFalse(studio.importSong(from: url))
 
-        XCTAssertNotNil(studio.importError)
+        XCTAssertEqual(studio.importError, "Couldn't import the file. It isn't a Chiptune song, or it's damaged.")
         XCTAssertEqual(studio.song.name, "Working on this",
                        "a failed import must not disturb what's open")
     }
@@ -130,7 +130,7 @@ final class StudioImportTests: XCTestCase {
             .appendingPathComponent("gone-\(UUID().uuidString).chipsong")
 
         XCTAssertFalse(studio.importSong(from: missing))
-        XCTAssertNotNil(studio.importError)
+        XCTAssertEqual(studio.importError, "Couldn't import the file. It couldn't be read. Try again.")
     }
 
     /// A successful import after a failed one must clear the message.
@@ -276,8 +276,9 @@ final class StudioImportTests: XCTestCase {
 
         XCTAssertFalse(studio.importSong(decoded: Song(name: "Imported Test")))
 
-        XCTAssertEqual(studio.importError?.contains("Imported Test"), true,
-                       "the failure must name the song that failed to import: \(studio.importError ?? "nil")")
+        XCTAssertEqual(studio.importError,
+                       "Couldn't import “Imported Test”. The app doesn't have permission to write the song file.",
+                       "the failure must name the song that failed to import, and why")
         XCTAssertNil(studio.storageError, "the open song saved fine; only the import failed")
         XCTAssertEqual(studio.song.id, onScreen, "a failed import must not replace the song on screen")
         XCTAssertFalse(temp.store.loadAll().contains { $0.name == "Imported Test" },

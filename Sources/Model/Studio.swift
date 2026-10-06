@@ -1283,7 +1283,7 @@ final class Studio {
         } catch {
             // The file is still there, so the song is still real — leave the
             // editor and library alone and say what happened.
-            deleteError = "Couldn't delete “\(other.name)”. \(error.localizedDescription)"
+            deleteError = DeleteFailureMessage.song(name: other.name, error: error)
             return
         }
         // Deleting the song on screen: the editor has to move off it, or the
@@ -1344,7 +1344,7 @@ final class Studio {
         do {
             return importSong(decoded: try SongDocument.read(contentsOf: url))
         } catch {
-            importError = error.localizedDescription
+            importError = ImportFailureMessage.file(error: error)
             return false
         }
     }
@@ -1373,7 +1373,7 @@ final class Studio {
             // write, so the import vanished while the caller was told it
             // worked. `storageError` is cleared with it: one failed write is
             // one alert, and this is the one that explains it.
-            importError = "Couldn't import “\(song.name)”. \(error.localizedDescription)"
+            importError = ImportFailureMessage.save(name: song.name, error: error)
             storageError = nil
             return false
         }

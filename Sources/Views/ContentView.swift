@@ -283,7 +283,7 @@ struct ContentView: View {
             if let url = studio.exportURL {
                 ShareSheet(items: [url], onComplete: { completed, error in
                     if let error {
-                        studio.shareError = "Couldn't share the exported file. \(error.localizedDescription)"
+                        studio.shareError = ShareFailureMessage.sheet(file: "WAV file")
                     }
                     shareOutcome = completed ? .completed : (error != nil ? .failed : .canceled)
                 })

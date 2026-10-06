@@ -46,13 +46,14 @@ enum WriteFailureMessage {
         return cause(of: error as NSError) == .permission ? reason : reason + " Try again."
     }
 
-    private enum Cause { case permission, space, other }
+    enum Cause { case permission, space, other }
 
     /// A failed `FileHandle` write wraps its POSIX cause in a generic Cocoa
     /// write error, so an unrecognized error is looked under before giving up.
-    private static func cause(of ns: NSError) -> Cause {
+    static func cause(of ns: NSError) -> Cause {
         switch (ns.domain, ns.code) {
         case (NSCocoaErrorDomain, NSFileWriteNoPermissionError),
+             (NSCocoaErrorDomain, NSFileReadNoPermissionError),
              (NSPOSIXErrorDomain, Int(EACCES)), (NSPOSIXErrorDomain, Int(EPERM)):
             return .permission
         case (NSCocoaErrorDomain, NSFileWriteOutOfSpaceError),
@@ -69,5 +70,47 @@ enum ShareFailureMessage {
     static func songFile(name: String, error: Error) -> String {
         let shown = WriteFailureMessage.shown(name)
         return "Couldn't prepare \(shown) to share. \(WriteFailureMessage.reasonAndAdvice(for: error, file: "song file"))"
+    }
+
+    /// The share sheet itself reported a failure. Its error comes from
+    /// whichever app or service the user picked, so no cause is named.
+    static func sheet(file: String) -> String {
+        "Couldn't share the \(file). Try again."
+    }
+}
+
+/// The "Delete failed" alert's words. Built like Save failed, but only
+/// permission is worth naming: running out of space doesn't stop a delete.
+enum DeleteFailureMessage {
+    static func song(name: String, error: Error) -> String {
+        let shown = WriteFailureMessage.shown(name)
+        switch WriteFailureMessage.cause(of: error as NSError) {
+        case .permission:
+            return "Couldn't delete \(shown). The app doesn't have permission to delete the song file."
+        case .space, .other:
+            return "Couldn't delete \(shown). Try again."
+        }
+    }
+}
+
+/// The "Import failed" alert's words. Reading a file in can fail because it
+/// isn't a song (or is damaged), can't be read, or the app isn't allowed to
+/// read it; saving the imported song can fail the way any save can.
+enum ImportFailureMessage {
+    /// The picked or opened file didn't become a song.
+    static func file(error: Error) -> String {
+        let lead = "Couldn't import the file."
+        if case SongDocument.ImportError.notASong = error {
+            return "\(lead) It isn't a Chiptune song, or it's damaged."
+        }
+        if WriteFailureMessage.cause(of: error as NSError) == .permission {
+            return "\(lead) The app doesn't have permission to read it."
+        }
+        return "\(lead) It couldn't be read. Try again."
+    }
+
+    /// The song was read but couldn't be written into the library.
+    static func save(name: String, error: Error) -> String {
+        "Couldn't import \(WriteFailureMessage.shown(name)). \(WriteFailureMessage.reasonAndAdvice(for: error, file: "song file"))"
     }
 }
