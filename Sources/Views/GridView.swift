@@ -84,6 +84,25 @@ enum GridReveal {
     }
 }
 
+/// Whether playback drags the step rows along with the playhead. Only when
+/// the pattern's rows don't all fit: a 16-step pattern on an iPhone shows
+/// about half its rows, and used to play off screen under a "more than 16
+/// steps" rule, while one that fits (iPad) stays where the user left it.
+enum GridFollow {
+    /// The rows' gap and the stack's padding above and below, as `steps` lays them out.
+    static let rowSpacing: CGFloat = 2
+    static let verticalPadding: CGFloat = 4
+
+    static func contentHeight(steps: Int, rowHeight: CGFloat) -> CGFloat {
+        guard steps > 0 else { return verticalPadding * 2 }
+        return CGFloat(steps) * rowHeight + CGFloat(steps - 1) * rowSpacing + verticalPadding * 2
+    }
+
+    static func follows(steps: Int, rowHeight: CGFloat, viewportHeight: CGFloat) -> Bool {
+        contentHeight(steps: steps, rowHeight: rowHeight) > viewportHeight
+    }
+}
+
 /// Reports the horizontal scroll offset where the system can (iOS 18+); on
 /// iOS 17 the step labels simply scroll with the grid as they always did.
 private struct HorizontalOffsetReader: ViewModifier {
@@ -118,6 +137,8 @@ struct GridView: View {
     @State private var drag: HeaderDrag?
     /// How far the grid is scrolled sideways; the step labels counter it.
     @State private var scrollX: CGFloat = 0
+    /// The step rows' visible height, for deciding whether playback scrolls.
+    @State private var stepsViewportHeight: CGFloat = 0
 
     private struct HeaderDrag: Equatable {
         var id: UUID
@@ -328,16 +349,19 @@ struct GridView: View {
     private func steps(columnWidth: CGFloat) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 2) {
+                LazyVStack(spacing: GridFollow.rowSpacing) {
                     ForEach(0..<studio.patternLength, id: \.self) { step in
                         row(step: step, columnWidth: columnWidth)
                             .id(step)
                     }
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, GridFollow.verticalPadding)
             }
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stepsViewportHeight = $0 }
             .onChange(of: studio.playhead) { _, step in
-                guard showsPlayhead, studio.patternLength > 16 else { return }
+                guard showsPlayhead,
+                      GridFollow.follows(steps: studio.patternLength, rowHeight: rowHeight,
+                                         viewportHeight: stepsViewportHeight) else { return }
                 withAnimation(.easeOut(duration: 0.15)) {
                     proxy.scrollTo(step, anchor: .center)
                 }
