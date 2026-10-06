@@ -22,10 +22,24 @@ final class ShareFailureMessageTests: XCTestCase {
     }
 
     func testRawSystemTextAndFolderNamesAreNotPasted() {
-        let msg = ShareFailureMessage.songFile(name: "A", error: cocoa(CocoaError.fileWriteNoPermission.rawValue))
+        let msg = ShareFailureMessage.songFile(name: "A", error: cocoa(CocoaError.fileWriteUnknown.rawValue))
         XCTAssertFalse(msg.contains("raw system text"))
         XCTAssertFalse(msg.contains("share-"))
         XCTAssertTrue(msg.lowercased().contains("try again"))
+    }
+
+    /// Retrying can't fix a permission problem, so only that cause leaves
+    /// "Try again" off. Freeing space and retrying can help, as can retrying
+    /// an unknown failure.
+    func testOnlyAPermissionCauseLeavesOffTryAgain() {
+        let perm = cocoa(CocoaError.fileWriteNoPermission.rawValue)
+        let space = cocoa(CocoaError.fileWriteOutOfSpace.rawValue)
+        let other = cocoa(CocoaError.fileWriteUnknown.rawValue)
+        for build in [ShareFailureMessage.songFile, WriteFailureMessage.save, WriteFailureMessage.export] {
+            XCTAssertFalse(build("A", perm).contains("Try again"), build("A", perm))
+            XCTAssertTrue(build("A", space).hasSuffix(" Try again."), build("A", space))
+            XCTAssertTrue(build("A", other).hasSuffix(" Try again."), build("A", other))
+        }
     }
 
     func testPermissionAndSpaceErrorsGetOneShortClue() {
@@ -53,7 +67,7 @@ final class SaveFailureMessageTests: XCTestCase {
 
     func testRawSystemTextIsNotPastedAndTheReasonIsKept() {
         let msg = WriteFailureMessage.save(name: "Neon Ascent", error: cocoa(CocoaError.fileWriteNoPermission.rawValue))
-        XCTAssertEqual(msg, "Couldn't save “Neon Ascent”. The app doesn't have permission to write the song file. Try again.")
+        XCTAssertEqual(msg, "Couldn't save “Neon Ascent”. The app doesn't have permission to write the song file.")
     }
 
     func testSpaceAndOtherReasonsDiffer() {
@@ -91,7 +105,7 @@ final class WriteFailureReasonTests: XCTestCase {
     func testExportWordsMatchSaveAndShare() {
         let denied = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteNoPermission.rawValue)
         XCTAssertEqual(WriteFailureMessage.export(name: "Neon Ascent", error: denied),
-                       "Couldn't export “Neon Ascent”. The app doesn't have permission to write the WAV file. Try again.")
+                       "Couldn't export “Neon Ascent”. The app doesn't have permission to write the WAV file.")
     }
 
     func testAnUnknownCauseSaysSoPlainly() {
