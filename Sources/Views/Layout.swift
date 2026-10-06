@@ -372,6 +372,16 @@ struct ChipLayout: Equatable {
     /// splits on proportions alone leaves the grid whatever is left over.
     static var minimumSideBySideWidth: CGFloat { sideKeyboardWidth + minimumSideGridWidth }
 
+    /// What the size handed to `resolve` is measured through. The on-screen
+    /// keyboard is not part of the window: measured through it, a 13-inch
+    /// portrait window (1024×1366) comes out about 1024×940 — wider than tall
+    /// and past the split threshold — so raising the keyboard to type a name
+    /// rebuilt the editor side by side and threw away the very field, alert or
+    /// sheet being typed into. Nothing in the editor itself needs lifting
+    /// clear of the keys: the song name sits at the top, and every other text
+    /// field is in an alert, sheet or popover that avoids the keyboard itself.
+    static let measurementIgnoresSafeArea: SafeAreaRegions = .keyboard
+
     /// Picks the metrics for a window of this size.
     ///
     /// Size class alone isn't enough: an iPad app in a narrow Split View slice

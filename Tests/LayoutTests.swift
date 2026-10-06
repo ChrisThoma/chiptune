@@ -148,6 +148,26 @@ final class LayoutTests: XCTestCase {
                         .usesSideKeyboard)
     }
 
+    /// The on-screen keyboard takes about 426pt off a 13-inch portrait
+    /// window, and what's left is wider than it is tall and past the split
+    /// threshold. Measured through the keyboard, raising it to type a song
+    /// name rebuilt the editor side by side and threw the field, the tempo
+    /// alert and the rename sheet away mid-edit. The size `resolve` reads has
+    /// to be the window's, keyboard or not.
+    func testTheOnScreenKeyboardCannotChangeTheArrangement() {
+        XCTAssertTrue(ChipLayout.measurementIgnoresSafeArea.contains(.keyboard))
+        // The home indicator and status bar still count: those are the window.
+        XCTAssertFalse(ChipLayout.measurementIgnoresSafeArea.contains(.container))
+
+        let window = CGSize(width: 1024, height: 1366)
+        let throughKeyboard = CGSize(width: 1024, height: 940)
+        XCTAssertFalse(ChipLayout.resolve(size: window, horizontalSizeClass: .regular)
+                        .usesSideKeyboard)
+        XCTAssertTrue(ChipLayout.resolve(size: throughKeyboard, horizontalSizeClass: .regular)
+                        .usesSideKeyboard,
+                      "If this ever stacks, the keyboard stops mattering here and the test can go")
+    }
+
     /// The threshold has to sit under every window an iPad can actually be
     /// held in landscape at, or rotating one would stack it.
     func testEveryLandscapeIPadIsWideEnoughToSplit() {
