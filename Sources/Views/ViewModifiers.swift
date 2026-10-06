@@ -165,7 +165,7 @@ extension View {
             if let url = studio.shareURL {
                 ShareSheet(items: [url], onComplete: { _, error in
                     if let error {
-                        let message = "Couldn't share the song file. \(error.localizedDescription)"
+                        let message = ShareFailureMessage.sheet(file: "song file")
                         if let onFailure {
                             onFailure(message)
                         } else {
@@ -204,7 +204,7 @@ extension View {
                 }
             case .failure(let error):
                 DispatchQueue.main.async {
-                    studio.importError = error.localizedDescription
+                    studio.importError = ImportFailureMessage.file(error: error)
                     onResult(false)
                 }
             }

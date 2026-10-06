@@ -114,3 +114,60 @@ final class WriteFailureReasonTests: XCTestCase {
                        "The WAV file couldn't be written.")
     }
 }
+
+/// Delete failed, Import failed and the share sheet's own Share failed: the
+/// rest of the alerts that used to paste the system's text, which can name a
+/// song's internal UUID file.
+final class DeleteFailureMessageTests: XCTestCase {
+    private let raw = "“0C1D-4E2F.json” couldn’t be removed because you don’t have permission to access it."
+
+    func testPermissionNamesTheCauseWithoutTryAgain() {
+        let denied = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteNoPermission.rawValue,
+                             userInfo: [NSLocalizedDescriptionKey: raw])
+        XCTAssertEqual(DeleteFailureMessage.song(name: "Doomed", error: denied),
+                       "Couldn't delete “Doomed”. The app doesn't have permission to delete the song file.")
+    }
+
+    func testAnUnknownCauseSaysTryAgainAndNothingRaw() {
+        let unknown = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteUnknown.rawValue,
+                              userInfo: [NSLocalizedDescriptionKey: raw])
+        XCTAssertEqual(DeleteFailureMessage.song(name: "Doomed", error: unknown),
+                       "Couldn't delete “Doomed”. Try again.")
+    }
+}
+
+final class ImportFailureMessageTests: XCTestCase {
+    func testAFileThatIsNotASong() {
+        XCTAssertEqual(ImportFailureMessage.file(error: SongDocument.ImportError.notASong),
+                       "Couldn't import the file. It isn't a Chiptune song, or it's damaged.")
+    }
+
+    func testAFileThatCannotBeRead() {
+        XCTAssertEqual(ImportFailureMessage.file(error: SongDocument.ImportError.unreadable),
+                       "Couldn't import the file. It couldn't be read. Try again.")
+        let other = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileReadUnknown.rawValue,
+                            userInfo: [NSLocalizedDescriptionKey: "raw picker text"])
+        XCTAssertEqual(ImportFailureMessage.file(error: other),
+                       "Couldn't import the file. It couldn't be read. Try again.")
+    }
+
+    func testAFileTheAppMayNotRead() {
+        let denied = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileReadNoPermission.rawValue)
+        XCTAssertEqual(ImportFailureMessage.file(error: denied),
+                       "Couldn't import the file. The app doesn't have permission to read it.")
+    }
+
+    func testASongThatCannotBeSavedReadsLikeSaveFailed() {
+        let full = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteOutOfSpace.rawValue,
+                           userInfo: [NSLocalizedDescriptionKey: "raw text naming 0C1D.json"])
+        XCTAssertEqual(ImportFailureMessage.save(name: "Neon Ascent", error: full),
+                       "Couldn't import “Neon Ascent”. There isn't enough free space to write the song file. Try again.")
+    }
+}
+
+final class ShareSheetFailureMessageTests: XCTestCase {
+    func testTheSheetsOwnFailureNamesTheFileAndNothingRaw() {
+        XCTAssertEqual(ShareFailureMessage.sheet(file: "song file"), "Couldn't share the song file. Try again.")
+        XCTAssertEqual(ShareFailureMessage.sheet(file: "WAV file"), "Couldn't share the WAV file. Try again.")
+    }
+}
