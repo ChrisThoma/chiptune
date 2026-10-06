@@ -220,8 +220,11 @@ struct ContentView: View {
             let layout = ChipLayout.resolve(size: geo.size,
                                             horizontalSizeClass: horizontalSizeClass)
             Group {
-                if dynamicTypeSize.isAccessibilitySize {
-                    accessibilityEditor(layout, availableHeight: geo.size.height)
+                // Kept apart from `editor`, so crossing into or out of it
+                // still rebuilds the editor. Both are rare mid-task: a text
+                // size change, or a Stage Manager window dragged short.
+                if dynamicTypeSize.isAccessibilitySize || layout.scrollsEditor {
+                    scrollingEditor(layout, availableHeight: geo.size.height)
                 } else {
                     editor(layout)
                 }
@@ -587,13 +590,15 @@ struct ContentView: View {
             .simultaneousGesture(TapGesture().onEnded { endRenaming() })
     }
 
-    /// Accessibility text makes the chrome several rows tall. Give the whole
+    /// Accessibility text makes the chrome several rows tall, and a short
+    /// Stage Manager window leaves the fixed editor's chrome and keys no room
+    /// for a grid (see `ChipLayout.scrollsEditor`). Either way, give the whole
     /// editor a vertical escape hatch instead of squeezing the grid and piano
     /// into whatever sliver remains below it.
-    private func accessibilityEditor(_ layout: ChipLayout,
-                                     availableHeight: CGFloat) -> some View {
+    private func scrollingEditor(_ layout: ChipLayout,
+                                 availableHeight: CGFloat) -> some View {
         // A landscape iPad normally docks the instrument editor beside the
-        // grid. This accessibility layout deliberately stacks instead, so its
+        // grid. This layout deliberately stacks instead, so its
         // descendants must also stop believing that editor is still docked;
         // the selected track can then open it as a popover.
         let stackedLayout = layout.withoutDockedInstrumentEditor
