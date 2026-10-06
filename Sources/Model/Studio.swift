@@ -1348,6 +1348,20 @@ final class Studio {
         }
     }
 
+    /// Imports a song dropped on the library or the editor and opens it. A
+    /// dropped file that isn't a song gets the same alert the Import picker
+    /// gives it.
+    @discardableResult
+    func importDropped(_ drop: SongDrop) -> Bool {
+        switch drop.result {
+        case .success(let song):
+            return importSong(decoded: song)
+        case .failure(let error):
+            importError = ImportFailureMessage.file(error: error)
+            return false
+        }
+    }
+
     /// Adds an already-decoded song to the library and opens it.
     ///
     /// A drag-and-drop arrives as bytes rather than as a file the app can

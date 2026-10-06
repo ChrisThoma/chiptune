@@ -127,25 +127,13 @@ enum SongDocument {
     }
 }
 
-/// A song being dragged — into the app from Files or another app, or out of
-/// the library onto anything that takes a file.
-///
-/// Drops arrive as data rather than as a URL: a dropped file's URL is only
-/// valid inside the callback that receives it, and the import work (save,
-/// open, alert on failure) outlives that. So the bytes are taken and decoded
-/// here, and only the outgoing direction deals in files.
+/// A song being dragged out of the library onto anything that takes a file.
+/// Drops coming in are `SongDrop`.
 struct SongFile: Transferable {
     let song: Song
 
     init(song: Song) {
         self.song = song
-    }
-
-    /// Decodes dropped bytes. Goes through `SongDocument`, so a drop gets the
-    /// same normalization — and the same rejection of anything that isn't a
-    /// song — as a file opened from the importer.
-    static func imported(from data: Data) throws -> SongFile {
-        SongFile(song: try SongDocument.decode(data))
     }
 
     /// Writes the song out for a drag that leaves the app.
@@ -157,14 +145,39 @@ struct SongFile: Transferable {
         FileRepresentation(exportedContentType: SongDocument.contentType) { file in
             SentTransferredFile(try file.exportedFile())
         }
+    }
+}
+
+/// A file dropped into the app from Files or another app, decoded or not.
+///
+/// Drops arrive as data rather than as a URL: a dropped file's URL is only
+/// valid inside the callback that receives it, and the import work (save,
+/// open, alert on failure) outlives that. So the bytes are taken and decoded
+/// here.
+///
+/// Decoding never throws. A throw from an import representation makes
+/// SwiftUI discard the item, so the drop's action got nothing and the drop
+/// was ignored without a word; carrying the failure lets it say what the
+/// Import picker says about the same file.
+struct SongDrop: Transferable {
+    let result: Result<Song, Error>
+
+    /// Goes through `SongDocument`, so a drop gets the same normalization —
+    /// and the same rejection of anything that isn't a song — as a file
+    /// opened from the importer.
+    init(data: Data) {
+        result = Result { try SongDocument.decode(data) }
+    }
+
+    static var transferRepresentation: some TransferRepresentation {
         DataRepresentation(importedContentType: SongDocument.contentType) { data in
-            try SongFile.imported(from: data)
+            SongDrop(data: data)
         }
         // Songs shared through apps that don't know the `.chipsong` type
         // arrive as the JSON the format conforms to; the importer accepts
         // those too, and `decode` is what tells a song from any other JSON.
         DataRepresentation(importedContentType: .json) { data in
-            try SongFile.imported(from: data)
+            SongDrop(data: data)
         }
     }
 }

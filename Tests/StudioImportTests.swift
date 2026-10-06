@@ -298,4 +298,32 @@ final class StudioImportTests: XCTestCase {
         XCTAssertNotNil(temp.store.load(id: studio.song.id),
                         "a NaN tempo fails to encode, so an unnormalized import is never saved")
     }
+
+    // MARK: Drops
+
+    func testADroppedSongIsImportedAndOpened() throws {
+        var incoming = Song(name: "Dropped in")
+        incoming.tempo = 101
+        let drop = SongDrop(data: try JSONEncoder().encode(incoming))
+
+        XCTAssertTrue(studio.importDropped(drop))
+
+        XCTAssertEqual(studio.song.name, "Dropped in")
+        XCTAssertNotNil(temp.store.load(id: studio.song.id), "a dropped song must be saved")
+        XCTAssertNil(studio.importError)
+    }
+
+    /// A dropped file that isn't a song gets the same alert the Import
+    /// picker gives it, rather than nothing.
+    func testADroppedFileThatIsNotASongIsReported() {
+        let before = studio.song.id
+        let count = temp.store.loadAll().count
+
+        XCTAssertFalse(studio.importDropped(SongDrop(data: Data("not a song".utf8))))
+
+        XCTAssertEqual(studio.importError,
+                       "Couldn't import the file. It isn't a Chiptune song, or it's damaged.")
+        XCTAssertEqual(studio.song.id, before, "a failed drop must leave the open song alone")
+        XCTAssertEqual(temp.store.loadAll().count, count)
+    }
 }
