@@ -289,7 +289,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingShare, onDismiss: requestReviewIfDue) {
             if let url = studio.exportURL {
                 ShareSheet(items: [url], onComplete: { completed, error in
-                    if let error {
+                    if error != nil {
                         studio.shareError = ShareFailureMessage.sheet(file: "WAV file")
                     }
                     shareOutcome = completed ? .completed : (error != nil ? .failed : .canceled)

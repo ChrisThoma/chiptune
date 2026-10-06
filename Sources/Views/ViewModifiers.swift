@@ -164,7 +164,7 @@ extension View {
         sheet(isPresented: Binding(isPresenting: Bindable(studio).shareURL)) {
             if let url = studio.shareURL {
                 ShareSheet(items: [url], onComplete: { _, error in
-                    if let error {
+                    if error != nil {
                         let message = ShareFailureMessage.sheet(file: "song file")
                         if let onFailure {
                             onFailure(message)
