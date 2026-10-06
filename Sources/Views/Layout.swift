@@ -511,25 +511,43 @@ extension View {
     }
 }
 
-/// Scaled rather than fixed: a popover is the one presentation that doesn't
-/// grow itself for Dynamic Type — a sheet gets the screen and can scroll into
-/// it — so at the larger text sizes a fixed box clips its own controls.
-private struct PopoverSize: ViewModifier {
-    @ScaledMetric private var minWidth: CGFloat
-    @ScaledMetric private var idealWidth: CGFloat
-    @ScaledMetric private var minHeight: CGFloat
-    @ScaledMetric private var idealHeight: CGFloat
-
-    init(minWidth: CGFloat, idealWidth: CGFloat, minHeight: CGFloat, idealHeight: CGFloat) {
-        _minWidth = ScaledMetric(wrappedValue: minWidth, relativeTo: .body)
-        _idealWidth = ScaledMetric(wrappedValue: idealWidth, relativeTo: .body)
-        _minHeight = ScaledMetric(wrappedValue: minHeight, relativeTo: .body)
-        _idealHeight = ScaledMetric(wrappedValue: idealHeight, relativeTo: .body)
+/// How big a popover asks to be at a given Dynamic Type `scale`.
+///
+/// A popover is the one presentation that doesn't grow itself for Dynamic
+/// Type — a sheet gets the screen and can scroll into it — so the ideal size
+/// scales, and the system fits that to the window. The minimum doesn't: a
+/// scaled floor of 380×420 came to 1180×1300 at AX5, wider than an 834pt
+/// portrait iPad, and the content was clipped to a box the window couldn't
+/// hold. The forms inside scroll, so the unscaled floor loses nothing.
+enum PopoverSizing {
+    struct Frame: Equatable {
+        var minWidth: CGFloat
+        var idealWidth: CGFloat
+        var minHeight: CGFloat
+        var idealHeight: CGFloat
     }
 
+    static func frame(minWidth: CGFloat, idealWidth: CGFloat,
+                      minHeight: CGFloat, idealHeight: CGFloat,
+                      scale: CGFloat) -> Frame {
+        Frame(minWidth: minWidth, idealWidth: max(idealWidth * scale, minWidth),
+              minHeight: minHeight, idealHeight: max(idealHeight * scale, minHeight))
+    }
+}
+
+private struct PopoverSize: ViewModifier {
+    let minWidth: CGFloat
+    let idealWidth: CGFloat
+    let minHeight: CGFloat
+    let idealHeight: CGFloat
+    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
+
     func body(content: Content) -> some View {
-        content.frame(minWidth: minWidth, idealWidth: idealWidth,
-                      minHeight: minHeight, idealHeight: idealHeight)
+        let frame = PopoverSizing.frame(minWidth: minWidth, idealWidth: idealWidth,
+                                        minHeight: minHeight, idealHeight: idealHeight,
+                                        scale: scale)
+        content.frame(minWidth: frame.minWidth, idealWidth: frame.idealWidth,
+                      minHeight: frame.minHeight, idealHeight: frame.idealHeight)
     }
 }
 
