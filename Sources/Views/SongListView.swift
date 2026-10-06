@@ -124,14 +124,14 @@ struct SongListView: View {
             // item in the Add menu. Attached out here rather than to the
             // `List` so an empty library — the one most likely to be dropped
             // on — is a target too.
-            .dropDestination(for: SongFile.self) { files, _ in
-                guard let file = files.first else { return false }
+            .dropDestination(for: SongDrop.self) { drops, _ in
+                guard let drop = drops.first else { return false }
                 // Deferred one runloop tick for the same reason the file
                 // importer defers: importing (and dismissing) inside the
                 // drop's own transaction can make SwiftUI drop the error
                 // alert's presentation.
                 DispatchQueue.main.async {
-                    if studio.importSong(decoded: file.song) {
+                    if studio.importDropped(drop) {
                         reload()
                         dismiss()
                     } else {

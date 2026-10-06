@@ -233,10 +233,16 @@ struct ContentView: View {
             }
             .environment(\.chipLayout, layout)
             // Dropping a song file on the editor opens it, the same as
-            // picking it in the importer.
-            .dropDestination(for: SongFile.self) { files, _ in
-                guard let file = files.first else { return false }
-                return studio.importSong(decoded: file.song)
+            // picking it in the importer, and a file that isn't a song gets
+            // the same "Import failed" alert. Deferred one runloop tick, the
+            // same as the library's drop: an alert raised inside the drop's
+            // own transaction can be lost.
+            .dropDestination(for: SongDrop.self) { drops, _ in
+                guard let drop = drops.first else { return false }
+                DispatchQueue.main.async {
+                    studio.importDropped(drop)
+                }
+                return true
             } isTargeted: { songDropTargeted = $0 }
             .overlay {
                 SongDropBorder(isTargeted: songDropTargeted)

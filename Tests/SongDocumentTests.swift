@@ -341,6 +341,22 @@ final class SongFileTests: XCTestCase {
         XCTAssertEqual(url.pathExtension, SongDocument.fileExtension)
         assertSameSong(try SongDocument.read(contentsOf: url), song)
     }
+}
+
+/// What a drop into the app carries. Decoding never throws: a throw from a
+/// `Transferable` import makes SwiftUI discard the item, so the drop's action
+/// gets nothing and can't say why. The failure is carried instead.
+final class SongDropTests: XCTestCase {
+
+    private func makeSong() -> Song {
+        var song = Song(name: "Dragged")
+        song.tempo = 132
+        song.patterns[0].rows[2][4] = 67
+        song.normalize()
+        return song
+    }
+
+    private let notASong = "Couldn't import the file. It isn't a Chiptune song, or it's damaged."
 
     func testDroppedBytesDecodeBackIntoTheSameSong() throws {
         let song = makeSong()
@@ -348,14 +364,26 @@ final class SongFileTests: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: url) }
         let data = try Data(contentsOf: url)
 
-        assertSameSong(try SongFile.imported(from: data).song, song)
+        assertSameSong(try SongDrop(data: data).result.get(), song)
     }
 
     /// A drop of something else must fail rather than land a broken song in
-    /// the library.
-    func testDroppedRubbishIsRejected() {
-        let data = Data("absolutely not a song".utf8)
-        XCTAssertThrowsError(try SongFile.imported(from: data))
+    /// the library, and fail with the importer's words.
+    func testDroppedRubbishIsAFailureTheImporterWouldName() {
+        let drop = SongDrop(data: Data("absolutely not a song".utf8))
+        guard case .failure(let error) = drop.result else {
+            return XCTFail("rubbish must not decode")
+        }
+        XCTAssertEqual(ImportFailureMessage.file(error: error), notASong)
+    }
+
+    /// Valid JSON is still not a song.
+    func testDroppedJSONThatIsNotASongIsAFailure() {
+        let drop = SongDrop(data: Data(#"{"name": "shopping list", "items": [1, 2]}"#.utf8))
+        guard case .failure(let error) = drop.result else {
+            return XCTFail("other JSON must not decode")
+        }
+        XCTAssertEqual(ImportFailureMessage.file(error: error), notASong)
     }
 
     /// The same normalization the file importer gets — a dropped song reaches
@@ -365,7 +393,7 @@ final class SongFileTests: XCTestCase {
         song.tempo = 100_000
         let data = try JSONEncoder().encode(song)
 
-        let imported = try SongFile.imported(from: data).song
+        let imported = try SongDrop(data: data).result.get()
         XCTAssertLessThan(imported.tempo, 100_000, "a dropped tempo must be clamped")
     }
 }
