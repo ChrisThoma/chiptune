@@ -77,7 +77,7 @@ final class ErrorSurfacingTests: XCTestCase {
         XCTAssertTrue(message.contains("“Locked Out”"), message)
         XCTAssertTrue(message.lowercased().contains("permission"), message)
         XCTAssertFalse(message.lowercased().contains("space"), message)
-        XCTAssertTrue(message.hasSuffix("Try again."), message)
+        XCTAssertFalse(message.contains("Try again"), "retrying can't fix a permission problem: \(message)")
     }
 
     func testATooLongExportGetsSpecificAdvice() {
@@ -179,7 +179,7 @@ final class ErrorSurfacingTests: XCTestCase {
         XCTAssertFalse(message.contains(".json"), message)
         XCTAssertFalse(message.contains("folder"), "the folder is the system's detail: \(message)")
         XCTAssertTrue(message.lowercased().contains("permission"), message)
-        XCTAssertTrue(message.hasSuffix("Try again."), message)
+        XCTAssertFalse(message.contains("Try again"), "retrying can't fix a permission problem: \(message)")
     }
 
     func testASuccessfulSaveClearsAPreviousFailure() throws {
