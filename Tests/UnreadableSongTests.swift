@@ -34,7 +34,7 @@ final class UnreadableSongTests: XCTestCase {
 
         XCTAssertEqual(studio.song.name, "Fine", "which song opens must not change")
         let notice = try XCTUnwrap(studio.unreadableSongsNotice)
-        XCTAssertTrue(notice.contains("1 song"), notice)
+        XCTAssertEqual(notice, UnreadableSongs.message(count: 1))
         XCTAssertEqual(try Data(contentsOf: bad), Data("{broken".utf8), "the file must be left untouched")
     }
 
@@ -62,13 +62,48 @@ final class UnreadableSongTests: XCTestCase {
 
         _ = try plantCorrupt(in: temp)
         _ = studio.loadLibrary()
-        XCTAssertTrue(studio.unreadableSongsNotice?.contains("1 song") ?? false,
+        XCTAssertEqual(studio.unreadableSongsNotice, UnreadableSongs.message(count: 1),
                       "a newly broken file is news")
     }
 
+    func testAReportedFileIsNotReportedAgainOnTheNextLaunch() throws {
+        let temp = makeTempStore()
+        temp.save(Song(name: "Fine"), makeCurrent: true)
+        _ = try plantCorrupt(in: temp)
+
+        let first = Studio(store: temp.store, autosaveEnabled: false)
+        addTeardownBlock { @MainActor in first.invalidateTimers() }
+        XCTAssertNotNil(first.unreadableSongsNotice)
+
+        // A cold launch is a new Studio on the same store and defaults.
+        let second = Studio(store: temp.store, autosaveEnabled: false)
+        addTeardownBlock { @MainActor in second.invalidateTimers() }
+        XCTAssertNil(second.unreadableSongsNotice, "the user can't act on it, so once is enough")
+        _ = second.loadLibrary()
+        XCTAssertNil(second.unreadableSongsNotice)
+    }
+
+    func testAReplacedOrChangedFileIsReportedAgain() throws {
+        let temp = makeTempStore()
+        temp.save(Song(name: "Fine"), makeCurrent: true)
+        let bad = try plantCorrupt(in: temp)
+
+        let first = Studio(store: temp.store, autosaveEnabled: false)
+        addTeardownBlock { @MainActor in first.invalidateTimers() }
+        XCTAssertNotNil(first.unreadableSongsNotice)
+
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(60)],
+                                              ofItemAtPath: bad.path)
+        let second = Studio(store: temp.store, autosaveEnabled: false)
+        addTeardownBlock { @MainActor in second.invalidateTimers() }
+        XCTAssertEqual(second.unreadableSongsNotice, UnreadableSongs.message(count: 1))
+    }
+
     func testNoticeWording() {
-        XCTAssertTrue(UnreadableSongs.message(count: 1).contains("1 song couldn’t be read"))
-        XCTAssertTrue(UnreadableSongs.message(count: 3).contains("3 songs couldn’t be read"))
-        XCTAssertTrue(UnreadableSongs.message(count: 2).contains("left untouched"))
+        XCTAssertEqual(UnreadableSongs.title, "Load failed")
+        XCTAssertEqual(UnreadableSongs.message(count: 1),
+                       "1 saved song couldn't be read, so it's left out of your library. It may be damaged.")
+        XCTAssertEqual(UnreadableSongs.message(count: 3),
+                       "3 saved songs couldn't be read, so they're left out of your library. They may be damaged.")
     }
 }

@@ -6,6 +6,7 @@ struct SongStore {
     static let shared = SongStore()
 
     private let currentKey = "currentSongID"
+    private let reportedUnreadableKey = "reportedUnreadableSongFiles"
 
     /// Where songs live and where "which song was open" is remembered. Both are
     /// injectable so a test can point at a temp directory and its own defaults
@@ -95,22 +96,47 @@ struct SongStore {
     /// only reported, never deleted, renamed or rewritten: the data may still
     /// be recoverable outside the app.
     func loadLibrary() -> SongLibrary {
-        let files = (try? FileManager.default.contentsOfDirectory(at: ensuringDirectory(),
-                                                                  includingPropertiesForKeys: nil)) ?? []
+        let files = (try? FileManager.default.contentsOfDirectory(
+            at: ensuringDirectory(), includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
         let decoder = JSONDecoder()
         var songs: [Song] = []
         var unreadable: [String] = []
+        var unreadableVersions: Set<String> = []
         for file in files where file.pathExtension == "json" {
             guard let data = try? Data(contentsOf: file),
                   var song = try? decoder.decode(Song.self, from: data) else {
                 unreadable.append(file.lastPathComponent)
+                unreadableVersions.insert(Self.version(of: file))
                 continue
             }
             song.normalize()
             songs.append(song)
         }
         return SongLibrary(songs: songs.sorted { $0.modified > $1.modified },
-                           unreadable: unreadable.sorted())
+                           unreadable: unreadable.sorted(),
+                           unreadableVersions: unreadableVersions)
+    }
+
+    /// A file's name plus its modification date, so a file that is replaced
+    /// or changed reads as a different one.
+    private static func version(of file: URL) -> String {
+        let modified = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?
+            .contentModificationDate?.timeIntervalSince1970 ?? 0
+        return "\(file.lastPathComponent)@\(modified)"
+    }
+
+    /// How many of `library`'s unreadable files haven't been reported before,
+    /// on this launch or any earlier one, and records them all as reported.
+    /// The user can't do anything about these files from inside the app, so
+    /// an alert on every cold launch would only nag. Only files that are
+    /// still unreadable are remembered, so the record can't grow without end.
+    func claimUnreported(in library: SongLibrary) -> Int {
+        let reported = Set(defaults.stringArray(forKey: reportedUnreadableKey) ?? [])
+        let current = library.unreadableVersions
+        if current != reported {
+            defaults.set(current.sorted(), forKey: reportedUnreadableKey)
+        }
+        return current.subtracting(reported).count
     }
 }
 
@@ -119,14 +145,18 @@ struct SongStore {
 struct SongLibrary {
     var songs: [Song]
     var unreadable: [String]
+    /// Each unreadable file's name and modification date, for remembering
+    /// which ones the user has already been told about.
+    var unreadableVersions: Set<String> = []
 }
 
 /// Wording for the "some song files could not be read" alert.
 enum UnreadableSongs {
-    static let title = "Couldn’t open a song"
+    static let title = "Load failed"
 
     static func message(count: Int) -> String {
-        let subject = count == 1 ? "1 song couldn’t be read" : "\(count) songs couldn’t be read"
-        return "\(subject), so \(count == 1 ? "it isn’t" : "they aren’t") in your library. \(count == 1 ? "The file was" : "The files were") left untouched."
+        count == 1
+            ? "1 saved song couldn't be read, so it's left out of your library. It may be damaged."
+            : "\(count) saved songs couldn't be read, so they're left out of your library. They may be damaged."
     }
 }
