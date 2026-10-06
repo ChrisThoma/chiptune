@@ -690,8 +690,7 @@ final class Studio {
     }
 
     private func audioFailureMessage() -> String {
-        let detail = engine.lastError.map { " \($0.localizedDescription)" } ?? ""
-        return "Couldn't start audio.\(detail)"
+        AudioFailureMessage.start(error: engine.lastError)
     }
 
     /// Clears one track in the pattern being edited.
