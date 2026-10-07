@@ -95,6 +95,12 @@ enum EditorPresentation {
     static func commandEnabled(hasEditor: Bool, canChangeSong: Bool) -> Bool {
         hasEditor && canChangeSong
     }
+
+    /// The same, read off the scene value's snapshot rather than the live
+    /// check, so the row's state changes exactly when the value does.
+    static func commandEnabled(editor: EditorActions?) -> Bool {
+        commandEnabled(hasEditor: editor != nil, canChangeSong: editor?.canChangeSong ?? false)
+    }
 }
 
 /// The presenters that capture state from the current song. Each subview
@@ -135,8 +141,12 @@ extension View {
 /// Published as a *scene* value rather than a focused one because this editor
 /// never gives SwiftUI focus to anything — nothing in the grid or the chrome
 /// is a focusable control — and a plain focused value would be nil forever.
-/// Equatable on the studio's identity alone: the closures can't be compared,
-/// and a rebuilt set of closures over the same studio is the same editor.
+/// Equatable on the studio's identity and the `canChangeSong` snapshot. The
+/// closures can't be compared, and a rebuilt set of them over the same studio
+/// is the same editor. The snapshot has to count: the commands only re-read
+/// this value when it compares unequal, so without it a row dimmed while a
+/// dialog was up could stay dimmed after it closed, and a dimmed row's chord
+/// doesn't fire.
 struct EditorActions: Equatable {
     let studio: Studio
     let endRenaming: () -> Void
@@ -144,11 +154,14 @@ struct EditorActions: Equatable {
     let openArrangement: () -> Void
     let openExport: () -> Void
     let confirmClearPattern: () -> Void
-    /// False while a dialog, alert or sheet holds state about this song.
-    let canChangeSong: () -> Bool
+    /// False while a dialog, alert or sheet holds state about this song, as of
+    /// when this value was built. What the menu rows dim from.
+    let canChangeSong: Bool
+    /// The same, read at the moment it's called. What the actions guard on.
+    let canChangeSongNow: () -> Bool
 
     static func == (lhs: EditorActions, rhs: EditorActions) -> Bool {
-        lhs.studio === rhs.studio
+        lhs.studio === rhs.studio && lhs.canChangeSong == rhs.canChangeSong
     }
 }
 
@@ -196,14 +209,14 @@ struct EditorCommands: Commands {
     /// One command row. The optional is unwrapped inside the action rather
     /// than around the row: a `CommandsBuilder` has no `if let`, and
     /// `Commands.body` isn't guaranteed to re-evaluate when an `@Observable`
-    /// changes, so `.disabled` here is a hint to the overlay and never the
-    /// thing that keeps an action safe: the guard in the action still does
-    /// that, and `.disabled` only keeps the overlay from showing a blocked
-    /// chord as live.
+    /// changes. So `.disabled` reads the snapshot carried in the scene value,
+    /// which changes whenever a dialog opens or closes, and never anything
+    /// live. It only keeps the overlay from showing a blocked chord as live;
+    /// the guard in the action, which does read live, is what keeps it safe.
     private func button(_ shortcut: EditorShortcut,
                         action: @escaping (EditorActions) -> Void) -> some View {
         Button(shortcut.title) {
-            guard let editor, editor.canChangeSong() else { return }
+            guard let editor, editor.canChangeSongNow() else { return }
             // Same as every button in the chrome: commit whatever is in the
             // song-name field first, so the action lands on the state the user
             // can see rather than on one still being typed.
@@ -211,8 +224,7 @@ struct EditorCommands: Commands {
             action(editor)
         }
         .keyboardShortcut(shortcut.key, modifiers: shortcut.modifiers)
-        .disabled(!EditorPresentation.commandEnabled(
-            hasEditor: editor != nil, canChangeSong: editor?.canChangeSong() ?? false))
+        .disabled(!EditorPresentation.commandEnabled(editor: editor))
     }
 }
 
