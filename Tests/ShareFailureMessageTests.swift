@@ -125,7 +125,7 @@ final class DeleteFailureMessageTests: XCTestCase {
         let denied = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteNoPermission.rawValue,
                              userInfo: [NSLocalizedDescriptionKey: raw])
         XCTAssertEqual(DeleteFailureMessage.song(name: "Doomed", error: denied),
-                       "Couldn't delete “Doomed”. The app doesn't have permission to delete the song file.")
+                       "Couldn't delete “Doomed”. The app isn't allowed to change that file.")
     }
 
     func testAnUnknownCauseSaysTryAgainAndNothingRaw() {
@@ -144,11 +144,11 @@ final class ImportFailureMessageTests: XCTestCase {
 
     func testAFileThatCannotBeRead() {
         XCTAssertEqual(ImportFailureMessage.file(error: SongDocument.ImportError.unreadable),
-                       "Couldn't import the file. It couldn't be read. Try again.")
+                       "Couldn't import the file. Something went wrong reading it. Try again.")
         let other = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileReadUnknown.rawValue,
                             userInfo: [NSLocalizedDescriptionKey: "raw picker text"])
         XCTAssertEqual(ImportFailureMessage.file(error: other),
-                       "Couldn't import the file. It couldn't be read. Try again.")
+                       "Couldn't import the file. Something went wrong reading it. Try again.")
     }
 
     func testAFileTheAppMayNotRead() {
