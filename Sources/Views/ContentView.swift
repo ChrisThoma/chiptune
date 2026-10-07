@@ -137,6 +137,14 @@ enum ExportFlow {
         return Step(closeExport: true, shareWhenExportCloses: true)
     }
 
+    /// The panel had to close for the share sheet to come up, but backing out
+    /// of that sheet without sharing usually means trying another ending or
+    /// repeat count, so it returns. A completed share is the end of the job,
+    /// and a failed one is already putting up its own alert.
+    static func reopensExportAfterShare(outcome: ReviewPromptPolicy.ShareOutcome) -> Bool {
+        outcome == .canceled
+    }
+
     static func afterExportClosed(pendingShare: Bool) -> Step {
         Step(shareNow: pendingShare)
     }
@@ -464,6 +472,7 @@ struct ContentView: View {
             successfulExports: successfulExportCount,
             lastRequestExportCount: lastReviewRequestExportCount)
         reviewAfterSharing = false
+        if ExportFlow.reopensExportAfterShare(outcome: shareOutcome) { showingExport = true }
         lastReviewRequestExportCount = result.lastRequestExportCount
         guard result.shouldRequestReview else { return }
         // StoreKit decides whether a request is actually shown.
