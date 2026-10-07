@@ -60,6 +60,9 @@ final class Studio {
     /// can't show progress through a section either.
     var playingSection: Int = 0
     var exportURL: URL?
+    /// The export panel's repeats and ending. Kept here rather than in the
+    /// panel so they survive it closing for the share sheet and coming back.
+    var exportOptions = ExportOptions()
     /// True while a WAV render is running off the main thread.
     var isExporting = false
     /// 0...1 while `isExporting`. A long arrangement takes real time, and a
