@@ -1,41 +1,62 @@
 package dev.individuation.chiptune.ui.editor
 
+import android.app.Activity
+import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
 import androidx.core.net.toUri
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import com.google.android.play.core.review.ReviewManagerFactory
+import dev.individuation.chiptune.ChiptuneApp
+import dev.individuation.chiptune.core.studio.ShareFailureMessage
+import dev.individuation.chiptune.core.studio.ShareOutcome
+import dev.individuation.chiptune.core.studio.WriteFailureMessage
+import dev.individuation.chiptune.platform.ShareChosenReceiver
+import dev.individuation.chiptune.platform.ShareResult
+import dev.individuation.chiptune.platform.SongImporter
 import java.io.File
+import java.util.concurrent.Executors
 
 /**
  * What the editor asks the platform to do: the file pickers, share sheets
- * and links the iOS views get from SwiftUI. An interface so Phase 7 can
- * replace [AndroidEditorEffects]'s placeholders (the SAF importer, the
- * FileProvider share) without touching the editor.
+ * and links the iOS views get from SwiftUI. An interface so tests and
+ * previews can stand in for [AndroidEditorEffects].
  */
 interface EditorEffects {
-    /** "Import song..." in the menu (and the library's Add, in 5B). Phase 7:
-     * `OpenDocument`, then `studio.importSong { bytes }`. */
+    /** "Import song..." in the menu and the library's Add: `OpenDocument`,
+     * then `studio.importSong`. */
     fun importSong()
 
-    /** A `.chipsong` (`application/json`) or a WAV (`audio/wav`) to share. Phase
-     * 7: `ACTION_SEND` through a FileProvider with the MIME type set
-     * explicitly. [onFinished] runs when the share is handed off (true) or
-     * fails (false); the review prompt reads it. */
+    /** A `.chipsong` (`application/json`) or a WAV (`audio/wav`) to share,
+     * through a FileProvider with the MIME type set explicitly. [onFinished]
+     * runs once with true when a share target was picked, false when the
+     * chooser was backed out of or couldn't open; the review prompt reads it. */
     fun shareFile(file: File, mimeType: String, onFinished: (Boolean) -> Unit = {})
 
     /** Opens a web link in the browser. */
     fun openUrl(url: String)
 
-    /** "Save to device" on a finished export. Phase 7: `CreateDocument`
-     * (audio/wav) with [suggestedName], then copy [file] into it. */
+    /** "Save to device" on a finished export: `CreateDocument` (audio/wav)
+     * named [suggestedName], then [file] is copied into it. */
     fun saveToDevice(file: File, suggestedName: String)
 
     /** The review prompt, once a share after a milestone export went through
-     * (`ReviewPromptTracker.shareDismissed` said so). Phase 7: Play's
-     * in-app review flow, which decides itself whether anything shows. */
+     * (`ReviewPromptTracker.shareDismissed` said so): Play's in-app review
+     * flow, which decides itself whether anything shows. */
     fun requestReview()
 
     /** Puts [text] on the clipboard (the build stamp row). */
@@ -48,27 +69,111 @@ interface EditorEffects {
     }
 }
 
-/** The app's [EditorEffects]. Links and the clipboard are real; import and
- * share are placeholders until Phase 7 wires the SAF and the FileProvider. */
+/** The app's [EditorEffects]. */
 class AndroidEditorEffects(private val context: Context) : EditorEffects {
+    private val activity: ComponentActivity? =
+        generateSequence(context) { (it as? ContextWrapper)?.baseContext }.filterIsInstance<ComponentActivity>().firstOrNull()
+    private val app: ChiptuneApp? = context.applicationContext as? ChiptuneApp
+    private val main = Handler(Looper.getMainLooper())
+
     override fun importSong() {
-        // TODO(Phase 7): launch OpenDocument(application/json, application/octet-stream).
-        Toast.makeText(context, "Importing songs arrives in a later build.", Toast.LENGTH_SHORT).show()
+        launch(ActivityResultContracts.OpenDocument(), arrayOf("application/json", "application/octet-stream")) { uri ->
+            val studio = app?.studio
+            if (uri != null && studio != null) SongImporter.import(context, studio, uri)
+        }
     }
 
     override fun shareFile(file: File, mimeType: String, onFinished: (Boolean) -> Unit) {
-        // TODO(Phase 7): ACTION_SEND through a FileProvider, MIME set explicitly.
-        Toast.makeText(context, "Sharing arrives in a later build.", Toast.LENGTH_SHORT).show()
+        val host = activity
+        if (host == null) {
+            onFinished(false)
+            return
+        }
+        val uri = try {
+            FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+        } catch (e: IllegalArgumentException) {
+            failShare(file, onFinished)
+            return
+        }
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = mimeType
+            putExtra(Intent.EXTRA_STREAM, uri)
+            clipData = ClipData.newRawUri(file.name, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val callback = PendingIntent.getBroadcast(
+            context,
+            0,
+            Intent(context, ShareChosenReceiver::class.java).setPackage(context.packageName),
+            // Mutable: the system adds EXTRA_CHOSEN_COMPONENT to it.
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+        )
+        var finished = false
+        fun finish(handedOff: Boolean) {
+            if (finished) return
+            finished = true
+            ShareChosenReceiver.listener = null
+            onFinished(handedOff)
+        }
+        ShareChosenReceiver.listener = { chosen -> finish(ShareResult.outcome(chosen) == ShareOutcome.COMPLETED) }
+        try {
+            host.startActivity(Intent.createChooser(send, null, callback.intentSender))
+        } catch (e: ActivityNotFoundException) {
+            ShareChosenReceiver.listener = null
+            failShare(file, onFinished)
+            return
+        }
+        // Backing out of the chooser sends nothing, so when the app is
+        // foregrounded again with no pick reported, that was a cancel.
+        host.lifecycle.addObserver(object : DefaultLifecycleObserver {
+            private var left = false
+            override fun onPause(owner: LifecycleOwner) {
+                left = true
+            }
+
+            override fun onResume(owner: LifecycleOwner) {
+                if (!left) return
+                owner.lifecycle.removeObserver(this)
+                main.postDelayed({ finish(false) }, CHOOSER_RESULT_GRACE_MS)
+            }
+        })
+    }
+
+    private fun failShare(file: File, onFinished: (Boolean) -> Unit) {
+        app?.studio?.shareError = ShareFailureMessage.sheet(if (file.extension == "wav") "WAV file" else "song file")
         onFinished(false)
     }
 
     override fun saveToDevice(file: File, suggestedName: String) {
-        // TODO(Phase 7): CreateDocument("audio/wav") named suggestedName, then copy the file in.
-        Toast.makeText(context, "Saving to the device arrives in a later build.", Toast.LENGTH_SHORT).show()
+        launch(ActivityResultContracts.CreateDocument(EditorEffects.WAV_MIME), suggestedName) { uri ->
+            if (uri != null) copyInto(file, uri)
+        }
+    }
+
+    private fun copyInto(file: File, uri: Uri) {
+        val resolver = context.contentResolver
+        saver.execute {
+            val failure = try {
+                val out = resolver.openOutputStream(uri, "wt") ?: throw java.io.IOException("no stream")
+                out.use { o -> file.inputStream().use { it.copyTo(o) } }
+                null
+            } catch (e: Exception) {
+                e
+            }
+            main.post {
+                val text = if (failure == null) "Saved" else WriteFailureMessage.export(file.nameWithoutExtension, failure)
+                Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     override fun requestReview() {
-        // TODO(Phase 7): Play in-app review. A no-op until then.
+        val host: Activity = activity ?: return
+        val manager = ReviewManagerFactory.create(context)
+        manager.requestReviewFlow().addOnCompleteListener { request ->
+            // Play decides whether anything shows; with no Play it never completes.
+            if (request.isSuccessful) manager.launchReviewFlow(host, request.result)
+        }
     }
 
     override fun openUrl(url: String) {
@@ -82,5 +187,23 @@ class AndroidEditorEffects(private val context: Context) : EditorEffects {
     override fun copyToClipboard(label: String, text: String) {
         val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return
         clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
+    }
+
+    /** One-shot launch through the activity's registry, which outlives the
+     * composition that asked (the picker can take as long as it likes). */
+    private fun <I, O> launch(contract: ActivityResultContract<I, O>, input: I, onResult: (O) -> Unit) {
+        val host = activity ?: return
+        var launcher: ActivityResultLauncher<I>? = null
+        launcher = host.activityResultRegistry.register("chiptune-effect-${nextKey++}", contract) { result ->
+            launcher?.unregister()
+            onResult(result)
+        }
+        launcher.launch(input)
+    }
+
+    private companion object {
+        const val CHOOSER_RESULT_GRACE_MS = 700L
+        var nextKey = 0
+        val saver = Executors.newSingleThreadExecutor { r -> Thread(r, "chiptune-save") }
     }
 }

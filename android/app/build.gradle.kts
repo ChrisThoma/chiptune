@@ -170,6 +170,8 @@ dependencies {
     // dexopt got round to it. 1.4 writes the profile there too. Compose now
     // brings 1.4 itself; this keeps that floor if it ever stops.
     implementation(libs.androidx.profileinstaller)
+    // In-app review: asked for after a milestone export is shared. A no-op without Play.
+    implementation(libs.play.review)
     debugImplementation(libs.androidx.ui.tooling)
 
     testImplementation(libs.junit)
