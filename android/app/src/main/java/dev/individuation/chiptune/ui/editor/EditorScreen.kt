@@ -70,7 +70,7 @@ fun EditorScreen(
         Editor(studio, ui, presentation, editorEffects, haptics, rename)
     }
 
-    Box(Modifier.fillMaxSize().background(ChipColors.background)) {
+    Box(Modifier.fillMaxSize().background(ChipColors.background).songDropTarget(studio)) {
         BoxWithConstraints(
             Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout)),
         ) {
