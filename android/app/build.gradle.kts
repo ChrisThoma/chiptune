@@ -1,4 +1,6 @@
 import java.io.FileInputStream
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -86,6 +88,9 @@ android {
         versionName = "1.0"
 
         buildConfigField("String", "GIT_COMMIT_HASH", "\"${gitCommitHash()}\"")
+        // The day of the build (UTC), for the menu's "Built ..." line. A day
+        // rather than an instant, so BuildConfig only changes once a day.
+        buildConfigField("String", "BUILD_DATE", "\"${LocalDate.now(ZoneOffset.UTC)}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
