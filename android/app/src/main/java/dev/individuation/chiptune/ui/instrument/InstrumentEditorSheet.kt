@@ -75,6 +75,7 @@ import dev.individuation.chiptune.ui.editor.FormSwitch
 import dev.individuation.chiptune.ui.editor.SegmentedPicker
 import dev.individuation.chiptune.ui.editor.SheetBar
 import dev.individuation.chiptune.ui.editor.plainClickable
+import dev.individuation.chiptune.ui.editor.reportsTextEntryFocus
 import dev.individuation.chiptune.ui.layout.Format
 import dev.individuation.chiptune.ui.layout.InstrumentEditorCopy
 import dev.individuation.chiptune.ui.theme.ChipColors
@@ -382,6 +383,7 @@ private fun NameSection(editor: Editor, track: Int, kind: ChannelKind) {
                 ),
                 modifier = Modifier
                     .weight(1f)
+                    .reportsTextEntryFocus()
                     .onFocusChanged { state ->
                         if (state.isFocused) {
                             scope.launch {

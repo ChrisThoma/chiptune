@@ -75,6 +75,7 @@ import dev.individuation.chiptune.ui.editor.SheetBar
 import dev.individuation.chiptune.ui.editor.SwipeAction
 import dev.individuation.chiptune.ui.editor.SwipeActionsRow
 import dev.individuation.chiptune.ui.editor.SwipeRevealGroup
+import dev.individuation.chiptune.ui.editor.reportsTextEntryFocus
 import dev.individuation.chiptune.ui.layout.SongListCopy
 import dev.individuation.chiptune.ui.theme.ChipColors
 import dev.individuation.chiptune.ui.theme.chipFont
@@ -358,7 +359,7 @@ private fun RenameSongDialog(
                     cursorBrush = SolidColor(ChipColors.text),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { if (enabled) onRename(text) }),
-                    modifier = Modifier.fillMaxWidth().focusRequester(focus).semantics { contentDescription = "Song title" },
+                    modifier = Modifier.fillMaxWidth().reportsTextEntryFocus().focusRequester(focus).semantics { contentDescription = "Song title" },
                     decorationBox = { field ->
                         Box {
                             if (text.isEmpty()) Text("Name", color = ChipColors.dim, style = MaterialTheme.typography.bodyLarge)
