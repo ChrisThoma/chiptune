@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.individuation.chiptune.core.studio.Studio
 import dev.individuation.chiptune.ui.arrangement.ArrangementSheet
+import dev.individuation.chiptune.ui.export.ExportResultDialog
+import dev.individuation.chiptune.ui.export.ExportResultHost
 import dev.individuation.chiptune.ui.export.ExportSheet
 import dev.individuation.chiptune.ui.instrument.InstrumentEditorSheet
 import dev.individuation.chiptune.ui.layout.ChipLayout
@@ -86,6 +88,7 @@ fun EditorScreen(
             }
         }
         PresentedSurfaceHost(editor)
+        ExportResultHost(editor)
         EditorErrorDialogs(editor)
     }
 
@@ -108,7 +111,7 @@ fun EditorScreen(
             ScreenshotMode.EXPORT -> presentation.open(Presented.Export)
             ScreenshotMode.PLAYING -> studio.play()
             ScreenshotMode.PATTERN -> studio.selectPattern(1)
-            ScreenshotMode.INSTRUMENT -> presentation.open(Presented.InstrumentEditor(0))
+            ScreenshotMode.INSTRUMENT -> presentation.open(Presented.InstrumentEditor(0, showSound = true))
             null -> return@LaunchedEffect
         }
         onScreenshotModeApplied()
@@ -176,7 +179,8 @@ private fun PresentedSurfaceHost(editor: Editor) {
         Presented.Songs -> SongListSheet(editor) { presentation.close(Presented.Songs) }
         Presented.Arrangement -> ArrangementSheet(editor, layout.isRegularWidth) { presentation.close(Presented.Arrangement) }
         Presented.Export -> ExportSheet(editor, layout.isRegularWidth) { presentation.close(Presented.Export) }
-        is Presented.InstrumentEditor -> InstrumentEditorSheet(editor, current.track) { presentation.close(current) }
+        is Presented.InstrumentEditor -> InstrumentEditorSheet(editor, current.track, current.showSound) { presentation.close(current) }
+        is Presented.ExportResult -> ExportResultDialog(editor, current.file) { presentation.close(current) }
         Presented.KeyboardHelp -> KeyboardHelpSheet { presentation.close(Presented.KeyboardHelp) }
         is Presented.PatternRename -> PatternRenameSheet(editor, current.pattern) { presentation.close(current) }
         is Presented.ClearPattern -> ClearPatternDialog(editor, current.pattern) { presentation.close(current) }

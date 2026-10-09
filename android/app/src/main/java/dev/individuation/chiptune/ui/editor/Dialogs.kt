@@ -1,6 +1,9 @@
 package dev.individuation.chiptune.ui.editor
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -11,12 +14,14 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,13 +39,15 @@ import dev.individuation.chiptune.ui.theme.ChipColors
 /**
  * The app's bottom sheet: dark, and opened fully expanded at accessibility
  * text sizes (iOS's `compactSheetDetents`) or whenever [skipPartiallyExpanded].
- * Phase 5B builds its four surfaces inside this.
+ * The four form sheets (songs, arrangement, export, sound) pass
+ * [FormColors.sheet] as [containerColor].
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ChipSheet(
     onDismiss: () -> Unit,
     skipPartiallyExpanded: Boolean = false,
+    containerColor: androidx.compose.ui.graphics.Color = ChipColors.background,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val large = TextScale.isAccessibilitySize(LocalDensity.current.fontScale)
@@ -48,10 +55,18 @@ fun ChipSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = state,
-        containerColor = ChipColors.background,
+        containerColor = containerColor,
         contentColor = ChipColors.text,
-        content = content,
-    )
+    ) {
+        // A half-open sheet would leave a focused field under the keyboard:
+        // its content is laid out full height and only slid partly on
+        // screen, so nothing scrolls the field into view. Typing opens it.
+        val imeVisible = WindowInsets.isImeVisible
+        LaunchedEffect(imeVisible) {
+            if (imeVisible && state.currentValue == SheetValue.PartiallyExpanded) state.expand()
+        }
+        content()
+    }
 }
 
 /** A sheet's top row: Cancel/Close on the left, a title, a confirm on the

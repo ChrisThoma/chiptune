@@ -9,6 +9,7 @@ import dev.individuation.chiptune.core.audio.ChipCore
 import dev.individuation.chiptune.core.audio.WavExport
 import dev.individuation.chiptune.core.store.FileSongStore
 import dev.individuation.chiptune.core.studio.AppPhase
+import dev.individuation.chiptune.core.studio.ReviewPromptTracker
 import dev.individuation.chiptune.core.studio.ScenePhasePolicy
 import dev.individuation.chiptune.core.studio.SongShareWriter
 import dev.individuation.chiptune.core.studio.Studio
@@ -43,6 +44,9 @@ class ChiptuneApp : Application() {
     /** The Studio, once [buildStudio] has run. Main thread only. */
     var studio: Studio? = null
         private set
+
+    /** The review prompt's export counts, kept with the app's other prefs. */
+    val reviewPrompt: ReviewPromptTracker by lazy { ReviewPromptTracker(SharedPrefsKeyValueStore(this)) }
 
     override fun onCreate() {
         super.onCreate()
