@@ -6,15 +6,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import dev.individuation.chiptune.ui.theme.ChipColors
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.individuation.chiptune.ui.theme.ChiptuneTheme
 
 class MainActivity : ComponentActivity() {
@@ -27,16 +24,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             ChiptuneTheme {
-                Box(
-                    modifier = Modifier.fillMaxSize().background(ChipColors.background),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = "CHIPTUNE",
-                        color = ChipColors.text,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                    )
+                val model: StudioViewModel = viewModel()
+                val studio by model.studio.collectAsStateWithLifecycle()
+                // iOS fades the splash out over 0.28 s, ease-out.
+                Crossfade(targetState = studio, animationSpec = tween(280, easing = FastOutSlowInEasing), label = "splash") {
+                    if (it == null) Splash() else DebugTransport(it)
                 }
             }
         }
