@@ -1,0 +1,5 @@
+{ "name": "Held", "tempo": 120, "tracks": [
+    { "kind": 2, "instrument": { "duty": 2, "volume": 0.9, "decay": 4.0, "arpeggio": [] } } ],
+  "patterns": [ { "id": "1E7F723E-0F84-5AE5-BE1F-C39A260716D3", "name": "A", "length": 16,
+                  "rows": [[48]] } ],
+  "arrangement": [] }

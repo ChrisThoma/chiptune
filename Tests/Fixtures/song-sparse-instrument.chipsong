@@ -1,0 +1,4 @@
+{ "id": "8b9e77f2-1a6d-51f1-a9ed-02378136a237", "name": "Sparse", "tempo": 120, "tracks": [ { "kind": 0, "instrument": {} } ],
+  "patterns": [ { "id": "2b095d3f-51ff-51bc-9a1a-9ea10ba6fe7c", "name": "A", "length": 16,
+                  "rows": [[60]] } ],
+  "arrangement": [] }

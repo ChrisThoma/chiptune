@@ -1,0 +1,5 @@
+{ "name": "Legacy share", "tempo": 128, "length": 8, "tracks": [
+    { "kind": 0, "instrument": { "duty": 2, "volume": 0.8, "decay": 0.35, "arpeggio": [] },
+      "notes": [60, -1, 64, -1, 67, -1, -1, -1] },
+    { "kind": 3, "notes": [60, 200, -2, -7] } ],
+  "arrangement": "ignored in the legacy path" }

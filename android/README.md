@@ -30,7 +30,11 @@ Always pass `-s <serial>` when more than one device is attached.
 ## Shared fixtures
 
 The golden WAV and `.chipsong` fixtures are shared with iOS and live in
-`../Tests/Fixtures`.
+`../Tests/Fixtures`; the unit tests read them in place as test resources.
+`song-fixtures.json` lists every `song-*.chipsong` and whether it decodes,
+with facts about the normalized song. `SharedFixtureTest` (here) and
+`Tests/SharedFixtureTests.swift` (iOS) assert the same manifest, and iOS is
+the source of truth: when the two disagree, the Kotlin codec changes.
 
 ## Release signing
 

@@ -1,0 +1,6 @@
+{ "name": "From the future", "tempo": 120, "tracks": [
+    { "kind": 0, "instrument": {} },
+    { "kind": 9, "instrument": { "duty": 2, "volume": 0.8, "decay": 0.35 } } ],
+  "patterns": [ { "id": "6AB0AF94-BAA2-5055-B110-5DC99FFF40BD", "name": "A", "length": 16,
+                  "rows": [[60], [67]] } ],
+  "arrangement": [] }

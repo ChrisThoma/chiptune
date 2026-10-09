@@ -1,0 +1,6 @@
+{ "name": "No instrument", "tempo": 120, "tracks": [
+    { "kind": 0, "instrument": {} },
+    { "kind": 2 } ],
+  "patterns": [ { "id": "0EABAB39-9BDC-5002-AD42-B52ECF3B01BD", "name": "A", "length": 16,
+                  "rows": [[60], [67]] } ],
+  "arrangement": [] }
