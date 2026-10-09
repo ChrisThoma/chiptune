@@ -30,7 +30,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.individuation.chiptune.ChiptuneApp
+import dev.individuation.chiptune.platform.SongImporter
 import dev.individuation.chiptune.core.model.ChannelKind
 import dev.individuation.chiptune.ui.editor.EditorScreen
 import dev.individuation.chiptune.ui.layout.ScreenshotMode
@@ -49,6 +53,18 @@ private val EaseInOut = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)
 @Composable
 fun AppRoot(model: StudioViewModel, screenshotMode: ScreenshotMode?) {
     val studio by model.studio.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val incoming = (context.applicationContext as ChiptuneApp).incoming
+    val pending by incoming.pending.collectAsStateWithLifecycle()
+    // A song opened with Chiptune waits for the Studio, as iOS's pendingImport does.
+    LaunchedEffect(studio, pending) {
+        val ready = studio
+        val uri = pending
+        if (ready != null && uri != null) {
+            incoming.consume(uri)
+            SongImporter.import(context, ready, uri)
+        }
+    }
     var screenshotApplied by rememberSaveable { mutableStateOf(false) }
     Crossfade(targetState = studio, animationSpec = tween(280, easing = EaseOut), label = "splash") { built ->
         if (built == null) {

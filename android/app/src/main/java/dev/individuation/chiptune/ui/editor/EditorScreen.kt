@@ -93,7 +93,7 @@ fun EditorScreen(
     HardwareKeysHook(keys)
 
     CompositionLocalProvider(LocalEditorKeyHandler provides keys) {
-        Box(Modifier.fillMaxSize().background(ChipColors.background)) {
+        Box(Modifier.fillMaxSize().background(ChipColors.background).songDropTarget(studio)) {
             BoxWithConstraints(
                 Modifier
                     .fillMaxSize()
