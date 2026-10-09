@@ -98,6 +98,12 @@ class TitleRename {
     fun end() {
         if (focused) clearFocus()
     }
+
+    /** Escape in any of the editor window's fields (the title, or the docked
+     * sound settings' name): focus leaves, which hands the keys back. */
+    fun endAnyTextEntry() {
+        clearFocus()
+    }
 }
 
 /** Any touch on this view closes the title rename first, without taking the

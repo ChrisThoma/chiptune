@@ -131,6 +131,7 @@ private fun ModeTray(editor: Editor, height: Dp, stretched: Boolean) {
         Box(
             (if (stretched) Modifier.weight(1f) else Modifier.width(layout.arrButtonWidth.dpValue()))
                 .height(height)
+                .popoverAnchor(editor.presentation.anchors, PopoverAnchor.Arrangement)
                 .plainClickable { editor.presentation.open(Presented.Arrangement) }
                 .semantics { contentDescription = "Arrangement" },
             contentAlignment = Alignment.Center,
@@ -195,6 +196,7 @@ fun TempoDialog(editor: Editor, onDismiss: () -> Unit) {
         containerColor = ChipColors.panelHigh,
         title = { Text("Tempo") },
         text = {
+            PresentedWindowKeys(onDismiss)
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("40 to 300 BPM", color = ChipColors.text)
                 OutlinedTextField(
@@ -206,7 +208,7 @@ fun TempoDialog(editor: Editor, onDismiss: () -> Unit) {
                     keyboardActions = KeyboardActions(onDone = { set() }),
                     // The field opens holding the tempo, so its placeholder
                     // never shows: name it for TalkBack.
-                    modifier = Modifier.focusRequester(focus).semantics { contentDescription = "BPM" },
+                    modifier = Modifier.reportsTextEntryFocus().focusRequester(focus).semantics { contentDescription = "BPM" },
                 )
             }
         },

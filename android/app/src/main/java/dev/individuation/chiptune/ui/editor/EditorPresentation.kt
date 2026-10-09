@@ -24,7 +24,9 @@ import kotlinx.coroutines.flow.drop
  * (a second presentation request there is lost or appears later on its own).
  *
  * The four Phase 5B surfaces ([Songs], [Arrangement], [Export],
- * [InstrumentEditor]) and [KeyboardHelp] (Phase 6) are bottom sheets; the rest
+ * [InstrumentEditor]) and [KeyboardHelp] are bottom sheets on a phone; at
+ * regular width they're popovers (Songs a centred dialog), and the
+ * instrument editor docks in the side layout (`SurfaceContainers`). The rest
  * are the editor's own dialogs and sheets.
  */
 sealed interface Presented {
@@ -103,6 +105,9 @@ class EditorPresentationState internal constructor(
 ) {
     var current: Presented by mutableStateOf(Presented.None)
         private set
+
+    /** Where the regular-width popovers hang from (Phase 6). */
+    val anchors = PopoverAnchors()
 
     /** Phase 7's share sheet counts as presented while a song file waits. */
     val anyPresented: Boolean by derivedStateOf { current != Presented.None || ui.value.shareFile != null }

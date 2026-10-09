@@ -1,6 +1,5 @@
 package dev.individuation.chiptune.ui.editor
 
-import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -60,6 +59,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.individuation.chiptune.BuildConfig
 import dev.individuation.chiptune.core.studio.KeyboardShortcutsMenuVisibility
+import dev.individuation.chiptune.platform.KeyboardConnection
 import dev.individuation.chiptune.ui.layout.BuildStamp
 import dev.individuation.chiptune.ui.theme.ChipColors
 import dev.individuation.chiptune.ui.theme.chipFont
@@ -107,6 +107,7 @@ fun TitleBar(editor: Editor) {
             }),
             modifier = Modifier
                 .weight(1f)
+                .reportsTextEntryFocus()
                 .onFocusChanged { focus ->
                     val was = editor.rename.focused
                     editor.rename.focused = focus.isFocused
@@ -188,12 +189,13 @@ private fun SongMenu(editor: Editor) {
     val patternName by remember { derivedStateOf { ui.value.pattern.name } }
     val hardwareKeyboardInUse by remember { derivedStateOf { ui.value.hardwareKeyboardInUse } }
     val configuration = LocalConfiguration.current
-    val keyboardConnected = configuration.keyboard == Configuration.KEYBOARD_QWERTY &&
-        configuration.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO
+    val keyboardConnected = KeyboardConnection.isConnected(configuration.keyboard, configuration.hardKeyboardHidden)
 
     Box {
         Box(
             Modifier
+                // Export and the key list hang from here at regular width.
+                .popoverAnchor(editor.presentation.anchors, PopoverAnchor.Menu)
                 .size(layout.titleIconTargetSize.dpValue())
                 .plainClickable { open = true }
                 .semantics { contentDescription = "Song menu" },

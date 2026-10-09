@@ -533,6 +533,8 @@ private fun TrackHeader(
 
     Column(
         modifier
+            // The sound settings' popover hangs from here at regular width.
+            .popoverAnchor(editor.presentation.anchors, PopoverAnchor.Track(index))
             .width(width)
             .height(layout.trackHeaderHeight.dpValue())
             .clip(shape)

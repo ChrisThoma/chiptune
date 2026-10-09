@@ -365,7 +365,7 @@ fun PatternRenameSheet(editor: Editor, index: Int, onDismiss: () -> Unit) {
                         imeAction = ImeAction.Done,
                     ),
                     keyboardActions = KeyboardActions(onDone = { commit() }),
-                    modifier = Modifier.fillMaxWidth().focusRequester(focus).semantics { contentDescription = "Pattern name" },
+                    modifier = Modifier.fillMaxWidth().reportsTextEntryFocus().focusRequester(focus).semantics { contentDescription = "Pattern name" },
                     decorationBox = { field ->
                         Box {
                             if (text.isEmpty()) Text("Name", color = ChipColors.dim, style = MaterialTheme.typography.bodyLarge)

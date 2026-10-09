@@ -5,17 +5,39 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Color as AndroidColor
 import android.os.Bundle
+import android.view.KeyEvent
+import android.view.KeyboardShortcutGroup
+import android.view.Menu
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.individuation.chiptune.BuildConfig
+import dev.individuation.chiptune.platform.KeyboardShortcutGroups
+import dev.individuation.chiptune.ui.editor.HardwareKeyHost
 import dev.individuation.chiptune.ui.layout.ScreenshotMode
 import dev.individuation.chiptune.ui.layout.SizeClass
 import dev.individuation.chiptune.ui.theme.ChiptuneTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), HardwareKeyHost {
+    /** Set by the editor while it's on screen (see `HardwareKeyHandling.kt`). */
+    override var hardwareKeyHandler: ((KeyEvent) -> Boolean)? = null
+
+    /** Ahead of the view tree, so keys reach the editor whatever has focus;
+     * the handler passes on what a focused text field should get. (The
+     * RestrictedApi flag is androidx.core marking its own override; this is
+     * the platform `Activity.dispatchKeyEvent`.) */
+    @SuppressLint("RestrictedApi")
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean =
+        hardwareKeyHandler?.invoke(event) == true || super.dispatchKeyEvent(event)
+
+    /** The Ctrl chords and the unmodified keys, for the Meta+/ helper. */
+    override fun onProvideKeyboardShortcuts(data: MutableList<KeyboardShortcutGroup>?, menu: Menu?, deviceId: Int) {
+        super.onProvideKeyboardShortcuts(data, menu, deviceId)
+        data?.addAll(KeyboardShortcutGroups.groups())
+    }
+
     @SuppressLint("SourceLockedOrientationActivity")
     override fun onCreate(savedInstanceState: Bundle?) {
         // Phones are portrait, as on iOS; tablets rotate (API 36 ignores the

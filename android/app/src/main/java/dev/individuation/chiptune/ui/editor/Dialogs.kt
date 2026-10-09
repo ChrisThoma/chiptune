@@ -61,6 +61,7 @@ fun ChipSheet(
         // A half-open sheet would leave a focused field under the keyboard:
         // its content is laid out full height and only slid partly on
         // screen, so nothing scrolls the field into view. Typing opens it.
+        PresentedWindowKeys(onDismiss)
         val imeVisible = WindowInsets.isImeVisible
         LaunchedEffect(imeVisible) {
             if (imeVisible && state.currentValue == SheetValue.PartiallyExpanded) state.expand()
@@ -108,7 +109,10 @@ fun ConfirmDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = ChipColors.panelHigh,
-        title = { Text(title) },
+        title = {
+            PresentedWindowKeys(onDismiss)
+            Text(title)
+        },
         text = { Text(message, color = ChipColors.text) },
         confirmButton = {
             TextButton(onClick = { onConfirm(); onDismiss() }) {
