@@ -68,6 +68,32 @@ With a hardware keyboard attached, the grid works like a tracker:
 - Delete clears a step. `\` arms a rest, like the REST key on screen, and
   Return writes whatever the on-screen keyboard has selected.
 
+## Android
+
+An Android port lives in [`android/`](android/README.md). It opens the same
+`.chipsong` files as the iPhone and iPad app, and its WAV export is
+bit-identical: the Kotlin synth is checked against the same golden file. It
+runs on phones and tablets, with the instrument editor in a sheet on a phone
+and docked beside the grid on a wide tablet.
+
+With a hardware keyboard the grid works like the iPad's: the same note row,
+arrow keys, `Z`/`X` octaves, Space and `\`. The app-wide commands use Ctrl
+(Undo `Ctrl+Z`, Redo `Ctrl+Shift+Z`, New Song `Ctrl+N`, Songs `Ctrl+O`,
+Duplicate Song `Ctrl+D`, Export WAV `Ctrl+E`, Share Song File `Ctrl+Shift+S`,
+New Pattern `Ctrl+Shift+N`, Arrangement `Ctrl+Shift+A`, Clear Pattern
+`Ctrl+Backspace`), and `Meta+/` shows the list.
+
+What's different on Android:
+
+- A finished WAV export offers Share and **Save to device**, which writes it
+  wherever you choose with the system file picker.
+- A `.chipsong` opens in Chiptune from Files, Gmail or Drive, or arrives
+  through Share. On tablets and ChromeOS you can also drag a song file onto
+  the editor.
+- Songs are included in Android's backup and device transfer.
+
+To build and test it, see [`android/README.md`](android/README.md).
+
 ## How the synth works
 
 `Sources/Audio/ChipCore.swift` is the whole engine: oscillators, amplitude
