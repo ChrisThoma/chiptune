@@ -200,7 +200,7 @@ executable_refs () {
     cd "$ROOT" || return 1
     # Scripts and config: any mention at all is a live path.
     grep -rn "build/export/Chiptune.ipa" \
-        --include="*.sh" --include="*.py" --include="*.yml" . 2>/dev/null \
+        --exclude-dir=android --include="*.sh" --include="*.py" --include="*.yml" . 2>/dev/null \
         | grep -v "^./build/" | grep -v "^./Tests/Release/"
     # Markdown: only inside ```fences```.
     while IFS= read -r doc; do
@@ -208,7 +208,7 @@ executable_refs () {
             /^[[:space:]]*```/ { fenced = !fenced; next }
             fenced && /build\/export\/Chiptune\.ipa/ { print doc ":" NR ":" $0 }
         ' "$doc"
-    done < <(find . -name "*.md" -not -path "./build/*" -not -path "./Tests/Release/*")
+    done < <(find . -name "*.md" -not -path "./build/*" -not -path "./Tests/Release/*" -not -path "./android/*")
 }
 
 if hits=$(executable_refs) && [ -n "$hits" ]; then
