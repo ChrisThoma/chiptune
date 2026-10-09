@@ -76,6 +76,7 @@ import dev.individuation.chiptune.ui.editor.SwipeAction
 import dev.individuation.chiptune.ui.editor.SwipeActionsRow
 import dev.individuation.chiptune.ui.editor.SwipeRevealGroup
 import dev.individuation.chiptune.ui.editor.reportsTextEntryFocus
+import dev.individuation.chiptune.ui.editor.songDropTarget
 import dev.individuation.chiptune.ui.layout.SongListCopy
 import dev.individuation.chiptune.ui.theme.ChipColors
 import dev.individuation.chiptune.ui.theme.chipFont
@@ -158,7 +159,7 @@ fun SongListPanel(editor: Editor, onDismiss: () -> Unit) {
         claimed.claimShare(studio)
     }
 
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().songDropTarget(studio)) {
         SheetBar(
             title = SongListCopy.TITLE,
             leading = { BarPill("Close", onDismiss) },

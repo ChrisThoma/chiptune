@@ -17,6 +17,8 @@ import dev.individuation.chiptune.platform.AndroidAudioOutput
 import dev.individuation.chiptune.platform.AndroidScheduler
 import dev.individuation.chiptune.platform.AudioOutputEvents
 import dev.individuation.chiptune.platform.AudioRate
+import dev.individuation.chiptune.platform.IncomingImports
+import dev.individuation.chiptune.platform.ShareRoots
 import dev.individuation.chiptune.platform.SharedPrefsKeyValueStore
 import java.io.File
 import java.util.concurrent.Executors
@@ -42,6 +44,9 @@ import java.util.concurrent.Executors
 class ChiptuneApp : Application() {
 
     /** The Studio, once [buildStudio] has run. Main thread only. */
+    /** Song files that arrived by VIEW/SEND, waiting for the Studio. */
+    val incoming = IncomingImports()
+
     var studio: Studio? = null
         private set
 
@@ -64,14 +69,14 @@ class ChiptuneApp : Application() {
         val core = ChipCore(AudioRate.native(this))
         val output = AndroidAudioOutput(this, core)
         val prefs = SharedPrefsKeyValueStore(this)
-        val exportDir = File(cacheDir, "export")
+        val exportDir = File(cacheDir, ShareRoots.EXPORT)
         val built = Studio(
             store = FileSongStore(File(filesDir, "Songs"), prefs),
             audio = output,
             scheduler = AndroidScheduler(),
             renderer = { WavExport.render(it, exportDir) },
             exportExecutor = Executors.newSingleThreadExecutor { r -> Thread(r, "chiptune-export") },
-            shareWriter = SongShareWriter(cacheDir),
+            shareWriter = SongShareWriter(File(cacheDir, ShareRoots.SHARE)),
             core = core,
         )
         output.events = object : AudioOutputEvents {

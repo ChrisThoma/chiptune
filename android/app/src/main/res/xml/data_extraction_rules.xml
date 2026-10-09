@@ -1,3 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 12+. Stub until Phase 7 names what to back up. -->
-<data-extraction-rules />
+<!-- Android 12+: cloud backup and device-to-device transfer carry the song
+     library and the prefs file; the cache is left out. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="file" path="Songs/" />
+        <include domain="sharedpref" path="chiptune.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="file" path="Songs/" />
+        <include domain="sharedpref" path="chiptune.xml" />
+    </device-transfer>
+</data-extraction-rules>

@@ -12,7 +12,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.individuation.chiptune.ChiptuneApp
+import dev.individuation.chiptune.platform.IncomingSongIntent
 import dev.individuation.chiptune.BuildConfig
 import dev.individuation.chiptune.platform.KeyboardShortcutGroups
 import dev.individuation.chiptune.ui.editor.HardwareKeyHost
@@ -53,12 +56,31 @@ class MainActivity : ComponentActivity(), HardwareKeyHost {
             navigationBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        // A recreated activity still holds the intent that already imported.
+        if (savedInstanceState == null) handleIncoming(intent)
         val screenshot = if (BuildConfig.DEBUG) screenshotMode(intent) else null
         setContent {
             ChiptuneTheme {
                 val model: StudioViewModel = viewModel()
                 AppRoot(model, screenshot)
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIncoming(intent)
+    }
+
+    /** A song file opened with or sent to Chiptune waits in the app until the Studio exists. */
+    private fun handleIncoming(intent: Intent?) {
+        intent ?: return
+        @Suppress("DEPRECATION")
+        val stream = intent.getParcelableExtra<android.net.Uri>(Intent.EXTRA_STREAM)
+        val parsed = IncomingSongIntent.parse(intent.action, intent.data?.toString(), stream?.toString(), intent.type)
+        if (parsed is IncomingSongIntent.Result.Accepted) {
+            (application as ChiptuneApp).incoming.offer(parsed.uri.toUri())
         }
     }
 
