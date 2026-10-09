@@ -1,0 +1,17 @@
+{
+  "id": "43E1B823-4CAE-525E-B7C0-FB4E9409C589",
+  "name": "Hostile",
+  "tempo": 1e300,
+  "tracks": [
+    { "kind": 0,
+      "instrument": { "duty": 9999, "volume": 500, "decay": -3,
+                      "arpeggio": [1000000, -1000000, 7, 12, 5, 9] } },
+    { "kind": 2,
+      "instrument": { "duty": -5, "volume": -2, "decay": 1e12, "arpeggio": [] } }
+  ],
+  "patterns": [
+    { "id": "492E0984-39F1-56F0-AA49-67939B40E91C", "name": "A", "length": 99999,
+      "rows": [[60, -100, 127, -3], [48]] }
+  ],
+  "arrangement": []
+}

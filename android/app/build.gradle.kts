@@ -122,6 +122,13 @@ android {
         compose = true
         buildConfig = true
     }
+    sourceSets {
+        // The .chipsong and golden-WAV fixtures are shared with the iOS suite
+        // and read in place, so both platforms test against the same bytes.
+        getByName("test") {
+            resources.directories.add("../../Tests/Fixtures")
+        }
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"

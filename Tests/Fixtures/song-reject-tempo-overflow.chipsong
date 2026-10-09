@@ -1,0 +1,41 @@
+{
+  "id": "15806454-CF95-5B11-A9E8-5CB3B49B941C",
+  "name": "Edge",
+  "tempo": 1e400,
+  "tracks": [
+    {
+      "id": "652A6A2C-8CE5-5CD6-BAEC-0D3C4C8AF29D",
+      "kind": 0,
+      "muted": false,
+      "instrument": {
+        "duty": 2,
+        "volume": 0.8,
+        "decay": 0.35,
+        "sustain": false,
+        "arpeggio": []
+      }
+    }
+  ],
+  "patterns": [
+    {
+      "id": "9E412B8B-C914-539B-BE13-12D8BE78665D",
+      "name": "A",
+      "length": 16,
+      "rows": [
+        [
+          60,
+          -1,
+          64
+        ]
+      ]
+    }
+  ],
+  "arrangement": [
+    {
+      "id": "9764F814-4181-50F4-8E6A-745D3939C010",
+      "patternID": "9E412B8B-C914-539B-BE13-12D8BE78665D",
+      "repeats": 2
+    }
+  ],
+  "modified": 780000000
+}
