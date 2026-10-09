@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- The square and round PNGs are the legacy icons for launchers older
+         than API 26. minSdk is 26, where mipmap-anydpi's adaptive icon always
+         wins, so no device ever shows them; Tools/icon/render-android.py
+         still writes them alongside the adaptive layers. -->
+    <issue id="IconLauncherShape">
+        <ignore path="src/main/res/mipmap-*/ic_launcher.png" />
+    </issue>
+    <!-- targetSdk 36 is deliberate: moving to 37 opts into that release's
+         behaviour changes, which want their own pass on a real device rather
+         than riding along with a dependency upgrade. compileSdk is already 37.
+         Drop this when targetSdk moves. -->
+    <issue id="OldTargetApi" severity="ignore" />
+</lint>
