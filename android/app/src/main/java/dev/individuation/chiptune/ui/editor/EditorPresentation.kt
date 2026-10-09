@@ -39,8 +39,14 @@ sealed interface Presented {
     /** ExportSheet. Closing it while a render runs cancels the render. */
     data object Export : Presented
 
-    /** The sound settings of one track (iOS `TrackHeader.showingEditor`). */
-    data class InstrumentEditor(val track: Int) : Presented
+    /** The sound settings of one track (iOS `TrackHeader.showingEditor`).
+     * [showSound] lands on the sound controls rather than the top (the
+     * screenshot shoot's frame, as iOS's `ScreenshotMode.instrument`). */
+    data class InstrumentEditor(val track: Int, val showSound: Boolean = false) : Presented
+
+    /** A finished export's next step (Share or Save to device); opens once
+     * the export panel has gone, as iOS's share sheet waits for it. */
+    data class ExportResult(val file: java.io.File) : Presented
 
     /** The hardware-key list (Phase 6). */
     data object KeyboardHelp : Presented

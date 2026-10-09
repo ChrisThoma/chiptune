@@ -29,6 +29,15 @@ interface EditorEffects {
     /** Opens a web link in the browser. */
     fun openUrl(url: String)
 
+    /** "Save to device" on a finished export. Phase 7: `CreateDocument`
+     * (audio/wav) with [suggestedName], then copy [file] into it. */
+    fun saveToDevice(file: File, suggestedName: String)
+
+    /** The review prompt, once a share after a milestone export went through
+     * (`ReviewPromptTracker.shareDismissed` said so). Phase 7: Play's
+     * in-app review flow, which decides itself whether anything shows. */
+    fun requestReview()
+
     /** Puts [text] on the clipboard (the build stamp row). */
     fun copyToClipboard(label: String, text: String)
 
@@ -51,6 +60,15 @@ class AndroidEditorEffects(private val context: Context) : EditorEffects {
         // TODO(Phase 7): ACTION_SEND through a FileProvider, MIME set explicitly.
         Toast.makeText(context, "Sharing arrives in a later build.", Toast.LENGTH_SHORT).show()
         onFinished(false)
+    }
+
+    override fun saveToDevice(file: File, suggestedName: String) {
+        // TODO(Phase 7): CreateDocument("audio/wav") named suggestedName, then copy the file in.
+        Toast.makeText(context, "Saving to the device arrives in a later build.", Toast.LENGTH_SHORT).show()
+    }
+
+    override fun requestReview() {
+        // TODO(Phase 7): Play in-app review. A no-op until then.
     }
 
     override fun openUrl(url: String) {
