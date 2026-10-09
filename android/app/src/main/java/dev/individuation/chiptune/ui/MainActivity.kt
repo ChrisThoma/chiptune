@@ -1,36 +1,52 @@
 package dev.individuation.chiptune.ui
 
+import android.annotation.SuppressLint
+import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.graphics.Color as AndroidColor
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.individuation.chiptune.BuildConfig
+import dev.individuation.chiptune.ui.layout.ScreenshotMode
+import dev.individuation.chiptune.ui.layout.SizeClass
 import dev.individuation.chiptune.ui.theme.ChiptuneTheme
 
 class MainActivity : ComponentActivity() {
+    @SuppressLint("SourceLockedOrientationActivity")
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Phones are portrait, as on iOS; tablets rotate (API 36 ignores the
+        // lock at 600 dp and wider anyway). Before super, so the first frame
+        // is already upright. A recreated activity (a foldable opening)
+        // checks again.
+        if (resources.configuration.smallestScreenWidthDp < SizeClass.REGULAR_MIN_WIDTH_DP) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
         // Dark window, so light icons: SystemBarStyle.dark keeps them light.
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        val screenshot = if (BuildConfig.DEBUG) screenshotMode(intent) else null
         setContent {
             ChiptuneTheme {
                 val model: StudioViewModel = viewModel()
-                val studio by model.studio.collectAsStateWithLifecycle()
-                // iOS fades the splash out over 0.28 s, ease-out.
-                Crossfade(targetState = studio, animationSpec = tween(280, easing = FastOutSlowInEasing), label = "splash") {
-                    if (it == null) Splash() else DebugTransport(it)
-                }
+                AppRoot(model, screenshot)
             }
         }
+    }
+
+    /** Debug launches for screenshots: `--ez shotPlaying true` or `--es shotPlaying YES`. */
+    private fun screenshotMode(intent: Intent?): ScreenshotMode? {
+        val extras = intent?.extras ?: return null
+        val values = ScreenshotMode.entries.associate { mode ->
+            @Suppress("DEPRECATION")
+            mode.key to extras.get(mode.key)
+        }
+        return ScreenshotMode.requested(values)
     }
 }
