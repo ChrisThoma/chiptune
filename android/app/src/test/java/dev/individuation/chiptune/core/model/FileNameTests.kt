@@ -1,5 +1,7 @@
 package dev.individuation.chiptune.core.model
 
+import dev.individuation.chiptune.core.audio.MidiExport
+import dev.individuation.chiptune.core.audio.WavExport
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -17,6 +19,37 @@ class ExportFileNameAgreementTest {
     @Test fun emojiOnlyFallsBack() = assertEquals("chiptune", base("🎵🎶"))
 
     @Test fun blankFallsBack() = assertEquals("chiptune", base("   "))
+
+    /** The WAV and MIDI writers name their files from the same safe base as the song file. */
+    private fun exportBases(name: String): Pair<String, String> {
+        val song = Song.create(name)
+        val dir = java.io.File(System.getProperty("java.io.tmpdir"), "chiptune-names-${java.util.UUID.randomUUID()}")
+        try {
+            return WavExport.filename(song, dir).nameWithoutExtension to MidiExport.filename(song, dir).nameWithoutExtension
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test fun midiAndWavNamesAgreeWithTheSongName() {
+        for (name in listOf("My Song / v2", "  a..b   c . d  ", "🎵🎶", "   ", "L".repeat(300), "歌".repeat(90))) {
+            val (wav, mid) = exportBases(name)
+            assertEquals(name, base(name), wav)
+            assertEquals(name, base(name), mid)
+        }
+        assertEquals("chiptune", exportBases("🎵🎶").second)
+        assertEquals("My Song v2", exportBases("My Song / v2").second)
+    }
+
+    @Test fun midiFileEndsInMid() {
+        val song = Song.create("Neon")
+        val dir = java.io.File(System.getProperty("java.io.tmpdir"), "chiptune-names-${java.util.UUID.randomUUID()}")
+        try {
+            assertEquals("Neon.mid", MidiExport.filename(song, dir).name)
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
 
     /** `CharacterSet.alphanumerics` is letters, marks and numbers in any script. */
     @Test fun lettersMarksAndNumbersInAnyScriptSurvive() {

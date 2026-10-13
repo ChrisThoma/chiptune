@@ -50,6 +50,45 @@ class ExportFooterTest {
         assertEquals(unarranged, ExportNotesFooter.text(song))
     }
 
+    // MARK: MIDI
+
+    private val midi = ExportOptions.Format.MIDI
+    private val mutedGolden = TestSongs.golden().let { s -> s.copy(tracks = s.tracks.map { it.copy(muted = true) }) }
+
+    @Test fun wavFormatFooterIsTheExistingOne() {
+        assertEquals(ExportNotesFooter.text(mutedGolden), ExportNotesFooter.text(mutedGolden, ExportOptions.Format.WAV))
+        assertNull(ExportNotesFooter.text(TestSongs.golden(), ExportOptions.Format.WAV))
+    }
+
+    @Test fun midiFooterGivesTheLengthAndTheArpeggioNote() {
+        val song = TestSongs.golden()
+        assertEquals(
+            "The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. Arpeggios come out as the note you wrote.",
+            ExportNotesFooter.text(song, midi),
+        )
+    }
+
+    @Test fun midiFooterSaysMutedTracksAreInTheFileAtVolumeZero() {
+        val song = TestSongs.golden().let { s -> s.copy(tracks = s.tracks.mapIndexed { i, t -> if (i == 0) t.copy(muted = true) else t }) }
+        assertEquals(
+            "The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. " +
+                "Arpeggios come out as the note you wrote. Muted tracks are in the file at volume 0.",
+            ExportNotesFooter.text(song, midi),
+        )
+    }
+
+    /** The MIDI file still has the notes, so the WAV's "would be silent" warning would be wrong for it. */
+    @Test fun midiFooterDoesNotWarnAboutSilenceWhenEverythingIsMuted() {
+        val text = ExportNotesFooter.text(mutedGolden, midi)!!
+        assertFalse(text.contains("silent"))
+        assertTrue(text.endsWith("Muted tracks are in the file at volume 0."))
+    }
+
+    @Test fun midiFooterKeepsTheNoNotesMessages() {
+        assertEquals("This song has no notes yet.", ExportNotesFooter.text(TestSongs.empty(), midi))
+        assertEquals(unarranged, ExportNotesFooter.text(songWithUnarrangedNotes(), midi))
+    }
+
     @Test fun settingsAreLockedWhileARenderIsRunning() = assertTrue(ExportControls.settingsLocked(isExporting = true))
 
     @Test fun settingsAreEditableWhenNoRenderIsRunning() = assertFalse(ExportControls.settingsLocked(isExporting = false))
