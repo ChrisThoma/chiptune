@@ -65,4 +65,17 @@ final class StudioExportTests: XCTestCase {
 
         XCTAssertEqual(studio.exportURL, standIn)
     }
+
+    /// Nothing is injected, so this is the dispatcher the app ships with: the
+    /// format the sheet picked has to reach the writer.
+    func testDefaultRendererFollowsTheChosenFormat() throws {
+        let studio = makeStudio()
+        studio.song.patterns[0].rows[0][0] = 60
+        studio.exportOptions.format = .midi
+
+        studio.export(options: studio.exportOptions)
+        waitForExport(studio)
+
+        XCTAssertEqual(try XCTUnwrap(studio.exportURL).pathExtension, "mid")
+    }
 }

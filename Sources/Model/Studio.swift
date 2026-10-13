@@ -95,8 +95,8 @@ final class Studio {
     /// Where songs are read and written. Injectable so tests get a temp
     /// directory instead of the real Documents folder.
     @ObservationIgnored var store: SongStore
-    /// The offline WAV renderer. Injectable so a test can make export fail,
-    /// stall, or report whatever progress it likes without needing a way to
+    /// The offline renderer, WAV or MIDI by the options' format. Injectable so
+    /// a test can make export fail, stall, or report whatever progress it likes without needing a way to
     /// make the real renderer do those things.
     @ObservationIgnored var renderer: @Sendable (ExportRequest) -> ExportResult
     /// Seconds of quiet after the last edit before autosave fires. Tests turn
@@ -114,10 +114,10 @@ final class Studio {
 
     init(store: SongStore = .shared,
          autosaveEnabled: Bool = true,
-         // Wrapped in a closure rather than passed as `WavExport.render`: a
+         // Wrapped in a closure rather than passed as `Export.render`: a
          // bare static-method reference isn't itself `@Sendable`, and the
          // implicit conversion is a warning.
-         renderer: @escaping @Sendable (ExportRequest) -> ExportResult = { WavExport.render($0) }) {
+         renderer: @escaping @Sendable (ExportRequest) -> ExportResult = { Export.render($0) }) {
         self.store = store
         self.autosaveEnabled = autosaveEnabled
         self.renderer = renderer
