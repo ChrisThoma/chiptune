@@ -14,6 +14,13 @@ struct ExportOptions: Equatable, Sendable {
         case ringOut
     }
 
+    /// Which file the export writes. MIDI is the arrangement once, so
+    /// `loopCount` and `tailMode` only shape a WAV.
+    enum Format: Equatable, Sendable {
+        case wav, midi
+    }
+
+    var format: Format = .wav
     /// Passes of the whole arrangement.
     var loopCount: Int = 1
     var tailMode: TailMode = .seamlessLoop
@@ -47,6 +54,18 @@ struct ExportRequest: Sendable {
     var progress: @Sendable (Double) -> Void = { _ in }
     /// Polled at chunk boundaries. Returning true abandons the render.
     var isCanceled: @Sendable () -> Bool = { false }
+}
+
+/// Picks the writer for the format the export sheet chose. Studio's default
+/// renderer, so the sheet's WAV / MIDI choice reaches the file without Studio
+/// knowing either format.
+enum Export {
+    static func render(_ request: ExportRequest) -> ExportResult {
+        switch request.options.format {
+        case .wav: return WavExport.render(request)
+        case .midi: return MidiExport.render(request)
+        }
+    }
 }
 
 /// Where exports are written, shared by the WAV and MIDI writers so each
