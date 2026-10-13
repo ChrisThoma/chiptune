@@ -1,5 +1,6 @@
 package dev.individuation.chiptune.core.studio
 
+import dev.individuation.chiptune.core.audio.ExportOptions
 import dev.individuation.chiptune.core.model.NameCap
 import dev.individuation.chiptune.core.model.SongDecodeException
 import dev.individuation.chiptune.core.text.SwiftText
@@ -24,8 +25,27 @@ object WriteFailureMessage {
         "Couldn't save ${shown(name)}. ${reasonAndAdvice(error, "song file")}"
 
     /** "Couldn't export \u201CName\u201D. <reason>[ Try again.]" */
-    fun export(name: String, error: Throwable): String =
-        "Couldn't export ${shown(name)}. ${reasonAndAdvice(error, "WAV file")}"
+    fun export(name: String, error: Throwable): String = export(name, error, WAV_FILE)
+
+    /** The three-argument form names the file; the two-argument one is the WAV
+     * wrapper that keeps the shape the three alert builders share. */
+    fun export(name: String, error: Throwable, file: String): String =
+        "Couldn't export ${shown(name)}. ${reasonAndAdvice(error, file)}"
+
+    /** What an export's file is called in an alert. */
+    fun exportFile(format: ExportOptions.Format): String = when (format) {
+        ExportOptions.Format.WAV -> WAV_FILE
+        ExportOptions.Format.MIDI -> MIDI_FILE
+    }
+
+    /** Named from the file that was offered rather than the sheet's current
+     * format, which may have been switched since the export finished. Anything
+     * that isn't an export is a song file. */
+    fun fileNoun(extension: String): String = when (extension.lowercase()) {
+        "wav" -> WAV_FILE
+        "mid" -> MIDI_FILE
+        else -> "song file"
+    }
 
     /** The song's name in curly quotes, clipped with an ellipsis past
      * [NAME_LIMIT] characters, or "this song" when it's blank. */
@@ -79,6 +99,9 @@ object WriteFailureMessage {
 
     private val PERMISSION_MARKERS = listOf("EACCES", "EPERM", "Permission denied", "Operation not permitted")
     private val SPACE_MARKERS = listOf("ENOSPC", "No space left")
+
+    private const val WAV_FILE = "WAV file"
+    private const val MIDI_FILE = "MIDI file"
 
     internal const val LEFT_QUOTE = "\u201C"
     internal const val RIGHT_QUOTE = "\u201D"
