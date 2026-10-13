@@ -31,7 +31,7 @@ final class ErrorSurfacingTests: XCTestCase {
 
         XCTAssertNotNil(studio.deleteError, "a delete that failed must be surfaced")
         XCTAssertEqual(studio.deleteError,
-                       "Couldn't delete “Doomed”. The app doesn't have permission to delete the song file.",
+                       "Couldn't delete “Doomed”. The app isn't allowed to change that file.",
                        "named by cause, never by the system's text and its UUID file name")
         XCTAssertNil(studio.storageError,
                      "a failed delete is not a save failure; it must not borrow the Save failed alert")

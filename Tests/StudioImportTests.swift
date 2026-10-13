@@ -130,7 +130,7 @@ final class StudioImportTests: XCTestCase {
             .appendingPathComponent("gone-\(UUID().uuidString).chipsong")
 
         XCTAssertFalse(studio.importSong(from: missing))
-        XCTAssertEqual(studio.importError, "Couldn't import the file. It couldn't be read. Try again.")
+        XCTAssertEqual(studio.importError, "Couldn't import the file. Something went wrong reading it. Try again.")
     }
 
     /// A successful import after a failed one must clear the message.

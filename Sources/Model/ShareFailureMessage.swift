@@ -86,7 +86,7 @@ enum DeleteFailureMessage {
         let shown = WriteFailureMessage.shown(name)
         switch WriteFailureMessage.cause(of: error as NSError) {
         case .permission:
-            return "Couldn't delete \(shown). The app doesn't have permission to delete the song file."
+            return "Couldn't delete \(shown). The app isn't allowed to change that file."
         case .space, .other:
             return "Couldn't delete \(shown). Try again."
         }
@@ -106,7 +106,7 @@ enum ImportFailureMessage {
         if WriteFailureMessage.cause(of: error as NSError) == .permission {
             return "\(lead) The app doesn't have permission to read it."
         }
-        return "\(lead) It couldn't be read. Try again."
+        return "\(lead) Something went wrong reading it. Try again."
     }
 
     /// The song was read but couldn't be written into the library.
