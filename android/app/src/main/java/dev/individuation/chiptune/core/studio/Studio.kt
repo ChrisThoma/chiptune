@@ -51,9 +51,9 @@ class Studio(
     private val scheduler: Scheduler,
     /** Tests turn autosave off: a live timer makes editing tests order-dependent. */
     var autosaveEnabled: Boolean = true,
-    /** The offline WAV renderer; injectable so a test can make export fail,
+    /** The offline renderer, WAV or MIDI by the options' format; injectable so a test can make export fail,
      * stall or report whatever progress it likes. The app passes
-     * `{ WavExport.render(it, cacheDir) }`. */
+     * `{ ExportRenderer.render(it, cacheDir) }`. */
     var renderer: (ExportRequest) -> ExportResult,
     /** Runs [renderer] off the Studio's thread. */
     private val exportExecutor: Executor,
@@ -181,6 +181,10 @@ class Studio(
     var playingSection: Int
         get() = mutableState.value.playingSection
         set(value) = update { it.copy(playingSection = value) }
+
+    var exportOptions: ExportOptions
+        get() = mutableState.value.exportOptions
+        set(value) = update { it.copy(exportOptions = value) }
 
     var exportFile: File?
         get() = mutableState.value.exportFile
@@ -1232,13 +1236,13 @@ class Studio(
     // MARK: Export
 
     /**
-     * Renders the WAV on [exportExecutor]. Returns the attempt token, or null
+     * Renders the WAV or MIDI file on [exportExecutor]. Returns the attempt token, or null
      * when an export is already running. [exportFile] clears at the start so
      * observers see a fresh value when the file lands. Progress and the result
      * come back through [Scheduler.post], bound to the attempt so a late update
      * can't resurrect the bar or overwrite a later export's.
      */
-    fun export(options: ExportOptions = ExportOptions()): Int? {
+    fun export(options: ExportOptions = exportOptions): Int? {
         if (isExporting) return null
         val attempt = completedExportAttempt + 1
         update { it.copy(isExporting = true, exportFile = null, exportError = null, exportProgress = 0.0) }
@@ -1257,17 +1261,17 @@ class Studio(
             } catch (e: Throwable) {
                 ExportResult.Failed(e)
             }
-            scheduler.post { finishExport(result, attempt, song.name) }
+            scheduler.post { finishExport(result, attempt, song.name, options.format) }
         }
         try {
             exportExecutor.execute(job)
         } catch (e: RejectedExecutionException) {
-            finishExport(ExportResult.Failed(e), attempt, song.name)
+            finishExport(ExportResult.Failed(e), attempt, song.name, options.format)
         }
         return attempt
     }
 
-    private fun finishExport(result: ExportResult, attempt: Int, name: String) {
+    private fun finishExport(result: ExportResult, attempt: Int, name: String, format: ExportOptions.Format) {
         exportCancel = null
         update {
             val base = it.copy(isExporting = false, exportProgress = 0.0, completedExportAttempt = attempt)
@@ -1276,7 +1280,9 @@ class Studio(
                 // Canceling is not failing; an alert for it would be noise.
                 ExportResult.Canceled -> base
                 ExportResult.TooLong -> base.copy(exportError = TOO_LONG_MESSAGE)
-                is ExportResult.Failed -> base.copy(exportError = WriteFailureMessage.export(name, result.error))
+                is ExportResult.Failed -> base.copy(
+                    exportError = WriteFailureMessage.export(name, result.error, WriteFailureMessage.exportFile(format)),
+                )
             }
         }
     }
