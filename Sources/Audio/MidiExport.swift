@@ -61,9 +61,51 @@ enum MidiExport {
         }
     }
 
+    /// GM percussion keys for the noise presets, by preset name.
+    private static let presetDrums: [String: UInt8] = [
+        "Kick": 36, "Snare": 38, "Hat": 46, "Closed hat": 42, "Crash": 49,
+    ]
+
+    /// Which drum each note on a noise track plays.
+    ///
+    /// A track still on a preset plays that preset's drum for every note,
+    /// whatever pitch it was written at. A custom one is spread over kick,
+    /// snare and closed hat by where each note sits among the track's own
+    /// distinct notes, lowest to highest. It has to be relative: the library
+    /// songs write their noise between 52 and 71, so fixed pitch ranges would
+    /// make nearly everything a snare. Only the notes the arrangement plays
+    /// count, so an unplayed pattern can't move the bands.
+    private static func drumMap(for index: Int, of song: Song) -> (Int8) -> UInt8 {
+        let instrument = song.tracks[index].instrument
+        if let preset = InstrumentPreset.matching(instrument, kind: .noise),
+           let drum = presetDrums[preset.name] {
+            return { _ in drum }
+        }
+        let distinct = Set(song.chain.flatMap { song.patterns[$0].rows[index].prefix(song.patterns[$0].length) }
+            .filter { $0 >= 0 }).sorted()
+        let bands: [UInt8] = [36, 38, 42]
+        var drums: [Int8: UInt8] = [:]
+        for (i, note) in distinct.enumerated() {
+            // A lone note takes the middle band, a snare, not the bottom one.
+            drums[note] = distinct.count == 1 ? 38 : bands[i * 3 / distinct.count]
+        }
+        // Every note the track plays was counted above; the fallback is
+        // only there so a lookup can't trap.
+        return { drums[$0] ?? 38 }
+    }
+
+    /// The longest a drum hit is held. GM drums are one-shots, so the length
+    /// only matters for one thing: every noise track shares the drum channel,
+    /// and an off landing on the tick where another track starts the same
+    /// drum leaves the result to however a DAW orders the merge. A tick short
+    /// of a step can never meet another note's on.
+    private static let maxDrumTicks = ticksPerStep - 1
+
     private static func track(_ index: Int, of song: Song, channel: UInt8, endTick: Int) -> TrackEvents {
         let track = song.tracks[index]
         let instrument = track.instrument
+        let isDrum = track.kind == .noise
+        let pitch = isDrum ? drumMap(for: index, of: song) : { UInt8($0) }
         // Volume goes into the velocity rather than a CC7, because the noise
         // tracks share one channel and one channel has one volume. Never 0,
         // which a note-on would read as a note-off.
@@ -85,6 +127,7 @@ enum MidiExport {
             // A decayed note was already silent before whatever ends it now;
             // its off goes where the sound stopped. Writing it late here keeps
             // the list in order, since that tick is past the note's own on.
+            // Release velocity 64 is the spec's "no release velocity" value.
             events.append(at: min(held.endsBy, tick), [0x80 | channel, held.note, 0x40])
             sounding = nil
         }
@@ -103,9 +146,11 @@ enum MidiExport {
                     // Off before on, so a repeated pitch retriggers instead of
                     // being started and then ended at the same instant.
                     release(at: tick)
-                    let note = UInt8(cell)
+                    let note = pitch(cell)
                     events.append(at: tick, [0x90 | channel, note, velocity])
-                    sounding = (note, instrument.sustain ? Int.max : tick + decayTicks)
+                    var endsBy = instrument.sustain ? Int.max : tick + decayTicks
+                    if isDrum { endsBy = min(endsBy, tick + maxDrumTicks) }
+                    sounding = (note, endsBy)
                 }
                 tick += ticksPerStep
             }
