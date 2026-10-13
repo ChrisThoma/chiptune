@@ -23,6 +23,9 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        with:
+          # The default also installs the legacy 'tools' package, which Google removed.
+          packages: 'platform-tools'
       - name: Test and lint
         working-directory: android
         run: ./gradlew --no-daemon test lint
