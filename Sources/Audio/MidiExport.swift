@@ -12,6 +12,28 @@ enum MidiExport {
     static let ticksPerQuarter = 96
     static let ticksPerStep = ticksPerQuarter / Chip.stepsPerBeat
 
+    /// Writes the file for `request` and clears the song's older exports.
+    ///
+    /// Only the song is used. Repeats and Ending shape a rendered loop; a MIDI
+    /// file is the arrangement once, and a DAW loops it. There is no progress
+    /// to report or render to cancel either: the bytes take no time at all.
+    static func render(_ request: ExportRequest) -> ExportResult {
+        let url = filename(for: request.song)
+        do {
+            // Atomic, so a failed write leaves no half a file behind to be
+            // shared, and an old export of the same name stays whole.
+            try data(for: request.song).write(to: url, options: .atomic)
+        } catch {
+            return .failed(error)
+        }
+        ExportFiles.pruneStale(keeping: url)
+        return .success(url)
+    }
+
+    static func filename(for song: Song) -> URL {
+        ExportFiles.url(for: song, extension: "mid")
+    }
+
     /// The file's bytes. Normalizes first, as the WAV export does, so a song
     /// straight from a file can't put an out-of-range tempo into the header.
     static func data(for song: Song) -> Data {

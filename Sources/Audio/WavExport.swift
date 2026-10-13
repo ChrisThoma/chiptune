@@ -49,6 +49,39 @@ struct ExportRequest: Sendable {
     var isCanceled: @Sendable () -> Bool = { false }
 }
 
+/// Where exports are written, shared by the WAV and MIDI writers so each
+/// clears away the other's leftovers.
+enum ExportFiles {
+    /// Extensions the exporters write. Pruning touches nothing else.
+    static let extensions: Set<String> = ["wav", "mid"]
+
+    static func url(for song: Song, extension ext: String) -> URL {
+        let base = SongDocument.safeName(song)
+        // A per-song directory keeps the shared file's display name clean while
+        // stopping two same-named songs from overwriting each other's export.
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(song.id.uuidString, isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("\(base).\(ext)")
+    }
+
+    /// Renaming a song, or switching between WAV and MIDI, leaves the old
+    /// export sitting in the same per-song temp directory as the new one —
+    /// storage that accumulates silently since nothing else ever visits that
+    /// directory. Only run once the new file is safely written, so a later
+    /// failure never costs the previous export. Best-effort: a cleanup
+    /// failure doesn't fail the export that just succeeded.
+    static func pruneStale(keeping url: URL) {
+        let dir = url.deletingLastPathComponent()
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return }
+        for entry in entries
+        where extensions.contains(entry.pathExtension.lowercased()) && entry.lastPathComponent != url.lastPathComponent {
+            try? fm.removeItem(at: entry)
+        }
+    }
+}
+
 /// Renders a song offline and writes it out as a 16-bit mono WAV.
 enum WavExport {
     static let sampleRate = 44100.0
@@ -220,34 +253,13 @@ enum WavExport {
                               to: filename(for: song))
         if case .success(let url) = result {
             report(totalFrames)
-            pruneStaleExports(keeping: url, in: song)
+            ExportFiles.pruneStale(keeping: url)
         }
         return result
     }
 
-    /// Renaming a song leaves its old export's `.wav` sitting in the same
-    /// per-song temp directory as the new one — storage that accumulates
-    /// silently since nothing else ever visits that directory. Only run once
-    /// the new file is safely written, so a later failure never costs the
-    /// previous export. Best-effort: a cleanup failure doesn't fail the
-    /// export that just succeeded.
-    private static func pruneStaleExports(keeping url: URL, in song: Song) {
-        let dir = url.deletingLastPathComponent()
-        let fm = FileManager.default
-        guard let entries = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return }
-        for entry in entries where entry.pathExtension.lowercased() == "wav" && entry != url {
-            try? fm.removeItem(at: entry)
-        }
-    }
-
     static func filename(for song: Song) -> URL {
-        let base = SongDocument.safeName(song)
-        // A per-song directory keeps the shared file's display name clean while
-        // stopping two same-named songs from overwriting each other's export.
-        let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent(song.id.uuidString, isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("\(base).wav")
+        ExportFiles.url(for: song, extension: "wav")
     }
 
     /// Streams the folded head plus the raw body file out as a WAV, converting
