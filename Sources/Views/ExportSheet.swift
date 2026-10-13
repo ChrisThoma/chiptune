@@ -16,6 +16,25 @@ enum ExportNotesFooter {
     }
 }
 
+extension ExportNotesFooter {
+    /// What sits under the Export button for `format`. A WAV keeps the notes
+    /// above. A MIDI file still carries every note of a muted track (at volume
+    /// 0), so the "would be silent" warning is replaced by a line saying where
+    /// the muted tracks went; the no-notes messages stay, since there is
+    /// nothing to export either way.
+    static func text(for song: Song, format: ExportOptions.Format) -> String? {
+        switch format {
+        case .wav:
+            return text(for: song)
+        case .midi:
+            guard song.hasNotes else { return text(for: song) }
+            var line = "The whole arrangement once — \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote."
+            if song.tracks.contains(where: \.muted) { line += " Muted tracks are in the file at volume 0." }
+            return line
+        }
+    }
+}
+
 /// Whether the repeats and ending controls can still be changed. They are
 /// frozen for the length of a render: it keeps the settings it started with, so
 /// an edit made mid-render would only make the readout disagree with the file.
@@ -46,49 +65,75 @@ struct ExportSheet: View {
         ExportControls.settingsLocked(isExporting: studio.isExporting)
     }
 
+    private var format: ExportOptions.Format { studio.exportOptions.format }
+
+    private var repeatsSection: some View {
+        Section {
+            HStack {
+                // The stepper carries both for VoiceOver, as one
+                // adjustable "Repeats" element.
+                Text("Repeats")
+                    .accessibilityHidden(true)
+                Spacer()
+                Text("\(studio.exportOptions.loopCount)×")
+                    .chipFont(15, weight: .bold)
+                    .foregroundStyle(Theme.dim)
+                    .accessibilityHidden(true)
+                // Not the system Stepper; see PlainStepper.
+                PlainStepper(value: $studio.exportOptions.loopCount,
+                             range: 1...ExportOptions.maxLoopCount,
+                             isEnabled: !settingsLocked,
+                             accessibilityLabel: "Repeats",
+                             accessibilityValue: Format.count(studio.exportOptions.loopCount, "time"))
+            }
+            // The stepper's own disabled styling is barely visible
+            // against this row, so dim the whole row explicitly.
+            .opacity(settingsLocked ? 0.4 : 1)
+        } footer: {
+            Text("The whole arrangement, \(Format.count(studio.exportOptions.loopCount, "time")) — \(duration).")
+        }
+    }
+
+    private var endingSection: some View {
+        Section {
+            Picker("Ending", selection: $studio.exportOptions.tailMode) {
+                Text("Seamless loop").tag(ExportOptions.TailMode.seamlessLoop)
+                Text("Ring out").tag(ExportOptions.TailMode.ringOut)
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+            .accessibilityHidden(true)
+            .disabled(settingsLocked)
+        } header: {
+            Text("Ending")
+        } footer: {
+            Text(studio.exportOptions.tailMode == .seamlessLoop
+                 ? "The last notes ring on into the start, so the file loops with no gap. Best for dropping into something else."
+                 : "The last notes fade out past the end and the file finishes in silence. Best when the file is the finished thing.")
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    HStack {
-                        // The stepper carries both for VoiceOver, as one
-                        // adjustable "Repeats" element.
-                        Text("Repeats")
-                            .accessibilityHidden(true)
-                        Spacer()
-                        Text("\(studio.exportOptions.loopCount)×")
-                            .chipFont(15, weight: .bold)
-                            .foregroundStyle(Theme.dim)
-                            .accessibilityHidden(true)
-                        // Not the system Stepper; see PlainStepper.
-                        PlainStepper(value: $studio.exportOptions.loopCount,
-                                     range: 1...ExportOptions.maxLoopCount,
-                                     isEnabled: !settingsLocked,
-                                     accessibilityLabel: "Repeats",
-                                     accessibilityValue: Format.count(studio.exportOptions.loopCount, "time"))
+                    Picker("Format", selection: $studio.exportOptions.format) {
+                        Text("WAV").tag(ExportOptions.Format.wav)
+                        Text("MIDI").tag(ExportOptions.Format.midi)
                     }
-                    // The stepper's own disabled styling is barely visible
-                    // against this row, so dim the whole row explicitly.
-                    .opacity(settingsLocked ? 0.4 : 1)
-                } footer: {
-                    Text("The whole arrangement, \(Format.count(studio.exportOptions.loopCount, "time")) — \(duration).")
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .accessibilityLabel("Format")
+                    // Like the repeats: the render keeps the format it started
+                    // with, so a mid-render switch would only mislabel the file.
+                    .disabled(settingsLocked)
                 }
 
-                Section {
-                    Picker("Ending", selection: $studio.exportOptions.tailMode) {
-                        Text("Seamless loop").tag(ExportOptions.TailMode.seamlessLoop)
-                        Text("Ring out").tag(ExportOptions.TailMode.ringOut)
-                    }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
-                    .accessibilityHidden(true)
-                    .disabled(settingsLocked)
-                } header: {
-                    Text("Ending")
-                } footer: {
-                    Text(studio.exportOptions.tailMode == .seamlessLoop
-                         ? "The last notes ring on into the start, so the file loops with no gap. Best for dropping into something else."
-                         : "The last notes fade out past the end and the file finishes in silence. Best when the file is the finished thing.")
+                // A MIDI file is the arrangement once, so neither control
+                // applies to it.
+                if format == .wav {
+                    repeatsSection
+                    endingSection
                 }
 
                 Section {
@@ -108,12 +153,12 @@ struct ExportSheet: View {
                             guard startedAttempt == nil else { return }
                             startedAttempt = studio.export(options: studio.exportOptions)
                         } label: {
-                            Label("Export WAV", systemImage: "square.and.arrow.up")
+                            Label(format == .midi ? "Export MIDI" : "Export WAV", systemImage: "square.and.arrow.up")
                         }
                         .disabled(startedAttempt != nil || !studio.song.hasNotes)
                     }
                 } footer: {
-                    if let text = ExportNotesFooter.text(for: studio.song) {
+                    if let text = ExportNotesFooter.text(for: studio.song, format: format) {
                         Text(text)
                     }
                 }
@@ -128,15 +173,19 @@ struct ExportSheet: View {
             // one. Attached to the whole Form instead, where it exists
             // exactly once.
             .overlay(alignment: .topLeading) {
-                accessibilitySelector(
-                    label: "Ending",
-                    value: studio.exportOptions.tailMode == .seamlessLoop ? "Seamless loop" : "Ring out",
-                    adjust: { direction in
-                        guard !settingsLocked else { return }
-                        studio.exportOptions.tailMode = studio.exportOptions.tailMode.adjusted(direction)
-                    })
-                    .frame(width: 1, height: 1)
-                    .accessibilityHidden(settingsLocked)
+                // Only while the Ending picker exists: a MIDI export has no
+                // ending, and a hidden adjustable would still be announced.
+                if format == .wav {
+                    accessibilitySelector(
+                        label: "Ending",
+                        value: studio.exportOptions.tailMode == .seamlessLoop ? "Seamless loop" : "Ring out",
+                        adjust: { direction in
+                            guard !settingsLocked else { return }
+                            studio.exportOptions.tailMode = studio.exportOptions.tailMode.adjusted(direction)
+                        })
+                        .frame(width: 1, height: 1)
+                        .accessibilityHidden(settingsLocked)
+                }
             }
             .navigationTitle("Export")
             .navigationBarTitleDisplayMode(.inline)
