@@ -59,4 +59,21 @@ final class ExportFlowTests: XCTestCase {
     func testPanelDisappearingAfterTheRenderFinishedAsksForNothing() {
         XCTAssertFalse(ExportFlow.afterPanelDisappeared(isExporting: false))
     }
+
+    /// Backing out of the share sheet without sharing is "let me try another
+    /// ending", so the panel comes back for it.
+    func testCanceledShareReturnsToTheExportPanel() {
+        XCTAssertTrue(ExportFlow.reopensExportAfterShare(outcome: .canceled))
+    }
+
+    /// The file went somewhere; the job is done.
+    func testCompletedShareLeavesTheExportPanelClosed() {
+        XCTAssertFalse(ExportFlow.reopensExportAfterShare(outcome: .completed))
+    }
+
+    /// A failed share is already raising its own alert, which a popover
+    /// coming up underneath would fight for the screen.
+    func testFailedShareLeavesTheExportPanelClosed() {
+        XCTAssertFalse(ExportFlow.reopensExportAfterShare(outcome: .failed))
+    }
 }

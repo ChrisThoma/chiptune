@@ -37,7 +37,6 @@ struct ExportSheet: View {
     /// class whatever the window behind it is.
     var popover = false
     @Environment(\.dismiss) private var dismiss
-    @State private var options = ExportOptions()
     // Separate from `studio.isExporting`: SwiftUI can miss a render that starts
     // and finishes between update passes. The model's monotonic attempt token
     // cannot be coalesced away, so failures and cancellations reliably retry.
@@ -57,26 +56,26 @@ struct ExportSheet: View {
                         Text("Repeats")
                             .accessibilityHidden(true)
                         Spacer()
-                        Text("\(options.loopCount)×")
+                        Text("\(studio.exportOptions.loopCount)×")
                             .chipFont(15, weight: .bold)
                             .foregroundStyle(Theme.dim)
                             .accessibilityHidden(true)
                         // Not the system Stepper; see PlainStepper.
-                        PlainStepper(value: $options.loopCount,
+                        PlainStepper(value: $studio.exportOptions.loopCount,
                                      range: 1...ExportOptions.maxLoopCount,
                                      isEnabled: !settingsLocked,
                                      accessibilityLabel: "Repeats",
-                                     accessibilityValue: Format.count(options.loopCount, "time"))
+                                     accessibilityValue: Format.count(studio.exportOptions.loopCount, "time"))
                     }
                     // The stepper's own disabled styling is barely visible
                     // against this row, so dim the whole row explicitly.
                     .opacity(settingsLocked ? 0.4 : 1)
                 } footer: {
-                    Text("The whole arrangement, \(Format.count(options.loopCount, "time")) — \(duration).")
+                    Text("The whole arrangement, \(Format.count(studio.exportOptions.loopCount, "time")) — \(duration).")
                 }
 
                 Section {
-                    Picker("Ending", selection: $options.tailMode) {
+                    Picker("Ending", selection: $studio.exportOptions.tailMode) {
                         Text("Seamless loop").tag(ExportOptions.TailMode.seamlessLoop)
                         Text("Ring out").tag(ExportOptions.TailMode.ringOut)
                     }
@@ -87,7 +86,7 @@ struct ExportSheet: View {
                 } header: {
                     Text("Ending")
                 } footer: {
-                    Text(options.tailMode == .seamlessLoop
+                    Text(studio.exportOptions.tailMode == .seamlessLoop
                          ? "The last notes ring on into the start, so the file loops with no gap. Best for dropping into something else."
                          : "The last notes fade out past the end and the file finishes in silence. Best when the file is the finished thing.")
                 }
@@ -107,7 +106,7 @@ struct ExportSheet: View {
                     } else {
                         Button {
                             guard startedAttempt == nil else { return }
-                            startedAttempt = studio.export(options: options)
+                            startedAttempt = studio.export(options: studio.exportOptions)
                         } label: {
                             Label("Export WAV", systemImage: "square.and.arrow.up")
                         }
@@ -131,10 +130,10 @@ struct ExportSheet: View {
             .overlay(alignment: .topLeading) {
                 accessibilitySelector(
                     label: "Ending",
-                    value: options.tailMode == .seamlessLoop ? "Seamless loop" : "Ring out",
+                    value: studio.exportOptions.tailMode == .seamlessLoop ? "Seamless loop" : "Ring out",
                     adjust: { direction in
                         guard !settingsLocked else { return }
-                        options.tailMode = options.tailMode.adjusted(direction)
+                        studio.exportOptions.tailMode = studio.exportOptions.tailMode.adjusted(direction)
                     })
                     .frame(width: 1, height: 1)
                     .accessibilityHidden(settingsLocked)
@@ -163,8 +162,8 @@ struct ExportSheet: View {
 
     /// Rough length of the file, so the repeat count means something.
     private var duration: String {
-        var seconds = studio.song.arrangementDuration * Double(options.loopCount)
-        if options.tailMode == .ringOut { seconds += WavExport.tailSeconds(for: studio.song) }
+        var seconds = studio.song.arrangementDuration * Double(studio.exportOptions.loopCount)
+        if studio.exportOptions.tailMode == .ringOut { seconds += WavExport.tailSeconds(for: studio.song) }
         return Format.clock(seconds)
     }
 }
