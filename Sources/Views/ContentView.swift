@@ -271,7 +271,8 @@ struct ContentView: View {
             openArrangement: { openArrangement() },
             openExport: { openExport() },
             confirmClearPattern: { confirmClearPattern() },
-            canChangeSong: { EditorPresentation.canChangeSong(songBoundPresented: songBoundPresented) }))
+            canChangeSong: EditorPresentation.canChangeSong(songBoundPresented: songBoundPresented),
+            canChangeSongNow: { EditorPresentation.canChangeSong(songBoundPresented: songBoundPresented) }))
         .sheet(isPresented: $showingSongs) {
             SongListView(studio: studio)
         }
