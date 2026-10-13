@@ -44,7 +44,7 @@ class EditorShortcutTest {
     @Test fun titlesReadAsActions() {
         assertEquals(
             listOf(
-                "Undo", "Redo", "New Song", "Songs", "Duplicate Song", "Export WAV",
+                "Undo", "Redo", "New Song", "Songs", "Duplicate Song", "Export\u2026",
                 "Share Song File", "New Pattern", "Arrangement", "Clear Pattern",
             ),
             EditorShortcut.entries.map { it.title },

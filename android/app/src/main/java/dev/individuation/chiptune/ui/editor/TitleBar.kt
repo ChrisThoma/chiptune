@@ -222,7 +222,7 @@ private fun SongMenu(editor: Editor) {
             }
             MenuDivider()
             // WAV first: it's what most people open the menu for.
-            MenuRow(if (isExporting) "Exporting\u2026" else "Export WAV", Icons.Filled.GraphicEq, enabled = !isExporting) {
+            MenuRow(if (isExporting) "Exporting\u2026" else "Export\u2026", Icons.Filled.GraphicEq, enabled = !isExporting) {
                 pick { editor.presentation.open(Presented.Export) }
             }
             MenuRow("Share song file", Icons.Filled.IosShare) { pick { studio.share(studio.song) } }
