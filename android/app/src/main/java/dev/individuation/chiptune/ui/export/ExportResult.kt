@@ -74,7 +74,7 @@ private class PendingShare {
 }
 
 /**
- * "Exported X.wav": Share... or Save to device. Android's stand-in for the
+ * "Exported X.wav" (or X.mid): Share... or Save to device. Android's stand-in for the
  * iOS share sheet that follows an export; the review prompt hangs off the
  * share as it does there.
  */
@@ -99,11 +99,11 @@ fun ExportResultDialog(editor: Editor, file: File, onDismiss: () -> Unit) {
                     // Phase 7's save reports nothing back; it doesn't spend the milestone.
                     tracker.shareDismissed(ShareOutcome.CANCELED)
                     onDismiss()
-                    editor.effects.saveToDevice(file, file.name)
+                    editor.effects.saveToDevice(file, file.name, EditorEffects.mimeTypeFor(file))
                 }) { Text("Save to device", color = ChipColors.text) }
                 TextButton(onClick = {
                     onDismiss()
-                    editor.effects.shareFile(file, EditorEffects.WAV_MIME) { handedOff ->
+                    editor.effects.shareFile(file, EditorEffects.mimeTypeFor(file)) { handedOff ->
                         val outcome = if (handedOff) ShareOutcome.COMPLETED else ShareOutcome.CANCELED
                         if (tracker.shareDismissed(outcome)) editor.effects.requestReview()
                     }

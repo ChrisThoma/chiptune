@@ -37,8 +37,24 @@ object ExportNotesFooter {
     }
 }
 
-/** The repeats and ending controls freeze for the length of a render: it
- * keeps the settings it started with. */
+/** What sits under the Export button for [format]. A WAV keeps the notes above.
+ * A MIDI file still carries every note of a muted track (at volume 0), so the
+ * "would be silent" warning is replaced by a line saying where the muted
+ * tracks went; the no-notes messages stay, since there is nothing to export
+ * either way. */
+fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = when (format) {
+    ExportOptions.Format.WAV -> text(song)
+    ExportOptions.Format.MIDI -> if (!song.hasNotes) {
+        text(song)
+    } else {
+        val line = "The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. " +
+            "Arpeggios come out as the note you wrote."
+        if (song.tracks.any { it.muted }) "$line Muted tracks are in the file at volume 0." else line
+    }
+}
+
+/** The format, repeats and ending controls freeze for the length of a render:
+ * it keeps the settings it started with. */
 object ExportControls {
     fun settingsLocked(isExporting: Boolean): Boolean = isExporting
 }

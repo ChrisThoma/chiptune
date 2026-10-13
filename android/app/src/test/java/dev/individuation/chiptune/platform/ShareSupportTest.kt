@@ -1,6 +1,10 @@
 package dev.individuation.chiptune.platform
 
 import dev.individuation.chiptune.core.TestSongs
+import dev.individuation.chiptune.core.audio.ExportOptions
+import dev.individuation.chiptune.core.audio.ExportRenderer
+import dev.individuation.chiptune.core.audio.ExportRequest
+import dev.individuation.chiptune.core.audio.ExportResult
 import dev.individuation.chiptune.core.audio.WavExport
 import dev.individuation.chiptune.core.studio.ShareOutcome
 import dev.individuation.chiptune.core.studio.SongShareWriter
@@ -25,6 +29,15 @@ class ShareSupportTest {
         val wav = WavExport.filename(song, File(cache, ShareRoots.EXPORT)).also { it.writeText("x") }
         assertTrue(ShareRoots.covers(cache, shared))
         assertTrue(ShareRoots.covers(cache, wav))
+    }
+
+    @Test fun aMidiExportLiesUnderTheExportRoot() {
+        val cache = Files.createTempDirectory("cache").toFile()
+        val song = TestSongs.golden()
+        val request = ExportRequest(song, ExportOptions(format = ExportOptions.Format.MIDI))
+        val result = ExportRenderer.render(request, File(cache, ShareRoots.EXPORT)) as ExportResult.Success
+        assertEquals("mid", result.file.extension)
+        assertTrue(ShareRoots.covers(cache, result.file))
     }
 
     @Test fun otherCacheFilesAreNotExposed() {
