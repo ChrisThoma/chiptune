@@ -63,3 +63,57 @@ final class EditorCommandEnabledTests: XCTestCase {
         XCTAssertFalse(EditorPresentation.commandEnabled(hasEditor: false, canChangeSong: true))
     }
 }
+
+/// The menu rows read their enabled state from the scene value, and the
+/// commands only re-evaluate when that value compares unequal. So the blocked
+/// state has to be part of it: equal-by-studio alone meant a row dimmed under
+/// a dialog could stay dimmed, and its chord dead, after the dialog closed.
+@MainActor
+final class EditorActionsSnapshotTests: XCTestCase {
+
+    private var temp: TempStore!
+    private var studio: Studio!
+
+    override func setUp() {
+        super.setUp()
+        temp = makeTempStore()
+        studio = Studio(store: temp.store, autosaveEnabled: false)
+    }
+
+    override func tearDown() {
+        studio.invalidateTimers()
+        studio = nil
+        temp = nil
+        super.tearDown()
+    }
+
+    private func actions(canChangeSong: Bool, now: @escaping () -> Bool = { true }) -> EditorActions {
+        EditorActions(studio: studio, endRenaming: {}, openSongs: {}, openArrangement: {},
+                      openExport: {}, confirmClearPattern: {},
+                      canChangeSong: canChangeSong, canChangeSongNow: now)
+    }
+
+    func testADialogOpeningOrClosingChangesTheValue() {
+        XCTAssertNotEqual(actions(canChangeSong: true), actions(canChangeSong: false))
+    }
+
+    func testSameStudioAndStateIsTheSameValue() {
+        XCTAssertEqual(actions(canChangeSong: true), actions(canChangeSong: true))
+        XCTAssertEqual(actions(canChangeSong: false), actions(canChangeSong: false))
+    }
+
+    func testRowsFollowTheSnapshot() {
+        XCTAssertTrue(EditorPresentation.commandEnabled(editor: actions(canChangeSong: true)))
+        XCTAssertFalse(EditorPresentation.commandEnabled(editor: actions(canChangeSong: false)))
+        XCTAssertFalse(EditorPresentation.commandEnabled(editor: nil))
+    }
+
+    func testRowsDoNotReadTheLiveCheck() {
+        // The live check is the action's guard. The rows must not call it, or
+        // they'd go stale in exactly the way the snapshot is there to avoid.
+        var calls = 0
+        let editor = actions(canChangeSong: true, now: { calls += 1; return false })
+        XCTAssertTrue(EditorPresentation.commandEnabled(editor: editor))
+        XCTAssertEqual(calls, 0)
+    }
+}
