@@ -27,7 +27,7 @@ enum class EditorShortcut(
     NEW_SONG(Key.OTHER, 'n', false, "New Song", Group.SONG),
     SONGS(Key.OTHER, 'o', false, "Songs", Group.SONG, opensSurface = true),
     DUPLICATE_SONG(Key.OTHER, 'd', false, "Duplicate Song", Group.SONG),
-    EXPORT_WAV(Key.OTHER, 'e', false, "Export WAV", Group.SONG, opensSurface = true),
+    EXPORT_WAV(Key.OTHER, 'e', false, "Export\u2026", Group.SONG, opensSurface = true),
     SHARE_SONG(Key.OTHER, 's', true, "Share Song File", Group.SONG),
     NEW_PATTERN(Key.OTHER, 'n', true, "New Pattern", Group.PATTERN),
     ARRANGEMENT(Key.OTHER, 'a', true, "Arrangement", Group.PATTERN, opensSurface = true),
