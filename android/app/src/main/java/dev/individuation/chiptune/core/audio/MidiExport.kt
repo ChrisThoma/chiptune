@@ -38,8 +38,9 @@ object MidiExport {
 
         file.write(chunk(conductor(normalized, endTick)))
         val channels = channels(normalized.tracks)
+        val audibleDrums = normalized.tracks.any { it.kind == ChannelKind.NOISE && !it.muted }
         for (index in normalized.tracks.indices) {
-            file.write(chunk(track(index, normalized, channels[index], endTick)))
+            file.write(chunk(track(index, normalized, channels[index], audibleDrums, endTick)))
         }
         return file.toByteArray()
     }
@@ -109,24 +110,35 @@ object MidiExport {
      * of a step can never meet another note's on. */
     private const val MAX_DRUM_TICKS = TICKS_PER_STEP - 1
 
-    /** One chip track's MIDI track. */
-    private fun track(index: Int, song: Song, channel: Int, endTick: Int): TrackEvents {
+    /** One chip track's MIDI track. [audibleDrums] says whether any noise
+     * track in the song is unmuted, which decides how a muted noise track can
+     * be silenced. */
+    private fun track(index: Int, song: Song, channel: Int, audibleDrums: Boolean, endTick: Int): TrackEvents {
         val track = song.tracks[index]
         val instrument = track.instrument
         val isDrum = track.kind == ChannelKind.NOISE
         val pitch: (Int) -> Int = if (isDrum) drumMap(index, song) else { note -> note }
 
+        // A muted track is written in full, so unmuting it in a DAW brings
+        // the part back, but silenced with its channel's volume. A muted noise
+        // track can't do that when an audible one shares the drum channel, so
+        // it goes as quiet as a note can instead.
+        val silenceChannel = track.muted && !(isDrum && audibleDrums)
+        val quietNotes = track.muted && !silenceChannel
+
         // Volume goes into the velocity rather than a CC7, because the noise
         // tracks share one channel and one channel has one volume. Never 0,
         // which a note-on would read as a note-off.
-        val velocity = maxOf(1, swiftRounded(instrument.volume * 127).toInt())
+        val velocity = if (quietNotes) 1 else maxOf(1, swiftRounded(instrument.volume * 127).toInt())
         // How long a decaying note is heard, in ticks. `decay` is the time to
         // -60 dB, which is where the synth's own envelope gives out.
         val decayTicks = maxOf(1, swiftRounded(instrument.decay * song.tempo / 60 * TICKS_PER_QUARTER.toDouble()).toInt())
 
         val events = TrackEvents()
-        events.append(0, text(0x03, song.fullLabel(index)))
+        val label = song.fullLabel(index)
+        events.append(0, text(0x03, if (track.muted) "$label (muted)" else label))
         program(track.kind)?.let { events.append(0, 0xC0 or channel, it) }
+        if (silenceChannel) events.append(0, 0xB0 or channel, 0x07, 0x00)
 
         // The note still sounding, and the tick its decay would end it by.
         var soundingNote = -1
