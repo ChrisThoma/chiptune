@@ -27,21 +27,57 @@ enum MidiExport {
         file.append(be16(ticksPerQuarter))
 
         file.append(chunk(conductor(for: song, endTick: endTick)))
+        let channels = channels(for: song.tracks)
         for index in song.tracks.indices {
-            file.append(chunk(track(index, of: song, endTick: endTick)))
+            file.append(chunk(track(index, of: song, channel: channels[index], endTick: endTick)))
         }
         return file
     }
 
-    private static func track(_ index: Int, of song: Song, endTick: Int) -> TrackEvents {
-        let channel: UInt8 = 0
-        let velocity: UInt8 = 100
-        let instrument = song.tracks[index].instrument
+    /// GM's drum channel, "channel 10" to a person.
+    static let drumChannel: UInt8 = 9
+
+    /// Melodic tracks count up from channel 0 in song order; every noise track
+    /// goes to the drum channel. Eight tracks at most, so the count never
+    /// reaches 9, but it skips it all the same rather than trust that.
+    private static func channels(for tracks: [Track]) -> [UInt8] {
+        var next: UInt8 = 0
+        return tracks.map { track in
+            guard track.kind != .noise else { return drumChannel }
+            if next == drumChannel { next += 1 }
+            defer { next += 1 }
+            return next
+        }
+    }
+
+    /// GM programs, counted from zero: 81 "Lead 1 (square)" for the pulses
+    /// and 39 "Synth Bass 1" for the triangle, which is where a song's bass
+    /// lives. Noise is on the drum channel, where a program picks a kit.
+    private static func program(for kind: ChannelKind) -> UInt8? {
+        switch kind {
+        case .pulse1, .pulse2: return 80
+        case .triangle: return 38
+        case .noise: return nil
+        }
+    }
+
+    private static func track(_ index: Int, of song: Song, channel: UInt8, endTick: Int) -> TrackEvents {
+        let track = song.tracks[index]
+        let instrument = track.instrument
+        // Volume goes into the velocity rather than a CC7, because the noise
+        // tracks share one channel and one channel has one volume. Never 0,
+        // which a note-on would read as a note-off.
+        let velocity = UInt8(max(1, Int((instrument.volume * 127).rounded())))
         // How long a decaying note is heard, in ticks. `decay` is the time to
         // -60 dB, which is where the synth's own envelope gives out.
         let decayTicks = max(1, Int((instrument.decay * song.tempo / 60 * Double(ticksPerQuarter)).rounded()))
 
         var events = TrackEvents()
+        events.append(at: 0, text(0x03, song.fullLabel(for: index)))
+        if let program = program(for: track.kind) {
+            events.append(at: 0, [0xC0 | channel, program])
+        }
+
         // The note still sounding, and the tick its decay would end it by.
         var sounding: (note: UInt8, endsBy: Int)?
         func release(at tick: Int) {
