@@ -27,12 +27,58 @@ enum MidiExport {
         file.append(be16(ticksPerQuarter))
 
         file.append(chunk(conductor(for: song, endTick: endTick)))
-        for _ in song.tracks.indices {
-            var events = TrackEvents()
-            events.append(at: 0, [0xFF, 0x2F, 0x00])
-            file.append(chunk(events))
+        for index in song.tracks.indices {
+            file.append(chunk(track(index, of: song, endTick: endTick)))
         }
         return file
+    }
+
+    private static func track(_ index: Int, of song: Song, endTick: Int) -> TrackEvents {
+        let channel: UInt8 = 0
+        let velocity: UInt8 = 100
+        let instrument = song.tracks[index].instrument
+        // How long a decaying note is heard, in ticks. `decay` is the time to
+        // -60 dB, which is where the synth's own envelope gives out.
+        let decayTicks = max(1, Int((instrument.decay * song.tempo / 60 * Double(ticksPerQuarter)).rounded()))
+
+        var events = TrackEvents()
+        // The note still sounding, and the tick its decay would end it by.
+        var sounding: (note: UInt8, endsBy: Int)?
+        func release(at tick: Int) {
+            guard let held = sounding else { return }
+            // A decayed note was already silent before whatever ends it now;
+            // its off goes where the sound stopped. Writing it late here keeps
+            // the list in order, since that tick is past the note's own on.
+            events.append(at: min(held.endsBy, tick), [0x80 | channel, held.note, 0x40])
+            sounding = nil
+        }
+
+        // `chain` is exactly what playback walks, repeats expanded and capped,
+        // so a held note carries over a pattern boundary just as
+        // `ChipCore.triggerStep` lets it.
+        var tick = 0
+        for patternIndex in song.chain {
+            let pattern = song.patterns[patternIndex]
+            for step in 0..<pattern.length {
+                let cell = pattern.rows[index][step]
+                if cell == Chip.noteOff {
+                    release(at: tick)
+                } else if cell >= 0 {
+                    // Off before on, so a repeated pitch retriggers instead of
+                    // being started and then ended at the same instant.
+                    release(at: tick)
+                    let note = UInt8(cell)
+                    events.append(at: tick, [0x90 | channel, note, velocity])
+                    sounding = (note, instrument.sustain ? Int.max : tick + decayTicks)
+                }
+                tick += ticksPerStep
+            }
+        }
+        release(at: endTick)
+        // Every track ends on the last tick, sounding or not, so the file
+        // loops at the arrangement's length in a DAW.
+        events.append(at: endTick, [0xFF, 0x2F, 0x00])
+        return events
     }
 
     private static func conductor(for song: Song, endTick: Int) -> TrackEvents {
