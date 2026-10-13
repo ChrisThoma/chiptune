@@ -144,6 +144,19 @@ class ExportCopyTest {
         assertFalse(ExportCopy.canExport(hasNotes = true, attemptInFlight = true))
     }
 
+    @Test fun formatChoiceAndButtonNameTheFormat() {
+        assertEquals("WAV", ExportCopy.formatLabel(ExportOptions.Format.WAV))
+        assertEquals("MIDI", ExportCopy.formatLabel(ExportOptions.Format.MIDI))
+        assertEquals("Export WAV", ExportCopy.exportButton(ExportOptions.Format.WAV))
+        assertEquals("Export MIDI", ExportCopy.exportButton(ExportOptions.Format.MIDI))
+    }
+
+    /** A MIDI file is the arrangement once, so neither control applies to it. */
+    @Test fun onlyAWavHasRepeatsAndEnding() {
+        assertTrue(ExportCopy.hasRepeatsAndEnding(ExportOptions.Format.WAV))
+        assertFalse(ExportCopy.hasRepeatsAndEnding(ExportOptions.Format.MIDI))
+    }
+
     @Test fun resultTitleNamesTheFile() = assertEquals("Exported Golden.wav", ExportCopy.resultTitle("Golden.wav"))
 }
 

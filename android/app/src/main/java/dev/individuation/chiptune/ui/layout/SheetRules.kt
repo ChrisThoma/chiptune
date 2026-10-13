@@ -60,6 +60,17 @@ object ExportControls {
 }
 
 object ExportCopy {
+    /** The WAV / MIDI choice's segments. */
+    fun formatLabel(format: ExportOptions.Format): String = when (format) {
+        ExportOptions.Format.WAV -> "WAV"
+        ExportOptions.Format.MIDI -> "MIDI"
+    }
+
+    fun exportButton(format: ExportOptions.Format): String = "Export ${formatLabel(format)}"
+
+    /** A MIDI file is the arrangement once, so Repeats and Ending only shape a WAV. */
+    fun hasRepeatsAndEnding(format: ExportOptions.Format): Boolean = format == ExportOptions.Format.WAV
+
     fun loopCount(n: Int): String = "$n\u00d7"
 
     /** Rough length of the file, so the repeat count means something. */

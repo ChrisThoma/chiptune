@@ -15,6 +15,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material3.Icon
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,12 +60,13 @@ import dev.individuation.chiptune.ui.layout.ExportCopy
 import dev.individuation.chiptune.ui.layout.ExportNotesFooter
 import dev.individuation.chiptune.ui.layout.Format
 import dev.individuation.chiptune.ui.layout.adjusted
+import dev.individuation.chiptune.ui.layout.text
 import dev.individuation.chiptune.ui.theme.ChipColors
 import dev.individuation.chiptune.ui.theme.chipFont
 import androidx.compose.ui.text.font.FontWeight
 
 /**
- * WAV export (iOS `ExportSheet`), opened by "Export WAV" in the song menu.
+ * WAV or MIDI export (iOS `ExportSheet`), opened by "Export\u2026" in the song menu.
  *
  * Closing it while a render runs cancels the render, however it closes:
  * Close, a swipe down, or `closeAll()` (`ExportFlow.afterPanelDisappeared`).
@@ -81,7 +85,8 @@ fun ExportSheet(editor: Editor, regularWidth: Boolean, onDismiss: () -> Unit) {
 fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
     val studio = editor.studio
     val ui = editor.ui
-    var options by remember { mutableStateOf(ExportOptions()) }
+    // Held by the Studio, not the sheet, so the choice outlasts the sheet closing.
+    val options by remember { derivedStateOf { ui.value.exportOptions } }
     // Separate from isExporting: a render that starts and finishes between
     // frames would be missed, and the attempt token can't be.
     var startedAttempt by remember { mutableStateOf<Int?>(null) }
@@ -118,50 +123,56 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 8.dp)
                 .navigationBarsPadding(),
         ) {
-            FormSection(footer = ExportCopy.repeatsFooter(song, options)) {
-                // The stepper speaks for the row, as one "Repeats" element.
-                FormRow(Modifier.alpha(if (locked) 0.4f else 1f)) {
-                    Text("Repeats", color = ChipColors.text, fontSize = 17.sp, modifier = Modifier.weight(1f).clearAndSetSemantics { })
-                    Text(
-                        ExportCopy.loopCount(options.loopCount),
-                        style = chipFont(15f, FontWeight.Bold),
-                        color = ChipColors.dim,
-                        modifier = Modifier.clearAndSetSemantics { },
-                    )
-                    PlainStepper(
-                        value = options.loopCount,
-                        onValueChange = { options = options.copy(loopCount = it) },
-                        range = 1..ExportOptions.MAX_LOOP_COUNT,
-                        accessibilityLabel = "Repeats",
-                        accessibilityValue = Format.count(options.loopCount, "time"),
-                        isEnabled = !locked,
-                    )
-                }
+            FormSection {
+                FormatPicker(options.format, enabled = !locked) { studio.exportOptions = options.copy(format = it) }
             }
 
-            FormSection(header = "Ending", footer = ExportCopy.endingFooter(options.tailMode)) {
-                // One adjustable "Ending" element for TalkBack, as iOS has.
-                Column(
-                    Modifier.clearAndSetSemantics {
-                        val modes = ExportOptions.TailMode.entries
-                        adjustable(
-                            "Ending", ExportCopy.endingLabel(options.tailMode), options.tailMode.ordinal.toFloat(),
-                            0f..(modes.size - 1).toFloat(), 0, !locked,
-                            set = null,
-                            adjust = { options = options.copy(tailMode = options.tailMode.adjusted(it)) },
+            if (ExportCopy.hasRepeatsAndEnding(options.format)) {
+                FormSection(footer = ExportCopy.repeatsFooter(song, options)) {
+                    // The stepper speaks for the row, as one "Repeats" element.
+                    FormRow(Modifier.alpha(if (locked) 0.4f else 1f)) {
+                        Text("Repeats", color = ChipColors.text, fontSize = 17.sp, modifier = Modifier.weight(1f).clearAndSetSemantics { })
+                        Text(
+                            ExportCopy.loopCount(options.loopCount),
+                            style = chipFont(15f, FontWeight.Bold),
+                            color = ChipColors.dim,
+                            modifier = Modifier.clearAndSetSemantics { },
                         )
-                    },
-                ) {
-                    ExportOptions.TailMode.entries.forEachIndexed { i, mode ->
-                        if (i > 0) FormSeparator()
-                        EndingRow(ExportCopy.endingLabel(mode), options.tailMode == mode, enabled = !locked) {
-                            options = options.copy(tailMode = mode)
+                        PlainStepper(
+                            value = options.loopCount,
+                            onValueChange = { studio.exportOptions = options.copy(loopCount = it) },
+                            range = 1..ExportOptions.MAX_LOOP_COUNT,
+                            accessibilityLabel = "Repeats",
+                            accessibilityValue = Format.count(options.loopCount, "time"),
+                            isEnabled = !locked,
+                        )
+                    }
+                }
+
+                FormSection(header = "Ending", footer = ExportCopy.endingFooter(options.tailMode)) {
+                    // One adjustable "Ending" element for TalkBack, as iOS has.
+                    Column(
+                        Modifier.clearAndSetSemantics {
+                            val modes = ExportOptions.TailMode.entries
+                            adjustable(
+                                "Ending", ExportCopy.endingLabel(options.tailMode), options.tailMode.ordinal.toFloat(),
+                                0f..(modes.size - 1).toFloat(), 0, !locked,
+                                set = null,
+                                adjust = { studio.exportOptions = options.copy(tailMode = options.tailMode.adjusted(it)) },
+                            )
+                        },
+                    ) {
+                        ExportOptions.TailMode.entries.forEachIndexed { i, mode ->
+                            if (i > 0) FormSeparator()
+                            EndingRow(ExportCopy.endingLabel(mode), options.tailMode == mode, enabled = !locked) {
+                                studio.exportOptions = options.copy(tailMode = mode)
+                            }
                         }
                     }
                 }
             }
 
-            FormSection(footer = ExportNotesFooter.text(song)) {
+            FormSection(footer = ExportNotesFooter.text(song, options.format)) {
                 if (isExporting) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         LinearProgressIndicator(
@@ -177,7 +188,7 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
                     FormButtonRow("Cancel export", color = FormColors.destructive, onClick = { studio.cancelExport() })
                 } else {
                     FormButtonRow(
-                        "Export WAV",
+                        ExportCopy.exportButton(options.format),
                         icon = Icons.Filled.IosShare,
                         color = ChipColors.text,
                         enabled = ExportCopy.canExport(song.hasNotes, startedAttempt != null),
@@ -209,5 +220,41 @@ private fun EndingRow(label: String, selected: Boolean, enabled: Boolean, onClic
     ) {
         Text(label, color = ChipColors.text, fontSize = 17.sp, modifier = Modifier.weight(1f))
         if (selected) Icon(Icons.Filled.Check, contentDescription = null, tint = ChipColors.text, modifier = Modifier.size(22.dp))
+    }
+}
+
+/** The WAV / MIDI choice, iOS's segmented picker. Frozen like the other
+ * settings during a render, which keeps the format it started with. */
+@Composable
+private fun FormatPicker(format: ExportOptions.Format, enabled: Boolean, onSelect: (ExportOptions.Format) -> Unit) {
+    val formats = ExportOptions.Format.entries
+    FormRow(Modifier.alpha(if (enabled) 1f else 0.4f).semantics { contentDescription = "Format" }) {
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            formats.forEachIndexed { i, option ->
+                SegmentedButton(
+                    selected = option == format,
+                    onClick = { onSelect(option) },
+                    shape = SegmentedButtonDefaults.itemShape(index = i, count = formats.size),
+                    enabled = enabled,
+                    colors = SegmentedButtonDefaults.colors(
+                        activeContainerColor = ChipColors.grid,
+                        activeContentColor = ChipColors.text,
+                        activeBorderColor = ChipColors.dim,
+                        inactiveContainerColor = FormColors.group,
+                        inactiveContentColor = ChipColors.dim,
+                        inactiveBorderColor = ChipColors.grid,
+                        disabledActiveContainerColor = ChipColors.grid,
+                        disabledActiveContentColor = ChipColors.text,
+                        disabledActiveBorderColor = ChipColors.dim,
+                        disabledInactiveContainerColor = FormColors.group,
+                        disabledInactiveContentColor = ChipColors.dim,
+                        disabledInactiveBorderColor = ChipColors.grid,
+                    ),
+                    icon = {},
+                ) {
+                    Text(ExportCopy.formatLabel(option), fontSize = 15.sp)
+                }
+            }
+        }
     }
 }
