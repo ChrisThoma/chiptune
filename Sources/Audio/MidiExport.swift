@@ -28,8 +28,10 @@ enum MidiExport {
 
         file.append(chunk(conductor(for: song, endTick: endTick)))
         let channels = channels(for: song.tracks)
+        let audibleDrums = song.tracks.contains { $0.kind == .noise && !$0.muted }
         for index in song.tracks.indices {
-            file.append(chunk(track(index, of: song, channel: channels[index], endTick: endTick)))
+            file.append(chunk(track(index, of: song, channel: channels[index],
+                                    audibleDrums: audibleDrums, endTick: endTick)))
         }
         return file
     }
@@ -101,23 +103,39 @@ enum MidiExport {
     /// of a step can never meet another note's on.
     private static let maxDrumTicks = ticksPerStep - 1
 
-    private static func track(_ index: Int, of song: Song, channel: UInt8, endTick: Int) -> TrackEvents {
+    /// One chip track's MIDI track. `audibleDrums` says whether
+    /// any noise track in the song is unmuted, which decides how a muted
+    /// noise track can be silenced.
+    private static func track(_ index: Int, of song: Song, channel: UInt8,
+                              audibleDrums: Bool, endTick: Int) -> TrackEvents {
         let track = song.tracks[index]
         let instrument = track.instrument
         let isDrum = track.kind == .noise
         let pitch = isDrum ? drumMap(for: index, of: song) : { UInt8($0) }
+
+        // A muted track is written in full, so unmuting it in a DAW brings
+        // the part back, but silenced with its channel's volume. A muted noise
+        // track can't do that when an audible one shares the drum channel, so
+        // it goes as quiet as a note can instead.
+        let silenceChannel = track.muted && !(isDrum && audibleDrums)
+        let quietNotes = track.muted && !silenceChannel
+
         // Volume goes into the velocity rather than a CC7, because the noise
         // tracks share one channel and one channel has one volume. Never 0,
         // which a note-on would read as a note-off.
-        let velocity = UInt8(max(1, Int((instrument.volume * 127).rounded())))
+        let velocity = quietNotes ? 1 : UInt8(max(1, Int((instrument.volume * 127).rounded())))
         // How long a decaying note is heard, in ticks. `decay` is the time to
         // -60 dB, which is where the synth's own envelope gives out.
         let decayTicks = max(1, Int((instrument.decay * song.tempo / 60 * Double(ticksPerQuarter)).rounded()))
 
         var events = TrackEvents()
-        events.append(at: 0, text(0x03, song.fullLabel(for: index)))
+        let label = song.fullLabel(for: index)
+        events.append(at: 0, text(0x03, track.muted ? "\(label) (muted)" : label))
         if let program = program(for: track.kind) {
             events.append(at: 0, [0xC0 | channel, program])
+        }
+        if silenceChannel {
+            events.append(at: 0, [0xB0 | channel, 0x07, 0x00])
         }
 
         // The note still sounding, and the tick its decay would end it by.
