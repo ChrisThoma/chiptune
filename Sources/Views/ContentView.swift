@@ -763,12 +763,13 @@ struct ContentView: View {
                     Label("Duplicate song", systemImage: "plus.square.on.square")
                 }
                 Divider()
-                // WAV first: it's what most people tap the menu open for, and
-                // the song-file share below it is the less common ask.
+                // Export first: it's what most people tap the menu open for, and
+                // the song-file share below it is the less common ask. The
+                // sheet it opens chooses WAV or MIDI.
                 Button {
                     openExport()
                 } label: {
-                    Label(studio.isExporting ? "Exporting…" : "Export WAV",
+                    Label(studio.isExporting ? "Exporting…" : "Export…",
                           systemImage: "waveform")
                 }
                 .disabled(studio.isExporting)

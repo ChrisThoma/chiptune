@@ -61,7 +61,7 @@ enum EditorShortcut: CaseIterable {
         case .newSong: return "New Song"
         case .songs: return "Songs"
         case .duplicateSong: return "Duplicate Song"
-        case .exportWAV: return "Export WAV"
+        case .exportWAV: return "Export…"
         case .shareSong: return "Share Song File"
         case .newPattern: return "New Pattern"
         case .arrangement: return "Arrangement"
