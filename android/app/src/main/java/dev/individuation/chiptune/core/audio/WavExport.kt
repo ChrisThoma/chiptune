@@ -54,6 +54,35 @@ class ExportRequest(
     val isCanceled: () -> Boolean = { false },
 )
 
+/** Where the exporters put their files, and how they clear away old ones.
+ * Port of `ExportFiles` in `Sources/Audio/WavExport.swift`. */
+object ExportFiles {
+    /** Extensions the exporters write. Pruning touches nothing else. */
+    val EXTENSIONS: Set<String> = setOf("wav", "mid")
+
+    /** `<directory>/<SONG-UUID>/<safeName>.<ext>`; the per-song folder keeps
+     * the shared file's display name clean while stopping two same-named
+     * songs from overwriting each other's export. Creates the folder. */
+    fun file(song: Song, directory: File, ext: String): File {
+        val base = SongDocument.safeName(song)
+        val dir = File(directory, song.id.toString().uppercase())
+        dir.mkdirs()
+        return File(dir, "$base.$ext")
+    }
+
+    /** Renaming a song, or switching between WAV and MIDI, leaves the old
+     * export sitting in the same per-song folder as the new one. Only run once
+     * the new file is safely written, so a later failure never costs the
+     * previous export; every other `.wav` and `.mid` there goes. Best-effort:
+     * a cleanup failure doesn't fail the export that just succeeded. */
+    fun pruneStale(keeping: File) {
+        val entries = keeping.parentFile?.listFiles() ?: return
+        for (entry in entries) {
+            if (entry.extension.lowercase() in EXTENSIONS && entry.name != keeping.name) entry.delete()
+        }
+    }
+}
+
 /**
  * Renders a song offline and writes it out as a 16-bit mono 44.1 kHz WAV.
  * Port of `Sources/Audio/WavExport.swift`.
@@ -215,7 +244,7 @@ object WavExport {
             val result = writeWav(head, rawFile, streamed, scale, request.isCanceled, target)
             if (result is ExportResult.Success) {
                 report(totalFrames)
-                pruneStaleExports(result.file)
+                ExportFiles.pruneStale(result.file)
             }
             return result
         } finally {
@@ -227,25 +256,8 @@ object WavExport {
         }
     }
 
-    /** Renaming a song leaves its old export in the same per-song folder; once
-     * the new file is safely written, every other `.wav` there goes.
-     * Best-effort: a cleanup failure doesn't fail the export. */
-    private fun pruneStaleExports(keeping: File) {
-        val entries = keeping.parentFile?.listFiles() ?: return
-        for (entry in entries) {
-            if (entry.extension.lowercase() == "wav" && entry != keeping) entry.delete()
-        }
-    }
-
-    /** `<directory>/<SONG-UUID>/<safeName>.wav`; the per-song folder keeps the
-     * shared file's display name clean while stopping two same-named songs
-     * from overwriting each other's export. Creates the folder. */
-    fun filename(song: Song, directory: File): File {
-        val base = SongDocument.safeName(song)
-        val dir = File(directory, song.id.toString().uppercase())
-        dir.mkdirs()
-        return File(dir, "$base.wav")
-    }
+    /** `<directory>/<SONG-UUID>/<safeName>.wav`. Creates the folder. */
+    fun filename(song: Song, directory: File): File = ExportFiles.file(song, directory, "wav")
 
     /** Streams the folded head plus the raw body file out as a WAV, converting
      * to 16-bit in chunks so the whole song is never in memory twice. */
