@@ -6,7 +6,10 @@ import dev.individuation.chiptune.core.model.InstrumentPreset
 import dev.individuation.chiptune.core.model.Song
 import dev.individuation.chiptune.core.model.Track
 import dev.individuation.chiptune.core.model.swiftRounded
+import dev.individuation.chiptune.core.store.FileSongStore
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.IOException
 
 /**
  * Writes a song out as a Standard MIDI File, for taking the notes into a DAW.
@@ -22,6 +25,31 @@ object MidiExport {
      * place a note on. */
     const val TICKS_PER_QUARTER = 96
     const val TICKS_PER_STEP = TICKS_PER_QUARTER / Chip.STEPS_PER_BEAT
+
+    /**
+     * Writes the file for [request] under [directory].
+     *
+     * Only the song is used. Repeats and Ending shape a rendered loop; a MIDI
+     * file is the arrangement once, and a DAW loops it. There is no progress
+     * to report or render to cancel either: the bytes take no time at all.
+     */
+    fun render(request: ExportRequest, directory: File): ExportResult {
+        val target = filename(request.song, directory)
+        try {
+            // Atomic, so a failed write leaves no half a file behind to be
+            // shared, and an old export of the same name stays whole.
+            FileSongStore.writeAtomically(target, data(request.song))
+        } catch (e: IOException) {
+            return ExportResult.Failed(e)
+        } catch (e: SecurityException) {
+            return ExportResult.Failed(e)
+        }
+        ExportFiles.pruneStale(target)
+        return ExportResult.Success(target)
+    }
+
+    /** `<directory>/<SONG-UUID>/<safeName>.mid`, beside the song's WAV. Creates the folder. */
+    fun filename(song: Song, directory: File): File = ExportFiles.file(song, directory, "mid")
 
     /** The file's bytes. Normalizes first, as the WAV export does, so a song
      * straight from a file can't put an out-of-range tempo into the header. */
