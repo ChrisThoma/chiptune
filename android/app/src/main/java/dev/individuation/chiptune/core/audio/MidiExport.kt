@@ -1,7 +1,9 @@
 package dev.individuation.chiptune.core.audio
 
+import dev.individuation.chiptune.core.model.ChannelKind
 import dev.individuation.chiptune.core.model.Chip
 import dev.individuation.chiptune.core.model.Song
+import dev.individuation.chiptune.core.model.Track
 import dev.individuation.chiptune.core.model.swiftRounded
 import java.io.ByteArrayOutputStream
 
@@ -34,22 +36,53 @@ object MidiExport {
         file.write(be16(TICKS_PER_QUARTER))
 
         file.write(chunk(conductor(normalized, endTick)))
+        val channels = channels(normalized.tracks)
         for (index in normalized.tracks.indices) {
-            file.write(chunk(track(index, normalized, endTick)))
+            file.write(chunk(track(index, normalized, channels[index], endTick)))
         }
         return file.toByteArray()
     }
 
+    /** GM's drum channel, "channel 10" to a person. */
+    const val DRUM_CHANNEL = 9
+
+    /** Melodic tracks count up from channel 0 in song order; every noise track
+     * goes to the drum channel. Eight tracks at most, so the count never
+     * reaches 9, but it skips it all the same rather than trust that. */
+    private fun channels(tracks: List<Track>): List<Int> {
+        var next = 0
+        return tracks.map { track ->
+            if (track.kind == ChannelKind.NOISE) return@map DRUM_CHANNEL
+            if (next == DRUM_CHANNEL) next += 1
+            next.also { next += 1 }
+        }
+    }
+
+    /** GM programs, counted from zero: 81 "Lead 1 (square)" for the pulses
+     * and 39 "Synth Bass 1" for the triangle, which is where a song's bass
+     * lives. Noise is on the drum channel, where a program picks a kit. */
+    private fun program(kind: ChannelKind): Int? = when (kind) {
+        ChannelKind.PULSE1, ChannelKind.PULSE2 -> 80
+        ChannelKind.TRIANGLE -> 38
+        ChannelKind.NOISE -> null
+    }
+
     /** One chip track's MIDI track. */
-    private fun track(index: Int, song: Song, endTick: Int): TrackEvents {
-        val instrument = song.tracks[index].instrument
-        val channel = 0
-        val velocity = 100
+    private fun track(index: Int, song: Song, channel: Int, endTick: Int): TrackEvents {
+        val track = song.tracks[index]
+        val instrument = track.instrument
+
+        // Volume goes into the velocity rather than a CC7, because the noise
+        // tracks share one channel and one channel has one volume. Never 0,
+        // which a note-on would read as a note-off.
+        val velocity = maxOf(1, swiftRounded(instrument.volume * 127).toInt())
         // How long a decaying note is heard, in ticks. `decay` is the time to
         // -60 dB, which is where the synth's own envelope gives out.
         val decayTicks = maxOf(1, swiftRounded(instrument.decay * song.tempo / 60 * TICKS_PER_QUARTER.toDouble()).toInt())
 
         val events = TrackEvents()
+        events.append(0, text(0x03, song.fullLabel(index)))
+        program(track.kind)?.let { events.append(0, 0xC0 or channel, it) }
 
         // The note still sounding, and the tick its decay would end it by.
         var soundingNote = -1
