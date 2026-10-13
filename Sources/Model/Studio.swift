@@ -1414,7 +1414,7 @@ final class Studio {
         open(copy)
     }
 
-    /// Renders the WAV off the main thread; a long arrangement can take a
+    /// Renders the export (WAV or MIDI) off the main thread; a long arrangement can take a
     /// while, and the render must not freeze the UI. `exportURL` clears at the
     /// start so observers see a fresh value when the file is ready.
     @discardableResult
@@ -1465,7 +1465,9 @@ final class Studio {
             case .tooLong:
                 self.exportError = "Too long for one WAV — lower the repeat count."
             case .failed(let error):
-                self.exportError = WriteFailureMessage.export(name: song.name, error: error)
+                self.exportError = WriteFailureMessage.export(
+                    name: song.name, error: error,
+                    file: WriteFailureMessage.exportFile(for: options.format))
             }
             self.completedExportAttempt = attempt
         }

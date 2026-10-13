@@ -78,4 +78,16 @@ final class StudioExportTests: XCTestCase {
 
         XCTAssertEqual(try XCTUnwrap(studio.exportURL).pathExtension, "mid")
     }
+
+    func testAMidiExportFailureCallsTheFileAMidiFile() {
+        let studio = makeStudio()
+        studio.renderer = { _ in .failed(CocoaError(.fileWriteNoPermission)) }
+        studio.exportOptions.format = .midi
+
+        studio.export(options: studio.exportOptions)
+        waitForExport(studio)
+
+        XCTAssertEqual(studio.exportError?.contains("MIDI file"), true)
+        XCTAssertEqual(studio.exportError?.contains("WAV"), false)
+    }
 }
