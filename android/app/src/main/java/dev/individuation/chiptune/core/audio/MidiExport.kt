@@ -2,6 +2,7 @@ package dev.individuation.chiptune.core.audio
 
 import dev.individuation.chiptune.core.model.ChannelKind
 import dev.individuation.chiptune.core.model.Chip
+import dev.individuation.chiptune.core.model.InstrumentPreset
 import dev.individuation.chiptune.core.model.Song
 import dev.individuation.chiptune.core.model.Track
 import dev.individuation.chiptune.core.model.swiftRounded
@@ -67,10 +68,53 @@ object MidiExport {
         ChannelKind.NOISE -> null
     }
 
+    /** GM percussion keys for the noise presets, by preset name. */
+    private val PRESET_DRUMS: Map<String, Int> = mapOf(
+        "Kick" to 36, "Snare" to 38, "Hat" to 46, "Closed hat" to 42, "Crash" to 49,
+    )
+
+    /**
+     * Which drum each note on a noise track plays.
+     *
+     * A track still on a preset plays that preset's drum for every note,
+     * whatever pitch it was written at. A custom one is spread over kick,
+     * snare and closed hat by where each note sits among the track's own
+     * distinct notes, lowest to highest. It has to be relative: the library
+     * songs write their noise between 52 and 71, so fixed pitch ranges would
+     * make nearly everything a snare. Only the notes the arrangement plays
+     * count, so an unplayed pattern can't move the bands.
+     */
+    private fun drumMap(index: Int, song: Song): (Int) -> Int {
+        val instrument = song.tracks[index].instrument
+        InstrumentPreset.matching(instrument, ChannelKind.NOISE)?.let { preset ->
+            PRESET_DRUMS[preset.name]?.let { drum -> return { drum } }
+        }
+        val distinct = song.chain.flatMap { song.patterns[it].rows[index].take(song.patterns[it].length) }
+            .filter { it >= 0 }.toSortedSet().toList()
+        val bands = listOf(36, 38, 42)
+        val drums = HashMap<Int, Int>()
+        for ((i, note) in distinct.withIndex()) {
+            // A lone note takes the middle band, a snare, not the bottom one.
+            drums[note] = if (distinct.size == 1) 38 else bands[i * 3 / distinct.size]
+        }
+        // Every note the track plays was counted above; the fallback is
+        // only there so a lookup can't fail.
+        return { drums[it] ?: 38 }
+    }
+
+    /** The longest a drum hit is held. GM drums are one-shots, so the length
+     * only matters for one thing: every noise track shares the drum channel,
+     * and an off landing on the tick where another track starts the same
+     * drum leaves the result to however a DAW orders the merge. A tick short
+     * of a step can never meet another note's on. */
+    private const val MAX_DRUM_TICKS = TICKS_PER_STEP - 1
+
     /** One chip track's MIDI track. */
     private fun track(index: Int, song: Song, channel: Int, endTick: Int): TrackEvents {
         val track = song.tracks[index]
         val instrument = track.instrument
+        val isDrum = track.kind == ChannelKind.NOISE
+        val pitch: (Int) -> Int = if (isDrum) drumMap(index, song) else { note -> note }
 
         // Volume goes into the velocity rather than a CC7, because the noise
         // tracks share one channel and one channel has one volume. Never 0,
@@ -111,9 +155,11 @@ object MidiExport {
                     // Off before on, so a repeated pitch retriggers instead of
                     // being started and then ended at the same instant.
                     release(tick)
-                    events.append(tick, 0x90 or channel, cell, velocity)
-                    soundingNote = cell
+                    val note = pitch(cell)
+                    events.append(tick, 0x90 or channel, note, velocity)
+                    soundingNote = note
                     soundingEndsBy = if (instrument.sustain) Int.MAX_VALUE else tick + decayTicks
+                    if (isDrum) soundingEndsBy = minOf(soundingEndsBy, tick + MAX_DRUM_TICKS)
                 }
                 tick += TICKS_PER_STEP
             }
