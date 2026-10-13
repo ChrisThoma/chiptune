@@ -28,7 +28,9 @@ also be shared as a song file and imported on another device.
 
 ## Exporting
 
-Any song exports to a WAV of the entire arrangement, played 1 to 16 times over.
+Any song exports to a WAV of the entire arrangement, played 1 to 16 times over,
+or to a MIDI file for a DAW: one track per chip track, noise mapped to General
+MIDI drums.
 There are two ways to end it:
 
 - **Seamless loop:** the file is exactly that many passes long, and the last
@@ -79,13 +81,13 @@ and docked beside the grid on a wide tablet.
 With a hardware keyboard the grid works like the iPad's: the same note row,
 arrow keys, `Z`/`X` octaves, Space and `\`. The app-wide commands use Ctrl
 (Undo `Ctrl+Z`, Redo `Ctrl+Shift+Z`, New Song `Ctrl+N`, Songs `Ctrl+O`,
-Duplicate Song `Ctrl+D`, Export WAV `Ctrl+E`, Share Song File `Ctrl+Shift+S`,
+Duplicate Song `Ctrl+D`, Export… `Ctrl+E`, Share Song File `Ctrl+Shift+S`,
 New Pattern `Ctrl+Shift+N`, Arrangement `Ctrl+Shift+A`, Clear Pattern
 `Ctrl+Backspace`), and `Meta+/` shows the list.
 
 What's different on Android:
 
-- A finished WAV export offers Share and **Save to device**, which writes it
+- A finished export (WAV or MIDI) offers Share and **Save to device**, which writes it
   wherever you choose with the system file picker.
 - A `.chipsong` opens in Chiptune from Files, Gmail or Drive, or arrives
   through Share. On tablets and ChromeOS you can also drag a song file onto

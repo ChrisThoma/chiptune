@@ -110,7 +110,7 @@ states/branches: first launch; existing library; play/stop; audio-start failure;
 
 J2 | compose and revise notes by touch | keyboard + grid | selected pattern/track/note | place, replace, clear, preview, note-off; undo/redo; same branches as iOS J2
 
-J3 | compose with a hardware keyboard | TABLET emulator (hw.keyboard=yes) | keyboard attached | note row `A W S E D F T G Y H U J K`, `Z`/`X` octave, arrows, Space, Return, `\`, Delete; Ctrl chords: Ctrl+Z Undo, Ctrl+Shift+Z Redo, Ctrl+N New Song, Ctrl+O Songs, Ctrl+D Duplicate Song, Ctrl+E Export WAV, Ctrl+Shift+S Share Song File, Ctrl+Shift+N New Pattern, Ctrl+Shift+A Arrangement, Ctrl+Backspace Clear Pattern; Meta+/ lists them
+J3 | compose with a hardware keyboard | TABLET emulator (hw.keyboard=yes) | keyboard attached | note row `A W S E D F T G Y H U J K`, `Z`/`X` octave, arrows, Space, Return, `\`, Delete; Ctrl chords: Ctrl+Z Undo, Ctrl+Shift+Z Redo, Ctrl+N New Song, Ctrl+O Songs, Ctrl+D Duplicate Song, Ctrl+E Export…, Ctrl+Shift+S Share Song File, Ctrl+Shift+N New Pattern, Ctrl+Shift+A Arrangement, Ctrl+Backspace Clear Pattern; Meta+/ lists them
 states/branches: key with a sheet open (chords that open a surface wait; Ctrl+N works behind Songs/Arrangement/Export); text field focused (chords still run, Ctrl+Backspace stays word-delete); Escape in the title ends the rename; Escape with no sheet does nothing (not Back); auto-repeat of a held letter must not retrigger; Alt-modified keys pass through
 notes: `adb shell input keyevent` events come from virtual device -1 and do not report as a hardware keyboard, so use a keyboard-configured AVD; Meta+/ needs `hw.keyboard=yes`
 
@@ -125,8 +125,8 @@ J7 | manage the song library | Songs | starter or seeded library | create/open/r
 J8 | share, import and open an editable song | menu Share, Songs -> Import, intents, drop | valid, malformed, legacy, hostile and duplicate-ID files | valid becomes a normalized local copy; invalid explains itself; shared file named safely
 states/branches (Android): picker cancel; VIEW intent from Files, Gmail or Drive (`content:` URI, octet-stream or json MIME); `adb shell am start -a android.intent.action.VIEW -t application/octet-stream -d <uri>`; SEND intent (Share sheet from another app, `--eu`/`EXTRA_STREAM`); intent arriving while the app is running (`onNewIntent`) and cold; rotation after an import must not re-import the same intent; drag a `.chipsong` from Files onto the editor on the tablet (split screen) or ChromeOS; several files dropped at once; non-song drop ignored; ID collision; legacy migration; out-of-range normalization
 
-J9 | export and share a WAV | menu Export WAV | song with an audible arrangement | repeats 1/16, seamless/ring-out, progress, cancel, retry, double submit
-states/branches (Android): result sheet offers Share and **Save to device**; Save to device opens `CreateDocument` (audio/wav) with a suggested name, cancel leaves the export available; saved file equals the exported WAV byte for byte (pull it and compare); Share shows the system chooser through FileProvider and the review prompt only follows a milestone share; write failure into the cache; low storage
+J9 | export and share a WAV or MIDI file | menu Export… | song with an audible arrangement | repeats 1/16, seamless/ring-out, progress, cancel, retry, double submit
+states/branches (Android): result sheet offers Share and **Save to device**; Save to device opens `CreateDocument` (audio/wav, or audio/midi for a `.mid`) with a suggested name, cancel leaves the export available; saved file equals the exported WAV byte for byte (pull it and compare); Share shows the system chooser through FileProvider and the review prompt only follows a milestone share; write failure into the cache; low storage
 
 J10 | recover edits across undo, autosave and lifecycle | edit -> undo / background / kill | sentinel edits in two songs | as iOS J10, plus process death: edit, wait under 1.5 s, `adb shell am kill dev.individuation.chiptune` (needs the app backgrounded) and reopen; or Developer options "Don't keep activities"; the last song and its edits return and the title/selection do not cross songs
 states/branches: HOME then kill; kill during playback (reopen is stopped); activity recreate on rotation, font scale, dark/light and locale change; undo history reset after process death is expected
@@ -158,7 +158,7 @@ states/branches: rotate with a sheet open; split-screen narrow (phone rules); fo
 - Song deletion is permanent; pattern and track deletion are undoable.
 - Removing headphones stops playback rather than switching to the speaker; no background audio.
 - The arrangement cap warning mitigates a fixed engine limit.
-- Multi-window is allowed by the system but unsupported as a feature; MIDI, sample import, stereo, collaboration and cloud library are out of scope.
+- Multi-window is allowed by the system but unsupported as a feature; MIDI input, sample import, stereo, collaboration and cloud library are out of scope.
 
 ## Tests And Fixtures
 
