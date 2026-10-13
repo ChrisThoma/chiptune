@@ -18,7 +18,13 @@ data class ExportOptions(
     /** Passes of the whole arrangement. */
     val loopCount: Int = 1,
     val tailMode: TailMode = TailMode.SEAMLESS_LOOP,
+    /** Which file the export writes. MIDI is the arrangement once, so
+     * [loopCount] and [tailMode] only shape a WAV. Last, because tests build
+     * options positionally. */
+    val format: Format = Format.WAV,
 ) {
+    enum class Format { WAV, MIDI }
+
     enum class TailMode {
         /** Exactly `loopCount` passes long, with the final notes' ring-out
          * folded over the file's own start so it loops seamlessly. */
@@ -53,6 +59,16 @@ class ExportRequest(
     /** Polled at chunk boundaries. Returning true abandons the render. */
     val isCanceled: () -> Boolean = { false },
 )
+
+/** Picks the writer for the format the export sheet chose. Studio's default
+ * renderer, so the sheet's WAV / MIDI choice reaches the file without Studio
+ * knowing either format. */
+object ExportRenderer {
+    fun render(request: ExportRequest, directory: File): ExportResult = when (request.options.format) {
+        ExportOptions.Format.WAV -> WavExport.render(request, directory)
+        ExportOptions.Format.MIDI -> MidiExport.render(request, directory)
+    }
+}
 
 /** Where the exporters put their files, and how they clear away old ones.
  * Port of `ExportFiles` in `Sources/Audio/WavExport.swift`. */
