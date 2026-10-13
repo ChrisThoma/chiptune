@@ -13,6 +13,30 @@ enum TempoFieldAccessibility {
     }
 }
 
+/// What the tempo alert's field may commit. Set used to clamp whatever was
+/// typed, so 1280 quietly became 300; now only a tempo in range counts, and
+/// the alert leaves Set off until the field holds one.
+enum TempoEntry {
+    static func bpm(from text: String) -> Double? {
+        guard let bpm = Double(text.trimmingCharacters(in: .whitespaces)),
+              Chip.tempoRange.contains(bpm) else { return nil }
+        return bpm
+    }
+
+    /// Opens the field with the keyboard up, and reports each edit: SwiftUI's
+    /// alert doesn't write the field back to its binding until the alert
+    /// closes, and Set has to follow what's typed.
+    static func configure(_ field: UITextField, onChange: @escaping (String) -> Void) {
+        TempoFieldAccessibility.apply(to: field)
+        field.addAction(UIAction { action in
+            onChange((action.sender as? UITextField)?.text ?? "")
+        }, for: .editingChanged)
+        // SwiftUI's alert doesn't raise the keyboard itself the way a UIKit
+        // alert does.
+        field.becomeFirstResponder()
+    }
+}
+
 /// Where the arrangement popover points. ARR is drawn in whichever of the
 /// transport's forms fits, so the popover can't live on the button itself:
 /// each form built its own copy, and crossing a form boundary with it open
@@ -99,17 +123,18 @@ struct TransportBar: View {
         .reportsPresentation(.tempoAlert, isPresented: editingTempo, studio: studio)
         .background {
             AlertTextFieldBridge(isPresented: editingTempo,
-                                 configure: TempoFieldAccessibility.apply)
+                                 configure: { TempoEntry.configure($0) { tempoText = $0 } })
         }
         .alert("Tempo", isPresented: $editingTempo) {
             TextField("BPM", text: $tempoText)
                 .keyboardType(.numberPad)
             Button("Cancel", role: .cancel) {}
             Button("Set") {
-                if let bpm = Double(tempoText.trimmingCharacters(in: .whitespaces)) {
+                if let bpm = TempoEntry.bpm(from: tempoText) {
                     studio.setTempo(bpm)
                 }
             }
+            .disabled(TempoEntry.bpm(from: tempoText) == nil)
         } message: {
             Text("40 to 300 BPM")
         }
