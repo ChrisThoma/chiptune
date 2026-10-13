@@ -108,6 +108,26 @@ final class WriteFailureReasonTests: XCTestCase {
                        "Couldn't export “Neon Ascent”. The app doesn't have permission to write the WAV file.")
     }
 
+    func testExportWordsNameTheFileThatFailed() {
+        let denied = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteNoPermission.rawValue)
+        XCTAssertEqual(WriteFailureMessage.export(name: "Neon Ascent", error: denied, file: "MIDI file"),
+                       "Couldn't export “Neon Ascent”. The app doesn't have permission to write the MIDI file.")
+        XCTAssertEqual(WriteFailureMessage.exportFile(for: .midi), "MIDI file")
+        XCTAssertEqual(WriteFailureMessage.exportFile(for: .wav), "WAV file")
+    }
+
+    /// The share failure reads the noun off the file that was offered, since
+    /// the sheet's format may have been switched since the export finished.
+    func testShareFailureNamesTheFileByItsExtension() {
+        let dir = URL(fileURLWithPath: "/tmp/x", isDirectory: true)
+        XCTAssertEqual(WriteFailureMessage.exportFile(forExtension: "mid"), "MIDI file")
+        XCTAssertEqual(WriteFailureMessage.exportFile(forExtension: "MID"), "MIDI file")
+        XCTAssertEqual(WriteFailureMessage.exportFile(forExtension: "wav"), "WAV file")
+        XCTAssertEqual(WriteFailureMessage.exportFile(for: dir.appendingPathComponent("a.mid")), "MIDI file")
+        XCTAssertEqual(WriteFailureMessage.exportFile(for: dir.appendingPathComponent("a.wav")), "WAV file")
+        XCTAssertEqual(WriteFailureMessage.exportFile(for: nil), "WAV file")
+    }
+
     func testAnUnknownCauseSaysSoPlainly() {
         let unknown = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteUnknown.rawValue)
         XCTAssertEqual(WriteFailureMessage.reason(for: unknown, file: "WAV file"),

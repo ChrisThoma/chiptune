@@ -15,8 +15,33 @@ enum WriteFailureMessage {
     }
 
     /// "Couldn't export “Name”. <reason>[ Try again.]"
+    /// The two-argument form is the WAV wrapper: it keeps the shape the three
+    /// alert builders share (`(String, Error) -> String`).
     static func export(name: String, error: Error) -> String {
-        "Couldn't export \(shown(name)). \(reasonAndAdvice(for: error, file: "WAV file"))"
+        export(name: name, error: error, file: exportFile(for: .wav))
+    }
+
+    static func export(name: String, error: Error, file: String) -> String {
+        "Couldn't export \(shown(name)). \(reasonAndAdvice(for: error, file: file))"
+    }
+
+    /// What an export's file is called in an alert.
+    static func exportFile(for format: ExportOptions.Format) -> String {
+        switch format {
+        case .wav: return "WAV file"
+        case .midi: return "MIDI file"
+        }
+    }
+
+    static func exportFile(forExtension ext: String) -> String {
+        exportFile(for: ext.lowercased() == "mid" ? .midi : .wav)
+    }
+
+    /// Named from the file that was offered rather than the sheet's current
+    /// format, which may have been switched since the export finished. A nil
+    /// URL falls back to WAV.
+    static func exportFile(for url: URL?) -> String {
+        exportFile(forExtension: url?.pathExtension ?? "wav")
     }
 
     /// The song's name in quotes, clipped with an ellipsis past `nameLimit`
