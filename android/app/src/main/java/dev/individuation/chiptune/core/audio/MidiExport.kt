@@ -42,7 +42,50 @@ object MidiExport {
 
     /** One chip track's MIDI track. */
     private fun track(index: Int, song: Song, endTick: Int): TrackEvents {
+        val instrument = song.tracks[index].instrument
+        val channel = 0
+        val velocity = 100
+        // How long a decaying note is heard, in ticks. `decay` is the time to
+        // -60 dB, which is where the synth's own envelope gives out.
+        val decayTicks = maxOf(1, swiftRounded(instrument.decay * song.tempo / 60 * TICKS_PER_QUARTER.toDouble()).toInt())
+
         val events = TrackEvents()
+
+        // The note still sounding, and the tick its decay would end it by.
+        var soundingNote = -1
+        var soundingEndsBy = 0
+        fun release(tick: Int) {
+            if (soundingNote < 0) return
+            // A decayed note was already silent before whatever ends it now;
+            // its off goes where the sound stopped. Writing it late here keeps
+            // the list in order, since that tick is past the note's own on.
+            // Release velocity 64 is the spec's "no release velocity" value.
+            events.append(minOf(soundingEndsBy, tick), 0x80 or channel, soundingNote, 0x40)
+            soundingNote = -1
+        }
+
+        // `chain` is exactly what playback walks, repeats expanded and capped,
+        // so a held note carries over a pattern boundary just as
+        // `ChipCore.triggerStep` lets it.
+        var tick = 0
+        for (patternIndex in song.chain) {
+            val pattern = song.patterns[patternIndex]
+            for (step in 0 until pattern.length) {
+                val cell = pattern.rows[index][step]
+                if (cell == Chip.NOTE_OFF) {
+                    release(tick)
+                } else if (cell >= 0) {
+                    // Off before on, so a repeated pitch retriggers instead of
+                    // being started and then ended at the same instant.
+                    release(tick)
+                    events.append(tick, 0x90 or channel, cell, velocity)
+                    soundingNote = cell
+                    soundingEndsBy = if (instrument.sustain) Int.MAX_VALUE else tick + decayTicks
+                }
+                tick += TICKS_PER_STEP
+            }
+        }
+        release(endTick)
         // Every track ends on the last tick, sounding or not, so the file
         // loops at the arrangement's length in a DAW.
         events.append(endTick, 0xFF, 0x2F, 0x00)
