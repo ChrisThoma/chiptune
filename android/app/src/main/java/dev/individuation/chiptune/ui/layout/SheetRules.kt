@@ -51,14 +51,20 @@ fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = 
     } else {
         val line = StringBuilder("The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. ")
             .append("Arpeggios come out as the note you wrote.")
-        val emptiedTracks = MidiExport.emptiedTracks(song, song.chain)
-        val emptied = emptiedTracks.size
-        if (song.tracks.indices.any { song.tracks[it].muted && it !in emptiedTracks }) {
-            line.append(" Muted tracks are in the file at volume 0.")
+        // Worked out once: only a muted track with notes the arrangement
+        // plays has anything in the file to speak of.
+        val chain = song.chain
+        val emptied = MidiExport.emptiedTracks(song, chain)
+        val mutedWithNotes = song.tracks.indices.filter { song.tracks[it].muted && MidiExport.reaches(it, song, chain) }
+        val emptiedCount = mutedWithNotes.count { it in emptied }
+        val silencedCount = mutedWithNotes.size - emptiedCount
+        when {
+            silencedCount == 1 -> line.append(" A muted track is in the file at volume 0.")
+            silencedCount > 1 -> line.append(" Muted tracks are in the file at volume 0.")
         }
         when {
-            emptied == 1 -> line.append(" A muted drum track is left empty, since it shares the drum channel with one that plays.")
-            emptied > 1 -> line.append(" Muted drum tracks are left empty, since they share the drum channel with one that plays.")
+            emptiedCount == 1 -> line.append(" A muted drum track is left empty, since it shares the drum channel with one that plays.")
+            emptiedCount > 1 -> line.append(" Muted drum tracks are left empty, since they share the drum channel with one that plays.")
         }
         line.toString()
     }

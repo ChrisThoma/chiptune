@@ -70,8 +70,17 @@ class ExportFooterTest {
         )
     }
 
-    @Test fun midiFooterSaysMutedTracksAreInTheFileAtVolumeZero() {
+    @Test fun midiFooterSaysAMutedTrackIsInTheFileAtVolumeZero() {
         val song = TestSongs.golden().let { s -> s.copy(tracks = s.tracks.mapIndexed { i, t -> if (i == 0) t.copy(muted = true) else t }) }
+        assertEquals(
+            "The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. " +
+                "Arpeggios come out as the note you wrote. A muted track is in the file at volume 0.",
+            ExportNotesFooter.text(song, midi),
+        )
+    }
+
+    @Test fun midiFooterSaysMutedTracksAreInTheFileAtVolumeZero() {
+        val song = TestSongs.golden().let { s -> s.copy(tracks = s.tracks.mapIndexed { i, t -> if (i == 0 || i == 2) t.copy(muted = true) else t }) }
         assertEquals(
             "The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. " +
                 "Arpeggios come out as the note you wrote. Muted tracks are in the file at volume 0.",
@@ -123,7 +132,7 @@ class ExportFooterTest {
     @Test fun midiFooterGivesBothWhenBothHappen() {
         val song = song(listOf(ChannelKind.PULSE1, ChannelKind.TRIANGLE, ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(1, 3))
         assertEquals(
-            lead(song) + " Muted tracks are in the file at volume 0." +
+            lead(song) + " A muted track is in the file at volume 0." +
                 " A muted drum track is left empty, since it shares the drum channel with one that plays.",
             ExportNotesFooter.text(song, midi),
         )
@@ -135,7 +144,33 @@ class ExportFooterTest {
         val song = song(listOf(ChannelKind.PULSE1, ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(2)).let { s ->
             s.copy(patterns = listOf(s.patterns[0].copy(rows = s.patterns[0].rows.mapIndexed { i, row -> if (i == 1) Pattern.EMPTY_ROW else row })))
         }
-        assertEquals(lead(song) + " Muted tracks are in the file at volume 0.", ExportNotesFooter.text(song, midi))
+        assertEquals(lead(song) + " A muted track is in the file at volume 0.", ExportNotesFooter.text(song, midi))
+    }
+
+    private fun Song.withRow(track: Int, row: List<Int>) =
+        copy(patterns = patterns.mapIndexed { p, pattern ->
+            if (p != 0) pattern else pattern.copy(rows = pattern.rows.mapIndexed { i, r -> if (i == track) row else r })
+        })
+
+    /** A muted track with nothing the arrangement plays has no notes in the
+     * file to be at volume 0. */
+    @Test fun midiFooterSkipsAMutedTrackWithNoNotesInTheArrangement() {
+        var song = song(listOf(ChannelKind.PULSE1, ChannelKind.TRIANGLE, ChannelKind.PULSE2), muted = setOf(1, 2))
+            .withRow(1, Pattern.EMPTY_ROW).withRow(2, Pattern.EMPTY_ROW)
+        // Past the pattern's end, and in a pattern the arrangement skips.
+        song = song.copy(patterns = listOf(song.patterns[0].withNote(1, song.patterns[0].length, 60)) +
+            Pattern(name = "B", trackCount = 3).withNote(2, 0, 60))
+        assertEquals(lead(song), ExportNotesFooter.text(song, midi))
+    }
+
+    /** Emptying a drum track that had no notes loses nothing worth a line. */
+    @Test fun midiFooterSkipsAnEmptiedDrumTrackWithNoNotes() {
+        val song = song(listOf(ChannelKind.NOISE, ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(1, 2))
+            .withRow(2, Pattern.EMPTY_ROW)
+        assertEquals(
+            lead(song) + " A muted drum track is left empty, since it shares the drum channel with one that plays.",
+            ExportNotesFooter.text(song, midi),
+        )
     }
 
     @Test fun midiFooterKeepsTheNoNotesMessages() {

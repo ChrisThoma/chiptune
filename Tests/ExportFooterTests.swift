@@ -67,9 +67,17 @@ final class ExportFooterTests: XCTestCase {
                        "The whole arrangement once — \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote.")
     }
 
+    func testMidiFooterSaysAMutedTrackIsInTheFileAtVolumeZero() {
+        var song = TestSongs.golden()
+        song.tracks[0].muted = true
+        XCTAssertEqual(midiFooter(song),
+                       "The whole arrangement once — \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote. A muted track is in the file at volume 0.")
+    }
+
     func testMidiFooterSaysMutedTracksAreInTheFileAtVolumeZero() {
         var song = TestSongs.golden()
         song.tracks[0].muted = true
+        song.tracks[2].muted = true
         XCTAssertEqual(midiFooter(song),
                        "The whole arrangement once — \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote. Muted tracks are in the file at volume 0.")
     }
@@ -123,7 +131,7 @@ final class ExportFooterTests: XCTestCase {
     func testMidiFooterGivesBothWhenBothHappen() {
         let song = song([.pulse1, .triangle, .noise, .noise], muted: [1, 3])
         XCTAssertEqual(midiFooter(song),
-                       lead(song) + " Muted tracks are in the file at volume 0."
+                       lead(song) + " A muted track is in the file at volume 0."
                            + " A muted drum track is left empty, since it shares the drum channel with one that plays.")
     }
 
@@ -132,7 +140,29 @@ final class ExportFooterTests: XCTestCase {
     func testMidiFooterLeavesNoDrumEmptyBesideADrumTrackWithNoNotes() {
         var song = song([.pulse1, .noise, .noise], muted: [2])
         song.patterns[0].rows[1] = Pattern.emptyRow
-        XCTAssertEqual(midiFooter(song), lead(song) + " Muted tracks are in the file at volume 0.")
+        XCTAssertEqual(midiFooter(song), lead(song) + " A muted track is in the file at volume 0.")
+    }
+
+    /// A muted track with nothing the arrangement plays has no notes in the
+    /// file to be at volume 0.
+    func testMidiFooterSkipsAMutedTrackWithNoNotesInTheArrangement() {
+        var song = song([.pulse1, .triangle, .pulse2], muted: [1, 2])
+        song.patterns[0].rows[1] = Pattern.emptyRow
+        song.patterns[0].rows[2] = Pattern.emptyRow
+        // Past the pattern's end, and in a pattern the arrangement skips.
+        song.patterns[0].rows[1][song.patterns[0].length] = 60
+        var unplayed = Pattern(name: "B", trackCount: 3)
+        unplayed.rows[2][0] = 60
+        song.patterns.append(unplayed)
+        XCTAssertEqual(midiFooter(song), lead(song))
+    }
+
+    /// Emptying a drum track that had no notes loses nothing worth a line.
+    func testMidiFooterSkipsAnEmptiedDrumTrackWithNoNotes() {
+        var song = song([.noise, .noise, .noise], muted: [1, 2])
+        song.patterns[0].rows[2] = Pattern.emptyRow
+        XCTAssertEqual(midiFooter(song),
+                       lead(song) + " A muted drum track is left empty, since it shares the drum channel with one that plays.")
     }
 
     func testMidiFooterKeepsTheNoNotesMessages() {
