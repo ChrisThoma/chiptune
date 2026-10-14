@@ -101,4 +101,31 @@ class MidiExportMuteTest {
             assertEquals("track ${i - 1}", listOf(64, 64), MidiBytes.notes(midi.tracks[i]).map { it.velocity })
         }
     }
+
+    // MARK: Only a drum track that plays empties the others
+
+    /** The muted noise track keeps its notes and a CC7 of 0, as if it were
+     * the only noise track: the unmuted one beside it plays nothing. */
+    private fun assertSilencedNotEmptied(song: Song, index: Int) {
+        val midi = MidiBytes(MidiExport.data(song))
+        assertEquals(volumeZero(9), controls(midi.tracks[index + 1]))
+        assertEquals(2, MidiBytes.notes(midi.tracks[index + 1]).size)
+    }
+
+    private fun mutedBesideSilentDrum() = song(listOf(ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(1))
+        .withPattern(0) { p -> p.copy(rows = p.rows.mapIndexed { i, row -> if (i == 0) Pattern.EMPTY_ROW else row }) }
+
+    @Test fun anUnmutedNoiseTrackWithNoNotesEmptiesNothing() =
+        assertSilencedNotEmptied(mutedBesideSilentDrum(), 1)
+
+    @Test fun notesPastThePatternsEndDoNotCountAsPlaying() {
+        val song = mutedBesideSilentDrum()
+        assertSilencedNotEmptied(song.setNote(0, song.patterns[0].length, 60), 1)
+    }
+
+    @Test fun notesInAPatternTheArrangementSkipsDoNotCountAsPlaying() {
+        val song = mutedBesideSilentDrum()
+        val unplayed = Pattern(name = "B", trackCount = 2).withNote(0, 0, 60)
+        assertSilencedNotEmptied(song.copy(patterns = song.patterns + unplayed), 1)
+    }
 }

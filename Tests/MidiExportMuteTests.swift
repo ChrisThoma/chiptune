@@ -99,4 +99,39 @@ final class MidiExportMuteTests: XCTestCase {
             XCTAssertEqual(MidiBytes.notes(in: midi.tracks[i]).map(\.velocity), [64, 64], "track \(i - 1)")
         }
     }
+
+    // MARK: Only a drum track that plays empties the others
+
+    /// The muted noise track keeps its notes and a CC7 of 0, as if it were
+    /// the only noise track: the unmuted one beside it plays nothing.
+    private func assertSilencedNotEmptied(_ song: Song, track index: Int,
+                                          file: StaticString = #filePath, line: UInt = #line) throws {
+        let midi = try MidiBytes(MidiExport.data(for: song))
+        XCTAssertEqual(controls(midi.tracks[index + 1]),
+                       [MidiBytes.Timed(tick: 0, event: .control(channel: 9, controller: 7, value: 0))],
+                       file: file, line: line)
+        XCTAssertEqual(MidiBytes.notes(in: midi.tracks[index + 1]).count, 2, file: file, line: line)
+    }
+
+    func testAnUnmutedNoiseTrackWithNoNotesEmptiesNothing() throws {
+        var song = song([.noise, .noise], muted: [1])
+        song.patterns[0].rows[0] = Pattern.emptyRow
+        try assertSilencedNotEmptied(song, track: 1)
+    }
+
+    func testNotesPastThePatternsEndDoNotCountAsPlaying() throws {
+        var song = song([.noise, .noise], muted: [1])
+        song.patterns[0].rows[0] = Pattern.emptyRow
+        song.patterns[0].rows[0][song.patterns[0].length] = 60
+        try assertSilencedNotEmptied(song, track: 1)
+    }
+
+    func testNotesInAPatternTheArrangementSkipsDoNotCountAsPlaying() throws {
+        var song = song([.noise, .noise], muted: [1])
+        song.patterns[0].rows[0] = Pattern.emptyRow
+        var unplayed = Pattern(name: "B", trackCount: 2)
+        unplayed.rows[0][0] = 60
+        song.patterns.append(unplayed)
+        try assertSilencedNotEmptied(song, track: 1)
+    }
 }

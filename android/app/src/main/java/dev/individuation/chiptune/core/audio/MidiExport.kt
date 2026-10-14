@@ -84,15 +84,30 @@ object MidiExport {
         return file.toByteArray()
     }
 
-    /** Whether [track] goes into the file as its name alone. A muted track is
-     * normally silenced with its channel's volume, but every noise track
-     * shares the drum channel: with one of them playing, a CC7 of 0 would
-     * silence that one too, and quieter notes would still land on its keys
-     * and ticks. So a muted noise track beside an audible one keeps its MIDI
-     * track, to keep one per chip track, and nothing else. The export sheet's
-     * footer says so from this. */
-    fun leavesEmpty(track: Track, tracks: List<Track>): Boolean =
-        track.muted && track.kind == ChannelKind.NOISE && tracks.any { it.kind == ChannelKind.NOISE && !it.muted }
+    /** The tracks that go into the file as their name alone, by index. A
+     * muted track is normally silenced with its channel's volume, but every
+     * noise track shares the drum channel: with one of them playing, a CC7 of
+     * 0 would silence that one too, and quieter notes would still land on its
+     * keys and ticks. So a muted noise track beside one that plays keeps its
+     * MIDI track, to keep one per chip track, and nothing else. "Plays" means
+     * unmuted with a note [chain] reaches; an unmuted noise track with none
+     * leaves the drum channel free to silence. The export sheet's footer says
+     * so from this. */
+    fun emptiedTracks(song: Song, chain: List<Int>): Set<Int> {
+        val drumPlays = song.tracks.indices.any {
+            song.tracks[it].kind == ChannelKind.NOISE && !song.tracks[it].muted && reaches(it, song, chain)
+        }
+        if (!drumPlays) return emptySet()
+        return song.tracks.indices.filter { song.tracks[it].muted && song.tracks[it].kind == ChannelKind.NOISE }.toSet()
+    }
+
+    /** Whether track [index] has a note [chain] plays: a pitch at a step
+     * short of its pattern's length, the same notes the drum bands count. */
+    fun reaches(index: Int, song: Song, chain: List<Int>): Boolean = chain.toSet().any { patternIndex ->
+        val pattern = song.patterns.getOrNull(patternIndex)
+        val row = pattern?.rows?.getOrNull(index)
+        pattern != null && row != null && pattern.rowHasNotes(row)
+    }
 
     /** GM's drum channel, "channel 10" to a person. */
     const val DRUM_CHANNEL = 9
@@ -180,8 +195,8 @@ object MidiExport {
 
         // A muted track is written in full, silenced by a CC7 of 0 at its
         // start: removing that event in a DAW, or raising it, brings the part
-        // back. [leavesEmpty] is the one exception.
-        val empty = leavesEmpty(track, song.tracks)
+        // back. [emptiedTracks] is the one exception.
+        val empty = index in emptiedTracks(song, song.chain)
 
         // Volume goes into the velocity rather than a CC7, because the noise
         // tracks share one channel and one channel has one volume. Never 0,
