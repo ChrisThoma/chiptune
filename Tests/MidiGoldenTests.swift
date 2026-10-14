@@ -74,9 +74,17 @@ final class MidiGoldenTests: XCTestCase {
         }
         XCTAssertEqual(midi.chipTracks.map { MidiBytes.name(of: $0) },
                        ["Mélodie", "Pulse 2 (muted)", "Triangle", "Noise A", "Noise B (muted)", "Noise C"])
-        let muted = MidiBytes.notes(in: midi.tracks[5])
-        XCTAssertFalse(muted.isEmpty)
-        XCTAssertEqual(Set(muted.map(\.velocity)), [1])
+        // The muted pulse has a channel of its own, so it keeps its notes and
+        // that channel's volume goes to 0 at the start.
+        XCTAssertFalse(MidiBytes.notes(in: midi.tracks[2]).isEmpty)
+        XCTAssertEqual(midi.tracks[2].filter { if case .control = $0.event { return true }; return false },
+                       [MidiBytes.Timed(tick: 0, event: .control(channel: 1, controller: 7, value: 0))])
+        // The muted noise track shares the drum channel with audible ones, so
+        // it is left with nothing but its name.
+        XCTAssertEqual(midi.tracks[5], [
+            MidiBytes.Timed(tick: 0, event: .meta(type: 0x03, bytes: Array("Noise B (muted)".utf8))),
+            MidiBytes.Timed(tick: end, event: .meta(type: 0x2F, bytes: [])),
+        ])
     }
 
     // MARK: Regeneration

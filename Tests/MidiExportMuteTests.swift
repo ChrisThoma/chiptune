@@ -1,8 +1,9 @@
 import XCTest
 @testable import Chiptune
 
-/// A muted track is still in the file, so unmuting it in a DAW gets the part
-/// back, but it plays silent until someone does.
+/// A muted track is still in the file, silenced by a CC7 of 0 at its start
+/// that a DAW user can remove or raise to get the part back. A muted noise
+/// track beside an audible one is the exception: it is left empty.
 final class MidiExportMuteTests: XCTestCase {
 
     private func song(_ kinds: [ChannelKind], muted: Set<Int>) -> Song {
@@ -60,18 +61,33 @@ final class MidiExportMuteTests: XCTestCase {
         XCTAssertEqual(MidiBytes.name(of: midi.tracks[2]), "Noise (muted)")
     }
 
-    func testAMutedNoiseTrackBesideAnAudibleOnePlaysAtVelocityOneInstead() throws {
+    func testAMutedNoiseTrackBesideAnAudibleOneIsLeftEmpty() throws {
         // A CC7 of 0 on channel 10 would silence the unmuted noise track too,
-        // so the muted one goes as quiet as a note can go instead.
+        // and quiet notes would land on the audible track's keys and ticks.
+        // So the muted one keeps its MIDI track and its name, and nothing else.
         let midi = try MidiBytes(MidiExport.data(for: song([.noise, .noise], muted: [1])))
+        XCTAssertEqual(midi.tracks.count, 3)
         let audible = midi.tracks[1], muted = midi.tracks[2]
         XCTAssertEqual(controls(audible), [])
-        XCTAssertEqual(controls(muted), [])
         // Hat at volume 0.5 is round(63.5) = 64.
         XCTAssertEqual(MidiBytes.notes(in: audible).map(\.velocity), [64, 64])
-        XCTAssertEqual(MidiBytes.notes(in: muted).map(\.velocity), [1, 1])
         XCTAssertEqual(MidiBytes.name(of: audible), "Noise A")
-        XCTAssertEqual(MidiBytes.name(of: muted), "Noise B (muted)")
+        // One sixteen-step pattern: 16 × 24 ticks.
+        XCTAssertEqual(muted, [
+            MidiBytes.Timed(tick: 0, event: .meta(type: 0x03, bytes: Array("Noise B (muted)".utf8))),
+            MidiBytes.Timed(tick: 16 * 24, event: .meta(type: 0x2F, bytes: [])),
+        ])
+    }
+
+    func testEveryMutedNoiseTrackBesideAnAudibleOneIsLeftEmpty() throws {
+        let midi = try MidiBytes(MidiExport.data(for: song([.noise, .pulse1, .noise, .noise], muted: [0, 1, 3])))
+        XCTAssertEqual(MidiBytes.notes(in: midi.tracks[1]), [])
+        XCTAssertEqual(MidiBytes.notes(in: midi.tracks[4]), [])
+        XCTAssertEqual(MidiBytes.notes(in: midi.tracks[3]).map(\.velocity), [64, 64])
+        // The muted pulse has a channel of its own, so it is silenced as usual.
+        XCTAssertEqual(controls(midi.tracks[2]),
+                       [MidiBytes.Timed(tick: 0, event: .control(channel: 0, controller: 7, value: 0))])
+        XCTAssertEqual(MidiBytes.notes(in: midi.tracks[2]).count, 2)
     }
 
     func testEveryNoiseTrackMutedSilencesTheDrumChannelFromEach() throws {

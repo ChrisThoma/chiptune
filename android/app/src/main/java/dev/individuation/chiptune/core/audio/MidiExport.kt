@@ -67,12 +67,21 @@ object MidiExport {
 
         file.write(chunk(conductor(normalized, endTick)))
         val channels = channels(normalized.tracks)
-        val audibleDrums = normalized.tracks.any { it.kind == ChannelKind.NOISE && !it.muted }
         for (index in normalized.tracks.indices) {
-            file.write(chunk(track(index, normalized, channels[index], audibleDrums, endTick)))
+            file.write(chunk(track(index, normalized, channels[index], endTick)))
         }
         return file.toByteArray()
     }
+
+    /** Whether [track] goes into the file as its name alone. A muted track is
+     * normally silenced with its channel's volume, but every noise track
+     * shares the drum channel: with one of them playing, a CC7 of 0 would
+     * silence that one too, and quieter notes would still land on its keys
+     * and ticks. So a muted noise track beside an audible one keeps its MIDI
+     * track, to keep one per chip track, and nothing else. The export sheet's
+     * footer says so from this. */
+    fun leavesEmpty(track: Track, tracks: List<Track>): Boolean =
+        track.muted && track.kind == ChannelKind.NOISE && tracks.any { it.kind == ChannelKind.NOISE && !it.muted }
 
     /** GM's drum channel, "channel 10" to a person. */
     const val DRUM_CHANNEL = 9
@@ -151,26 +160,22 @@ object MidiExport {
      * of a step can never meet another note's on. */
     private const val MAX_DRUM_TICKS = TICKS_PER_STEP - 1
 
-    /** One chip track's MIDI track. [audibleDrums] says whether any noise
-     * track in the song is unmuted, which decides how a muted noise track can
-     * be silenced. */
-    private fun track(index: Int, song: Song, channel: Int, audibleDrums: Boolean, endTick: Int): TrackEvents {
+    /** One chip track's MIDI track. */
+    private fun track(index: Int, song: Song, channel: Int, endTick: Int): TrackEvents {
         val track = song.tracks[index]
         val instrument = track.instrument
         val isDrum = track.kind == ChannelKind.NOISE
         val pitch: (Int) -> Int = if (isDrum) drumMap(index, song) else { note -> note }
 
-        // A muted track is written in full, so unmuting it in a DAW brings
-        // the part back, but silenced with its channel's volume. A muted noise
-        // track can't do that when an audible one shares the drum channel, so
-        // it goes as quiet as a note can instead.
-        val silenceChannel = track.muted && !(isDrum && audibleDrums)
-        val quietNotes = track.muted && !silenceChannel
+        // A muted track is written in full, silenced by a CC7 of 0 at its
+        // start: removing that event in a DAW, or raising it, brings the part
+        // back. [leavesEmpty] is the one exception.
+        val empty = leavesEmpty(track, song.tracks)
 
         // Volume goes into the velocity rather than a CC7, because the noise
         // tracks share one channel and one channel has one volume. Never 0,
         // which a note-on would read as a note-off.
-        val velocity = if (quietNotes) 1 else maxOf(1, swiftRounded(instrument.volume * 127).toInt())
+        val velocity = maxOf(1, swiftRounded(instrument.volume * 127).toInt())
         // How long a decaying note is heard, in ticks. `decay` is the time to
         // -60 dB, which is where the synth's own envelope gives out.
         val decayTicks = maxOf(1, swiftRounded(instrument.decay * song.tempo / 60 * TICKS_PER_QUARTER.toDouble()).toInt())
@@ -178,8 +183,12 @@ object MidiExport {
         val events = TrackEvents()
         val label = song.fullLabel(index)
         events.append(0, text(0x03, if (track.muted) "$label (muted)" else label))
+        if (empty) {
+            events.append(endTick, 0xFF, 0x2F, 0x00)
+            return events
+        }
         program(track.kind)?.let { events.append(0, 0xC0 or channel, it) }
-        if (silenceChannel) events.append(0, 0xB0 or channel, 0x07, 0x00)
+        if (track.muted) events.append(0, 0xB0 or channel, 0x07, 0x00)
 
         // The note still sounding, and the tick its decay would end it by.
         var soundingNote = -1
