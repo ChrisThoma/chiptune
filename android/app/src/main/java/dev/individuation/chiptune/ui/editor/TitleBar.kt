@@ -21,7 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Keyboard
@@ -221,8 +221,9 @@ private fun SongMenu(editor: Editor) {
                 pick { if (editor.presentation.canChangeSong) studio.duplicateSong() }
             }
             MenuDivider()
-            // WAV first: it's what most people open the menu for.
-            MenuRow(if (isExporting) "Exporting\u2026" else "Export\u2026", Icons.Filled.GraphicEq, enabled = !isExporting) {
+            // Export first: it's what most people open the menu for. The sheet
+            // it opens chooses WAV or MIDI.
+            MenuRow(if (isExporting) "Exporting\u2026" else "Export\u2026", Icons.Filled.FileUpload, enabled = !isExporting) {
                 pick { editor.presentation.open(Presented.Export) }
             }
             MenuRow("Share song file", Icons.Filled.IosShare) { pick { studio.share(studio.song) } }

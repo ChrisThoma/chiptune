@@ -137,7 +137,7 @@ class EditorKeyHandler(private val editor: Editor) {
             EditorShortcut.NEW_SONG -> studio.newSong()
             EditorShortcut.SONGS -> presentation.openSongs { editor.rename.end() }
             EditorShortcut.DUPLICATE_SONG -> studio.duplicateSong()
-            EditorShortcut.EXPORT_WAV -> presentation.open(Presented.Export)
+            EditorShortcut.EXPORT -> presentation.open(Presented.Export)
             EditorShortcut.SHARE_SONG -> studio.share(studio.song)
             EditorShortcut.NEW_PATTERN -> studio.addPattern()
             EditorShortcut.ARRANGEMENT -> presentation.open(Presented.Arrangement)

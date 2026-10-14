@@ -90,6 +90,6 @@ final class EditorShortcutTests: XCTestCase {
     /// Export opens a sheet where WAV or MIDI is chosen, so the command can no
     /// longer name one format.
     func testExportCommandIsNotWavOnly() {
-        XCTAssertEqual(EditorShortcut.exportWAV.title, "Export…")
+        XCTAssertEqual(EditorShortcut.export.title, "Export…")
     }
 }

@@ -63,7 +63,7 @@ final class Studio {
     /// The export panel's repeats and ending. Kept here rather than in the
     /// panel so they survive it closing for the share sheet and coming back.
     var exportOptions = ExportOptions()
-    /// True while a WAV render is running off the main thread.
+    /// True while an export (WAV or MIDI) is running off the main thread.
     var isExporting = false
     /// 0...1 while `isExporting`. A long arrangement takes real time, and a
     /// spinner with no end in sight reads as a hang.

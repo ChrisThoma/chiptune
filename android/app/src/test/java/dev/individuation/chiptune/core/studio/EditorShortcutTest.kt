@@ -33,7 +33,7 @@ class EditorShortcutTest {
         assertEquals(Triple(Key.OTHER, 'n', false), chord(EditorShortcut.NEW_SONG))
         assertEquals(Triple(Key.OTHER, 'o', false), chord(EditorShortcut.SONGS))
         assertEquals(Triple(Key.OTHER, 'd', false), chord(EditorShortcut.DUPLICATE_SONG))
-        assertEquals(Triple(Key.OTHER, 'e', false), chord(EditorShortcut.EXPORT_WAV))
+        assertEquals(Triple(Key.OTHER, 'e', false), chord(EditorShortcut.EXPORT))
         assertEquals(Triple(Key.OTHER, 's', true), chord(EditorShortcut.SHARE_SONG))
         assertEquals(Triple(Key.OTHER, 'n', true), chord(EditorShortcut.NEW_PATTERN))
         assertEquals(Triple(Key.OTHER, 'a', true), chord(EditorShortcut.ARRANGEMENT))
@@ -104,7 +104,7 @@ class EditorShortcutTest {
     @Test fun chordsThatOpenAScreenWaitForWhateverIsUp() {
         val opens = EditorShortcut.entries.filter { it.opensSurface }.toSet()
         assertEquals(
-            setOf(EditorShortcut.SONGS, EditorShortcut.EXPORT_WAV, EditorShortcut.ARRANGEMENT, EditorShortcut.CLEAR_PATTERN),
+            setOf(EditorShortcut.SONGS, EditorShortcut.EXPORT, EditorShortcut.ARRANGEMENT, EditorShortcut.CLEAR_PATTERN),
             opens,
         )
         for (shortcut in EditorShortcut.entries) {
@@ -122,7 +122,7 @@ class EditorShortcutTest {
         assertEquals(
             listOf(
                 EditorShortcut.NEW_SONG, EditorShortcut.SONGS, EditorShortcut.DUPLICATE_SONG,
-                EditorShortcut.EXPORT_WAV, EditorShortcut.SHARE_SONG,
+                EditorShortcut.EXPORT, EditorShortcut.SHARE_SONG,
             ),
             EditorShortcut.entries.filter { it.group == EditorShortcut.Group.SONG },
         )

@@ -14,7 +14,7 @@ enum EditorShortcut: CaseIterable {
     case newSong
     case songs
     case duplicateSong
-    case exportWAV
+    case export
     case shareSong
     case newPattern
     case arrangement
@@ -26,7 +26,7 @@ enum EditorShortcut: CaseIterable {
         case .newSong, .newPattern: return "n"
         case .songs: return "o"
         case .duplicateSong: return "d"
-        case .exportWAV: return "e"
+        case .export: return "e"
         case .shareSong: return "s"
         case .arrangement: return "a"
         case .clearPattern: return .delete
@@ -39,7 +39,7 @@ enum EditorShortcut: CaseIterable {
     /// pattern.
     var modifiers: EventModifiers {
         switch self {
-        case .undo, .newSong, .songs, .duplicateSong, .exportWAV, .clearPattern:
+        case .undo, .newSong, .songs, .duplicateSong, .export, .clearPattern:
             return .command
         // Cmd+Shift+A can't be exercised in the Simulator: the Simulator app
         // itself owns it (Features > Toggle Appearance) and swallows it before
@@ -61,7 +61,7 @@ enum EditorShortcut: CaseIterable {
         case .newSong: return "New Song"
         case .songs: return "Songs"
         case .duplicateSong: return "Duplicate Song"
-        case .exportWAV: return "Export…"
+        case .export: return "Export…"
         case .shareSong: return "Share Song File"
         case .newPattern: return "New Pattern"
         case .arrangement: return "Arrangement"
@@ -196,7 +196,7 @@ struct EditorCommands: Commands {
             button(.duplicateSong) { $0.studio.duplicateSong() }
         }
         CommandGroup(after: .importExport) {
-            button(.exportWAV) { $0.openExport() }
+            button(.export) { $0.openExport() }
             button(.shareSong) { $0.studio.share($0.studio.song) }
         }
         CommandMenu("Pattern") {
