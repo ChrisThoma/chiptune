@@ -48,3 +48,27 @@ final class PopoverSizingTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(frame.idealHeight, frame.minHeight)
     }
 }
+
+/// The export popover's height follows the format: a MIDI export has no
+/// repeats or ending, so the WAV height left a block of empty space under it.
+final class ExportPopoverSizeTests: XCTestCase {
+
+    /// Measured on a 13-inch iPad at the default text size: the WAV form
+    /// runs to about 530pt, the MIDI one to about 280pt.
+    func testWavIsTallEnoughForItsExportButton() {
+        XCTAssertGreaterThanOrEqual(ExportPopoverSize.heights(for: .wav).ideal, 560)
+    }
+
+    func testMidiLeavesNoBigEmptyBlock() {
+        let midi = ExportPopoverSize.heights(for: .midi)
+        XCTAssertLessThanOrEqual(midi.ideal, 360)
+        XCTAssertLessThanOrEqual(midi.min, midi.ideal)
+    }
+
+    func testTheMinimumNeverExceedsTheIdeal() {
+        for format in ExportOptions.Format.allCases {
+            let heights = ExportPopoverSize.heights(for: format)
+            XCTAssertLessThanOrEqual(heights.min, heights.ideal, "\(format)")
+        }
+    }
+}
