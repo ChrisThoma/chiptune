@@ -80,6 +80,21 @@ enum ExportProgressText {
     }
 }
 
+/// How tall the iPad's export popover asks to be, by format. A MIDI export
+/// has no repeats or ending, so the WAV height left a block of empty space
+/// under its button. Measured on a 13-inch iPad at the default text size:
+/// the WAV form runs to about 530pt, the MIDI one to about 280pt, with room
+/// left in each for a footer a line or two longer. Width and Dynamic Type
+/// scaling are `popoverSized`'s as before.
+enum ExportPopoverSize {
+    static func heights(for format: ExportOptions.Format) -> (min: CGFloat, ideal: CGFloat) {
+        switch format {
+        case .wav: return (min: 420, ideal: 560)
+        case .midi: return (min: 300, ideal: 340)
+        }
+    }
+}
+
 /// Whether the repeats and ending controls can still be changed. They are
 /// frozen for the length of a render: it keeps the settings it started with, so
 /// an edit made mid-render would only make the readout disagree with the file.
@@ -327,7 +342,9 @@ struct ExportSheet: View {
             startedAttempt = nil
         }
         .errorAlert("Export failed", message: $studio.exportError)
-        .popoverSized(popover)
+        .popoverSized(popover,
+                      minHeight: ExportPopoverSize.heights(for: format).min,
+                      idealHeight: ExportPopoverSize.heights(for: format).ideal)
         .preferredColorScheme(.dark)
     }
 
