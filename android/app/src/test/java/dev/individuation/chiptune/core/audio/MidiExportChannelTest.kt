@@ -83,22 +83,27 @@ class MidiExportChannelTest {
     // MARK: Velocity
 
     @Test fun velocityFollowsTheTracksVolume() {
-        // round(volume × 127), but never 0: a note-on at velocity 0 is a
-        // note-off, so the quietest note there is still has to be a note.
+        // round(volume × 127). One that rounds to 0 is a silent track: a
+        // note-on at velocity 0 is a note-off, so its notes go in at 1 and
+        // its channel's volume is set to 0, as a muted track's is.
+        data class Case(val volume: Double, val velocity: Int, val silent: Boolean)
         val cases = listOf(
-            1.0 to 127,
-            0.8 to 102, // 101.6
-            0.6 to 76, // 76.2
-            0.5 to 64, // 63.5, half rounds up
-            0.45 to 57, // 57.15
-            0.01 to 1, // 1.27
-            0.0 to 1,
+            Case(1.0, 127, false),
+            Case(0.8, 102, false), // 101.6
+            Case(0.6, 76, false), // 76.2
+            Case(0.5, 64, false), // 63.5, half rounds up
+            Case(0.45, 57, false), // 57.15
+            Case(0.01, 1, false), // 1.27
+            Case(0.0, 1, true),
         )
         var song = song(List(cases.size) { ChannelKind.PULSE1 })
-        for ((i, c) in cases.withIndex()) song = song.withInstrument(i) { it.copy(volume = c.first) }
+        for ((i, c) in cases.withIndex()) song = song.withInstrument(i) { it.copy(volume = c.volume) }
         val midi = parse(song)
         for ((i, c) in cases.withIndex()) {
-            assertEquals("volume ${c.first}", listOf(c.second), MidiBytes.notes(midi.tracks[i + 1]).map { it.velocity })
+            val track = midi.tracks[i + 1]
+            assertEquals("volume ${c.volume}", listOf(c.velocity), MidiBytes.notes(track).map { it.velocity })
+            val volumes = track.count { (it.event as? MidiBytes.Event.Control)?.let { e -> e.controller == 7 && e.value == 0 } == true }
+            assertEquals("volume ${c.volume}", if (c.silent) 1 else 0, volumes)
         }
     }
 

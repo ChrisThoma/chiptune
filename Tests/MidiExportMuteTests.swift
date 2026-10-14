@@ -134,4 +134,75 @@ final class MidiExportMuteTests: XCTestCase {
         song.patterns.append(unplayed)
         try assertSilencedNotEmptied(song, track: 1)
     }
+
+    // MARK: A track at 0% volume is silent, like a muted one
+
+    /// A track whose volume rounds to velocity 0.
+    private func song(_ kinds: [ChannelKind], muted: Set<Int> = [], silent: Set<Int>) -> Song {
+        var song = song(kinds, muted: muted)
+        for i in silent { song.tracks[i].instrument.volume = 0 }
+        return song
+    }
+
+    func testATrackAtZeroVolumeIsSilencedWithItsChannelVolume() throws {
+        let midi = try MidiBytes(MidiExport.data(for: song([.pulse1, .triangle], silent: [1])))
+        let triangle = midi.tracks[2]
+        XCTAssertEqual(controls(triangle), [MidiBytes.Timed(tick: 0, event: .control(channel: 1, controller: 7, value: 0))])
+        // A note-on needs a velocity of at least 1 to be a note at all.
+        XCTAssertEqual(MidiBytes.notes(in: triangle).map { [$0.note, $0.velocity] }, [[60, 1], [62, 1]])
+        // It isn't muted, so it isn't called muted.
+        XCTAssertEqual(MidiBytes.name(of: triangle), "Triangle")
+        XCTAssertEqual(controls(midi.tracks[1]), [])
+    }
+
+    /// round(0.003 × 127) = round(0.381) = 0: silent. round(0.004 × 127) =
+    /// round(0.508) = 1: the quietest audible track, left alone.
+    func testOnlyAVolumeThatRoundsToZeroIsSilent() throws {
+        var song = song([.pulse1, .pulse2], muted: [])
+        song.tracks[0].instrument.volume = 0.003
+        song.tracks[1].instrument.volume = 0.004
+        let midi = try MidiBytes(MidiExport.data(for: song))
+        XCTAssertEqual(controls(midi.tracks[1]), [MidiBytes.Timed(tick: 0, event: .control(channel: 0, controller: 7, value: 0))])
+        XCTAssertEqual(controls(midi.tracks[2]), [])
+        XCTAssertEqual(MidiBytes.notes(in: midi.tracks[2]).map(\.velocity), [1, 1])
+    }
+
+    func testANoiseTrackAtZeroVolumeOnItsOwnSilencesTheDrumChannel() throws {
+        let midi = try MidiBytes(MidiExport.data(for: song([.pulse1, .noise], silent: [1])))
+        XCTAssertEqual(controls(midi.tracks[2]),
+                       [MidiBytes.Timed(tick: 0, event: .control(channel: 9, controller: 7, value: 0))])
+        XCTAssertEqual(MidiBytes.notes(in: midi.tracks[2]).map(\.velocity), [1, 1])
+        XCTAssertEqual(MidiBytes.name(of: midi.tracks[2]), "Noise")
+    }
+
+    /// The same reason as a muted one: a CC7 of 0 on the drum channel would
+    /// silence the audible noise track too.
+    func testANoiseTrackAtZeroVolumeBesideAnAudibleOneIsLeftEmpty() throws {
+        let midi = try MidiBytes(MidiExport.data(for: song([.noise, .noise], silent: [1])))
+        XCTAssertEqual(controls(midi.tracks[1]), [])
+        XCTAssertEqual(MidiBytes.notes(in: midi.tracks[1]).map(\.velocity), [64, 64])
+        XCTAssertEqual(midi.tracks[2], [
+            MidiBytes.Timed(tick: 0, event: .meta(type: 0x03, bytes: Array("Noise B".utf8))),
+            MidiBytes.Timed(tick: 16 * 24, event: .meta(type: 0x2F, bytes: [])),
+        ])
+    }
+
+    /// A noise track at 0% doesn't play, so it empties nothing: the muted
+    /// one beside it is silenced with the channel's volume, and so is it.
+    func testANoiseTrackAtZeroVolumeDoesNotEmptyAMutedOne() throws {
+        let midi = try MidiBytes(MidiExport.data(for: song([.noise, .noise], muted: [1], silent: [0])))
+        for i in [1, 2] {
+            XCTAssertEqual(controls(midi.tracks[i]),
+                           [MidiBytes.Timed(tick: 0, event: .control(channel: 9, controller: 7, value: 0))],
+                           "track \(i - 1)")
+            XCTAssertEqual(MidiBytes.notes(in: midi.tracks[i]).count, 2, "track \(i - 1)")
+        }
+        XCTAssertEqual(MidiBytes.name(of: midi.tracks[1]), "Noise A")
+        XCTAssertEqual(MidiBytes.name(of: midi.tracks[2]), "Noise B (muted)")
+    }
+
+    func testEmptiedTracksCountsZeroVolumeNoiseBesideAnAudibleOne() {
+        let song = song([.noise, .pulse1, .noise, .noise], muted: [3], silent: [1, 2])
+        XCTAssertEqual(MidiExport.emptiedTracks(of: song, chain: song.chain), [2, 3])
+    }
 }

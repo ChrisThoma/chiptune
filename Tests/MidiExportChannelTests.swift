@@ -84,22 +84,29 @@ final class MidiExportChannelTests: XCTestCase {
     // MARK: Velocity
 
     func testVelocityFollowsTheTracksVolume() throws {
-        // round(volume × 127), but never 0: a note-on at velocity 0 is a
-        // note-off, so the quietest note there is still has to be a note.
-        let cases: [(Double, Int)] = [
-            (1.0, 127),
-            (0.8, 102),   // 101.6
-            (0.6, 76),    // 76.2
-            (0.5, 64),    // 63.5, half rounds up
-            (0.45, 57),   // 57.15
-            (0.01, 1),    // 1.27
-            (0.0, 1),
+        // round(volume × 127). One that rounds to 0 is a silent track: a
+        // note-on at velocity 0 is a note-off, so its notes go in at 1 and
+        // its channel's volume is set to 0, as a muted track's is.
+        let cases: [(volume: Double, velocity: Int, silent: Bool)] = [
+            (1.0, 127, false),
+            (0.8, 102, false),   // 101.6
+            (0.6, 76, false),    // 76.2
+            (0.5, 64, false),    // 63.5, half rounds up
+            (0.45, 57, false),   // 57.15
+            (0.01, 1, false),    // 1.27
+            (0.0, 1, true),
         ]
         var song = song(Array(repeating: .pulse1, count: cases.count))
-        for (i, c) in cases.enumerated() { song.tracks[i].instrument.volume = c.0 }
+        for (i, c) in cases.enumerated() { song.tracks[i].instrument.volume = c.volume }
         let midi = try parse(song)
         for (i, c) in cases.enumerated() {
-            XCTAssertEqual(MidiBytes.notes(in: midi.tracks[i + 1]).map(\.velocity), [c.1], "volume \(c.0)")
+            let track = midi.tracks[i + 1]
+            XCTAssertEqual(MidiBytes.notes(in: track).map(\.velocity), [c.velocity], "volume \(c.volume)")
+            let volumes = track.filter {
+                if case .control(_, 7, 0) = $0.event { return true }
+                return false
+            }
+            XCTAssertEqual(volumes.count, c.silent ? 1 : 0, "volume \(c.volume)")
         }
     }
 

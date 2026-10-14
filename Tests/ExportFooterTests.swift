@@ -71,7 +71,7 @@ final class ExportFooterTests: XCTestCase {
         var song = TestSongs.golden()
         song.tracks[0].muted = true
         XCTAssertEqual(midiFooter(song),
-                       "The whole arrangement once — \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote. A muted track is in the file at volume 0.")
+                       "The whole arrangement once — \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote. A muted or 0% track is in the file at volume 0.")
     }
 
     func testMidiFooterSaysMutedTracksAreInTheFileAtVolumeZero() {
@@ -79,7 +79,7 @@ final class ExportFooterTests: XCTestCase {
         song.tracks[0].muted = true
         song.tracks[2].muted = true
         XCTAssertEqual(midiFooter(song),
-                       "The whole arrangement once — \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote. Muted tracks are in the file at volume 0.")
+                       "The whole arrangement once — \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote. Muted or 0% tracks are in the file at volume 0.")
     }
 
     /// The MIDI file still has the notes, so the WAV's "would be silent"
@@ -89,7 +89,7 @@ final class ExportFooterTests: XCTestCase {
         for i in song.tracks.indices { song.tracks[i].muted = true }
         let text = try XCTUnwrap(midiFooter(song))
         XCTAssertFalse(text.contains("silent"))
-        XCTAssertTrue(text.hasSuffix("Muted tracks are in the file at volume 0."))
+        XCTAssertTrue(text.hasSuffix("Muted or 0% tracks are in the file at volume 0."))
     }
 
     /// Every track plays a note at step 0.
@@ -113,26 +113,26 @@ final class ExportFooterTests: XCTestCase {
     /// silenced with the channel's volume like any other muted track.
     func testMidiFooterCountsMutedDrumsAtVolumeZeroWhenNoDrumPlays() {
         let song = song([.pulse1, .noise, .noise], muted: [1, 2])
-        XCTAssertEqual(midiFooter(song), lead(song) + " Muted tracks are in the file at volume 0.")
+        XCTAssertEqual(midiFooter(song), lead(song) + " Muted or 0% tracks are in the file at volume 0.")
     }
 
     func testMidiFooterSaysAMutedDrumBesideAPlayingOneIsLeftEmpty() {
         let song = song([.pulse1, .noise, .noise], muted: [2])
         XCTAssertEqual(midiFooter(song),
-                       lead(song) + " A muted drum track is left empty, since it shares the drum channel with one that plays.")
+                       lead(song) + " A muted or 0% drum track is left empty, since it shares the drum channel with one that plays.")
     }
 
     func testMidiFooterSaysSoOfEveryEmptiedDrumTrack() {
         let song = song([.noise, .noise, .noise], muted: [0, 2])
         XCTAssertEqual(midiFooter(song),
-                       lead(song) + " Muted drum tracks are left empty, since they share the drum channel with one that plays.")
+                       lead(song) + " Muted or 0% drum tracks are left empty, since they share the drum channel with one that plays.")
     }
 
     func testMidiFooterGivesBothWhenBothHappen() {
         let song = song([.pulse1, .triangle, .noise, .noise], muted: [1, 3])
         XCTAssertEqual(midiFooter(song),
-                       lead(song) + " A muted track is in the file at volume 0."
-                           + " A muted drum track is left empty, since it shares the drum channel with one that plays.")
+                       lead(song) + " A muted or 0% track is in the file at volume 0."
+                           + " A muted or 0% drum track is left empty, since it shares the drum channel with one that plays.")
     }
 
     /// The unmuted drum track plays nothing, so the muted one is silenced
@@ -140,7 +140,7 @@ final class ExportFooterTests: XCTestCase {
     func testMidiFooterLeavesNoDrumEmptyBesideADrumTrackWithNoNotes() {
         var song = song([.pulse1, .noise, .noise], muted: [2])
         song.patterns[0].rows[1] = Pattern.emptyRow
-        XCTAssertEqual(midiFooter(song), lead(song) + " A muted track is in the file at volume 0.")
+        XCTAssertEqual(midiFooter(song), lead(song) + " A muted or 0% track is in the file at volume 0.")
     }
 
     /// A muted track with nothing the arrangement plays has no notes in the
@@ -162,7 +162,37 @@ final class ExportFooterTests: XCTestCase {
         var song = song([.noise, .noise, .noise], muted: [1, 2])
         song.patterns[0].rows[2] = Pattern.emptyRow
         XCTAssertEqual(midiFooter(song),
-                       lead(song) + " A muted drum track is left empty, since it shares the drum channel with one that plays.")
+                       lead(song) + " A muted or 0% drum track is left empty, since it shares the drum channel with one that plays.")
+    }
+
+    // MARK: 0% volume
+
+    /// A track at 0% is written like a muted one, so it is counted with them.
+    func testMidiFooterCountsATrackAtZeroVolumeAsInTheFileAtVolumeZero() {
+        var song = song([.pulse1, .triangle], muted: [])
+        song.tracks[1].instrument.volume = 0
+        XCTAssertEqual(midiFooter(song), lead(song) + " A muted or 0% track is in the file at volume 0.")
+    }
+
+    func testMidiFooterCountsMutedAndZeroVolumeTracksTogether() {
+        var song = song([.pulse1, .triangle, .pulse2], muted: [2])
+        song.tracks[1].instrument.volume = 0
+        XCTAssertEqual(midiFooter(song), lead(song) + " Muted or 0% tracks are in the file at volume 0.")
+    }
+
+    func testMidiFooterSaysAZeroVolumeDrumBesideAPlayingOneIsLeftEmpty() {
+        var song = song([.pulse1, .noise, .noise], muted: [])
+        song.tracks[2].instrument.volume = 0
+        XCTAssertEqual(midiFooter(song),
+                       lead(song) + " A muted or 0% drum track is left empty, since it shares the drum channel with one that plays.")
+    }
+
+    /// A drum track at 0% doesn't play, so the muted one beside it is at
+    /// volume 0 rather than left empty, and so is the 0% one.
+    func testMidiFooterLeavesNoDrumEmptyBesideAZeroVolumeDrum() {
+        var song = song([.noise, .noise], muted: [1])
+        song.tracks[0].instrument.volume = 0
+        XCTAssertEqual(midiFooter(song), lead(song) + " Muted or 0% tracks are in the file at volume 0.")
     }
 
     func testMidiFooterKeepsTheNoNotesMessages() {
