@@ -58,21 +58,24 @@ struct ExportRequest: Sendable {
 
 /// Picks the writer for the format the export sheet chose. Studio's default
 /// renderer, so the sheet's WAV / MIDI choice reaches the file without Studio
-/// knowing either format.
+/// knowing either format. Clears the song's stale exports once the new file
+/// is written, so neither writer has to.
 enum Export {
     static func render(_ request: ExportRequest) -> ExportResult {
+        let result: ExportResult
         switch request.options.format {
-        case .wav: return WavExport.render(request)
-        case .midi: return MidiExport.render(request)
+        case .wav: result = WavExport.render(request)
+        case .midi: result = MidiExport.render(request)
         }
+        if case .success(let url) = result {
+            ExportFiles.pruneStale(keeping: url)
+        }
+        return result
     }
 }
 
-/// Where exports are written, shared by the WAV and MIDI writers so each
-/// clears away the other's leftovers.
+/// Where exports are written, shared by the WAV and MIDI writers.
 enum ExportFiles {
-    /// Extensions the exporters write. Pruning touches nothing else.
-    static let extensions: Set<String> = ["wav", "mid"]
 
     static func url(for song: Song, extension ext: String) -> URL {
         let base = SongDocument.safeName(song)
@@ -84,18 +87,20 @@ enum ExportFiles {
         return dir.appendingPathComponent("\(base).\(ext)")
     }
 
-    /// Renaming a song, or switching between WAV and MIDI, leaves the old
-    /// export sitting in the same per-song temp directory as the new one —
-    /// storage that accumulates silently since nothing else ever visits that
-    /// directory. Only run once the new file is safely written, so a later
-    /// failure never costs the previous export. Best-effort: a cleanup
-    /// failure doesn't fail the export that just succeeded.
+    /// Renaming a song leaves its old export sitting in the same per-song temp
+    /// directory as the new one — storage that accumulates silently since
+    /// nothing else ever visits that directory. Only files of `url`'s own
+    /// type go: the song's WAV and its MIDI file are each worth keeping while
+    /// the other is exported. Only run once the new file is safely written,
+    /// so a later failure never costs the previous export. Best-effort: a
+    /// cleanup failure doesn't fail the export that just succeeded.
     static func pruneStale(keeping url: URL) {
         let dir = url.deletingLastPathComponent()
+        let ext = url.pathExtension.lowercased()
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return }
         for entry in entries
-        where extensions.contains(entry.pathExtension.lowercased()) && entry.lastPathComponent != url.lastPathComponent {
+        where entry.pathExtension.lowercased() == ext && entry.lastPathComponent != url.lastPathComponent {
             try? fm.removeItem(at: entry)
         }
     }
@@ -270,9 +275,8 @@ enum WavExport {
                               scale: scale,
                               isCanceled: request.isCanceled,
                               to: filename(for: song))
-        if case .success(let url) = result {
+        if case .success = result {
             report(totalFrames)
-            ExportFiles.pruneStale(keeping: url)
         }
         return result
     }

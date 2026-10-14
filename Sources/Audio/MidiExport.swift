@@ -12,7 +12,8 @@ enum MidiExport {
     static let ticksPerQuarter = 96
     static let ticksPerStep = ticksPerQuarter / Chip.stepsPerBeat
 
-    /// Writes the file for `request` and clears the song's older exports.
+    /// Writes the file for `request`. `Export.render` clears the song's older
+    /// exports once it succeeds.
     ///
     /// Only the song is used. Repeats and Ending shape a rendered loop; a MIDI
     /// file is the arrangement once, and a DAW loops it. There is no progress
@@ -26,7 +27,6 @@ enum MidiExport {
         } catch {
             return .failed(error)
         }
-        ExportFiles.pruneStale(keeping: url)
         return .success(url)
     }
 

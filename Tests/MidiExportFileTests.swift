@@ -112,8 +112,8 @@ final class MidiExportFileTests: XCTestCase {
     }
 
     func testTheFileSitsInTheSongsOwnExportFolder() {
-        // Beside the WAV, so the two can't miss each other's stale files, and
-        // apart from any other song's export of the same name.
+        // Beside the song's WAV, and apart from any other song's export of
+        // the same name.
         let song = Song(name: "Twin")
         XCTAssertEqual(MidiExport.filename(for: song).deletingLastPathComponent(),
                        WavExport.filename(for: song).deletingLastPathComponent())
@@ -131,28 +131,50 @@ final class MidiExportFileTests: XCTestCase {
 
     // MARK: Pruning
 
-    func testAMidiExportClearsTheSongsOlderExportsOfEitherKind() throws {
+    /// Through the dispatcher, which is where the app's exports prune.
+    private func export(_ song: Song, as format: ExportOptions.Format) throws -> URL {
+        var options = ExportOptions()
+        options.format = format
+        guard case .success(let url) = Export.render(ExportRequest(song: song, options: options)) else {
+            XCTFail("the \(format) export failed")
+            throw CocoaError(.fileWriteUnknown)
+        }
+        return url
+    }
+
+    func testAMidiExportClearsARenamedSongsOldMidiAndNothingElse() throws {
         var song = TestSongs.empty(name: "One", tempo: 240)
         song.patterns[0].rows[0][0] = 60
-        let wav = try XCTUnwrap(WavExport.render(song: song))
-        let dir = wav.deletingLastPathComponent()
-        try Data([0]).write(to: dir.appendingPathComponent("Old.mid"))
+        let dir = try export(song, as: .midi).deletingLastPathComponent()
+        _ = try export(song, as: .wav)
         try Data([0]).write(to: dir.appendingPathComponent("keep.txt"))
 
         song.name = "Two"
-        _ = try render(song)
-        XCTAssertEqual(try fileNames(in: dir), ["Two.mid", "keep.txt"])
+        _ = try export(song, as: .midi)
+        XCTAssertEqual(try fileNames(in: dir), ["Two.mid", "One.wav", "keep.txt"])
     }
 
-    func testAWavExportClearsAnOlderMidiExport() throws {
+    func testAWavExportClearsARenamedSongsOldWavAndNothingElse() throws {
         var song = TestSongs.empty(name: "One", tempo: 240)
         song.patterns[0].rows[0][0] = 60
-        let mid = try render(song)
-        let dir = mid.deletingLastPathComponent()
+        let dir = try export(song, as: .wav).deletingLastPathComponent()
+        _ = try export(song, as: .midi)
 
         song.name = "Two"
-        _ = try XCTUnwrap(WavExport.render(song: song))
-        XCTAssertEqual(try fileNames(in: dir), ["Two.wav"])
+        _ = try export(song, as: .wav)
+        XCTAssertEqual(try fileNames(in: dir), ["Two.wav", "One.mid"])
+    }
+
+    /// Switching formats is not a stale export: the song's WAV and its MIDI
+    /// file are both wanted.
+    func testEachFormatLeavesTheOthersFileAlone() throws {
+        var song = TestSongs.empty(name: "Both", tempo: 240)
+        song.patterns[0].rows[0][0] = 60
+        let wav = try export(song, as: .wav)
+        let mid = try export(song, as: .midi)
+        XCTAssertEqual(try fileNames(in: wav.deletingLastPathComponent()), ["Both.wav", "Both.mid"])
+        _ = try export(song, as: .wav)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: mid.path))
     }
 
     // MARK: Failure

@@ -28,7 +28,8 @@ object MidiExport {
     const val TICKS_PER_STEP = TICKS_PER_QUARTER / Chip.STEPS_PER_BEAT
 
     /**
-     * Writes the file for [request] under [directory].
+     * Writes the file for [request] under [directory]. [ExportRenderer.render]
+     * clears the song's older exports once it succeeds.
      *
      * Only the song is used. Repeats and Ending shape a rendered loop; a MIDI
      * file is the arrangement once, and a DAW loops it. There is no progress
@@ -45,7 +46,6 @@ object MidiExport {
         } catch (e: SecurityException) {
             return ExportResult.Failed(e)
         }
-        ExportFiles.pruneStale(target)
         return ExportResult.Success(target)
     }
 
