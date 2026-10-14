@@ -70,12 +70,14 @@ struct KeyboardView: View {
                 }
             }
             .frame(height: layout.keyboardHeight)
-            // On an iPad the keys stop widening partway across the window and
-            // center; eight white keys spread over the full width are wider
-            // than a hand and stop looking like an instrument.
-            .frame(maxWidth: layout.keyboardMaxWidth)
-            .frame(maxWidth: .infinity)
         }
+        // On an iPad the keys stop widening partway across the window and
+        // center; eight white keys spread over the full width are wider than a
+        // hand and stop looking like an instrument. The octave buttons and
+        // REST come in with them, so they bracket the keys they act on rather
+        // than sitting out at the window's edges.
+        .frame(maxWidth: layout.keyboardMaxWidth)
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, ChipLayout.keyboardHorizontalPadding)
         .padding(.bottom, 6)
     }

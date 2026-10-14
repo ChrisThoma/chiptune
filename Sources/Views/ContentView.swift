@@ -496,11 +496,9 @@ struct ContentView: View {
         requestReview()
     }
 
-    /// Song name, transport and patterns. Capped and centered rather than
-    /// stretched: BPM and STEPS trail their rows so the two steppers read as a
-    /// column, and across 1200pt of window that puts the tempo at the far end
-    /// of the room from the play button that uses it. The cap is per-layout,
-    /// so a phone row is untouched.
+    /// Song name, transport and patterns. As wide as the grid under them, so
+    /// Songs lines up with the step numbers and BPM and STEPS with the last
+    /// column; any cap is the editor's as a whole (see `EditorColumn`).
     private func chrome(_ layout: ChipLayout) -> some View {
         VStack(spacing: 0) {
             titleBar(layout)
@@ -515,8 +513,6 @@ struct ContentView: View {
             PatternBar(studio: studio)
                 .simultaneousGesture(TapGesture().onEnded { endRenaming() })
         }
-        .frame(maxWidth: layout.chromeMaxWidth)
-        .frame(maxWidth: .infinity)
     }
 
     /// The editor in both of its arrangements.
@@ -564,6 +560,7 @@ struct ContentView: View {
         // Nothing sits under the grid in the side arrangement, so without
         // this the last step row runs beneath the home indicator.
         .padding(.bottom, side ? 8 : 0)
+        .modifier(EditorColumn(layout: layout))
     }
 
     /// The keys, and in the side column the selected track's sound under
@@ -641,6 +638,7 @@ struct ContentView: View {
                 editorKeyboard
                     .padding(.top, 10)
             }
+            .modifier(EditorColumn(layout: stackedLayout))
         }
         .environment(\.chipLayout, stackedLayout)
     }
@@ -848,5 +846,19 @@ struct ContentView: View {
                 KeyboardHelpView()
             }
         }
+    }
+}
+
+/// The column the editor draws in: the whole window on a phone, a portrait
+/// iPad and beside the side keyboard, centered past
+/// `ChipLayout.stackedEditorMaxWidth` otherwise. Applied to the chrome, grid
+/// and keys together so they keep one leading and one trailing edge.
+private struct EditorColumn: ViewModifier {
+    let layout: ChipLayout
+
+    func body(content: Content) -> some View {
+        content
+            .frame(maxWidth: layout.editorMaxWidth)
+            .frame(maxWidth: .infinity)
     }
 }

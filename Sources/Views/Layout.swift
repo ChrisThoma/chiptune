@@ -27,10 +27,13 @@ struct ChipLayout: Equatable {
     var keyboardMaxWidth: CGFloat
     /// Points of type for the note names on the key caps.
     var keyLabelSize: CGFloat
-    /// Widest the transport and pattern rows are allowed to get. Past this
-    /// they center in whatever space is left, rather than pushing BPM and
-    /// STEPS half a meter away from the play button they belong beside.
-    var chromeMaxWidth: CGFloat
+    /// Widest the stacked editor — chrome, grid and keys together — is
+    /// allowed to get. Past this the whole column centers, rather than pushing
+    /// BPM and STEPS half a meter away from the play button they belong
+    /// beside. It's one cap for all three so they keep one leading and one
+    /// trailing edge: capping the chrome alone left the title and transport
+    /// floating in the middle of a grid that ran edge to edge.
+    var stackedEditorMaxWidth: CGFloat
     /// Height of the transport/pattern trays and their chips. Phone keeps
     /// `Theme.trayHeight`, which other, non-chrome code still reads directly;
     /// the pad path stops reading that constant and gets its own number.
@@ -126,7 +129,7 @@ struct ChipLayout: Equatable {
         keyboardHeight: 110,
         keyboardMaxWidth: .infinity,
         keyLabelSize: 9,
-        chromeMaxWidth: .infinity,
+        stackedEditorMaxWidth: .infinity,
         trayHeight: Theme.trayHeight,
         stepperEndWidth: 38,
         historyButtonWidth: 34,
@@ -152,7 +155,11 @@ struct ChipLayout: Equatable {
         keyboardHeight: 170,
         keyboardMaxWidth: 720,
         keyLabelSize: 11,
-        chromeMaxWidth: 720,
+        // The widest portrait iPad window (13-inch M4/M5), so every portrait
+        // iPad runs edge to edge and only a stacked landscape window —
+        // accessibility text, or one too short for the fixed editor —
+        // centers.
+        stackedEditorMaxWidth: 1032,
         trayHeight: 52,
         stepperEndWidth: 48,
         historyButtonWidth: 44,
@@ -438,6 +445,20 @@ struct ChipLayout: Equatable {
     /// grid or the side arrangement's bottom inset.
     var editorFixedHeight: CGFloat {
         chromeHeight + trackHeaderHeight + 7 + (usesSideKeyboard ? 8 : stackedKeysHeight)
+    }
+
+    /// The cap on the editor's column in this arrangement. Beside the keys
+    /// the grid column is already narrower than the window, so the chrome
+    /// over it takes the whole of it, whatever that is.
+    var editorMaxWidth: CGFloat {
+        usesSideKeyboard ? .infinity : stackedEditorMaxWidth
+    }
+
+    /// Width of the column the editor's chrome, grid and divider share, in a
+    /// space `windowWidth` wide. The keys sit in this column too, capped
+    /// further by `keyboardMaxWidth`.
+    func editorColumnWidth(windowWidth: CGFloat) -> CGFloat {
+        min(windowWidth, editorMaxWidth)
     }
 
     /// The regular-width metrics, in whichever arrangement the window's
