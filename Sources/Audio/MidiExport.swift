@@ -67,15 +67,31 @@ enum MidiExport {
         return file
     }
 
-    /// Whether `track` goes into the file as its name alone. A muted track is
-    /// normally silenced with its channel's volume, but every noise track
-    /// shares the drum channel: with one of them playing, a CC7 of 0 would
-    /// silence that one too, and quieter notes would still land on its keys
-    /// and ticks. So a muted noise track beside an audible one keeps its MIDI
-    /// track, to keep one per chip track, and nothing else. The export
-    /// sheet's footer says so from this.
-    static func leavesEmpty(_ track: Track, in tracks: [Track]) -> Bool {
-        track.muted && track.kind == .noise && tracks.contains { $0.kind == .noise && !$0.muted }
+    /// The tracks that go into the file as their name alone, by index. A
+    /// muted track is normally silenced with its channel's volume, but every
+    /// noise track shares the drum channel: with one of them playing, a CC7
+    /// of 0 would silence that one too, and quieter notes would still land on
+    /// its keys and ticks. So a muted noise track beside one that plays keeps
+    /// its MIDI track, to keep one per chip track, and nothing else. "Plays"
+    /// means unmuted with a note `chain` reaches; an unmuted noise track with
+    /// none leaves the drum channel free to silence. The export sheet's
+    /// footer says so from this.
+    static func emptiedTracks(of song: Song, chain: [Int]) -> Set<Int> {
+        let drumPlays = song.tracks.indices.contains {
+            song.tracks[$0].kind == .noise && !song.tracks[$0].muted && reaches($0, of: song, chain: chain)
+        }
+        guard drumPlays else { return [] }
+        return Set(song.tracks.indices.filter { song.tracks[$0].muted && song.tracks[$0].kind == .noise })
+    }
+
+    /// Whether track `index` has a note `chain` plays: a pitch at a step
+    /// short of its pattern's length, the same notes the drum bands count.
+    static func reaches(_ index: Int, of song: Song, chain: [Int]) -> Bool {
+        Set(chain).contains { patternIndex in
+            guard let pattern = song.patterns[safe: patternIndex],
+                  let row = pattern.rows[safe: index] else { return false }
+            return pattern.rowHasNotes(row)
+        }
     }
 
     /// GM's drum channel, "channel 10" to a person.
@@ -167,8 +183,8 @@ enum MidiExport {
 
         // A muted track is written in full, silenced by a CC7 of 0 at its
         // start: removing that event in a DAW, or raising it, brings the part
-        // back. `leavesEmpty` is the one exception.
-        let empty = leavesEmpty(track, in: song.tracks)
+        // back. `emptiedTracks` is the one exception.
+        let empty = emptiedTracks(of: song, chain: song.chain).contains(index)
 
         // Volume goes into the velocity rather than a CC7, because the noise
         // tracks share one channel and one channel has one volume. Never 0,

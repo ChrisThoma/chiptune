@@ -129,6 +129,15 @@ class ExportFooterTest {
         )
     }
 
+    /** The unmuted drum track plays nothing, so the muted one is silenced
+     * with the channel's volume rather than left empty. */
+    @Test fun midiFooterLeavesNoDrumEmptyBesideADrumTrackWithNoNotes() {
+        val song = song(listOf(ChannelKind.PULSE1, ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(2)).let { s ->
+            s.copy(patterns = listOf(s.patterns[0].copy(rows = s.patterns[0].rows.mapIndexed { i, row -> if (i == 1) Pattern.EMPTY_ROW else row })))
+        }
+        assertEquals(lead(song) + " Muted tracks are in the file at volume 0.", ExportNotesFooter.text(song, midi))
+    }
+
     @Test fun midiFooterKeepsTheNoNotesMessages() {
         assertEquals("This song has no notes yet.", ExportNotesFooter.text(TestSongs.empty(), midi))
         assertEquals(unarranged, ExportNotesFooter.text(songWithUnarrangedNotes(), midi))

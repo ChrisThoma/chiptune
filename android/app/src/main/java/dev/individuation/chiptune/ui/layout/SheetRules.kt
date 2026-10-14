@@ -41,7 +41,7 @@ object ExportNotesFooter {
 /** What sits under the Export button for [format]. A WAV keeps the notes above.
  * A MIDI file still carries a muted track's notes (at volume 0), or, for a
  * muted drum track beside one that plays, an empty track (see
- * [MidiExport.leavesEmpty]), so the "would be silent" warning is replaced by a
+ * [MidiExport.emptiedTracks]), so the "would be silent" warning is replaced by a
  * line saying where the muted tracks went; the no-notes messages stay, since
  * there is nothing to export either way. */
 fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = when (format) {
@@ -51,8 +51,9 @@ fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = 
     } else {
         val line = StringBuilder("The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. ")
             .append("Arpeggios come out as the note you wrote.")
-        val emptied = song.tracks.count { MidiExport.leavesEmpty(it, song.tracks) }
-        if (song.tracks.any { it.muted && !MidiExport.leavesEmpty(it, song.tracks) }) {
+        val emptiedTracks = MidiExport.emptiedTracks(song, song.chain)
+        val emptied = emptiedTracks.size
+        if (song.tracks.indices.any { song.tracks[it].muted && it !in emptiedTracks }) {
             line.append(" Muted tracks are in the file at volume 0.")
         }
         when {

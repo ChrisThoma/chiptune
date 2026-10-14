@@ -127,6 +127,14 @@ final class ExportFooterTests: XCTestCase {
                            + " A muted drum track is left empty, since it shares the drum channel with one that plays.")
     }
 
+    /// The unmuted drum track plays nothing, so the muted one is silenced
+    /// with the channel's volume rather than left empty.
+    func testMidiFooterLeavesNoDrumEmptyBesideADrumTrackWithNoNotes() {
+        var song = song([.pulse1, .noise, .noise], muted: [2])
+        song.patterns[0].rows[1] = Pattern.emptyRow
+        XCTAssertEqual(midiFooter(song), lead(song) + " Muted tracks are in the file at volume 0.")
+    }
+
     func testMidiFooterKeepsTheNoNotesMessages() {
         XCTAssertEqual(midiFooter(TestSongs.empty()), "This song has no notes yet.")
         var song = TestSongs.empty()
