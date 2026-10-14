@@ -120,21 +120,28 @@ enum ExportFiles {
         return dir.appendingPathComponent("\(base).\(format.fileExtension)")
     }
 
-    /// Renaming a song leaves its old export sitting in the same per-song temp
-    /// directory as the new one — storage that accumulates silently since
-    /// nothing else ever visits that directory. Only files of `url`'s own
-    /// type go: the song's WAV and its MIDI file are each worth keeping while
-    /// the other is exported. Only run once the new file is safely written,
-    /// so a later failure never costs the previous export. Best-effort: a
-    /// cleanup failure doesn't fail the export that just succeeded.
+    /// Renaming a song leaves its old exports sitting in the same per-song
+    /// temp directory as the new one — storage that accumulates silently since
+    /// nothing else ever visits that directory. Any export, WAV or MIDI, under
+    /// a name other than `url`'s goes, as does an older file of `url`'s own
+    /// type; the other format's file under the current name stays, since the
+    /// song's WAV and its MIDI file are each worth keeping while the other is
+    /// exported. Files the exporters don't write are left alone. Only run once
+    /// the new file is safely written, so a later failure never costs the
+    /// previous export. Best-effort: a cleanup failure doesn't fail the export
+    /// that just succeeded.
     static func pruneStale(keeping url: URL) {
         let dir = url.deletingLastPathComponent()
         let ext = url.pathExtension.lowercased()
+        let base = url.deletingPathExtension().lastPathComponent
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return }
-        for entry in entries
-        where entry.pathExtension.lowercased() == ext && entry.lastPathComponent != url.lastPathComponent {
-            try? fm.removeItem(at: entry)
+        for entry in entries where entry.lastPathComponent != url.lastPathComponent {
+            guard ExportOptions.Format(fileExtension: entry.pathExtension) != nil else { continue }
+            let sameType = entry.pathExtension.lowercased() == ext
+            if sameType || entry.deletingPathExtension().lastPathComponent != base {
+                try? fm.removeItem(at: entry)
+            }
         }
     }
 }

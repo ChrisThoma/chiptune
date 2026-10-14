@@ -142,7 +142,7 @@ final class MidiExportFileTests: XCTestCase {
         return url
     }
 
-    func testAMidiExportClearsARenamedSongsOldMidiAndNothingElse() throws {
+    func testAMidiExportClearsARenamedSongsOldExportsAndNothingElse() throws {
         var song = TestSongs.empty(name: "One", tempo: 240)
         song.patterns[0].rows[0][0] = 60
         let dir = try export(song, as: .midi).deletingLastPathComponent()
@@ -151,10 +151,10 @@ final class MidiExportFileTests: XCTestCase {
 
         song.name = "Two"
         _ = try export(song, as: .midi)
-        XCTAssertEqual(try fileNames(in: dir), ["Two.mid", "One.wav", "keep.txt"])
+        XCTAssertEqual(try fileNames(in: dir), ["Two.mid", "keep.txt"])
     }
 
-    func testAWavExportClearsARenamedSongsOldWavAndNothingElse() throws {
+    func testAWavExportClearsARenamedSongsOldExports() throws {
         var song = TestSongs.empty(name: "One", tempo: 240)
         song.patterns[0].rows[0][0] = 60
         let dir = try export(song, as: .wav).deletingLastPathComponent()
@@ -162,7 +162,36 @@ final class MidiExportFileTests: XCTestCase {
 
         song.name = "Two"
         _ = try export(song, as: .wav)
-        XCTAssertEqual(try fileNames(in: dir), ["Two.wav", "One.mid"])
+        XCTAssertEqual(try fileNames(in: dir), ["Two.wav"])
+    }
+
+    /// The old name's file of the other format is as stale as its own: a
+    /// rename leaves nothing under the old name.
+    func testARenameClearsTheOldNamesFileOfTheOtherFormat() throws {
+        var song = TestSongs.empty(name: "Old", tempo: 240)
+        song.patterns[0].rows[0][0] = 60
+        let dir = try export(song, as: .midi).deletingLastPathComponent()
+        try Data([0]).write(to: dir.appendingPathComponent("keep.txt"))
+
+        song.name = "New"
+        _ = try export(song, as: .wav)
+        XCTAssertEqual(try fileNames(in: dir), ["New.wav", "keep.txt"])
+    }
+
+    /// The current name's file of the other format is the song's, not stale.
+    func testARenameKeepsTheNewNamesFileOfTheOtherFormat() throws {
+        var song = TestSongs.empty(name: "Old", tempo: 240)
+        song.patterns[0].rows[0][0] = 60
+        let dir = try export(song, as: .midi).deletingLastPathComponent()
+        try Data([0]).write(to: dir.appendingPathComponent("keep.txt"))
+
+        song.name = "New"
+        // Straight through the writer, which prunes nothing, so Old.mid is
+        // still there beside it.
+        _ = try render(song)
+        XCTAssertEqual(try fileNames(in: dir), ["Old.mid", "New.mid", "keep.txt"])
+        _ = try export(song, as: .wav)
+        XCTAssertEqual(try fileNames(in: dir), ["New.wav", "New.mid", "keep.txt"])
     }
 
     /// Switching formats is not a stale export: the song's WAV and its MIDI

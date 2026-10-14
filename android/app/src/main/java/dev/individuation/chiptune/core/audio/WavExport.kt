@@ -103,17 +103,23 @@ object ExportFiles {
         return File(dir, "$base.${format.fileExtension}")
     }
 
-    /** Renaming a song leaves its old export sitting in the same per-song
-     * folder as the new one. Only files of [keeping]'s own type go: the song's
-     * WAV and its MIDI file are each worth keeping while the other is
-     * exported. Only run once the new file is safely written, so a later
-     * failure never costs the previous export. Best-effort: a cleanup failure
-     * doesn't fail the export that just succeeded. */
+    /** Renaming a song leaves its old exports sitting in the same per-song
+     * folder as the new one. Any export, WAV or MIDI, under a name other than
+     * [keeping]'s goes, as does an older file of [keeping]'s own type; the
+     * other format's file under the current name stays, since the song's WAV
+     * and its MIDI file are each worth keeping while the other is exported.
+     * Files the exporters don't write are left alone. Only run once the new
+     * file is safely written, so a later failure never costs the previous
+     * export. Best-effort: a cleanup failure doesn't fail the export that
+     * just succeeded. */
     fun pruneStale(keeping: File) {
         val ext = keeping.extension.lowercase()
+        val base = keeping.nameWithoutExtension
         val entries = keeping.parentFile?.listFiles() ?: return
         for (entry in entries) {
-            if (entry.extension.lowercase() == ext && entry.name != keeping.name) entry.delete()
+            if (entry.name == keeping.name || ExportOptions.Format.fromExtension(entry.extension) == null) continue
+            val sameType = entry.extension.lowercase() == ext
+            if (sameType || entry.nameWithoutExtension != base) entry.delete()
         }
     }
 }

@@ -114,7 +114,7 @@ class MidiExportFileTest {
         return (result as ExportResult.Success).file
     }
 
-    @Test fun aMidiExportClearsARenamedSongsOldMidiAndNothingElse() {
+    @Test fun aMidiExportClearsARenamedSongsOldExportsAndNothingElse() {
         var song = TestSongs.empty(name = "One", tempo = 240.0).setNote(0, 0, 60)
         val dir = export(song, ExportOptions.Format.MIDI).parentFile!!
         export(song, ExportOptions.Format.WAV)
@@ -122,17 +122,44 @@ class MidiExportFileTest {
 
         song = song.copy(name = "Two")
         export(song, ExportOptions.Format.MIDI)
-        assertEquals(setOf("Two.mid", "One.wav", "keep.txt"), fileNames(dir))
+        assertEquals(setOf("Two.mid", "keep.txt"), fileNames(dir))
     }
 
-    @Test fun aWavExportClearsARenamedSongsOldWavAndNothingElse() {
+    @Test fun aWavExportClearsARenamedSongsOldExports() {
         var song = TestSongs.empty(name = "One", tempo = 240.0).setNote(0, 0, 60)
         val dir = export(song, ExportOptions.Format.WAV).parentFile!!
         export(song, ExportOptions.Format.MIDI)
 
         song = song.copy(name = "Two")
         export(song, ExportOptions.Format.WAV)
-        assertEquals(setOf("Two.wav", "One.mid"), fileNames(dir))
+        assertEquals(setOf("Two.wav"), fileNames(dir))
+    }
+
+    /** The old name's file of the other format is as stale as its own: a
+     * rename leaves nothing under the old name. */
+    @Test fun aRenameClearsTheOldNamesFileOfTheOtherFormat() {
+        var song = TestSongs.empty(name = "Old", tempo = 240.0).setNote(0, 0, 60)
+        val dir = export(song, ExportOptions.Format.MIDI).parentFile!!
+        File(dir, "keep.txt").writeBytes(byteArrayOf(0))
+
+        song = song.copy(name = "New")
+        export(song, ExportOptions.Format.WAV)
+        assertEquals(setOf("New.wav", "keep.txt"), fileNames(dir))
+    }
+
+    /** The current name's file of the other format is the song's, not stale. */
+    @Test fun aRenameKeepsTheNewNamesFileOfTheOtherFormat() {
+        var song = TestSongs.empty(name = "Old", tempo = 240.0).setNote(0, 0, 60)
+        val dir = export(song, ExportOptions.Format.MIDI).parentFile!!
+        File(dir, "keep.txt").writeBytes(byteArrayOf(0))
+
+        song = song.copy(name = "New")
+        // Straight through the writer, which prunes nothing, so Old.mid is
+        // still there beside it.
+        render(song)
+        assertEquals(setOf("Old.mid", "New.mid", "keep.txt"), fileNames(dir))
+        export(song, ExportOptions.Format.WAV)
+        assertEquals(setOf("New.wav", "New.mid", "keep.txt"), fileNames(dir))
     }
 
     /** Switching formats is not a stale export: the song's WAV and its MIDI
