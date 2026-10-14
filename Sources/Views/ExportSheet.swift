@@ -19,7 +19,8 @@ enum ExportNotesFooter {
 extension ExportNotesFooter {
     /// What sits under the Export button for `format`. A WAV keeps the notes
     /// above. A MIDI file still carries a muted or 0% track's notes (at
-    /// volume 0), or, for such a drum track beside one that plays, an empty
+    /// volume 0; "silent" to the user, who sets it as 0%), or, for such a
+    /// drum track beside one that plays, an empty
     /// track (see `MidiExport.emptiedTracks`), so the "would be silent"
     /// warning is replaced by a line saying where those tracks went; the
     /// no-notes messages stay, since there is nothing to export either way.
@@ -40,14 +41,14 @@ extension ExportNotesFooter {
             let emptiedCount = silentWithNotes.filter(emptied.contains).count
             let silencedCount = silentWithNotes.count - emptiedCount
             if silencedCount == 1 {
-                line += " A muted or 0% track is in the file at volume 0."
+                line += " A muted or silent track keeps its notes in the file, turned all the way down."
             } else if silencedCount > 1 {
-                line += " Muted or 0% tracks are in the file at volume 0."
+                line += " Muted or silent tracks keep their notes in the file, turned all the way down."
             }
             if emptiedCount == 1 {
-                line += " A muted or 0% drum track is left empty, since it shares the drum channel with one that plays."
+                line += " A muted or silent drum track is left empty, because all drum tracks share one part in the file."
             } else if emptiedCount > 1 {
-                line += " Muted or 0% drum tracks are left empty, since they share the drum channel with one that plays."
+                line += " Muted or silent drum tracks are left empty, because all drum tracks share one part in the file."
             }
             return line
         }
