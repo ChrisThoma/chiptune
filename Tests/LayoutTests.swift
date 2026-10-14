@@ -406,12 +406,59 @@ final class LayoutTests: XCTestCase {
                                  twoRows - 1)
     }
 
-    func testChromeStopsSpreadingOnIPadAndNeverDoesOnIPhone() {
-        let pad = ChipLayout.resolve(size: padLandscape, horizontalSizeClass: .regular)
-        XCTAssertLessThan(pad.chromeMaxWidth,
-                          padLandscape.width - ChipLayout.sideKeyboardWidth,
-                          "Capped wider than the grid column is no cap at all")
-        XCTAssertEqual(ChipLayout.phone.chromeMaxWidth, .infinity)
+    /// Every portrait iPad window, 13-inch down to the mini. The stacked
+    /// editor's chrome, grid and keys all share one column, and on these it's
+    /// the whole window: the title and transport used to stop at 720pt and
+    /// center while the grid ran edge to edge, so nothing lined up with the
+    /// grid's leading or trailing edge.
+    private var portraitPads: [CGSize] {
+        [CGSize(width: 1032, height: 1376),  // 13-inch M4/M5
+         CGSize(width: 1024, height: 1366),  // 12.9-inch
+         CGSize(width: 834, height: 1210),   // 11-inch
+         CGSize(width: 744, height: 1133)]   // mini
+    }
+
+    func testStackedEditorSpansTheWholePortraitIPadWindow() {
+        for size in portraitPads {
+            let layout = ChipLayout.resolve(size: size, horizontalSizeClass: .regular)
+            XCTAssertFalse(layout.usesSideKeyboard)
+            XCTAssertEqual(layout.editorColumnWidth(windowWidth: size.width), size.width,
+                           "\(size): the chrome must reach the grid's edges")
+        }
+    }
+
+    /// A stacked editor wider than any portrait iPad — accessibility text in
+    /// landscape — centers one column rather than spreading the transport a
+    /// meter wide, and the grid and keys come in with it so the edges still
+    /// agree.
+    func testWideStackedEditorCentersOneColumn() {
+        let landscape = CGSize(width: 1376, height: 1032)
+        let stacked = ChipLayout.resolve(size: landscape, horizontalSizeClass: .regular)
+            .withoutDockedInstrumentEditor
+        XCTAssertEqual(stacked.editorColumnWidth(windowWidth: landscape.width), 1032)
+    }
+
+    /// Beside the keys, the grid column is already narrower than the window,
+    /// so the chrome over it takes all of it rather than a cap of its own.
+    func testSideArrangementChromeFillsTheGridColumn() {
+        let layout = ChipLayout.resolve(size: padLandscape, horizontalSizeClass: .regular)
+        XCTAssertTrue(layout.usesSideKeyboard)
+        let gridColumn = padLandscape.width - layout.sideColumnWidth - 1
+        XCTAssertEqual(layout.editorColumnWidth(windowWidth: gridColumn), gridColumn)
+    }
+
+    func testPhoneEditorColumnIsTheWholeWindow() {
+        for width: CGFloat in [320, 375, 393, 440] {
+            XCTAssertEqual(ChipLayout.phone.editorColumnWidth(windowWidth: width), width)
+        }
+    }
+
+    /// The column getting wider mustn't take the keys with it: eight white
+    /// keys across 1032pt are wider than a hand.
+    func testThirteenInchPortraitStillCapsTheKeys() {
+        let size = portraitPads[0]
+        let layout = ChipLayout.resolve(size: size, horizontalSizeClass: .regular)
+        XCTAssertLessThan(layout.keyboardMaxWidth, size.width)
     }
 
     /// Where the sound controls go, which is one choice with three answers and
