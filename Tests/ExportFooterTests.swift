@@ -184,4 +184,32 @@ final class ExportControlsLockTests: XCTestCase {
     func testSettingsAreEditableWhenNoRenderIsRunning() {
         XCTAssertFalse(ExportControls.settingsLocked(isExporting: false))
     }
+
+    // MARK: The Export button after a render
+
+    /// A failed or canceled render gives the button back for another try.
+    func testTheButtonComesBackWhenItsRenderLeftNoFile() {
+        XCTAssertTrue(ExportControls.freesExportButton(startedAttempt: 1, completedAttempt: 1, producedFile: false))
+    }
+
+    /// A render that left a file is taking the panel down for the share
+    /// sheet, which reads that file when it comes up: a second render
+    /// started meanwhile would clear it first.
+    func testTheButtonStaysLockedWhileASuccessTakesThePanelDown() {
+        XCTAssertFalse(ExportControls.freesExportButton(startedAttempt: 1, completedAttempt: 1, producedFile: true))
+    }
+
+    func testTheButtonStaysLockedWhileItsRenderRuns() {
+        XCTAssertFalse(ExportControls.freesExportButton(startedAttempt: 2, completedAttempt: 1, producedFile: false))
+    }
+
+    /// Two completions SwiftUI folded into one change still finish the
+    /// attempt this panel started.
+    func testALaterCompletionAlsoFinishesTheStartedAttempt() {
+        XCTAssertTrue(ExportControls.freesExportButton(startedAttempt: 1, completedAttempt: 2, producedFile: false))
+    }
+
+    func testNothingStartedHasNothingToFree() {
+        XCTAssertFalse(ExportControls.freesExportButton(startedAttempt: nil, completedAttempt: 1, producedFile: false))
+    }
 }

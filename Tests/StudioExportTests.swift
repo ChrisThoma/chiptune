@@ -112,4 +112,25 @@ final class StudioExportTests: XCTestCase {
         XCTAssertEqual(studio.exportError?.contains("MIDI file"), true)
         XCTAssertEqual(studio.exportError?.contains("WAV"), false)
     }
+
+    /// Exporting the same song in the same format twice writes the same
+    /// path, so the URL alone can't tell the second success from the first.
+    /// The attempt counter has to move for each, with the file published.
+    func testTwoSuccessesToTheSamePathEachAdvanceTheAttempt() throws {
+        let studio = makeStudio()
+        let standIn = FileManager.default.temporaryDirectory
+            .appendingPathComponent("same-\(UUID().uuidString).mid")
+        studio.renderer = { _ in .success(standIn) }
+
+        let first = studio.export()
+        waitForExport(studio)
+        XCTAssertEqual(studio.completedExportAttempt, first)
+        XCTAssertEqual(studio.exportURL, standIn)
+
+        let second = studio.export()
+        waitForExport(studio)
+        XCTAssertEqual(studio.completedExportAttempt, second)
+        XCTAssertEqual(try XCTUnwrap(second), try XCTUnwrap(first) + 1)
+        XCTAssertEqual(studio.exportURL, standIn)
+    }
 }

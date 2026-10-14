@@ -65,6 +65,24 @@ class StudioExportTest {
         assertNotNull(h.studio.exportFile)
     }
 
+    /** The same song in the same format writes the same path, so the file
+     * alone can't tell the second success from the first; the attempt
+     * counter has to move for each, with the file published. */
+    @Test fun twoSuccessesToTheSamePathEachAdvanceTheAttempt() {
+        val standIn = File(System.getProperty("java.io.tmpdir"), "same-${UUID.randomUUID()}.mid")
+        val h = make { ExportResult.Success(standIn) }
+        val first = h.studio.export()
+        h.waitForExport()
+        assertEquals(first, h.studio.completedExportAttempt)
+        assertEquals(standIn, h.studio.exportFile)
+
+        val second = h.studio.export()
+        h.waitForExport()
+        assertEquals(second, h.studio.completedExportAttempt)
+        assertEquals(first!! + 1, second)
+        assertEquals(standIn, h.studio.exportFile)
+    }
+
     @Test fun exportUsesTheInjectedRenderer() {
         val standIn = scratchWav("injected")
         val h = make()

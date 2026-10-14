@@ -60,6 +60,16 @@ extension ExportNotesFooter {
 /// Takes the same flag the progress bar and Cancel export are shown from.
 enum ExportControls {
     static func settingsLocked(isExporting: Bool) -> Bool { isExporting }
+
+    /// Whether the Export button comes back once the render it started has
+    /// finished. A failed or canceled one frees it for another try. One that
+    /// left a file keeps it: the panel is coming down for the share sheet,
+    /// which reads that file as it comes up, and a second render started in
+    /// the meantime would clear it first. The panel comes back fresh.
+    static func freesExportButton(startedAttempt: Int?, completedAttempt: Int, producedFile: Bool) -> Bool {
+        guard let startedAttempt, completedAttempt >= startedAttempt else { return false }
+        return !producedFile
+    }
 }
 
 /// Export options, and the progress of the render they kick off.
@@ -220,8 +230,9 @@ struct ExportSheet: View {
             .tint(Theme.text)
         }
         .onChange(of: studio.completedExportAttempt) { _, completedAttempt in
-            guard startedAttempt == completedAttempt,
-                  studio.exportURL == nil else { return }
+            guard ExportControls.freesExportButton(startedAttempt: startedAttempt,
+                                                   completedAttempt: completedAttempt,
+                                                   producedFile: studio.exportURL != nil) else { return }
             startedAttempt = nil
         }
         .errorAlert("Export failed", message: $studio.exportError)

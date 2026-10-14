@@ -181,6 +181,25 @@ class ExportFooterTest {
     @Test fun settingsAreLockedWhileARenderIsRunning() = assertTrue(ExportControls.settingsLocked(isExporting = true))
 
     @Test fun settingsAreEditableWhenNoRenderIsRunning() = assertFalse(ExportControls.settingsLocked(isExporting = false))
+
+    // The Export button after a render.
+
+    @Test fun theButtonComesBackWhenItsRenderLeftNoFile() =
+        assertTrue(ExportControls.freesExportButton(startedAttempt = 1, completedAttempt = 1, producedFile = false))
+
+    /** The panel is coming down for the result dialog, which offers that
+     * file; a second render started meanwhile would clear it first. */
+    @Test fun theButtonStaysLockedWhileASuccessTakesThePanelDown() =
+        assertFalse(ExportControls.freesExportButton(startedAttempt = 1, completedAttempt = 1, producedFile = true))
+
+    @Test fun theButtonStaysLockedWhileItsRenderRuns() =
+        assertFalse(ExportControls.freesExportButton(startedAttempt = 2, completedAttempt = 1, producedFile = false))
+
+    @Test fun aLaterCompletionAlsoFinishesTheStartedAttempt() =
+        assertTrue(ExportControls.freesExportButton(startedAttempt = 1, completedAttempt = 2, producedFile = false))
+
+    @Test fun nothingStartedHasNothingToFree() =
+        assertFalse(ExportControls.freesExportButton(startedAttempt = null, completedAttempt = 1, producedFile = false))
 }
 
 /** The export sheet's readouts, word for word from `ExportSheet.swift`. */
