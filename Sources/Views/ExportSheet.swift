@@ -171,7 +171,7 @@ struct ExportSheet: View {
                     } else {
                         Button {
                             guard startedAttempt == nil else { return }
-                            startedAttempt = studio.export(options: studio.exportOptions)
+                            startedAttempt = studio.export()
                         } label: {
                             Label("Export \(format.label)", systemImage: "square.and.arrow.up")
                         }
