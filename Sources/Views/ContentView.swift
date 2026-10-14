@@ -206,7 +206,7 @@ struct ContentView: View {
     /// panel has left the screen — `.popover` has no `onDismiss:`, so the
     /// content's `.onDisappear` is what spends this.
     @State private var shareWhenExportCloses = false
-    /// What the WAV share sheet's completion handler reported. Reset to
+    /// What the export share sheet's completion handler reported. Reset to
     /// `.canceled` each time the sheet is (re-)presented, so a handler that
     /// never fires — the completion callback is documented as "may not be
     /// called" for some activities — defaults to "not completed" rather than
@@ -770,7 +770,7 @@ struct ContentView: View {
                     openExport()
                 } label: {
                     Label(studio.isExporting ? "Exporting…" : "Export…",
-                          systemImage: "waveform")
+                          systemImage: "arrow.up.doc")
                 }
                 .disabled(studio.isExporting)
                 Button {
