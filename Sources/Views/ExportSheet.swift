@@ -54,6 +54,19 @@ extension ExportNotesFooter {
     }
 }
 
+/// What sits under the WAV/MIDI picker. A MIDI file is the one a beginner
+/// can be surprised by: it opens in another app with that app's sounds, not
+/// the chip's. nil for a WAV, which is the sound itself.
+enum ExportFormatFooter {
+    static func text(for format: ExportOptions.Format) -> String? {
+        switch format {
+        case .wav: return nil
+        case .midi:
+            return "A MIDI file holds your notes, not the chip sounds. The app you open it in plays them with its own instruments."
+        }
+    }
+}
+
 /// Whether the repeats and ending controls can still be changed. They are
 /// frozen for the length of a render: it keeps the settings it started with, so
 /// an edit made mid-render would only make the readout disagree with the file.
@@ -157,6 +170,10 @@ struct ExportSheet: View {
                     // Like the repeats: the render keeps the format it started
                     // with, so a mid-render switch would only mislabel the file.
                     .disabled(settingsLocked)
+                } footer: {
+                    if let text = ExportFormatFooter.text(for: format) {
+                        Text(text)
+                    }
                 }
 
                 // A MIDI file is the arrangement once, so neither control

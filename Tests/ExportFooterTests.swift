@@ -243,3 +243,18 @@ final class ExportControlsLockTests: XCTestCase {
         XCTAssertFalse(ExportControls.freesExportButton(startedAttempt: nil, completedAttempt: 1, producedFile: false))
     }
 }
+
+/// What sits under the WAV/MIDI picker.
+final class ExportFormatFooterTests: XCTestCase {
+
+    /// A beginner doesn't know a MIDI file has no sounds in it.
+    func testMidiSaysTheFileHoldsNotesNotSounds() {
+        XCTAssertEqual(ExportFormatFooter.text(for: .midi),
+                       "A MIDI file holds your notes, not the chip sounds. The app you open it in plays them with its own instruments.")
+    }
+
+    /// A WAV is the sound itself; its repeats and ending say the rest.
+    func testWavHasNoFormatFooter() {
+        XCTAssertNil(ExportFormatFooter.text(for: .wav))
+    }
+}
