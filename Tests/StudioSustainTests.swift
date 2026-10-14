@@ -23,6 +23,7 @@ final class StudioSustainTests: XCTestCase {
     }
 
     override func tearDown() {
+        studio.engine.stopEngine()
         studio.invalidateTimers()
         studio = nil
         temp = nil
@@ -207,6 +208,11 @@ final class StudioSustainTests: XCTestCase {
         studio.selectedNote = 48
 
         studio.previewCell(track: 1, step: 4)
+        // A preview starts the real audio output, whose render thread then
+        // pulls frames from the same core between this test's chunks. The
+        // phase jumps that leaves in the window read a semitone flat on a
+        // slow CI runner. The voice is already set; only the test listens.
+        studio.engine.stopEngine()
         let rendered = render(seconds: 0.4)
 
         let window = rendered[4410..<(4410 + 8820)]
