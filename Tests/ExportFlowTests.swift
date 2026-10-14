@@ -76,4 +76,27 @@ final class ExportFlowTests: XCTestCase {
     func testFailedShareLeavesTheExportPanelClosed() {
         XCTAssertFalse(ExportFlow.reopensExportAfterShare(outcome: .failed))
     }
+
+    // MARK: Reading a finished export off the attempt counter
+
+    /// Exporting the same song in the same format again writes the same path,
+    /// and a MIDI file can land before SwiftUI's next pass, so the URL's
+    /// clear-then-set can collapse into no change at all. The attempt counter
+    /// always moves, so it is what says a render finished.
+    func testTheSameFileTwiceInARowIsSharedTwice() {
+        XCTAssertEqual(ExportFlow.finishedExport(previousAttempt: 0, completedAttempt: 1, url: url), url)
+        XCTAssertEqual(ExportFlow.finishedExport(previousAttempt: 1, completedAttempt: 2, url: url), url)
+    }
+
+    /// A canceled or failed render finishes with no file: nothing to share.
+    func testAnAttemptThatLeftNoFileSharesNothing() {
+        XCTAssertNil(ExportFlow.finishedExport(previousAttempt: 1, completedAttempt: 2, url: nil))
+    }
+
+    /// The counter not moving forward is not a render finishing, whatever
+    /// file is lying around from the last one.
+    func testAnAttemptThatHasNotAdvancedSharesNothing() {
+        XCTAssertNil(ExportFlow.finishedExport(previousAttempt: 2, completedAttempt: 2, url: url))
+        XCTAssertNil(ExportFlow.finishedExport(previousAttempt: 3, completedAttempt: 2, url: url))
+    }
 }

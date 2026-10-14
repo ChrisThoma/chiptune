@@ -100,7 +100,9 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
     // A failed or canceled attempt frees the button; a successful one
     // closes the sheet (ExportResultHost).
     LaunchedEffect(completed) {
-        if (startedAttempt == completed && studio.exportFile == null) startedAttempt = null
+        if (ExportControls.freesExportButton(startedAttempt, completed, producedFile = studio.exportFile != null)) {
+            startedAttempt = null
+        }
     }
     DisposableEffect(Unit) {
         onDispose {

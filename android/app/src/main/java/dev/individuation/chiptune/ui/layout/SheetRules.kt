@@ -74,6 +74,14 @@ fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = 
  * it keeps the settings it started with. */
 object ExportControls {
     fun settingsLocked(isExporting: Boolean): Boolean = isExporting
+
+    /** Whether the Export button comes back once the render it started has
+     * finished. A failed or canceled one frees it for another try. One that
+     * left a file keeps it: the panel is coming down for the result dialog,
+     * which offers that file, and a second render started in the meantime
+     * would clear it first. The panel comes back fresh. */
+    fun freesExportButton(startedAttempt: Int?, completedAttempt: Int, producedFile: Boolean): Boolean =
+        startedAttempt != null && completedAttempt >= startedAttempt && !producedFile
 }
 
 object ExportCopy {

@@ -145,6 +145,19 @@ enum ExportFlow {
         outcome == .canceled
     }
 
+    /// The file a just-finished render left to share, read off the studio's
+    /// attempt counter rather than its URL. Exporting the same song in the
+    /// same format again writes the same path, and a MIDI file can be written
+    /// before SwiftUI's next pass, so the URL's clear-then-set can fold into
+    /// no change at all and the second export would end with nothing on
+    /// screen. The counter moves for every finished render; one that left no
+    /// file (canceled, failed) and a counter that hasn't moved forward ask for
+    /// nothing.
+    static func finishedExport(previousAttempt: Int, completedAttempt: Int, url: URL?) -> URL? {
+        guard completedAttempt > previousAttempt else { return nil }
+        return url
+    }
+
     static func afterExportClosed(pendingShare: Bool) -> Step {
         Step(shareNow: pendingShare)
     }
@@ -307,9 +320,12 @@ struct ContentView: View {
         }
         .songShareSheet(for: studio)
         // Export renders off the main thread; the share sheet waits for the
-        // URL to land rather than racing the render.
-        .onChange(of: studio.exportURL) { _, url in
-            guard url != nil else { return }
+        // render to finish rather than racing it. Watched through the attempt
+        // counter, not the URL: see `ExportFlow.finishedExport`.
+        .onChange(of: studio.completedExportAttempt) { previous, completed in
+            guard let url = ExportFlow.finishedExport(previousAttempt: previous,
+                                                      completedAttempt: completed,
+                                                      url: studio.exportURL) else { return }
             Haptics.exportSucceeded()
             successfulExportCount += 1
             reviewAfterSharing = ReviewPromptPolicy.isDue(
