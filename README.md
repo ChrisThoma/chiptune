@@ -29,9 +29,13 @@ also be shared as a song file and imported on another device.
 ## Exporting
 
 Any song exports to a WAV of the entire arrangement, played 1 to 16 times over,
-or to a MIDI file for a DAW: one track per chip track, noise mapped to General
-MIDI drums.
-There are two ways to end it:
+or to a MIDI file for a DAW: the arrangement once, one track per chip track. A
+MIDI file holds the notes, not the chip sounds; the app that opens it plays
+them with its own instruments. Noise becomes General MIDI drums: a noise track
+that plays one pitch gets its preset's drum, and one that plays several is
+spread over kick, snare and closed hat from its lowest notes to its highest.
+
+Every export starts at WAV, once, Seamless loop. A WAV can end two ways:
 
 - **Seamless loop:** the file is exactly that many passes long, and the last
   notes ring on into the start, so it loops with no gap. Best for dropping into
