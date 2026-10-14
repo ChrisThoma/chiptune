@@ -90,10 +90,23 @@ enum MidiExport {
         "Kick": 36, "Snare": 38, "Hat": 46, "Closed hat": 42, "Crash": 49,
     ]
 
+    /// The noise preset an instrument still sounds like, for picking its
+    /// drum. Looser than `InstrumentPreset.matching`, which drives the menu's
+    /// "Custom": volume is how loud the drum is rather than which drum, and
+    /// the noise channel has no duty cycle, so neither is compared. Decay,
+    /// hold and arpeggio are the sound itself.
+    private static func drumPreset(for instrument: Instrument) -> InstrumentPreset? {
+        InstrumentPreset.presets(for: .noise).first {
+            $0.instrument.decay == instrument.decay
+                && $0.instrument.sustain == instrument.sustain
+                && $0.instrument.arpeggio == instrument.arpeggio
+        }
+    }
+
     /// Which drum each note on a noise track plays.
     ///
-    /// A track still on a preset plays that preset's drum for every note,
-    /// whatever pitch it was written at. A custom one is spread over kick,
+    /// A track that still sounds like a preset plays that preset's drum for
+    /// every note, whatever pitch it was written at and however loud it is. A custom one is spread over kick,
     /// snare and closed hat by where each note sits among the track's own
     /// distinct notes, lowest to highest. It has to be relative: the library
     /// songs write their noise between 52 and 71, so fixed pitch ranges would
@@ -101,7 +114,7 @@ enum MidiExport {
     /// count, so an unplayed pattern can't move the bands.
     private static func drumMap(for index: Int, of song: Song) -> (Int8) -> UInt8 {
         let instrument = song.tracks[index].instrument
-        if let preset = InstrumentPreset.matching(instrument, kind: .noise),
+        if let preset = drumPreset(for: instrument),
            let drum = presetDrums[preset.name] {
             return { _ in drum }
         }

@@ -43,6 +43,41 @@ final class MidiExportDrumTests: XCTestCase {
         }
     }
 
+    /// Volume is how loud the drum is, not which drum it is, and duty means
+    /// nothing to the noise channel. A preset nudged in either is still that
+    /// preset's drum.
+    func testAPresetWithItsVolumeOrDutyChangedStillPlaysItsDrum() throws {
+        let presets = InstrumentPreset.presets(for: .noise)
+        let kickPreset = try XCTUnwrap(presets.first { $0.name == "Kick" })
+        var louder = kickPreset.instrument
+        louder.volume = 0.5
+        XCTAssertEqual(try drumNotes(song([60, -1, 40, -1, 71], instrument: louder)).map(\.note),
+                       [kick, kick, kick])
+
+        let crashPreset = try XCTUnwrap(presets.first { $0.name == "Crash" })
+        var otherDuty = crashPreset.instrument
+        otherDuty.duty = 0
+        otherDuty.volume = 0.3
+        XCTAssertEqual(try drumNotes(song([60, -1, 40], instrument: otherDuty)).map(\.note),
+                       [crash, crash])
+    }
+
+    /// Decay, hold and arpeggio change the sound itself, so a preset edited
+    /// in any of them is custom and is banded by pitch.
+    func testAPresetWithItsSoundChangedIsBandedByPitch() throws {
+        let kickPreset = try XCTUnwrap(InstrumentPreset.presets(for: .noise).first { $0.name == "Kick" })
+        var longer = kickPreset.instrument
+        longer.decay = 0.2
+        var held = kickPreset.instrument
+        held.sustain = true
+        var arp = kickPreset.instrument
+        arp.arpeggio = [0, 12]
+        for instrument in [longer, held, arp] {
+            XCTAssertEqual(try drumNotes(song([60, 50, 70], instrument: instrument)).map(\.note),
+                           [snare, kick, closedHat], "\(instrument)")
+        }
+    }
+
     // MARK: Custom
 
     func testCustomNoiseSpreadsItsDistinctNotesOverKickSnareAndHat() throws {
