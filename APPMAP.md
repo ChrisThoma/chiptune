@@ -133,7 +133,7 @@ J8 | share and import an editable song | song menu/library Share; Songs -> Add -
 states/branches: share success/failure/cancel; picker cancel; malformed JSON; ID collision; legacy migration; out-of-range normalization; launch-time URL
 
 J9 | export and share a WAV or MIDI file | song menu -> Export… | song with audible arrangement | render progress is truthful; cancel/retry works; completed WAV has selected repeat/ending; MIDI hides Repeats/Ending and shares a `.mid` that matches the `midi-*.mid` golden rules; share appears once
-states/branches: repeats 1/16; seamless/ring-out; progress; cancel; retry; double submit; write failure; oversized RIFF; share cancel/complete/failure
+states/branches: repeats 1/16; seamless/ring-out; progress; cancel; retry; double submit; write failure; oversized RIFF; share cancel/complete/failure; each opening starts at WAV/1x/Seamless loop, but a canceled share reopens with the choices kept
 
 J10 | recover edits across undo, autosave, and lifecycle changes | mutate tempo/title/cells/patterns/tracks/arrangement -> undo/relaunch | sentinel edits in one song and at least two songs | unrelated operations undo separately; redo invalidates correctly; autosave preserves the active song without crossing song boundaries
 states/branches: coalesced same-kind edits; unrelated rapid edits; title run; background before debounce; save failure; open/new/delete resets history; 50-entry limit
