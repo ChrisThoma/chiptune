@@ -31,16 +31,36 @@ final class MidiExportDrumTests: XCTestCase {
 
     // MARK: Presets
 
-    func testEachNoisePresetPlaysItsOwnDrumWhateverThePitch() throws {
+    func testEachNoisePresetPlaysItsOwnDrumWhenTheTrackPlaysOnePitch() throws {
         let expected = ["Kick": kick, "Snare": snare, "Hat": openHat, "Closed hat": closedHat, "Crash": crash]
         let presets = InstrumentPreset.presets(for: .noise)
         XCTAssertEqual(Set(presets.map(\.name)), Set(expected.keys),
                        "a new noise preset needs a drum of its own")
         for preset in presets {
-            let notes = try drumNotes(song([60, -1, 40, -1, 71], instrument: preset.instrument))
+            let notes = try drumNotes(song([40, -1, 40, -1, 40], instrument: preset.instrument))
             XCTAssertEqual(notes.map(\.note), Array(repeating: expected[preset.name]!, count: 3), preset.name)
             XCTAssertEqual(Set(notes.map(\.channel)), [9], preset.name)
         }
+    }
+
+    /// A preset track written at several pitches is someone writing a kit by
+    /// pitch, so it is banded like a custom one, whichever preset it is.
+    func testAPresetTrackPlayingSeveralPitchesIsBandedByPitch() throws {
+        for preset in InstrumentPreset.presets(for: .noise) {
+            XCTAssertEqual(try drumNotes(song([60, 50, 70], instrument: preset.instrument)).map(\.note),
+                           [snare, kick, closedHat], preset.name)
+        }
+    }
+
+    /// The default track every new song starts with is the Hat preset. A
+    /// beginner who writes kick, snare and hat on it by pitch gets them, not
+    /// a bar of open hats.
+    func testTheDefaultHatTrackWrittenAtThreePitchesPlaysKickSnareAndHat() throws {
+        let track = Track(kind: .noise)
+        XCTAssertEqual(InstrumentPreset.matching(track.instrument, kind: .noise)?.name, "Hat",
+                       "the premise: a new noise track is the Hat preset")
+        let notes = try drumNotes(song([36, -1, 48, -1, 60, -1, 48], instrument: track.instrument))
+        XCTAssertEqual(notes.map(\.note), [kick, snare, closedHat, snare])
     }
 
     /// Volume is how loud the drum is, not which drum it is, and duty means
@@ -51,14 +71,14 @@ final class MidiExportDrumTests: XCTestCase {
         let kickPreset = try XCTUnwrap(presets.first { $0.name == "Kick" })
         var louder = kickPreset.instrument
         louder.volume = 0.5
-        XCTAssertEqual(try drumNotes(song([60, -1, 40, -1, 71], instrument: louder)).map(\.note),
+        XCTAssertEqual(try drumNotes(song([60, -1, 60, -1, 60], instrument: louder)).map(\.note),
                        [kick, kick, kick])
 
         let crashPreset = try XCTUnwrap(presets.first { $0.name == "Crash" })
         var otherDuty = crashPreset.instrument
         otherDuty.duty = 0
         otherDuty.volume = 0.3
-        XCTAssertEqual(try drumNotes(song([60, -1, 40], instrument: otherDuty)).map(\.note),
+        XCTAssertEqual(try drumNotes(song([60, -1, 60], instrument: otherDuty)).map(\.note),
                        [crash, crash])
     }
 
