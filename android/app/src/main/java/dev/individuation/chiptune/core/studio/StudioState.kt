@@ -74,8 +74,9 @@ data class StudioState(
     val playingSection: Int = 0,
     val canUndo: Boolean = false,
     val canRedo: Boolean = false,
-    /** What the Export sheet last asked for: WAV or MIDI, repeats and ending.
-     * Held here, not in the sheet, so it survives the sheet closing. */
+    /** What the Export sheet last asked for: WAV or MIDI, repeats and ending,
+     * and what [Studio.export] uses when it is given no options. Held here,
+     * not in the sheet, so it survives the sheet closing. */
     val exportOptions: ExportOptions = ExportOptions(),
     /** The finished WAV or MIDI file, set when an export succeeds. */
     val exportFile: File? = null,
