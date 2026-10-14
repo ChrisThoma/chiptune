@@ -111,6 +111,7 @@ struct ExportSheet: View {
     /// class whatever the window behind it is.
     var popover = false
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     // Separate from `studio.isExporting`: SwiftUI can miss a render that starts
     // and finishes between update passes. The model's monotonic attempt token
     // cannot be coalesced away, so failures and cancellations reliably retry.
@@ -122,24 +123,56 @@ struct ExportSheet: View {
 
     private var format: ExportOptions.Format { studio.exportOptions.format }
 
+    // The stepper carries both for VoiceOver, as one adjustable "Repeats"
+    // element.
+    private var repeatsLabel: some View {
+        Text("Repeats")
+            .accessibilityHidden(true)
+    }
+
+    private var repeatsCount: some View {
+        Text("\(studio.exportOptions.loopCount)×")
+            .chipFont(15, weight: .bold)
+            .foregroundStyle(Theme.dim)
+            .accessibilityHidden(true)
+    }
+
+    // Not the system Stepper; see PlainStepper.
+    private var repeatsStepper: some View {
+        PlainStepper(value: $studio.exportOptions.loopCount,
+                     range: 1...ExportOptions.maxLoopCount,
+                     isEnabled: !settingsLocked,
+                     accessibilityLabel: "Repeats",
+                     accessibilityValue: Format.count(studio.exportOptions.loopCount, "time"))
+    }
+
+    private var repeatsControls: some View {
+        HStack {
+            repeatsCount
+            repeatsStepper
+        }
+        .fixedSize()
+    }
+
     private var repeatsSection: some View {
         Section {
-            HStack {
-                // The stepper carries both for VoiceOver, as one
-                // adjustable "Repeats" element.
-                Text("Repeats")
-                    .accessibilityHidden(true)
-                Spacer()
-                Text("\(studio.exportOptions.loopCount)×")
-                    .chipFont(15, weight: .bold)
-                    .foregroundStyle(Theme.dim)
-                    .accessibilityHidden(true)
-                // Not the system Stepper; see PlainStepper.
-                PlainStepper(value: $studio.exportOptions.loopCount,
-                             range: 1...ExportOptions.maxLoopCount,
-                             isEnabled: !settingsLocked,
-                             accessibilityLabel: "Repeats",
-                             accessibilityValue: Format.count(studio.exportOptions.loopCount, "time"))
+            // On one line while it fits; at the largest text sizes the label
+            // takes a line of its own rather than hyphenating beside the
+            // count and the stepper.
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    repeatsLabel.fixedSize()
+                    Spacer()
+                    repeatsControls
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    repeatsLabel
+                    HStack {
+                        repeatsCount
+                        Spacer()
+                        repeatsStepper
+                    }
+                }
             }
             // The stepper's own disabled styling is barely visible
             // against this row, so dim the whole row explicitly.
@@ -168,18 +201,46 @@ struct ExportSheet: View {
         }
     }
 
+    /// Segmented at ordinary text sizes. A segmented control's labels don't
+    /// grow with Dynamic Type, so at the accessibility sizes it becomes a
+    /// menu row, whose label and value do.
+    @ViewBuilder
+    private var formatPicker: some View {
+        let picker = Picker("Format", selection: $studio.exportOptions.format) {
+            ForEach(ExportOptions.Format.allCases, id: \.self) { format in
+                Text(format.label).tag(format)
+            }
+        }
+        if dynamicTypeSize.isAccessibilitySize {
+            picker
+                .pickerStyle(.menu)
+                .accessibilityLabel("Format")
+        } else {
+            picker
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .accessibilityLabel("Format")
+        }
+    }
+
+    /// The Export button's label. At the accessibility text sizes the icon
+    /// goes, so "Export MIDI" fits on one line rather than wrapping after
+    /// "Export".
+    @ViewBuilder
+    private var exportLabel: some View {
+        let title = "Export \(format.label)"
+        if dynamicTypeSize.isAccessibilitySize {
+            Text(title)
+        } else {
+            Label(title, systemImage: "square.and.arrow.up")
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("Format", selection: $studio.exportOptions.format) {
-                        ForEach(ExportOptions.Format.allCases, id: \.self) { format in
-                            Text(format.label).tag(format)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .accessibilityLabel("Format")
+                    formatPicker
                     // Like the repeats: the render keeps the format it started
                     // with, so a mid-render switch would only mislabel the file.
                     .disabled(settingsLocked)
@@ -213,7 +274,7 @@ struct ExportSheet: View {
                             guard startedAttempt == nil else { return }
                             startedAttempt = studio.export()
                         } label: {
-                            Label("Export \(format.label)", systemImage: "square.and.arrow.up")
+                            exportLabel
                         }
                         .disabled(startedAttempt != nil || !studio.song.hasNotes)
                     }

@@ -40,3 +40,21 @@ final class PlainStepperActionTests: XCTestCase {
         XCTAssertEqual(PlainStepper.delta(forIncrement: false), -1)
     }
 }
+
+/// The minus and plus grow with Dynamic Type, so the glyph, which does,
+/// stays inside the capsule.
+final class PlainStepperSizeTests: XCTestCase {
+
+    func testTheButtonsAreTheSystemSizeAtTheDefaultTextSize() {
+        XCTAssertEqual(PlainStepper.buttonSize(scale: 1), CGSize(width: 46, height: 32))
+    }
+
+    func testTheButtonsGrowWithTheText() {
+        XCTAssertEqual(PlainStepper.buttonSize(scale: 2), CGSize(width: 92, height: 64))
+    }
+
+    /// Never smaller than the system size, whatever the text size.
+    func testTheButtonsNeverShrinkBelowTheSystemSize() {
+        XCTAssertEqual(PlainStepper.buttonSize(scale: 0.8), CGSize(width: 46, height: 32))
+    }
+}
