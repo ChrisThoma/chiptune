@@ -26,15 +26,22 @@ enum TempoEntry {
     /// Opens the field with the keyboard up, and reports each edit: SwiftUI's
     /// alert doesn't write the field back to its binding until the alert
     /// closes, and Set has to follow what's typed.
+    ///
+    /// Runs again on every redraw of the transport while the alert is up, so
+    /// it is idempotent: the handler has a fixed identifier, and adding an
+    /// action with one already on the field replaces it rather than stacking
+    /// another.
     static func configure(_ field: UITextField, onChange: @escaping (String) -> Void) {
         TempoFieldAccessibility.apply(to: field)
-        field.addAction(UIAction { action in
+        field.addAction(UIAction(identifier: editingChangedAction) { action in
             onChange((action.sender as? UITextField)?.text ?? "")
         }, for: .editingChanged)
         // SwiftUI's alert doesn't raise the keyboard itself the way a UIKit
         // alert does.
-        field.becomeFirstResponder()
+        if !field.isFirstResponder { field.becomeFirstResponder() }
     }
+
+    static let editingChangedAction = UIAction.Identifier("TempoEntry.editingChanged")
 }
 
 /// Where the arrangement popover points. ARR is drawn in whichever of the
