@@ -1416,9 +1416,11 @@ final class Studio {
 
     /// Renders the export (WAV or MIDI) off the main thread; a long arrangement can take a
     /// while, and the render must not freeze the UI. `exportURL` clears at the
-    /// start so observers see a fresh value when the file is ready.
+    /// start so observers see a fresh value when the file is ready. With no
+    /// `options`, it takes the ones the export sheet keeps in `exportOptions`.
     @discardableResult
-    func export(options: ExportOptions = ExportOptions()) -> Int? {
+    func export(options: ExportOptions? = nil) -> Int? {
+        let options = options ?? exportOptions
         guard !isExporting else { return nil }
         let attempt = completedExportAttempt + 1
         isExporting = true
