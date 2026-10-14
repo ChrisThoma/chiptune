@@ -105,7 +105,7 @@ enum DeleteFailureMessage {
         let shown = WriteFailureMessage.shown(name)
         switch WriteFailureMessage.cause(of: error as NSError) {
         case .permission:
-            return "Couldn't delete \(shown). The app isn't allowed to change that file."
+            return "Couldn't delete \(shown). The app doesn't have permission to change that file."
         case .space, .other:
             return "Couldn't delete \(shown). Try again."
         }
@@ -113,7 +113,7 @@ enum DeleteFailureMessage {
 }
 
 /// The "Import failed" alert's words. Reading a file in can fail because it
-/// isn't a song (or is damaged), can't be read, or the app isn't allowed to
+/// isn't a song (or is damaged), can't be read, or the app doesn't have permission to
 /// read it; saving the imported song can fail the way any save can.
 enum ImportFailureMessage {
     /// The picked or opened file didn't become a song.
