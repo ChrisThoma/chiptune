@@ -145,6 +145,19 @@ enum ExportFlow {
         outcome == .canceled
     }
 
+    /// The file a just-finished render left to share, read off the studio's
+    /// attempt counter rather than its URL. Exporting the same song in the
+    /// same format again writes the same path, and a MIDI file can be written
+    /// before SwiftUI's next pass, so the URL's clear-then-set can fold into
+    /// no change at all and the second export would end with nothing on
+    /// screen. The counter moves for every finished render; one that left no
+    /// file (canceled, failed) and a counter that hasn't moved forward ask for
+    /// nothing.
+    static func finishedExport(previousAttempt: Int, completedAttempt: Int, url: URL?) -> URL? {
+        guard completedAttempt > previousAttempt else { return nil }
+        return url
+    }
+
     static func afterExportClosed(pendingShare: Bool) -> Step {
         Step(shareNow: pendingShare)
     }
@@ -206,7 +219,7 @@ struct ContentView: View {
     /// panel has left the screen — `.popover` has no `onDismiss:`, so the
     /// content's `.onDisappear` is what spends this.
     @State private var shareWhenExportCloses = false
-    /// What the WAV share sheet's completion handler reported. Reset to
+    /// What the export share sheet's completion handler reported. Reset to
     /// `.canceled` each time the sheet is (re-)presented, so a handler that
     /// never fires — the completion callback is documented as "may not be
     /// called" for some activities — defaults to "not completed" rather than
@@ -299,7 +312,7 @@ struct ContentView: View {
             if let url = studio.exportURL {
                 ShareSheet(items: [url], onComplete: { completed, error in
                     if error != nil {
-                        studio.shareError = ShareFailureMessage.sheet(file: "WAV file")
+                        studio.shareError = ShareFailureMessage.sheet(file: WriteFailureMessage.fileNoun(for: url))
                     }
                     shareOutcome = completed ? .completed : (error != nil ? .failed : .canceled)
                 })
@@ -307,9 +320,12 @@ struct ContentView: View {
         }
         .songShareSheet(for: studio)
         // Export renders off the main thread; the share sheet waits for the
-        // URL to land rather than racing the render.
-        .onChange(of: studio.exportURL) { _, url in
-            guard url != nil else { return }
+        // render to finish rather than racing it. Watched through the attempt
+        // counter, not the URL: see `ExportFlow.finishedExport`.
+        .onChange(of: studio.completedExportAttempt) { previous, completed in
+            guard let url = ExportFlow.finishedExport(previousAttempt: previous,
+                                                      completedAttempt: completed,
+                                                      url: studio.exportURL) else { return }
             Haptics.exportSucceeded()
             successfulExportCount += 1
             reviewAfterSharing = ReviewPromptPolicy.isDue(
@@ -763,13 +779,14 @@ struct ContentView: View {
                     Label("Duplicate song", systemImage: "plus.square.on.square")
                 }
                 Divider()
-                // WAV first: it's what most people tap the menu open for, and
-                // the song-file share below it is the less common ask.
+                // Export first: it's what most people tap the menu open for, and
+                // the song-file share below it is the less common ask. The
+                // sheet it opens chooses WAV or MIDI.
                 Button {
                     openExport()
                 } label: {
-                    Label(studio.isExporting ? "Exporting…" : "Export WAV",
-                          systemImage: "waveform")
+                    Label(studio.isExporting ? "Exporting…" : "Export…",
+                          systemImage: "arrow.up.doc")
                 }
                 .disabled(studio.isExporting)
                 Button {

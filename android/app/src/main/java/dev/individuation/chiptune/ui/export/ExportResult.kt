@@ -22,12 +22,10 @@ import dev.individuation.chiptune.ui.editor.Presented
 import dev.individuation.chiptune.ui.layout.ExportCopy
 import dev.individuation.chiptune.ui.theme.ChipColors
 import java.io.File
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.drop
 
 /**
  * From a finished render to the share step (iOS ContentView's
- * `onChange(of: exportURL)` and `shareAfterExport()`): a success haptic, the
+ * `onChange(of: completedExportAttempt)` and `shareAfterExport()`): a success haptic, the
  * export counted for the review prompt, the export panel taken down, and
  * once it has gone, [Presented.ExportResult]. Lives in the editor, not the
  * sheet, because the sheet is what goes away first.
@@ -42,8 +40,17 @@ fun ExportResultHost(editor: Editor) {
     val presentation = editor.presentation
 
     LaunchedEffect(editor) {
-        snapshotFlow { editor.ui.value.exportFile }.distinctUntilChanged().drop(1).collect { file ->
-            if (file == null) return@collect
+        // Watched through the attempt counter, not the file: see
+        // [ExportFlow.finishedExport]. Both read from one state, so the file
+        // is the one that attempt left. The first value is whatever finished
+        // before the editor was up, which is not this host's to present.
+        var previous: Int? = null
+        val finished = snapshotFlow { editor.ui.value.let { it.completedExportAttempt to it.exportFile } }
+        finished.collect { (completed, latest) ->
+            val last = previous
+            previous = completed
+            if (last == null) return@collect
+            val file = ExportFlow.finishedExport(last, completed, latest) ?: return@collect
             editor.haptics.exportSucceeded()
             tracker.exportSucceeded()
             val step = ExportFlow.afterRender(file, exportPresented = presentation.current == Presented.Export)
@@ -74,7 +81,7 @@ private class PendingShare {
 }
 
 /**
- * "Exported X.wav": Share... or Save to device. Android's stand-in for the
+ * "Exported X.wav" (or X.mid): Share... or Save to device. Android's stand-in for the
  * iOS share sheet that follows an export; the review prompt hangs off the
  * share as it does there.
  */
@@ -99,11 +106,11 @@ fun ExportResultDialog(editor: Editor, file: File, onDismiss: () -> Unit) {
                     // Phase 7's save reports nothing back; it doesn't spend the milestone.
                     tracker.shareDismissed(ShareOutcome.CANCELED)
                     onDismiss()
-                    editor.effects.saveToDevice(file, file.name)
+                    editor.effects.saveToDevice(file, file.name, EditorEffects.mimeTypeFor(file))
                 }) { Text("Save to device", color = ChipColors.text) }
                 TextButton(onClick = {
                     onDismiss()
-                    editor.effects.shareFile(file, EditorEffects.WAV_MIME) { handedOff ->
+                    editor.effects.shareFile(file, EditorEffects.mimeTypeFor(file)) { handedOff ->
                         val outcome = if (handedOff) ShareOutcome.COMPLETED else ShareOutcome.CANCELED
                         if (tracker.shareDismissed(outcome)) editor.effects.requestReview()
                     }

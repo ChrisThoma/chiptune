@@ -89,7 +89,7 @@ The seeded library includes Neon Ascent, Coin Rush, Slow Cartridge, Boss Door, a
 - Pattern bar: select, add, rename, duplicate, clear, delete, and change step count.
 - Grid: tracks as columns and steps as rows; cells place/replace/clear/preview notes; track headers select, mute, and open the sound settings (duplicate, clear, delete); long-press enters reorder mode (drag or arrows, Done/tap grid exits).
 - Keyboard: octave, selected note/track, OFF, and one-octave piano controls.
-- Modal/system surfaces: SongListView, ArrangementView, InstrumentEditor, ExportSheet, WAV ShareSheet, song-file ShareSheet, file importer, alerts, confirmation dialogs, support Link, and StoreKit review request.
+- Modal/system surfaces: SongListView, ArrangementView, InstrumentEditor, ExportSheet (WAV / MIDI), export ShareSheet, song-file ShareSheet, file importer, alerts, confirmation dialogs, support Link, and StoreKit review request.
 - InstrumentEditor is always a sheet on iPhone (compact layout); the popover (regular portrait iPad) and docked (wide landscape iPad) variants do not apply to this target.
 - The app accepts `.chipsong` files through document activation and `onOpenURL`; it has no custom URL scheme or universal-link route.
 
@@ -103,7 +103,7 @@ The seeded library includes Neon Ascent, Coin Rush, Slow Cartridge, Boss Door, a
 - Arrangement entries past 128 play-throughs remain editable but intentionally do not play or export; the UI must warn about this cap.
 - Imported documents are normalized, copied into the local library, and edited there. The original is never edited in place.
 - iPhone is portrait-only. iPad supports all orientations and resolves layout from actual window size; narrow Split View can receive phone metrics.
-- Multi-window, background audio, MIDI, sample/audio import, stereo/pan, collaboration, and cloud library are unsupported.
+- Multi-window, background audio, MIDI input, sample/audio import, stereo/pan, collaboration, and cloud library are unsupported.
 - The app forces dark appearance with `.preferredColorScheme(.dark)`.
 
 ## Journeys
@@ -132,7 +132,7 @@ states/branches: immediate save on open; newest-first sort; new; open; rename va
 J8 | share and import an editable song | song menu/library Share; Songs -> Add -> Import; open `.chipsong` URL | valid, malformed, legacy, hostile, and duplicate-ID files | valid input becomes a normalized local copy; invalid input explains failure; shared file is usable and named safely
 states/branches: share success/failure/cancel; picker cancel; malformed JSON; ID collision; legacy migration; out-of-range normalization; launch-time URL
 
-J9 | export and share a WAV | song menu -> Export WAV | song with audible arrangement | render progress is truthful; cancel/retry works; completed WAV has selected repeat/ending and share appears once
+J9 | export and share a WAV or MIDI file | song menu -> Export… | song with audible arrangement | render progress is truthful; cancel/retry works; completed WAV has selected repeat/ending; MIDI hides Repeats/Ending and shares a `.mid` that matches the `midi-*.mid` golden rules; share appears once
 states/branches: repeats 1/16; seamless/ring-out; progress; cancel; retry; double submit; write failure; oversized RIFF; share cancel/complete/failure
 
 J10 | recover edits across undo, autosave, and lifecycle changes | mutate tempo/title/cells/patterns/tracks/arrangement -> undo/relaunch | sentinel edits in one song and at least two songs | unrelated operations undo separately; redo invalidates correctly; autosave preserves the active song without crossing song boundaries

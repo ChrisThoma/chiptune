@@ -1,5 +1,6 @@
 package dev.individuation.chiptune.core.studio
 
+import dev.individuation.chiptune.core.audio.ExportOptions
 import dev.individuation.chiptune.core.model.ChannelKind
 import dev.individuation.chiptune.core.model.Chip
 import dev.individuation.chiptune.core.model.Pattern
@@ -73,7 +74,11 @@ data class StudioState(
     val playingSection: Int = 0,
     val canUndo: Boolean = false,
     val canRedo: Boolean = false,
-    /** The finished WAV, set when an export succeeds. */
+    /** What the Export sheet last asked for: WAV or MIDI, repeats and ending,
+     * and what [Studio.export] uses when it is given no options. Held here,
+     * not in the sheet, so it survives the sheet closing. */
+    val exportOptions: ExportOptions = ExportOptions(),
+    /** The finished WAV or MIDI file, set when an export succeeds. */
     val exportFile: File? = null,
     val isExporting: Boolean = false,
     /** 0...1 while [isExporting]. */

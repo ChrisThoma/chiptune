@@ -22,6 +22,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import com.google.android.play.core.review.ReviewManagerFactory
 import dev.individuation.chiptune.ChiptuneApp
+import dev.individuation.chiptune.core.audio.ExportOptions
 import dev.individuation.chiptune.core.studio.ShareFailureMessage
 import dev.individuation.chiptune.core.studio.ShareOutcome
 import dev.individuation.chiptune.core.studio.WriteFailureMessage
@@ -41,7 +42,7 @@ interface EditorEffects {
      * then `studio.importSong`. */
     fun importSong()
 
-    /** A `.chipsong` (`application/json`) or a WAV (`audio/wav`) to share,
+    /** A `.chipsong` (`application/json`), a WAV (`audio/wav`) or a MIDI file (`audio/midi`) to share,
      * through a FileProvider with the MIME type set explicitly. [onFinished]
      * runs once with true when a share target was picked, false when the
      * chooser was backed out of or couldn't open; the review prompt reads it. */
@@ -50,9 +51,9 @@ interface EditorEffects {
     /** Opens a web link in the browser. */
     fun openUrl(url: String)
 
-    /** "Save to device" on a finished export: `CreateDocument` (audio/wav)
+    /** "Save to device" on a finished export: `CreateDocument` of [mimeType]
      * named [suggestedName], then [file] is copied into it. */
-    fun saveToDevice(file: File, suggestedName: String)
+    fun saveToDevice(file: File, suggestedName: String, mimeType: String)
 
     /** The review prompt, once a share after a milestone export went through
      * (`ReviewPromptTracker.shareDismissed` said so): Play's in-app review
@@ -64,8 +65,12 @@ interface EditorEffects {
 
     companion object {
         const val SONG_MIME = "application/json"
-        const val WAV_MIME = "audio/wav"
         const val SUPPORT_URL = "https://individuation.dev/contact/"
+
+        /** What to offer a file as, by its extension: an export is its format's
+         * type, anything else a song file. Read off the file rather than the
+         * sheet's format, which may have been switched since it was written. */
+        fun mimeTypeFor(file: File): String = ExportOptions.Format.fromExtension(file.extension)?.mimeType ?: SONG_MIME
     }
 }
 
@@ -140,12 +145,12 @@ class AndroidEditorEffects(private val context: Context) : EditorEffects {
     }
 
     private fun failShare(file: File, onFinished: (Boolean) -> Unit) {
-        app?.studio?.shareError = ShareFailureMessage.sheet(if (file.extension == "wav") "WAV file" else "song file")
+        app?.studio?.shareError = ShareFailureMessage.sheet(WriteFailureMessage.fileNoun(file.extension))
         onFinished(false)
     }
 
-    override fun saveToDevice(file: File, suggestedName: String) {
-        launch(ActivityResultContracts.CreateDocument(EditorEffects.WAV_MIME), suggestedName) { uri ->
+    override fun saveToDevice(file: File, suggestedName: String, mimeType: String) {
+        launch(ActivityResultContracts.CreateDocument(mimeType), suggestedName) { uri ->
             if (uri != null) copyInto(file, uri)
         }
     }
@@ -161,7 +166,7 @@ class AndroidEditorEffects(private val context: Context) : EditorEffects {
                 e
             }
             main.post {
-                val text = if (failure == null) "Saved" else WriteFailureMessage.export(file.nameWithoutExtension, failure)
+                val text = if (failure == null) "Saved" else WriteFailureMessage.export(file.nameWithoutExtension, failure, WriteFailureMessage.fileNoun(file.extension))
                 Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
             }
         }

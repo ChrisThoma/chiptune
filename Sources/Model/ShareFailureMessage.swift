@@ -15,8 +15,27 @@ enum WriteFailureMessage {
     }
 
     /// "Couldn't export “Name”. <reason>[ Try again.]"
+    /// The two-argument form is the WAV wrapper: it keeps the shape the three
+    /// alert builders share (`(String, Error) -> String`).
     static func export(name: String, error: Error) -> String {
-        "Couldn't export \(shown(name)). \(reasonAndAdvice(for: error, file: "WAV file"))"
+        export(name: name, error: error, file: ExportOptions.Format.wav.fileNoun)
+    }
+
+    static func export(name: String, error: Error, file: String) -> String {
+        "Couldn't export \(shown(name)). \(reasonAndAdvice(for: error, file: file))"
+    }
+
+    /// What a file of this extension is called in an alert: an export is
+    /// its format's file, and anything else is a song file, the one other
+    /// kind of file the app hands over. Android's `fileNoun` is the same rule.
+    static func fileNoun(forExtension ext: String) -> String {
+        ExportOptions.Format(fileExtension: ext)?.fileNoun ?? "song file"
+    }
+
+    /// Named from the file that was offered rather than the sheet's current
+    /// format, which may have been switched since the export finished.
+    static func fileNoun(for url: URL) -> String {
+        fileNoun(forExtension: url.pathExtension)
     }
 
     /// The song's name in quotes, clipped with an ellipsis past `nameLimit`

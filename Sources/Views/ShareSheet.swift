@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// UIActivityViewController wrapper for sharing the exported WAV.
+/// UIActivityViewController wrapper for sharing the exported WAV or MIDI file.
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
     /// `completed` is false for both a user cancel and a genuine failure;

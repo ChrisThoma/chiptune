@@ -1,5 +1,6 @@
 import XCTest
 import AVFoundation
+import os
 @testable import Chiptune
 
 /// Export from the app's side: kicking it off must return immediately, report
@@ -63,6 +64,73 @@ final class StudioExportTests: XCTestCase {
         studio.export()
         waitForExport(studio)
 
+        XCTAssertEqual(studio.exportURL, standIn)
+    }
+
+    /// With no options passed, the export takes the ones the sheet keeps, as
+    /// Android's does; passed ones still win.
+    func testExportWithoutOptionsUsesTheStoredOnes() throws {
+        let studio = makeStudio()
+        let seen = OSAllocatedUnfairLock<[ExportOptions]>(initialState: [])
+        let standIn = FileManager.default.temporaryDirectory
+            .appendingPathComponent("injected-\(UUID().uuidString).mid")
+        studio.renderer = { request in
+            seen.withLock { $0.append(request.options) }
+            return .success(standIn)
+        }
+        studio.exportOptions = ExportOptions(format: .midi, loopCount: 3, tailMode: .ringOut)
+
+        studio.export()
+        waitForExport(studio)
+        studio.export(options: ExportOptions())
+        waitForExport(studio)
+
+        XCTAssertEqual(seen.withLock { $0 }, [studio.exportOptions, ExportOptions()])
+    }
+
+    /// Nothing is injected, so this is the dispatcher the app ships with: the
+    /// format the sheet picked has to reach the writer.
+    func testDefaultRendererFollowsTheChosenFormat() throws {
+        let studio = makeStudio()
+        studio.song.patterns[0].rows[0][0] = 60
+        studio.exportOptions.format = .midi
+
+        studio.export(options: studio.exportOptions)
+        waitForExport(studio)
+
+        XCTAssertEqual(try XCTUnwrap(studio.exportURL).pathExtension, "mid")
+    }
+
+    func testAMidiExportFailureCallsTheFileAMidiFile() {
+        let studio = makeStudio()
+        studio.renderer = { _ in .failed(CocoaError(.fileWriteNoPermission)) }
+        studio.exportOptions.format = .midi
+
+        studio.export(options: studio.exportOptions)
+        waitForExport(studio)
+
+        XCTAssertEqual(studio.exportError?.contains("MIDI file"), true)
+        XCTAssertEqual(studio.exportError?.contains("WAV"), false)
+    }
+
+    /// Exporting the same song in the same format twice writes the same
+    /// path, so the URL alone can't tell the second success from the first.
+    /// The attempt counter has to move for each, with the file published.
+    func testTwoSuccessesToTheSamePathEachAdvanceTheAttempt() throws {
+        let studio = makeStudio()
+        let standIn = FileManager.default.temporaryDirectory
+            .appendingPathComponent("same-\(UUID().uuidString).mid")
+        studio.renderer = { _ in .success(standIn) }
+
+        let first = studio.export()
+        waitForExport(studio)
+        XCTAssertEqual(studio.completedExportAttempt, first)
+        XCTAssertEqual(studio.exportURL, standIn)
+
+        let second = studio.export()
+        waitForExport(studio)
+        XCTAssertEqual(studio.completedExportAttempt, second)
+        XCTAssertEqual(try XCTUnwrap(second), try XCTUnwrap(first) + 1)
         XCTAssertEqual(studio.exportURL, standIn)
     }
 }

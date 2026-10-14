@@ -108,6 +108,33 @@ final class WriteFailureReasonTests: XCTestCase {
                        "Couldn't export “Neon Ascent”. The app doesn't have permission to write the WAV file.")
     }
 
+    func testExportWordsNameTheFileThatFailed() {
+        let denied = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteNoPermission.rawValue)
+        XCTAssertEqual(WriteFailureMessage.export(name: "Neon Ascent", error: denied, file: "MIDI file"),
+                       "Couldn't export “Neon Ascent”. The app doesn't have permission to write the MIDI file.")
+        XCTAssertEqual(ExportOptions.Format.midi.fileNoun, "MIDI file")
+        XCTAssertEqual(ExportOptions.Format.wav.fileNoun, "WAV file")
+    }
+
+    /// The share failure reads the noun off the file that was offered, since
+    /// the sheet's format may have been switched since the export finished.
+    func testShareFailureNamesTheFileByItsExtension() {
+        let dir = URL(fileURLWithPath: "/tmp/x", isDirectory: true)
+        XCTAssertEqual(WriteFailureMessage.fileNoun(forExtension: "mid"), "MIDI file")
+        XCTAssertEqual(WriteFailureMessage.fileNoun(forExtension: "MID"), "MIDI file")
+        XCTAssertEqual(WriteFailureMessage.fileNoun(forExtension: "wav"), "WAV file")
+        XCTAssertEqual(WriteFailureMessage.fileNoun(for: dir.appendingPathComponent("a.mid")), "MIDI file")
+        XCTAssertEqual(WriteFailureMessage.fileNoun(for: dir.appendingPathComponent("a.wav")), "WAV file")
+    }
+
+    /// The same rule as Android's, which shares song files through the same
+    /// path: anything that isn't a WAV or MIDI export is a song file.
+    func testAFileThatIsntAnExportIsASongFile() {
+        XCTAssertEqual(WriteFailureMessage.fileNoun(forExtension: "chipsong"), "song file")
+        XCTAssertEqual(WriteFailureMessage.fileNoun(forExtension: ""), "song file")
+        XCTAssertEqual(WriteFailureMessage.fileNoun(forExtension: "txt"), "song file")
+    }
+
     func testAnUnknownCauseSaysSoPlainly() {
         let unknown = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteUnknown.rawValue)
         XCTAssertEqual(WriteFailureMessage.reason(for: unknown, file: "WAV file"),

@@ -6,7 +6,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
 import dev.individuation.chiptune.core.audio.ChipCore
-import dev.individuation.chiptune.core.audio.WavExport
+import dev.individuation.chiptune.core.audio.ExportRenderer
 import dev.individuation.chiptune.core.store.FileSongStore
 import dev.individuation.chiptune.core.studio.AppPhase
 import dev.individuation.chiptune.core.studio.ReviewPromptTracker
@@ -74,7 +74,7 @@ class ChiptuneApp : Application() {
             store = FileSongStore(File(filesDir, "Songs"), prefs),
             audio = output,
             scheduler = AndroidScheduler(),
-            renderer = { WavExport.render(it, exportDir) },
+            renderer = { ExportRenderer.render(it, exportDir) },
             exportExecutor = Executors.newSingleThreadExecutor { r -> Thread(r, "chiptune-export") },
             shareWriter = SongShareWriter(File(cacheDir, ShareRoots.SHARE)),
             core = core,
