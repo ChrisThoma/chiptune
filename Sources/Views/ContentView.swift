@@ -672,7 +672,7 @@ struct ContentView: View {
                 .frame(width: width, height: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressDimStyle())
         .disabled(!enabled)
         .hoverEffect(.highlight)
         // A dimmed undo/redo shouldn't glow as if it were live.
@@ -713,7 +713,7 @@ struct ContentView: View {
                     .frame(width: layout.titleIconTargetSize, height: layout.titleIconTargetSize)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressDimStyle())
             .hoverEffect(.highlight)
             .accessibilityLabel("Songs")
 

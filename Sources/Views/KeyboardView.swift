@@ -194,6 +194,16 @@ struct KeyboardView: View {
     }
 }
 
+/// A bare glyph button that dims while it's held, the press feedback
+/// `PadStyle` and the grid cells give. `.plain` alone shows nothing on touch
+/// down, so a title-bar icon felt dead until whatever it opened appeared.
+struct PressDimStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.6 : 1)
+    }
+}
+
 /// Small dark control button used across the transport and keyboard rows.
 struct PadStyle: ButtonStyle {
     var active: Bool = false
