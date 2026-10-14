@@ -127,6 +127,9 @@ enum ExportFlow {
         var shareWhenExportCloses = false
         /// Nothing to wait for: raise it now.
         var shareNow = false
+        /// The export is over, so its options go back to the defaults and
+        /// the next opening starts at WAV, 1x, Seamless loop.
+        var endsFlow = false
     }
 
     static func afterRender(url: URL?, exportPresented: Bool) -> Step {
@@ -145,6 +148,12 @@ enum ExportFlow {
         outcome == .canceled
     }
 
+    /// Whatever doesn't bring the panel back ends the export. One that does
+    /// is the same export, and the panel shows what was picked in it.
+    static func endsFlowAfterShare(outcome: ReviewPromptPolicy.ShareOutcome) -> Bool {
+        !reopensExportAfterShare(outcome: outcome)
+    }
+
     /// The file a just-finished render left to share, read off the studio's
     /// attempt counter rather than its URL. Exporting the same song in the
     /// same format again writes the same path, and a MIDI file can be written
@@ -158,8 +167,11 @@ enum ExportFlow {
         return url
     }
 
+    /// The panel closing with no share owed was closed by hand (Close, a
+    /// swipe, Escape, another song opening), which ends the export. Closing
+    /// for the share sheet doesn't: a canceled share brings the panel back.
     static func afterExportClosed(pendingShare: Bool) -> Step {
-        Step(shareNow: pendingShare)
+        Step(shareNow: pendingShare, endsFlow: !pendingShare)
     }
 
     /// The export panel can disappear without the Close button ever running —
@@ -472,6 +484,7 @@ struct ContentView: View {
         }
         let step = ExportFlow.afterExportClosed(pendingShare: shareWhenExportCloses)
         shareWhenExportCloses = false
+        if step.endsFlow { studio.endExportFlow() }
         guard step.shareNow else { return }
         showingShare = true
     }
@@ -490,6 +503,7 @@ struct ContentView: View {
             lastRequestExportCount: lastReviewRequestExportCount)
         reviewAfterSharing = false
         if ExportFlow.reopensExportAfterShare(outcome: shareOutcome) { showingExport = true }
+        if ExportFlow.endsFlowAfterShare(outcome: shareOutcome) { studio.endExportFlow() }
         lastReviewRequestExportCount = result.lastRequestExportCount
         guard result.shouldRequestReview else { return }
         // StoreKit decides whether a request is actually shown.

@@ -41,8 +41,33 @@ final class ExportFlowTests: XCTestCase {
 
     /// Closing the panel by hand, or with Escape, is not a share.
     func testPanelClosingWithNothingQueuedSharesNothing() {
-        XCTAssertEqual(ExportFlow.afterExportClosed(pendingShare: false),
-                       ExportFlow.Step())
+        let step = ExportFlow.afterExportClosed(pendingShare: false)
+        XCTAssertFalse(step.shareNow)
+        XCTAssertFalse(step.closeExport)
+        XCTAssertFalse(step.shareWhenExportCloses)
+    }
+
+    // MARK: When the export options go back to the defaults
+
+    /// Closing the panel by hand ends the export, so the next one starts at
+    /// WAV, 1x, Seamless loop.
+    func testPanelClosedByHandEndsTheFlow() {
+        XCTAssertTrue(ExportFlow.afterExportClosed(pendingShare: false).endsFlow)
+    }
+
+    /// Closing for the share sheet doesn't: a canceled share brings the panel
+    /// back, and it should still show what was picked.
+    func testPanelClosedForTheShareSheetKeepsTheFlowGoing() {
+        XCTAssertFalse(ExportFlow.afterExportClosed(pendingShare: true).endsFlow)
+    }
+
+    func testACanceledShareKeepsTheFlowGoing() {
+        XCTAssertFalse(ExportFlow.endsFlowAfterShare(outcome: .canceled))
+    }
+
+    func testACompletedOrFailedShareEndsTheFlow() {
+        XCTAssertTrue(ExportFlow.endsFlowAfterShare(outcome: .completed))
+        XCTAssertTrue(ExportFlow.endsFlowAfterShare(outcome: .failed))
     }
 
     /// The Close button pairs a cancel with its dismiss, but a swipe-to-dismiss
