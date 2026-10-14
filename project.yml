@@ -181,9 +181,10 @@ targets:
         # fails at submission, and an uploaded build can't be withdrawn, so
         # build 3 is stranded in a 1.1 train and 1.0 carried on at build 4.
         # 1.0 was approved by 2026-10-03, which closed its train, so 1.0.1
-        # starts at build 12.
-        MARKETING_VERSION: "1.0.1"
-        CURRENT_PROJECT_VERSION: "14"
+        # starts at build 12. 1.0.1 was approved by 2026-10-13, so MIDI export
+        # ships as 1.1 from build 15 (the stray 1.1 (3) sits below it).
+        MARKETING_VERSION: "1.1"
+        CURRENT_PROJECT_VERSION: "15"
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "5.0"
