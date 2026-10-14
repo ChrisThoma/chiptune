@@ -30,14 +30,23 @@ extension ExportNotesFooter {
         case .midi:
             guard song.hasNotes else { return text(for: song) }
             var line = "The whole arrangement once — \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote."
-            let emptiedTracks = MidiExport.emptiedTracks(of: song, chain: song.chain)
-            let emptied = emptiedTracks.count
-            if song.tracks.indices.contains(where: { song.tracks[$0].muted && !emptiedTracks.contains($0) }) {
+            // Worked out once: only a muted track with notes the
+            // arrangement plays has anything in the file to speak of.
+            let chain = song.chain
+            let emptied = MidiExport.emptiedTracks(of: song, chain: chain)
+            let mutedWithNotes = song.tracks.indices.filter {
+                song.tracks[$0].muted && MidiExport.reaches($0, of: song, chain: chain)
+            }
+            let emptiedCount = mutedWithNotes.filter(emptied.contains).count
+            let silencedCount = mutedWithNotes.count - emptiedCount
+            if silencedCount == 1 {
+                line += " A muted track is in the file at volume 0."
+            } else if silencedCount > 1 {
                 line += " Muted tracks are in the file at volume 0."
             }
-            if emptied == 1 {
+            if emptiedCount == 1 {
                 line += " A muted drum track is left empty, since it shares the drum channel with one that plays."
-            } else if emptied > 1 {
+            } else if emptiedCount > 1 {
                 line += " Muted drum tracks are left empty, since they share the drum channel with one that plays."
             }
             return line
