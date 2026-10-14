@@ -22,6 +22,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import com.google.android.play.core.review.ReviewManagerFactory
 import dev.individuation.chiptune.ChiptuneApp
+import dev.individuation.chiptune.core.audio.ExportOptions
 import dev.individuation.chiptune.core.studio.ShareFailureMessage
 import dev.individuation.chiptune.core.studio.ShareOutcome
 import dev.individuation.chiptune.core.studio.WriteFailureMessage
@@ -64,18 +65,12 @@ interface EditorEffects {
 
     companion object {
         const val SONG_MIME = "application/json"
-        const val WAV_MIME = "audio/wav"
-        const val MIDI_MIME = "audio/midi"
         const val SUPPORT_URL = "https://individuation.dev/contact/"
 
         /** What to offer a file as, by its extension: an export is its format's
          * type, anything else a song file. Read off the file rather than the
          * sheet's format, which may have been switched since it was written. */
-        fun mimeTypeFor(file: File): String = when (file.extension.lowercase()) {
-            "wav" -> WAV_MIME
-            "mid" -> MIDI_MIME
-            else -> SONG_MIME
-        }
+        fun mimeTypeFor(file: File): String = ExportOptions.Format.fromExtension(file.extension)?.mimeType ?: SONG_MIME
     }
 }
 

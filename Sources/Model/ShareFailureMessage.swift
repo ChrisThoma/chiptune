@@ -18,30 +18,24 @@ enum WriteFailureMessage {
     /// The two-argument form is the WAV wrapper: it keeps the shape the three
     /// alert builders share (`(String, Error) -> String`).
     static func export(name: String, error: Error) -> String {
-        export(name: name, error: error, file: exportFile(for: .wav))
+        export(name: name, error: error, file: ExportOptions.Format.wav.fileNoun)
     }
 
     static func export(name: String, error: Error, file: String) -> String {
         "Couldn't export \(shown(name)). \(reasonAndAdvice(for: error, file: file))"
     }
 
-    /// What an export's file is called in an alert.
-    static func exportFile(for format: ExportOptions.Format) -> String {
-        switch format {
-        case .wav: return "WAV file"
-        case .midi: return "MIDI file"
-        }
-    }
-
-    static func exportFile(forExtension ext: String) -> String {
-        exportFile(for: ext.lowercased() == "mid" ? .midi : .wav)
+    /// What a file of this extension is called in an alert: an export is
+    /// its format's file, and anything else is a song file, the one other
+    /// kind of file the app hands over. Android's `fileNoun` is the same rule.
+    static func fileNoun(forExtension ext: String) -> String {
+        ExportOptions.Format(fileExtension: ext)?.fileNoun ?? "song file"
     }
 
     /// Named from the file that was offered rather than the sheet's current
-    /// format, which may have been switched since the export finished. A nil
-    /// URL falls back to WAV.
-    static func exportFile(for url: URL?) -> String {
-        exportFile(forExtension: url?.pathExtension ?? "wav")
+    /// format, which may have been switched since the export finished.
+    static func fileNoun(for url: URL) -> String {
+        fileNoun(forExtension: url.pathExtension)
     }
 
     /// The song's name in quotes, clipped with an ellipsis past `nameLimit`

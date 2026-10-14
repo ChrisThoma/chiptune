@@ -157,8 +157,8 @@ class FailureMessageTest {
     @Test fun exportWordsNameTheFileThatFailed() {
         assertEquals("Couldn't export \u201CNeon Ascent\u201D. The app doesn't have permission to write the MIDI file.",
             WriteFailureMessage.export("Neon Ascent", permission, "MIDI file"))
-        assertEquals("MIDI file", WriteFailureMessage.exportFile(ExportOptions.Format.MIDI))
-        assertEquals("WAV file", WriteFailureMessage.exportFile(ExportOptions.Format.WAV))
+        assertEquals("MIDI file", ExportOptions.Format.MIDI.fileNoun)
+        assertEquals("WAV file", ExportOptions.Format.WAV.fileNoun)
     }
 
     /** A share or save failure reads the noun off the file that was offered,
@@ -170,6 +170,7 @@ class FailureMessageTest {
         assertEquals("WAV file", WriteFailureMessage.fileNoun("WAV"))
         assertEquals("song file", WriteFailureMessage.fileNoun("chipsong"))
         assertEquals("song file", WriteFailureMessage.fileNoun(""))
+        assertEquals("song file", WriteFailureMessage.fileNoun("txt"))
     }
 
     // MARK: Delete failed

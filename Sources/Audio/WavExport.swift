@@ -16,8 +16,41 @@ struct ExportOptions: Equatable, Sendable {
 
     /// Which file the export writes. MIDI is the arrangement once, so
     /// `loopCount` and `tailMode` only shape a WAV.
-    enum Format: Equatable, Sendable {
+    enum Format: Equatable, Sendable, CaseIterable {
         case wav, midi
+
+        /// What the sheet calls it: the picker's segment and the button's
+        /// "Export WAV".
+        var label: String {
+            switch self {
+            case .wav: return "WAV"
+            case .midi: return "MIDI"
+            }
+        }
+
+        var fileExtension: String {
+            switch self {
+            case .wav: return "wav"
+            case .midi: return "mid"
+            }
+        }
+
+        /// What its file is called in an alert.
+        var fileNoun: String {
+            switch self {
+            case .wav: return "WAV file"
+            case .midi: return "MIDI file"
+            }
+        }
+
+        /// The format a file of this extension was written as, ignoring
+        /// case; nil for anything the exporters don't write.
+        init?(fileExtension: String) {
+            guard let format = Self.allCases.first(where: { $0.fileExtension == fileExtension.lowercased() }) else {
+                return nil
+            }
+            self = format
+        }
     }
 
     var format: Format = .wav
@@ -77,14 +110,14 @@ enum Export {
 /// Where exports are written, shared by the WAV and MIDI writers.
 enum ExportFiles {
 
-    static func url(for song: Song, extension ext: String) -> URL {
+    static func url(for song: Song, format: ExportOptions.Format) -> URL {
         let base = SongDocument.safeName(song)
         // A per-song directory keeps the shared file's display name clean while
         // stopping two same-named songs from overwriting each other's export.
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(song.id.uuidString, isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("\(base).\(ext)")
+        return dir.appendingPathComponent("\(base).\(format.fileExtension)")
     }
 
     /// Renaming a song leaves its old export sitting in the same per-song temp
@@ -282,7 +315,7 @@ enum WavExport {
     }
 
     static func filename(for song: Song) -> URL {
-        ExportFiles.url(for: song, extension: "wav")
+        ExportFiles.url(for: song, format: .wav)
     }
 
     /// Streams the folded head plus the raw body file out as a WAV, converting

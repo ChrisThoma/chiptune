@@ -23,7 +23,21 @@ data class ExportOptions(
      * options positionally. */
     val format: Format = Format.WAV,
 ) {
-    enum class Format { WAV, MIDI }
+    /** Each format and everything that names it or its file: [label] in the
+     * sheet ("Export WAV"), [fileExtension], [fileNoun] in an alert, and the
+     * [mimeType] a share or save offers. Swift's `ExportOptions.Format`. */
+    enum class Format(val label: String, val fileExtension: String, val fileNoun: String, val mimeType: String) {
+        WAV("WAV", "wav", "WAV file", "audio/wav"),
+        MIDI("MIDI", "mid", "MIDI file", "audio/midi"),
+        ;
+
+        companion object {
+            /** The format a file of this extension was written as, ignoring
+             * case; null for anything the exporters don't write. */
+            fun fromExtension(extension: String): Format? =
+                entries.firstOrNull { it.fileExtension == extension.lowercase() }
+        }
+    }
 
     enum class TailMode {
         /** Exactly `loopCount` passes long, with the final notes' ring-out
@@ -82,11 +96,11 @@ object ExportFiles {
     /** `<directory>/<SONG-UUID>/<safeName>.<ext>`; the per-song folder keeps
      * the shared file's display name clean while stopping two same-named
      * songs from overwriting each other's export. Creates the folder. */
-    fun file(song: Song, directory: File, ext: String): File {
+    fun file(song: Song, directory: File, format: ExportOptions.Format): File {
         val base = SongDocument.safeName(song)
         val dir = File(directory, song.id.toString().uppercase())
         dir.mkdirs()
-        return File(dir, "$base.$ext")
+        return File(dir, "$base.${format.fileExtension}")
     }
 
     /** Renaming a song leaves its old export sitting in the same per-song
@@ -275,7 +289,7 @@ object WavExport {
     }
 
     /** `<directory>/<SONG-UUID>/<safeName>.wav`. Creates the folder. */
-    fun filename(song: Song, directory: File): File = ExportFiles.file(song, directory, "wav")
+    fun filename(song: Song, directory: File): File = ExportFiles.file(song, directory, ExportOptions.Format.WAV)
 
     /** Streams the folded head plus the raw body file out as a WAV, converting
      * to 16-bit in chunks so the whole song is never in memory twice. */

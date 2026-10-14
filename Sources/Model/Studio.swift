@@ -1469,7 +1469,7 @@ final class Studio {
             case .failed(let error):
                 self.exportError = WriteFailureMessage.export(
                     name: song.name, error: error,
-                    file: WriteFailureMessage.exportFile(for: options.format))
+                    file: options.format.fileNoun)
             }
             self.completedExportAttempt = attempt
         }

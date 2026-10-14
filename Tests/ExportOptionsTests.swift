@@ -515,6 +515,27 @@ final class ExportFormatTests: XCTestCase {
         XCTAssertEqual(ExportOptions().format, .wav)
     }
 
+    /// Everything that names a format or its file reads it from here, so the
+    /// extension, the alert's noun and the sheet's label can't drift apart.
+    func testEachFormatNamesItsFile() {
+        XCTAssertEqual(ExportOptions.Format.wav.fileExtension, "wav")
+        XCTAssertEqual(ExportOptions.Format.midi.fileExtension, "mid")
+        XCTAssertEqual(ExportOptions.Format.wav.fileNoun, "WAV file")
+        XCTAssertEqual(ExportOptions.Format.midi.fileNoun, "MIDI file")
+        XCTAssertEqual(ExportOptions.Format.wav.label, "WAV")
+        XCTAssertEqual(ExportOptions.Format.midi.label, "MIDI")
+    }
+
+    func testAFormatIsFoundFromItsExtensionInAnyCase() {
+        XCTAssertEqual(ExportOptions.Format(fileExtension: "wav"), .wav)
+        XCTAssertEqual(ExportOptions.Format(fileExtension: "WAV"), .wav)
+        XCTAssertEqual(ExportOptions.Format(fileExtension: "mid"), .midi)
+        XCTAssertEqual(ExportOptions.Format(fileExtension: "Mid"), .midi)
+        XCTAssertNil(ExportOptions.Format(fileExtension: "chipsong"))
+        XCTAssertNil(ExportOptions.Format(fileExtension: "midi"))
+        XCTAssertNil(ExportOptions.Format(fileExtension: ""))
+    }
+
     func testWavFormatRendersAWavFile() throws {
         guard case .success(let url) = Export.render(ExportRequest(song: song())) else {
             return XCTFail("a default export should succeed")
