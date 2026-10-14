@@ -167,21 +167,27 @@ object MidiExport {
     /**
      * Which drum each note on a noise track plays.
      *
-     * A track that still sounds like a preset plays that preset's drum for
-     * every note, whatever pitch it was written at and however loud it is. A custom one is spread over kick,
-     * snare and closed hat by where each note sits among the track's own
-     * distinct notes, lowest to highest. It has to be relative: the library
-     * songs write their noise between 52 and 71, so fixed pitch ranges would
-     * make nearly everything a snare. Only the notes the arrangement plays
+     * A track that plays a single pitch and still sounds like a preset plays
+     * that preset's drum, however loud it is: one pitch is one drum, and the
+     * preset says which. A track that plays two or more pitches is a kit
+     * written by pitch, preset or not (every new song's noise track is the
+     * Hat preset), so its notes are spread over kick, snare and closed hat
+     * by where each sits among the track's own distinct notes, lowest to
+     * highest. A custom track at one pitch is a snare. The bands have to be
+     * relative: the library songs write their noise between 52 and 71, so
+     * fixed pitch ranges would make nearly everything a snare. Only the
+     * notes the arrangement plays
      * count, so an unplayed pattern can't move the bands.
      */
     private fun drumMap(index: Int, song: Song, chain: List<Int>): (Int) -> Int {
         val instrument = song.tracks[index].instrument
-        drumPreset(instrument)?.let { preset ->
-            PRESET_DRUMS[preset.name]?.let { drum -> return { drum } }
-        }
         val distinct = chain.flatMap { song.patterns[it].rows[index].take(song.patterns[it].length) }
             .filter { it >= 0 }.toSortedSet().toList()
+        if (distinct.size <= 1) {
+            drumPreset(instrument)?.let { preset ->
+                PRESET_DRUMS[preset.name]?.let { drum -> return { drum } }
+            }
+        }
         val bands = listOf(36, 38, 42)
         val drums = HashMap<Int, Int>()
         for ((i, note) in distinct.withIndex()) {

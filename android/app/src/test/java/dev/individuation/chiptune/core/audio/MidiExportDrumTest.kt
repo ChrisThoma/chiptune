@@ -47,15 +47,35 @@ class MidiExportDrumTest {
 
     // MARK: Presets
 
-    @Test fun eachNoisePresetPlaysItsOwnDrumWhateverThePitch() {
+    @Test fun eachNoisePresetPlaysItsOwnDrumWhenTheTrackPlaysOnePitch() {
         val expected = mapOf("Kick" to kick, "Snare" to snare, "Hat" to openHat, "Closed hat" to closedHat, "Crash" to crash)
         val presets = InstrumentPreset.presetsFor(ChannelKind.NOISE)
         assertEquals("a new noise preset needs a drum of its own", expected.keys, presets.map { it.name }.toSet())
         for (preset in presets) {
-            val notes = drumNotes(song(listOf(60, -1, 40, -1, 71), preset.instrument))
+            val notes = drumNotes(song(listOf(40, -1, 40, -1, 40), preset.instrument))
             assertEquals(preset.name, List(3) { expected.getValue(preset.name) }, notes.map { it.note })
             assertEquals(preset.name, setOf(9), notes.map { it.channel }.toSet())
         }
+    }
+
+    /** A preset track written at several pitches is someone writing a kit by
+     * pitch, so it is banded like a custom one, whichever preset it is. */
+    @Test fun aPresetTrackPlayingSeveralPitchesIsBandedByPitch() {
+        for (preset in InstrumentPreset.presetsFor(ChannelKind.NOISE)) {
+            assertEquals(preset.name, listOf(snare, kick, closedHat),
+                drumNotes(song(listOf(60, 50, 70), preset.instrument)).map { it.note })
+        }
+    }
+
+    /** The default track every new song starts with is the Hat preset. A
+     * beginner who writes kick, snare and hat on it by pitch gets them, not
+     * a bar of open hats. */
+    @Test fun theDefaultHatTrackWrittenAtThreePitchesPlaysKickSnareAndHat() {
+        val track = Track(kind = ChannelKind.NOISE)
+        assertEquals("the premise: a new noise track is the Hat preset", "Hat",
+            InstrumentPreset.matching(track.instrument, ChannelKind.NOISE)?.name)
+        val notes = drumNotes(song(listOf(36, -1, 48, -1, 60, -1, 48), track.instrument))
+        assertEquals(listOf(kick, snare, closedHat, snare), notes.map { it.note })
     }
 
     /** Volume is how loud the drum is, not which drum it is, and duty means
@@ -63,10 +83,10 @@ class MidiExportDrumTest {
      * preset's drum. */
     @Test fun aPresetWithItsVolumeOrDutyChangedStillPlaysItsDrum() {
         val louder = preset("Kick").instrument.copy(volume = 0.5)
-        assertEquals(listOf(kick, kick, kick), drumNotes(song(listOf(60, -1, 40, -1, 71), louder)).map { it.note })
+        assertEquals(listOf(kick, kick, kick), drumNotes(song(listOf(60, -1, 60, -1, 60), louder)).map { it.note })
 
         val otherDuty = preset("Crash").instrument.copy(duty = 0, volume = 0.3)
-        assertEquals(listOf(crash, crash), drumNotes(song(listOf(60, -1, 40), otherDuty)).map { it.note })
+        assertEquals(listOf(crash, crash), drumNotes(song(listOf(60, -1, 60), otherDuty)).map { it.note })
     }
 
     /** Decay, hold and arpeggio change the sound itself, so a preset edited
