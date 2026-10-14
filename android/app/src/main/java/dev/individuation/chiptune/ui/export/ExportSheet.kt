@@ -193,7 +193,7 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
                         color = ChipColors.text,
                         enabled = ExportCopy.canExport(song.hasNotes, startedAttempt != null),
                         onClick = {
-                            if (startedAttempt == null) startedAttempt = studio.export(options)
+                            if (startedAttempt == null) startedAttempt = studio.export()
                         },
                     )
                 }
