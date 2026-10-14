@@ -58,6 +58,26 @@ class MidiExportDrumTest {
         }
     }
 
+    /** Volume is how loud the drum is, not which drum it is, and duty means
+     * nothing to the noise channel. A preset nudged in either is still that
+     * preset's drum. */
+    @Test fun aPresetWithItsVolumeOrDutyChangedStillPlaysItsDrum() {
+        val louder = preset("Kick").instrument.copy(volume = 0.5)
+        assertEquals(listOf(kick, kick, kick), drumNotes(song(listOf(60, -1, 40, -1, 71), louder)).map { it.note })
+
+        val otherDuty = preset("Crash").instrument.copy(duty = 0, volume = 0.3)
+        assertEquals(listOf(crash, crash), drumNotes(song(listOf(60, -1, 40), otherDuty)).map { it.note })
+    }
+
+    /** Decay, hold and arpeggio change the sound itself, so a preset edited
+     * in any of them is custom and is banded by pitch. */
+    @Test fun aPresetWithItsSoundChangedIsBandedByPitch() {
+        val kickSound = preset("Kick").instrument
+        for (instrument in listOf(kickSound.copy(decay = 0.2), kickSound.copy(sustain = true), kickSound.copy(arpeggio = listOf(0, 12)))) {
+            assertEquals("$instrument", listOf(snare, kick, closedHat), drumNotes(song(listOf(60, 50, 70), instrument)).map { it.note })
+        }
+    }
+
     // MARK: Custom
 
     @Test fun customNoiseSpreadsItsDistinctNotesOverKickSnareAndHat() {

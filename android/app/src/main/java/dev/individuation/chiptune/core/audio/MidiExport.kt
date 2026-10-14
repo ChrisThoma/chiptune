@@ -2,6 +2,7 @@ package dev.individuation.chiptune.core.audio
 
 import dev.individuation.chiptune.core.model.ChannelKind
 import dev.individuation.chiptune.core.model.Chip
+import dev.individuation.chiptune.core.model.Instrument
 import dev.individuation.chiptune.core.model.InstrumentPreset
 import dev.individuation.chiptune.core.model.Song
 import dev.individuation.chiptune.core.model.Track
@@ -102,11 +103,23 @@ object MidiExport {
         "Kick" to 36, "Snare" to 38, "Hat" to 46, "Closed hat" to 42, "Crash" to 49,
     )
 
+    /** The noise preset an instrument still sounds like, for picking its
+     * drum. Looser than [InstrumentPreset.matching], which drives the menu's
+     * "Custom": volume is how loud the drum is rather than which drum, and the
+     * noise channel has no duty cycle, so neither is compared. Decay, hold and
+     * arpeggio are the sound itself. */
+    private fun drumPreset(instrument: Instrument): InstrumentPreset? =
+        InstrumentPreset.presetsFor(ChannelKind.NOISE).firstOrNull {
+            it.instrument.decay == instrument.decay &&
+                it.instrument.sustain == instrument.sustain &&
+                it.instrument.arpeggio == instrument.arpeggio
+        }
+
     /**
      * Which drum each note on a noise track plays.
      *
-     * A track still on a preset plays that preset's drum for every note,
-     * whatever pitch it was written at. A custom one is spread over kick,
+     * A track that still sounds like a preset plays that preset's drum for
+     * every note, whatever pitch it was written at and however loud it is. A custom one is spread over kick,
      * snare and closed hat by where each note sits among the track's own
      * distinct notes, lowest to highest. It has to be relative: the library
      * songs write their noise between 52 and 71, so fixed pitch ranges would
@@ -115,7 +128,7 @@ object MidiExport {
      */
     private fun drumMap(index: Int, song: Song): (Int) -> Int {
         val instrument = song.tracks[index].instrument
-        InstrumentPreset.matching(instrument, ChannelKind.NOISE)?.let { preset ->
+        drumPreset(instrument)?.let { preset ->
             PRESET_DRUMS[preset.name]?.let { drum -> return { drum } }
         }
         val distinct = song.chain.flatMap { song.patterns[it].rows[index].take(song.patterns[it].length) }
