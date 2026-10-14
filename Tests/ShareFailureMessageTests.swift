@@ -152,7 +152,7 @@ final class DeleteFailureMessageTests: XCTestCase {
         let denied = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteNoPermission.rawValue,
                              userInfo: [NSLocalizedDescriptionKey: raw])
         XCTAssertEqual(DeleteFailureMessage.song(name: "Doomed", error: denied),
-                       "Couldn't delete “Doomed”. The app isn't allowed to change that file.")
+                       "Couldn't delete “Doomed”. The app doesn't have permission to change that file.")
     }
 
     func testAnUnknownCauseSaysTryAgainAndNothingRaw() {
