@@ -1281,7 +1281,7 @@ class Studio(
                 ExportResult.Canceled -> base
                 ExportResult.TooLong -> base.copy(exportError = TOO_LONG_MESSAGE)
                 is ExportResult.Failed -> base.copy(
-                    exportError = WriteFailureMessage.export(name, result.error, WriteFailureMessage.exportFile(format)),
+                    exportError = WriteFailureMessage.export(name, result.error, format.fileNoun),
                 )
             }
         }

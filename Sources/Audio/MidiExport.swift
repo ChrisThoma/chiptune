@@ -31,7 +31,7 @@ enum MidiExport {
     }
 
     static func filename(for song: Song) -> URL {
-        ExportFiles.url(for: song, extension: "mid")
+        ExportFiles.url(for: song, format: .midi)
     }
 
     /// The file's bytes. Normalizes first, as the WAV export does, so a song

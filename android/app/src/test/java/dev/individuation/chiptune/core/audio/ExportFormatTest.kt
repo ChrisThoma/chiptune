@@ -31,6 +31,30 @@ class ExportFormatTest {
         assertEquals(ExportOptions.Format.WAV, ExportOptions().format)
     }
 
+    /** Everything that names a format or its file reads it from here, so the
+     * extension, the alert's noun, the sheet's label and the MIME type can't
+     * drift apart. */
+    @Test fun eachFormatNamesItsFile() {
+        assertEquals("wav", ExportOptions.Format.WAV.fileExtension)
+        assertEquals("mid", ExportOptions.Format.MIDI.fileExtension)
+        assertEquals("WAV file", ExportOptions.Format.WAV.fileNoun)
+        assertEquals("MIDI file", ExportOptions.Format.MIDI.fileNoun)
+        assertEquals("WAV", ExportOptions.Format.WAV.label)
+        assertEquals("MIDI", ExportOptions.Format.MIDI.label)
+        assertEquals("audio/wav", ExportOptions.Format.WAV.mimeType)
+        assertEquals("audio/midi", ExportOptions.Format.MIDI.mimeType)
+    }
+
+    @Test fun aFormatIsFoundFromItsExtensionInAnyCase() {
+        assertEquals(ExportOptions.Format.WAV, ExportOptions.Format.fromExtension("wav"))
+        assertEquals(ExportOptions.Format.WAV, ExportOptions.Format.fromExtension("WAV"))
+        assertEquals(ExportOptions.Format.MIDI, ExportOptions.Format.fromExtension("mid"))
+        assertEquals(ExportOptions.Format.MIDI, ExportOptions.Format.fromExtension("Mid"))
+        assertEquals(null, ExportOptions.Format.fromExtension("chipsong"))
+        assertEquals(null, ExportOptions.Format.fromExtension("midi"))
+        assertEquals(null, ExportOptions.Format.fromExtension(""))
+    }
+
     /** Tests build options positionally, so format has to come after the rest. */
     @Test fun formatIsTheLastConstructorParameter() {
         val options = ExportOptions(3, ExportOptions.TailMode.RING_OUT, ExportOptions.Format.MIDI)

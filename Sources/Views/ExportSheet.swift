@@ -127,8 +127,9 @@ struct ExportSheet: View {
             Form {
                 Section {
                     Picker("Format", selection: $studio.exportOptions.format) {
-                        Text("WAV").tag(ExportOptions.Format.wav)
-                        Text("MIDI").tag(ExportOptions.Format.midi)
+                        ForEach(ExportOptions.Format.allCases, id: \.self) { format in
+                            Text(format.label).tag(format)
+                        }
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
@@ -162,7 +163,7 @@ struct ExportSheet: View {
                             guard startedAttempt == nil else { return }
                             startedAttempt = studio.export(options: studio.exportOptions)
                         } label: {
-                            Label(format == .midi ? "Export MIDI" : "Export WAV", systemImage: "square.and.arrow.up")
+                            Label("Export \(format.label)", systemImage: "square.and.arrow.up")
                         }
                         .disabled(startedAttempt != nil || !studio.song.hasNotes)
                     }

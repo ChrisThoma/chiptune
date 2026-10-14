@@ -7,16 +7,14 @@ import org.junit.Test
 /** The MIME type a share or save offers follows the file's extension, not the
  * sheet's current format, which may have been switched since the export finished. */
 class EditorEffectsMimeTest {
-    @Test fun midiHasItsOwnType() = assertEquals("audio/midi", EditorEffects.MIDI_MIME)
-
     @Test fun exportsAreOfferedByTheirExtension() {
-        assertEquals(EditorEffects.WAV_MIME, EditorEffects.mimeTypeFor(File("/x/Song.wav")))
-        assertEquals(EditorEffects.MIDI_MIME, EditorEffects.mimeTypeFor(File("/x/Song.mid")))
-        assertEquals(EditorEffects.MIDI_MIME, EditorEffects.mimeTypeFor(File("/x/Song.MID")))
+        assertEquals("audio/wav", EditorEffects.mimeTypeFor(File("/x/Song.wav")))
+        assertEquals("audio/midi", EditorEffects.mimeTypeFor(File("/x/Song.mid")))
+        assertEquals("audio/midi", EditorEffects.mimeTypeFor(File("/x/Song.MID")))
     }
 
     @Test fun anythingElseIsASongFile() {
-        assertEquals(EditorEffects.SONG_MIME, EditorEffects.mimeTypeFor(File("/x/Song.chipsong")))
+        assertEquals("application/json", EditorEffects.mimeTypeFor(File("/x/Song.chipsong")))
         assertEquals(EditorEffects.SONG_MIME, EditorEffects.mimeTypeFor(File("/x/Song")))
     }
 }

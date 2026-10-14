@@ -115,7 +115,7 @@ class MidiExportFileTest {
 
     @Test fun aMidiExportClearsARenamedSongsOldMidiAndNothingElse() {
         var song = TestSongs.empty(name = "One", tempo = 240.0).setNote(0, 0, 60)
-        val dir = export(song, ExportOptions.Format.MIDI).parentFile
+        val dir = export(song, ExportOptions.Format.MIDI).parentFile!!
         export(song, ExportOptions.Format.WAV)
         File(dir, "keep.txt").writeBytes(byteArrayOf(0))
 
@@ -126,7 +126,7 @@ class MidiExportFileTest {
 
     @Test fun aWavExportClearsARenamedSongsOldWavAndNothingElse() {
         var song = TestSongs.empty(name = "One", tempo = 240.0).setNote(0, 0, 60)
-        val dir = export(song, ExportOptions.Format.WAV).parentFile
+        val dir = export(song, ExportOptions.Format.WAV).parentFile!!
         export(song, ExportOptions.Format.MIDI)
 
         song = song.copy(name = "Two")
@@ -140,7 +140,7 @@ class MidiExportFileTest {
         val song = TestSongs.empty(name = "Both", tempo = 240.0).setNote(0, 0, 60)
         val wav = export(song, ExportOptions.Format.WAV)
         val mid = export(song, ExportOptions.Format.MIDI)
-        assertEquals(setOf("Both.wav", "Both.mid"), fileNames(wav.parentFile))
+        assertEquals(setOf("Both.wav", "Both.mid"), fileNames(wav.parentFile!!))
         export(song, ExportOptions.Format.WAV)
         assertTrue(mid.exists())
     }

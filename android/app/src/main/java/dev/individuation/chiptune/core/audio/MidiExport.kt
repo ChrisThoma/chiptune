@@ -50,7 +50,7 @@ object MidiExport {
     }
 
     /** `<directory>/<SONG-UUID>/<safeName>.mid`, beside the song's WAV. Creates the folder. */
-    fun filename(song: Song, directory: File): File = ExportFiles.file(song, directory, "mid")
+    fun filename(song: Song, directory: File): File = ExportFiles.file(song, directory, ExportOptions.Format.MIDI)
 
     /** The file's bytes. Normalizes first, as the WAV export does, so a song
      * straight from a file can't put an out-of-range tempo into the header. */

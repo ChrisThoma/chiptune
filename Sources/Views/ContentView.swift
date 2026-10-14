@@ -299,7 +299,7 @@ struct ContentView: View {
             if let url = studio.exportURL {
                 ShareSheet(items: [url], onComplete: { completed, error in
                     if error != nil {
-                        studio.shareError = ShareFailureMessage.sheet(file: WriteFailureMessage.exportFile(for: url))
+                        studio.shareError = ShareFailureMessage.sheet(file: WriteFailureMessage.fileNoun(for: url))
                     }
                     shareOutcome = completed ? .completed : (error != nil ? .failed : .canceled)
                 })

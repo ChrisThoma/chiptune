@@ -252,7 +252,7 @@ private fun FormatPicker(format: ExportOptions.Format, enabled: Boolean, onSelec
                     ),
                     icon = {},
                 ) {
-                    Text(ExportCopy.formatLabel(option), fontSize = 15.sp)
+                    Text(option.label, fontSize = 15.sp)
                 }
             }
         }

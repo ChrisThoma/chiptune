@@ -190,8 +190,8 @@ class ExportCopyTest {
     }
 
     @Test fun formatChoiceAndButtonNameTheFormat() {
-        assertEquals("WAV", ExportCopy.formatLabel(ExportOptions.Format.WAV))
-        assertEquals("MIDI", ExportCopy.formatLabel(ExportOptions.Format.MIDI))
+        assertEquals("WAV", ExportOptions.Format.WAV.label)
+        assertEquals("MIDI", ExportOptions.Format.MIDI.label)
         assertEquals("Export WAV", ExportCopy.exportButton(ExportOptions.Format.WAV))
         assertEquals("Export MIDI", ExportCopy.exportButton(ExportOptions.Format.MIDI))
     }
