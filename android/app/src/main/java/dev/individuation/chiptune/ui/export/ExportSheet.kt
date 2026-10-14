@@ -228,12 +228,15 @@ private fun EndingRow(label: String, selected: Boolean, enabled: Boolean, onClic
 @Composable
 private fun FormatPicker(format: ExportOptions.Format, enabled: Boolean, onSelect: (ExportOptions.Format) -> Unit) {
     val formats = ExportOptions.Format.entries
-    FormRow(Modifier.alpha(if (enabled) 1f else 0.4f).semantics { contentDescription = "Format" }) {
+    // The label is on each segment (see [ExportCopy.formatSegment]), not
+    // here: a described row with no action of its own is a TalkBack stop.
+    FormRow(Modifier.alpha(if (enabled) 1f else 0.4f)) {
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             formats.forEachIndexed { i, option ->
                 SegmentedButton(
                     selected = option == format,
                     onClick = { onSelect(option) },
+                    modifier = Modifier.semantics { contentDescription = ExportCopy.formatSegment(option) },
                     shape = SegmentedButtonDefaults.itemShape(index = i, count = formats.size),
                     enabled = enabled,
                     colors = SegmentedButtonDefaults.colors(

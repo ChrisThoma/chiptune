@@ -79,6 +79,12 @@ object ExportControls {
 object ExportCopy {
     fun exportButton(format: ExportOptions.Format): String = "Export ${format.label}"
 
+    /** What TalkBack reads for one segment of the format picker. The picker's
+     * name rides on each segment rather than on the row around them, which
+     * TalkBack would stop on by itself: iOS's segments sit in a tab group
+     * labelled "Format" that VoiceOver names on the way in. */
+    fun formatSegment(format: ExportOptions.Format): String = "Format, ${format.label}"
+
     /** A MIDI file is the arrangement once, so Repeats and Ending only shape a WAV. */
     fun hasRepeatsAndEnding(format: ExportOptions.Format): Boolean = format == ExportOptions.Format.WAV
 

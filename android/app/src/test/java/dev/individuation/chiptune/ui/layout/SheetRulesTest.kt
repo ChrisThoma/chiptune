@@ -187,6 +187,13 @@ class ExportFooterTest {
 class ExportCopyTest {
     @Test fun repeatsReadoutUsesTheTimesSign() = assertEquals("3\u00d7", ExportCopy.loopCount(3))
 
+    /** Each format segment carries the picker's name, as iOS's segments sit
+     * in a tab group labelled "Format", so the label costs no stop of its own. */
+    @Test fun eachFormatSegmentIsLabelledWithThePicker() {
+        assertEquals("Format, WAV", ExportCopy.formatSegment(ExportOptions.Format.WAV))
+        assertEquals("Format, MIDI", ExportCopy.formatSegment(ExportOptions.Format.MIDI))
+    }
+
     @Test fun repeatsFooterNamesTheCountAndOnePassLength() {
         // Golden: 16 steps at 132 BPM, 4 steps a beat = 1.818 s a pass.
         val song = TestSongs.golden()
