@@ -9,6 +9,7 @@ import javax.sound.midi.MidiSystem
 import javax.sound.midi.ShortMessage
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -143,6 +144,60 @@ class MidiExportFileTest {
         assertEquals(setOf("Both.wav", "Both.mid"), fileNames(wav.parentFile!!))
         export(song, ExportOptions.Format.WAV)
         assertTrue(mid.exists())
+    }
+
+    // MARK: Canceling
+
+    /** Closing the sheet or switching songs cancels: no file is shared. */
+    @Test fun aCancelBeforeTheWriteWritesNothingAndKeepsThePreviousExport() {
+        val song = TestSongs.empty(name = "Kept").setNote(0, 0, 60)
+        val first = render(song)
+        val firstBytes = first.readBytes()
+
+        val result = MidiExport.render(ExportRequest(song.setNote(0, 4, 64), isCanceled = { true }), temp.root)
+        assertEquals(ExportResult.Canceled, result)
+        assertArrayEquals(firstBytes, first.readBytes())
+
+        val other = TestSongs.empty(name = "Never").setNote(0, 0, 60)
+        assertEquals(ExportResult.Canceled, MidiExport.render(ExportRequest(other, isCanceled = { true }), temp.root))
+        assertFalse(MidiExport.filename(other, temp.root).exists())
+    }
+
+    /** A cancel that lands while the file is written still cancels, and the
+     * new file goes: nothing was there before it. */
+    @Test fun aCancelDuringTheWriteRemovesTheNewFile() {
+        val song = TestSongs.empty(name = "Late").setNote(0, 0, 60)
+        val target = MidiExport.filename(song, temp.root)
+        // True once the file is on disk, which is to say after the write.
+        val result = MidiExport.render(ExportRequest(song, isCanceled = { target.exists() }), temp.root)
+        assertEquals(ExportResult.Canceled, result)
+        assertFalse(target.exists())
+    }
+
+    /** The write already replaced the previous export of that name, so the
+     * new, whole file is kept rather than leaving the song with none. */
+    @Test fun aLateCancelKeepsAFileThatReplacedThePreviousExport() {
+        var song = TestSongs.empty(name = "Again").setNote(0, 0, 60)
+        val file = render(song)
+
+        song = song.setNote(0, 4, 64)
+        val newBytes = MidiExport.data(song)
+        val result = MidiExport.render(ExportRequest(song, isCanceled = { file.readBytes().contentEquals(newBytes) }), temp.root)
+        assertEquals(ExportResult.Canceled, result)
+        assertArrayEquals(newBytes, file.readBytes())
+    }
+
+    /** The dispatcher prunes only after a success, so a canceled export
+     * costs no older file. */
+    @Test fun aCanceledExportPrunesNothing() {
+        val song = TestSongs.empty(name = "Old", tempo = 240.0).setNote(0, 0, 60)
+        val old = export(song, ExportOptions.Format.MIDI)
+        val result = ExportRenderer.render(
+            ExportRequest(song.copy(name = "New"), ExportOptions(format = ExportOptions.Format.MIDI), isCanceled = { true }),
+            temp.root,
+        )
+        assertEquals(ExportResult.Canceled, result)
+        assertEquals(setOf("Old.mid"), fileNames(old.parentFile!!))
     }
 
     // MARK: Failure
