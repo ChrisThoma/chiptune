@@ -68,6 +68,18 @@ enum ExportFormatFooter {
     }
 }
 
+/// The line under the progress bar. "Exporting", not "Rendering", since it
+/// covers both formats; only a WAV reports progress, so only a WAV gives a
+/// percentage, where a MIDI one would sit at 0%.
+enum ExportProgressText {
+    static func text(format: ExportOptions.Format, progress: Double) -> String {
+        switch format {
+        case .wav: return "Exporting… \(Int(progress * 100))%"
+        case .midi: return "Exporting…"
+        }
+    }
+}
+
 /// Whether the repeats and ending controls can still be changed. They are
 /// frozen for the length of a render: it keeps the settings it started with, so
 /// an edit made mid-render would only make the readout disagree with the file.
@@ -189,7 +201,7 @@ struct ExportSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             ProgressView(value: studio.exportProgress)
                                 .tint(Theme.accentGreen)
-                            Text("Rendering… \(Int(studio.exportProgress * 100))%")
+                            Text(ExportProgressText.text(format: format, progress: studio.exportProgress))
                                 .chipFont(11)
                                 .foregroundStyle(Theme.dim)
                         }
