@@ -87,8 +87,8 @@ class MidiExportFileTest {
     }
 
     @Test fun theFileSitsInTheSongsOwnExportFolder() {
-        // Beside the WAV, so the two can't miss each other's stale files, and
-        // apart from any other song's export of the same name.
+        // Beside the song's WAV, and apart from any other song's export of
+        // the same name.
         val song = Song.create("Twin")
         assertEquals(WavExport.filename(song, temp.root).parentFile, MidiExport.filename(song, temp.root).parentFile)
         assertNotEquals(MidiExport.filename(song, temp.root), MidiExport.filename(Song.create("Twin"), temp.root))
@@ -106,25 +106,43 @@ class MidiExportFileTest {
 
     // MARK: Pruning
 
-    @Test fun aMidiExportClearsTheSongsOlderExportsOfEitherKind() {
+    /** Through the dispatcher, which is where the app's exports prune. */
+    private fun export(song: Song, format: ExportOptions.Format): File {
+        val result = ExportRenderer.render(ExportRequest(song, ExportOptions(format = format)), temp.root)
+        assertTrue("the $format export failed: $result", result is ExportResult.Success)
+        return (result as ExportResult.Success).file
+    }
+
+    @Test fun aMidiExportClearsARenamedSongsOldMidiAndNothingElse() {
         var song = TestSongs.empty(name = "One", tempo = 240.0).setNote(0, 0, 60)
-        val wav = WavExport.render(song, temp.root)!!
-        val dir = wav.parentFile
-        File(dir, "Old.mid").writeBytes(byteArrayOf(0))
+        val dir = export(song, ExportOptions.Format.MIDI).parentFile
+        export(song, ExportOptions.Format.WAV)
         File(dir, "keep.txt").writeBytes(byteArrayOf(0))
 
         song = song.copy(name = "Two")
-        render(song)
-        assertEquals(setOf("Two.mid", "keep.txt"), fileNames(dir))
+        export(song, ExportOptions.Format.MIDI)
+        assertEquals(setOf("Two.mid", "One.wav", "keep.txt"), fileNames(dir))
     }
 
-    @Test fun aWavExportClearsAnOlderMidiExport() {
+    @Test fun aWavExportClearsARenamedSongsOldWavAndNothingElse() {
         var song = TestSongs.empty(name = "One", tempo = 240.0).setNote(0, 0, 60)
-        val dir = render(song).parentFile
+        val dir = export(song, ExportOptions.Format.WAV).parentFile
+        export(song, ExportOptions.Format.MIDI)
 
         song = song.copy(name = "Two")
-        WavExport.render(song, temp.root)!!
-        assertEquals(setOf("Two.wav"), fileNames(dir))
+        export(song, ExportOptions.Format.WAV)
+        assertEquals(setOf("Two.wav", "One.mid"), fileNames(dir))
+    }
+
+    /** Switching formats is not a stale export: the song's WAV and its MIDI
+     * file are both wanted. */
+    @Test fun eachFormatLeavesTheOthersFileAlone() {
+        val song = TestSongs.empty(name = "Both", tempo = 240.0).setNote(0, 0, 60)
+        val wav = export(song, ExportOptions.Format.WAV)
+        val mid = export(song, ExportOptions.Format.MIDI)
+        assertEquals(setOf("Both.wav", "Both.mid"), fileNames(wav.parentFile))
+        export(song, ExportOptions.Format.WAV)
+        assertTrue(mid.exists())
     }
 
     // MARK: Failure

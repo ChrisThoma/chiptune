@@ -186,11 +186,19 @@ final class WavExportTests: XCTestCase {
         song.tracks[0].instrument.sustain = true
         song.patterns[0].rows[0][0] = 60
 
-        let firstURL = try XCTUnwrap(WavExport.render(song: song))
+        // Through the dispatcher, which is where the app's exports prune.
+        func export() throws -> URL {
+            guard case .success(let url) = Export.render(ExportRequest(song: song)) else {
+                XCTFail("the export failed")
+                throw CocoaError(.fileWriteUnknown)
+            }
+            return url
+        }
+        let firstURL = try export()
         XCTAssertTrue(FileManager.default.fileExists(atPath: firstURL.path))
 
         song.name = "Two"
-        let secondURL = try XCTUnwrap(WavExport.render(song: song))
+        let secondURL = try export()
 
         let dir = firstURL.deletingLastPathComponent()
         let contents = try FileManager.default.contentsOfDirectory(atPath: dir.path)

@@ -237,7 +237,8 @@ class ExportOptionsTest {
 
         val calls = AtomicInteger(0)
         val total = polls.get()
-        val result = WavExport.render(
+        // Through the dispatcher, which is where the app's exports prune.
+        val result = ExportRenderer.render(
             ExportRequest(song.copy(name = "Late cancel 2"), options, isCanceled = { calls.incrementAndGet() >= total }),
             temp.root)
         assertEquals(ExportResult.Canceled, result)

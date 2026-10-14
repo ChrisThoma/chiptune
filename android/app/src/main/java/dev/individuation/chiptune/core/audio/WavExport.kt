@@ -62,19 +62,22 @@ class ExportRequest(
 
 /** Picks the writer for the format the export sheet chose. Studio's default
  * renderer, so the sheet's WAV / MIDI choice reaches the file without Studio
- * knowing either format. */
+ * knowing either format. Clears the song's stale exports once the new file is
+ * written, so neither writer has to. */
 object ExportRenderer {
-    fun render(request: ExportRequest, directory: File): ExportResult = when (request.options.format) {
-        ExportOptions.Format.WAV -> WavExport.render(request, directory)
-        ExportOptions.Format.MIDI -> MidiExport.render(request, directory)
+    fun render(request: ExportRequest, directory: File): ExportResult {
+        val result = when (request.options.format) {
+            ExportOptions.Format.WAV -> WavExport.render(request, directory)
+            ExportOptions.Format.MIDI -> MidiExport.render(request, directory)
+        }
+        if (result is ExportResult.Success) ExportFiles.pruneStale(result.file)
+        return result
     }
 }
 
-/** Where the exporters put their files, and how they clear away old ones.
+/** Where the exporters put their files, and how old ones are cleared away.
  * Port of `ExportFiles` in `Sources/Audio/WavExport.swift`. */
 object ExportFiles {
-    /** Extensions the exporters write. Pruning touches nothing else. */
-    val EXTENSIONS: Set<String> = setOf("wav", "mid")
 
     /** `<directory>/<SONG-UUID>/<safeName>.<ext>`; the per-song folder keeps
      * the shared file's display name clean while stopping two same-named
@@ -86,15 +89,17 @@ object ExportFiles {
         return File(dir, "$base.$ext")
     }
 
-    /** Renaming a song, or switching between WAV and MIDI, leaves the old
-     * export sitting in the same per-song folder as the new one. Only run once
-     * the new file is safely written, so a later failure never costs the
-     * previous export; every other `.wav` and `.mid` there goes. Best-effort:
-     * a cleanup failure doesn't fail the export that just succeeded. */
+    /** Renaming a song leaves its old export sitting in the same per-song
+     * folder as the new one. Only files of [keeping]'s own type go: the song's
+     * WAV and its MIDI file are each worth keeping while the other is
+     * exported. Only run once the new file is safely written, so a later
+     * failure never costs the previous export. Best-effort: a cleanup failure
+     * doesn't fail the export that just succeeded. */
     fun pruneStale(keeping: File) {
+        val ext = keeping.extension.lowercase()
         val entries = keeping.parentFile?.listFiles() ?: return
         for (entry in entries) {
-            if (entry.extension.lowercase() in EXTENSIONS && entry.name != keeping.name) entry.delete()
+            if (entry.extension.lowercase() == ext && entry.name != keeping.name) entry.delete()
         }
     }
 }
@@ -258,10 +263,7 @@ object WavExport {
             val streamed = (bodySamples - headLen) + (if (folding) 0 else tail)
             val target = filename(song, directory)
             val result = writeWav(head, rawFile, streamed, scale, request.isCanceled, target)
-            if (result is ExportResult.Success) {
-                report(totalFrames)
-                ExportFiles.pruneStale(result.file)
-            }
+            if (result is ExportResult.Success) report(totalFrames)
             return result
         } finally {
             try {
