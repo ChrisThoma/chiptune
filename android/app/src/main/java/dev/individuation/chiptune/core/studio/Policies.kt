@@ -176,6 +176,16 @@ object ExportFlow {
         return Step(closeExport = true, shareWhenExportCloses = true)
     }
 
+    /** The file a just-finished render left to share, read off the attempt
+     * counter rather than the file. Exporting the same song in the same
+     * format again writes the same path, and a MIDI file can land before the
+     * next frame, so the file's clear-then-set can fold into no change at all
+     * and the second export would end with nothing on screen. The counter
+     * moves for every finished render; one that left no file (canceled,
+     * failed) and a counter that hasn't moved forward ask for nothing. */
+    fun finishedExport(previousAttempt: Int, completedAttempt: Int, file: File?): File? =
+        if (completedAttempt > previousAttempt) file else null
+
     fun afterExportClosed(pendingShare: Boolean): Step = Step(shareNow = pendingShare)
 
     /** A panel dismissed mid-render cancels the render. */

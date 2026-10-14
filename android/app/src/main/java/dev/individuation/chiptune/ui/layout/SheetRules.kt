@@ -1,6 +1,7 @@
 package dev.individuation.chiptune.ui.layout
 
 import dev.individuation.chiptune.core.audio.ExportOptions
+import dev.individuation.chiptune.core.audio.MidiExport
 import dev.individuation.chiptune.core.audio.WavExport
 import dev.individuation.chiptune.core.model.Chip
 import dev.individuation.chiptune.core.model.ChannelKind
@@ -37,13 +38,66 @@ object ExportNotesFooter {
     }
 }
 
-/** The repeats and ending controls freeze for the length of a render: it
- * keeps the settings it started with. */
+/** What sits under the Export button for [format]. A WAV keeps the notes above.
+ * A MIDI file still carries a muted or 0% track's notes (at volume 0), or, for
+ * such a drum track beside one that plays, an empty track (see
+ * [MidiExport.emptiedTracks]), so the "would be silent" warning is replaced by a
+ * line saying where those tracks went; the no-notes messages stay, since there
+ * is nothing to export either way. */
+fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = when (format) {
+    ExportOptions.Format.WAV -> text(song)
+    ExportOptions.Format.MIDI -> if (!song.hasNotes) {
+        text(song)
+    } else {
+        val line = StringBuilder("The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. ")
+            .append("Arpeggios come out as the note you wrote.")
+        // Worked out once: only a silent track with notes the arrangement
+        // plays has anything in the file to speak of.
+        val chain = song.chain
+        val emptied = MidiExport.emptiedTracks(song, chain)
+        val silentWithNotes = song.tracks.indices.filter {
+            MidiExport.isSilent(song.tracks[it]) && MidiExport.reaches(it, song, chain)
+        }
+        val emptiedCount = silentWithNotes.count { it in emptied }
+        val silencedCount = silentWithNotes.size - emptiedCount
+        when {
+            silencedCount == 1 -> line.append(" A muted or 0% track is in the file at volume 0.")
+            silencedCount > 1 -> line.append(" Muted or 0% tracks are in the file at volume 0.")
+        }
+        when {
+            emptiedCount == 1 -> line.append(" A muted or 0% drum track is left empty, since it shares the drum channel with one that plays.")
+            emptiedCount > 1 -> line.append(" Muted or 0% drum tracks are left empty, since they share the drum channel with one that plays.")
+        }
+        line.toString()
+    }
+}
+
+/** The format, repeats and ending controls freeze for the length of a render:
+ * it keeps the settings it started with. */
 object ExportControls {
     fun settingsLocked(isExporting: Boolean): Boolean = isExporting
+
+    /** Whether the Export button comes back once the render it started has
+     * finished. A failed or canceled one frees it for another try. One that
+     * left a file keeps it: the panel is coming down for the result dialog,
+     * which offers that file, and a second render started in the meantime
+     * would clear it first. The panel comes back fresh. */
+    fun freesExportButton(startedAttempt: Int?, completedAttempt: Int, producedFile: Boolean): Boolean =
+        startedAttempt != null && completedAttempt >= startedAttempt && !producedFile
 }
 
 object ExportCopy {
+    fun exportButton(format: ExportOptions.Format): String = "Export ${format.label}"
+
+    /** What TalkBack reads for one segment of the format picker. The picker's
+     * name rides on each segment rather than on the row around them, which
+     * TalkBack would stop on by itself: iOS's segments sit in a tab group
+     * labelled "Format" that VoiceOver names on the way in. */
+    fun formatSegment(format: ExportOptions.Format): String = "Format, ${format.label}"
+
+    /** A MIDI file is the arrangement once, so Repeats and Ending only shape a WAV. */
+    fun hasRepeatsAndEnding(format: ExportOptions.Format): Boolean = format == ExportOptions.Format.WAV
+
     fun loopCount(n: Int): String = "$n\u00d7"
 
     /** Rough length of the file, so the repeat count means something. */

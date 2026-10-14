@@ -158,10 +158,13 @@ class WavExportTest {
     @Test fun renamingASongReplacesItsOldExportRatherThanAccumulating() {
         var song = TestSongs.empty(name = "One", tempo = 240.0)
             .withInstrument(0) { it.copy(sustain = true) }.setNote(0, 0, 60)
-        val first = export(song)
+        // Through the dispatcher, which is where the app's exports prune.
+        fun dispatched(song: dev.individuation.chiptune.core.model.Song): File =
+            (ExportRenderer.render(ExportRequest(song), temp.root) as ExportResult.Success).file
+        val first = dispatched(song)
         assertTrue(first.exists())
         song = song.copy(name = "Two")
-        val second = export(song)
+        val second = dispatched(song)
         val contents = first.parentFile.list()!!.filter { it.endsWith(".wav") }.toSet()
         assertEquals(setOf("Two.wav"), contents)
         assertFalse("the stale export should have been pruned", first.exists())

@@ -47,4 +47,16 @@ final class LongSongNameFileTests: XCTestCase {
         let url = WavExport.filename(for: Song(name: "My Song"))
         XCTAssertEqual(url.lastPathComponent, "My Song.wav")
     }
+
+    func testMidiFilenameSurvivesA300CharacterName() {
+        assertFits(MidiExport.filename(for: Song(name: String(repeating: "L", count: 300))), ext: "mid")
+    }
+
+    func testMidiFilenameSurvivesAnOverLongCJKName() {
+        assertFits(MidiExport.filename(for: Song(name: String(repeating: "歌", count: 90))), ext: "mid")
+    }
+
+    func testMidiFilenameNormalNameIsUnchanged() {
+        XCTAssertEqual(MidiExport.filename(for: Song(name: "My Song")).lastPathComponent, "My Song.mid")
+    }
 }

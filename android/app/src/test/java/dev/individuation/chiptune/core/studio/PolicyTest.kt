@@ -8,6 +8,7 @@ import java.util.UUID
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -179,6 +180,23 @@ class PolicyTest {
     @Test fun panelDisappearingMidRenderAsksForACancel() {
         assertTrue(ExportFlow.afterPanelDisappeared(isExporting = true))
         assertFalse(ExportFlow.afterPanelDisappeared(isExporting = false))
+    }
+
+    /** The same song in the same format writes the same path, and the
+     * file's clear-then-set can fold into no change at all; the attempt
+     * counter moves for every finished render. */
+    @Test fun theSameFileTwiceInARowIsSharedTwice() {
+        assertEquals(file, ExportFlow.finishedExport(previousAttempt = 0, completedAttempt = 1, file = file))
+        assertEquals(file, ExportFlow.finishedExport(previousAttempt = 1, completedAttempt = 2, file = file))
+    }
+
+    @Test fun anAttemptThatLeftNoFileSharesNothing() {
+        assertNull(ExportFlow.finishedExport(previousAttempt = 1, completedAttempt = 2, file = null))
+    }
+
+    @Test fun anAttemptThatHasNotAdvancedSharesNothing() {
+        assertNull(ExportFlow.finishedExport(previousAttempt = 2, completedAttempt = 2, file = file))
+        assertNull(ExportFlow.finishedExport(previousAttempt = 3, completedAttempt = 2, file = file))
     }
 
     // MARK: Keyboard shortcuts menu

@@ -65,6 +65,24 @@ class StudioExportTest {
         assertNotNull(h.studio.exportFile)
     }
 
+    /** The same song in the same format writes the same path, so the file
+     * alone can't tell the second success from the first; the attempt
+     * counter has to move for each, with the file published. */
+    @Test fun twoSuccessesToTheSamePathEachAdvanceTheAttempt() {
+        val standIn = File(System.getProperty("java.io.tmpdir"), "same-${UUID.randomUUID()}.mid")
+        val h = make { ExportResult.Success(standIn) }
+        val first = h.studio.export()
+        h.waitForExport()
+        assertEquals(first, h.studio.completedExportAttempt)
+        assertEquals(standIn, h.studio.exportFile)
+
+        val second = h.studio.export()
+        h.waitForExport()
+        assertEquals(second, h.studio.completedExportAttempt)
+        assertEquals(first!! + 1, second)
+        assertEquals(standIn, h.studio.exportFile)
+    }
+
     @Test fun exportUsesTheInjectedRenderer() {
         val standIn = scratchWav("injected")
         val h = make()
@@ -271,5 +289,48 @@ class StudioExportTest {
         assertEquals(stepBefore, core.currentStep)
         assertEquals(patternBefore, core.currentPattern)
         assertTrue(core.playing)
+    }
+
+    // MARK: The chosen format
+
+    @Test fun optionsStartAsAWavWithTheDefaultRepeatsAndEnding() {
+        assertEquals(ExportOptions(), make().studio.exportOptions)
+    }
+
+    /** The choice lives in Studio, not the sheet, so it outlasts the sheet closing. */
+    @Test fun theChosenOptionsSurviveAnExport() {
+        val h = make()
+        h.studio.exportOptions = ExportOptions(3, ExportOptions.TailMode.RING_OUT, ExportOptions.Format.MIDI)
+        h.studio.open(TestSongs.golden())
+        h.studio.export()
+        h.waitForExport()
+        assertEquals(ExportOptions.Format.MIDI, h.studio.exportOptions.format)
+        assertEquals(3, h.studio.exportOptions.loopCount)
+    }
+
+    /** Nothing is injected, so this is the dispatcher the app ships with: the
+     * format the sheet picked has to reach the writer. */
+    @Test fun defaultRendererFollowsTheChosenFormat() {
+        val h = StudioHarness(renderer = null).also { harnesses.add(it) }
+        h.studio.open(TestSongs.golden())
+        h.studio.exportOptions = ExportOptions(format = ExportOptions.Format.MIDI)
+        h.studio.export()
+        h.waitForExport()
+        assertEquals("mid", h.studio.exportFile!!.extension)
+
+        h.studio.exportOptions = ExportOptions(format = ExportOptions.Format.WAV)
+        h.studio.export()
+        h.waitForExport()
+        assertEquals("wav", h.studio.exportFile!!.extension)
+    }
+
+    @Test fun aMidiExportFailureCallsTheFileAMidiFile() {
+        val h = make { ExportResult.Failed(AccessDeniedException("/x")) }
+        h.studio.exportOptions = ExportOptions(format = ExportOptions.Format.MIDI)
+        h.studio.export()
+        h.waitForExport()
+        val message = h.studio.exportError!!
+        assertTrue(message, message.contains("MIDI file"))
+        assertFalse(message, message.contains("WAV"))
     }
 }

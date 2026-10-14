@@ -3,12 +3,15 @@ package dev.individuation.chiptune.ui.layout
 import dev.individuation.chiptune.core.TestSongs
 import dev.individuation.chiptune.core.audio.ExportOptions
 import dev.individuation.chiptune.core.audio.WavExport
+import dev.individuation.chiptune.core.audio.withInstrument
 import dev.individuation.chiptune.core.model.ChannelKind
 import dev.individuation.chiptune.core.model.Instrument
 import dev.individuation.chiptune.core.model.InstrumentPreset
 import dev.individuation.chiptune.core.model.Pattern
+import dev.individuation.chiptune.core.model.Song
 import dev.individuation.chiptune.core.model.SongClock
 import dev.individuation.chiptune.core.model.SongSection
+import dev.individuation.chiptune.core.model.Track
 import java.time.ZoneOffset
 import java.util.Locale
 import org.junit.Assert.assertEquals
@@ -50,14 +53,197 @@ class ExportFooterTest {
         assertEquals(unarranged, ExportNotesFooter.text(song))
     }
 
+    // MARK: MIDI
+
+    private val midi = ExportOptions.Format.MIDI
+    private val mutedGolden = TestSongs.golden().let { s -> s.copy(tracks = s.tracks.map { it.copy(muted = true) }) }
+
+    @Test fun wavFormatFooterIsTheExistingOne() {
+        assertEquals(ExportNotesFooter.text(mutedGolden), ExportNotesFooter.text(mutedGolden, ExportOptions.Format.WAV))
+        assertNull(ExportNotesFooter.text(TestSongs.golden(), ExportOptions.Format.WAV))
+    }
+
+    @Test fun midiFooterGivesTheLengthAndTheArpeggioNote() {
+        val song = TestSongs.golden()
+        assertEquals(
+            "The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. Arpeggios come out as the note you wrote.",
+            ExportNotesFooter.text(song, midi),
+        )
+    }
+
+    @Test fun midiFooterSaysAMutedTrackIsInTheFileAtVolumeZero() {
+        val song = TestSongs.golden().let { s -> s.copy(tracks = s.tracks.mapIndexed { i, t -> if (i == 0) t.copy(muted = true) else t }) }
+        assertEquals(
+            "The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. " +
+                "Arpeggios come out as the note you wrote. A muted or 0% track is in the file at volume 0.",
+            ExportNotesFooter.text(song, midi),
+        )
+    }
+
+    @Test fun midiFooterSaysMutedTracksAreInTheFileAtVolumeZero() {
+        val song = TestSongs.golden().let { s -> s.copy(tracks = s.tracks.mapIndexed { i, t -> if (i == 0 || i == 2) t.copy(muted = true) else t }) }
+        assertEquals(
+            "The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. " +
+                "Arpeggios come out as the note you wrote. Muted or 0% tracks are in the file at volume 0.",
+            ExportNotesFooter.text(song, midi),
+        )
+    }
+
+    /** The MIDI file still has the notes, so the WAV's "would be silent" warning would be wrong for it. */
+    @Test fun midiFooterDoesNotWarnAboutSilenceWhenEverythingIsMuted() {
+        val text = ExportNotesFooter.text(mutedGolden, midi)!!
+        assertFalse(text.contains("silent"))
+        assertTrue(text.endsWith("Muted or 0% tracks are in the file at volume 0."))
+    }
+
+    /** Every track plays a note at step 0. */
+    private fun song(kinds: List<ChannelKind>, muted: Set<Int>) = TestSongs.empty().let { base ->
+        base.copy(
+            tracks = kinds.mapIndexed { i, kind -> Track(kind = kind, muted = i in muted) },
+            patterns = listOf(base.patterns[0].copy(rows = kinds.map { Pattern.EMPTY_ROW.toMutableList().also { it[0] = 60 } })),
+        )
+    }
+
+    private fun lead(song: Song) =
+        "The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. Arpeggios come out as the note you wrote."
+
+    /** Every noise track muted: none plays on the drum channel, so each is
+     * silenced with the channel's volume like any other muted track. */
+    @Test fun midiFooterCountsMutedDrumsAtVolumeZeroWhenNoDrumPlays() {
+        val song = song(listOf(ChannelKind.PULSE1, ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(1, 2))
+        assertEquals(lead(song) + " Muted or 0% tracks are in the file at volume 0.", ExportNotesFooter.text(song, midi))
+    }
+
+    @Test fun midiFooterSaysAMutedDrumBesideAPlayingOneIsLeftEmpty() {
+        val song = song(listOf(ChannelKind.PULSE1, ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(2))
+        assertEquals(
+            lead(song) + " A muted or 0% drum track is left empty, since it shares the drum channel with one that plays.",
+            ExportNotesFooter.text(song, midi),
+        )
+    }
+
+    @Test fun midiFooterSaysSoOfEveryEmptiedDrumTrack() {
+        val song = song(listOf(ChannelKind.NOISE, ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(0, 2))
+        assertEquals(
+            lead(song) + " Muted or 0% drum tracks are left empty, since they share the drum channel with one that plays.",
+            ExportNotesFooter.text(song, midi),
+        )
+    }
+
+    @Test fun midiFooterGivesBothWhenBothHappen() {
+        val song = song(listOf(ChannelKind.PULSE1, ChannelKind.TRIANGLE, ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(1, 3))
+        assertEquals(
+            lead(song) + " A muted or 0% track is in the file at volume 0." +
+                " A muted or 0% drum track is left empty, since it shares the drum channel with one that plays.",
+            ExportNotesFooter.text(song, midi),
+        )
+    }
+
+    /** The unmuted drum track plays nothing, so the muted one is silenced
+     * with the channel's volume rather than left empty. */
+    @Test fun midiFooterLeavesNoDrumEmptyBesideADrumTrackWithNoNotes() {
+        val song = song(listOf(ChannelKind.PULSE1, ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(2)).let { s ->
+            s.copy(patterns = listOf(s.patterns[0].copy(rows = s.patterns[0].rows.mapIndexed { i, row -> if (i == 1) Pattern.EMPTY_ROW else row })))
+        }
+        assertEquals(lead(song) + " A muted or 0% track is in the file at volume 0.", ExportNotesFooter.text(song, midi))
+    }
+
+    private fun Song.withRow(track: Int, row: List<Int>) =
+        copy(patterns = patterns.mapIndexed { p, pattern ->
+            if (p != 0) pattern else pattern.copy(rows = pattern.rows.mapIndexed { i, r -> if (i == track) row else r })
+        })
+
+    /** A muted track with nothing the arrangement plays has no notes in the
+     * file to be at volume 0. */
+    @Test fun midiFooterSkipsAMutedTrackWithNoNotesInTheArrangement() {
+        var song = song(listOf(ChannelKind.PULSE1, ChannelKind.TRIANGLE, ChannelKind.PULSE2), muted = setOf(1, 2))
+            .withRow(1, Pattern.EMPTY_ROW).withRow(2, Pattern.EMPTY_ROW)
+        // Past the pattern's end, and in a pattern the arrangement skips.
+        song = song.copy(patterns = listOf(song.patterns[0].withNote(1, song.patterns[0].length, 60)) +
+            Pattern(name = "B", trackCount = 3).withNote(2, 0, 60))
+        assertEquals(lead(song), ExportNotesFooter.text(song, midi))
+    }
+
+    /** Emptying a drum track that had no notes loses nothing worth a line. */
+    @Test fun midiFooterSkipsAnEmptiedDrumTrackWithNoNotes() {
+        val song = song(listOf(ChannelKind.NOISE, ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(1, 2))
+            .withRow(2, Pattern.EMPTY_ROW)
+        assertEquals(
+            lead(song) + " A muted or 0% drum track is left empty, since it shares the drum channel with one that plays.",
+            ExportNotesFooter.text(song, midi),
+        )
+    }
+
+    // 0% volume: written like a muted track, so counted with them.
+
+    @Test fun midiFooterCountsATrackAtZeroVolumeAsInTheFileAtVolumeZero() {
+        val song = song(listOf(ChannelKind.PULSE1, ChannelKind.TRIANGLE), muted = emptySet())
+            .withInstrument(1) { it.copy(volume = 0.0) }
+        assertEquals(lead(song) + " A muted or 0% track is in the file at volume 0.", ExportNotesFooter.text(song, midi))
+    }
+
+    @Test fun midiFooterCountsMutedAndZeroVolumeTracksTogether() {
+        val song = song(listOf(ChannelKind.PULSE1, ChannelKind.TRIANGLE, ChannelKind.PULSE2), muted = setOf(2))
+            .withInstrument(1) { it.copy(volume = 0.0) }
+        assertEquals(lead(song) + " Muted or 0% tracks are in the file at volume 0.", ExportNotesFooter.text(song, midi))
+    }
+
+    @Test fun midiFooterSaysAZeroVolumeDrumBesideAPlayingOneIsLeftEmpty() {
+        val song = song(listOf(ChannelKind.PULSE1, ChannelKind.NOISE, ChannelKind.NOISE), muted = emptySet())
+            .withInstrument(2) { it.copy(volume = 0.0) }
+        assertEquals(
+            lead(song) + " A muted or 0% drum track is left empty, since it shares the drum channel with one that plays.",
+            ExportNotesFooter.text(song, midi),
+        )
+    }
+
+    /** A drum track at 0% doesn't play, so the muted one beside it is at
+     * volume 0 rather than left empty, and so is the 0% one. */
+    @Test fun midiFooterLeavesNoDrumEmptyBesideAZeroVolumeDrum() {
+        val song = song(listOf(ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(1))
+            .withInstrument(0) { it.copy(volume = 0.0) }
+        assertEquals(lead(song) + " Muted or 0% tracks are in the file at volume 0.", ExportNotesFooter.text(song, midi))
+    }
+
+    @Test fun midiFooterKeepsTheNoNotesMessages() {
+        assertEquals("This song has no notes yet.", ExportNotesFooter.text(TestSongs.empty(), midi))
+        assertEquals(unarranged, ExportNotesFooter.text(songWithUnarrangedNotes(), midi))
+    }
+
     @Test fun settingsAreLockedWhileARenderIsRunning() = assertTrue(ExportControls.settingsLocked(isExporting = true))
 
     @Test fun settingsAreEditableWhenNoRenderIsRunning() = assertFalse(ExportControls.settingsLocked(isExporting = false))
+
+    // The Export button after a render.
+
+    @Test fun theButtonComesBackWhenItsRenderLeftNoFile() =
+        assertTrue(ExportControls.freesExportButton(startedAttempt = 1, completedAttempt = 1, producedFile = false))
+
+    /** The panel is coming down for the result dialog, which offers that
+     * file; a second render started meanwhile would clear it first. */
+    @Test fun theButtonStaysLockedWhileASuccessTakesThePanelDown() =
+        assertFalse(ExportControls.freesExportButton(startedAttempt = 1, completedAttempt = 1, producedFile = true))
+
+    @Test fun theButtonStaysLockedWhileItsRenderRuns() =
+        assertFalse(ExportControls.freesExportButton(startedAttempt = 2, completedAttempt = 1, producedFile = false))
+
+    @Test fun aLaterCompletionAlsoFinishesTheStartedAttempt() =
+        assertTrue(ExportControls.freesExportButton(startedAttempt = 1, completedAttempt = 2, producedFile = false))
+
+    @Test fun nothingStartedHasNothingToFree() =
+        assertFalse(ExportControls.freesExportButton(startedAttempt = null, completedAttempt = 1, producedFile = false))
 }
 
 /** The export sheet's readouts, word for word from `ExportSheet.swift`. */
 class ExportCopyTest {
     @Test fun repeatsReadoutUsesTheTimesSign() = assertEquals("3\u00d7", ExportCopy.loopCount(3))
+
+    /** Each format segment carries the picker's name, as iOS's segments sit
+     * in a tab group labelled "Format", so the label costs no stop of its own. */
+    @Test fun eachFormatSegmentIsLabelledWithThePicker() {
+        assertEquals("Format, WAV", ExportCopy.formatSegment(ExportOptions.Format.WAV))
+        assertEquals("Format, MIDI", ExportCopy.formatSegment(ExportOptions.Format.MIDI))
+    }
 
     @Test fun repeatsFooterNamesTheCountAndOnePassLength() {
         // Golden: 16 steps at 132 BPM, 4 steps a beat = 1.818 s a pass.
@@ -103,6 +289,19 @@ class ExportCopyTest {
         assertTrue(ExportCopy.canExport(hasNotes = true, attemptInFlight = false))
         assertFalse(ExportCopy.canExport(hasNotes = false, attemptInFlight = false))
         assertFalse(ExportCopy.canExport(hasNotes = true, attemptInFlight = true))
+    }
+
+    @Test fun formatChoiceAndButtonNameTheFormat() {
+        assertEquals("WAV", ExportOptions.Format.WAV.label)
+        assertEquals("MIDI", ExportOptions.Format.MIDI.label)
+        assertEquals("Export WAV", ExportCopy.exportButton(ExportOptions.Format.WAV))
+        assertEquals("Export MIDI", ExportCopy.exportButton(ExportOptions.Format.MIDI))
+    }
+
+    /** A MIDI file is the arrangement once, so neither control applies to it. */
+    @Test fun onlyAWavHasRepeatsAndEnding() {
+        assertTrue(ExportCopy.hasRepeatsAndEnding(ExportOptions.Format.WAV))
+        assertFalse(ExportCopy.hasRepeatsAndEnding(ExportOptions.Format.MIDI))
     }
 
     @Test fun resultTitleNamesTheFile() = assertEquals("Exported Golden.wav", ExportCopy.resultTitle("Golden.wav"))

@@ -18,7 +18,27 @@ data class ExportOptions(
     /** Passes of the whole arrangement. */
     val loopCount: Int = 1,
     val tailMode: TailMode = TailMode.SEAMLESS_LOOP,
+    /** Which file the export writes. MIDI is the arrangement once, so
+     * [loopCount] and [tailMode] only shape a WAV. Last, because tests build
+     * options positionally. */
+    val format: Format = Format.WAV,
 ) {
+    /** Each format and everything that names it or its file: [label] in the
+     * sheet ("Export WAV"), [fileExtension], [fileNoun] in an alert, and the
+     * [mimeType] a share or save offers. Swift's `ExportOptions.Format`. */
+    enum class Format(val label: String, val fileExtension: String, val fileNoun: String, val mimeType: String) {
+        WAV("WAV", "wav", "WAV file", "audio/wav"),
+        MIDI("MIDI", "mid", "MIDI file", "audio/midi"),
+        ;
+
+        companion object {
+            /** The format a file of this extension was written as, ignoring
+             * case; null for anything the exporters don't write. */
+            fun fromExtension(extension: String): Format? =
+                entries.firstOrNull { it.fileExtension == extension.lowercase() }
+        }
+    }
+
     enum class TailMode {
         /** Exactly `loopCount` passes long, with the final notes' ring-out
          * folded over the file's own start so it loops seamlessly. */
@@ -53,6 +73,56 @@ class ExportRequest(
     /** Polled at chunk boundaries. Returning true abandons the render. */
     val isCanceled: () -> Boolean = { false },
 )
+
+/** Picks the writer for the format the export sheet chose. Studio's default
+ * renderer, so the sheet's WAV / MIDI choice reaches the file without Studio
+ * knowing either format. Clears the song's stale exports once the new file is
+ * written, so neither writer has to. */
+object ExportRenderer {
+    fun render(request: ExportRequest, directory: File): ExportResult {
+        val result = when (request.options.format) {
+            ExportOptions.Format.WAV -> WavExport.render(request, directory)
+            ExportOptions.Format.MIDI -> MidiExport.render(request, directory)
+        }
+        if (result is ExportResult.Success) ExportFiles.pruneStale(result.file)
+        return result
+    }
+}
+
+/** Where the exporters put their files, and how old ones are cleared away.
+ * Port of `ExportFiles` in `Sources/Audio/WavExport.swift`. */
+object ExportFiles {
+
+    /** `<directory>/<SONG-UUID>/<safeName>.<ext>`; the per-song folder keeps
+     * the shared file's display name clean while stopping two same-named
+     * songs from overwriting each other's export. Creates the folder. */
+    fun file(song: Song, directory: File, format: ExportOptions.Format): File {
+        val base = SongDocument.safeName(song)
+        val dir = File(directory, song.id.toString().uppercase())
+        dir.mkdirs()
+        return File(dir, "$base.${format.fileExtension}")
+    }
+
+    /** Renaming a song leaves its old exports sitting in the same per-song
+     * folder as the new one. Any export, WAV or MIDI, under a name other than
+     * [keeping]'s goes, as does an older file of [keeping]'s own type; the
+     * other format's file under the current name stays, since the song's WAV
+     * and its MIDI file are each worth keeping while the other is exported.
+     * Files the exporters don't write are left alone. Only run once the new
+     * file is safely written, so a later failure never costs the previous
+     * export. Best-effort: a cleanup failure doesn't fail the export that
+     * just succeeded. */
+    fun pruneStale(keeping: File) {
+        val ext = keeping.extension.lowercase()
+        val base = keeping.nameWithoutExtension
+        val entries = keeping.parentFile?.listFiles() ?: return
+        for (entry in entries) {
+            if (entry.name == keeping.name || ExportOptions.Format.fromExtension(entry.extension) == null) continue
+            val sameType = entry.extension.lowercase() == ext
+            if (sameType || entry.nameWithoutExtension != base) entry.delete()
+        }
+    }
+}
 
 /**
  * Renders a song offline and writes it out as a 16-bit mono 44.1 kHz WAV.
@@ -213,10 +283,7 @@ object WavExport {
             val streamed = (bodySamples - headLen) + (if (folding) 0 else tail)
             val target = filename(song, directory)
             val result = writeWav(head, rawFile, streamed, scale, request.isCanceled, target)
-            if (result is ExportResult.Success) {
-                report(totalFrames)
-                pruneStaleExports(result.file)
-            }
+            if (result is ExportResult.Success) report(totalFrames)
             return result
         } finally {
             try {
@@ -227,25 +294,8 @@ object WavExport {
         }
     }
 
-    /** Renaming a song leaves its old export in the same per-song folder; once
-     * the new file is safely written, every other `.wav` there goes.
-     * Best-effort: a cleanup failure doesn't fail the export. */
-    private fun pruneStaleExports(keeping: File) {
-        val entries = keeping.parentFile?.listFiles() ?: return
-        for (entry in entries) {
-            if (entry.extension.lowercase() == "wav" && entry != keeping) entry.delete()
-        }
-    }
-
-    /** `<directory>/<SONG-UUID>/<safeName>.wav`; the per-song folder keeps the
-     * shared file's display name clean while stopping two same-named songs
-     * from overwriting each other's export. Creates the folder. */
-    fun filename(song: Song, directory: File): File {
-        val base = SongDocument.safeName(song)
-        val dir = File(directory, song.id.toString().uppercase())
-        dir.mkdirs()
-        return File(dir, "$base.wav")
-    }
+    /** `<directory>/<SONG-UUID>/<safeName>.wav`. Creates the folder. */
+    fun filename(song: Song, directory: File): File = ExportFiles.file(song, directory, ExportOptions.Format.WAV)
 
     /** Streams the folded head plus the raw body file out as a WAV, converting
      * to 16-bit in chunks so the whole song is never in memory twice. */

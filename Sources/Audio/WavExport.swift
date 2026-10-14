@@ -14,6 +14,46 @@ struct ExportOptions: Equatable, Sendable {
         case ringOut
     }
 
+    /// Which file the export writes. MIDI is the arrangement once, so
+    /// `loopCount` and `tailMode` only shape a WAV.
+    enum Format: Equatable, Sendable, CaseIterable {
+        case wav, midi
+
+        /// What the sheet calls it: the picker's segment and the button's
+        /// "Export WAV".
+        var label: String {
+            switch self {
+            case .wav: return "WAV"
+            case .midi: return "MIDI"
+            }
+        }
+
+        var fileExtension: String {
+            switch self {
+            case .wav: return "wav"
+            case .midi: return "mid"
+            }
+        }
+
+        /// What its file is called in an alert.
+        var fileNoun: String {
+            switch self {
+            case .wav: return "WAV file"
+            case .midi: return "MIDI file"
+            }
+        }
+
+        /// The format a file of this extension was written as, ignoring
+        /// case; nil for anything the exporters don't write.
+        init?(fileExtension: String) {
+            guard let format = Self.allCases.first(where: { $0.fileExtension == fileExtension.lowercased() }) else {
+                return nil
+            }
+            self = format
+        }
+    }
+
+    var format: Format = .wav
     /// Passes of the whole arrangement.
     var loopCount: Int = 1
     var tailMode: TailMode = .seamlessLoop
@@ -47,6 +87,63 @@ struct ExportRequest: Sendable {
     var progress: @Sendable (Double) -> Void = { _ in }
     /// Polled at chunk boundaries. Returning true abandons the render.
     var isCanceled: @Sendable () -> Bool = { false }
+}
+
+/// Picks the writer for the format the export sheet chose. Studio's default
+/// renderer, so the sheet's WAV / MIDI choice reaches the file without Studio
+/// knowing either format. Clears the song's stale exports once the new file
+/// is written, so neither writer has to.
+enum Export {
+    static func render(_ request: ExportRequest) -> ExportResult {
+        let result: ExportResult
+        switch request.options.format {
+        case .wav: result = WavExport.render(request)
+        case .midi: result = MidiExport.render(request)
+        }
+        if case .success(let url) = result {
+            ExportFiles.pruneStale(keeping: url)
+        }
+        return result
+    }
+}
+
+/// Where exports are written, shared by the WAV and MIDI writers.
+enum ExportFiles {
+
+    static func url(for song: Song, format: ExportOptions.Format) -> URL {
+        let base = SongDocument.safeName(song)
+        // A per-song directory keeps the shared file's display name clean while
+        // stopping two same-named songs from overwriting each other's export.
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(song.id.uuidString, isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("\(base).\(format.fileExtension)")
+    }
+
+    /// Renaming a song leaves its old exports sitting in the same per-song
+    /// temp directory as the new one — storage that accumulates silently since
+    /// nothing else ever visits that directory. Any export, WAV or MIDI, under
+    /// a name other than `url`'s goes, as does an older file of `url`'s own
+    /// type; the other format's file under the current name stays, since the
+    /// song's WAV and its MIDI file are each worth keeping while the other is
+    /// exported. Files the exporters don't write are left alone. Only run once
+    /// the new file is safely written, so a later failure never costs the
+    /// previous export. Best-effort: a cleanup failure doesn't fail the export
+    /// that just succeeded.
+    static func pruneStale(keeping url: URL) {
+        let dir = url.deletingLastPathComponent()
+        let ext = url.pathExtension.lowercased()
+        let base = url.deletingPathExtension().lastPathComponent
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return }
+        for entry in entries where entry.lastPathComponent != url.lastPathComponent {
+            guard ExportOptions.Format(fileExtension: entry.pathExtension) != nil else { continue }
+            let sameType = entry.pathExtension.lowercased() == ext
+            if sameType || entry.deletingPathExtension().lastPathComponent != base {
+                try? fm.removeItem(at: entry)
+            }
+        }
+    }
 }
 
 /// Renders a song offline and writes it out as a 16-bit mono WAV.
@@ -218,36 +315,14 @@ enum WavExport {
                               scale: scale,
                               isCanceled: request.isCanceled,
                               to: filename(for: song))
-        if case .success(let url) = result {
+        if case .success = result {
             report(totalFrames)
-            pruneStaleExports(keeping: url, in: song)
         }
         return result
     }
 
-    /// Renaming a song leaves its old export's `.wav` sitting in the same
-    /// per-song temp directory as the new one — storage that accumulates
-    /// silently since nothing else ever visits that directory. Only run once
-    /// the new file is safely written, so a later failure never costs the
-    /// previous export. Best-effort: a cleanup failure doesn't fail the
-    /// export that just succeeded.
-    private static func pruneStaleExports(keeping url: URL, in song: Song) {
-        let dir = url.deletingLastPathComponent()
-        let fm = FileManager.default
-        guard let entries = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return }
-        for entry in entries where entry.pathExtension.lowercased() == "wav" && entry != url {
-            try? fm.removeItem(at: entry)
-        }
-    }
-
     static func filename(for song: Song) -> URL {
-        let base = SongDocument.safeName(song)
-        // A per-song directory keeps the shared file's display name clean while
-        // stopping two same-named songs from overwriting each other's export.
-        let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent(song.id.uuidString, isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("\(base).wav")
+        ExportFiles.url(for: song, format: .wav)
     }
 
     /// Streams the folded head plus the raw body file out as a WAV, converting

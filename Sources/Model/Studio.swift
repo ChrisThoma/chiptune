@@ -60,10 +60,11 @@ final class Studio {
     /// can't show progress through a section either.
     var playingSection: Int = 0
     var exportURL: URL?
-    /// The export panel's repeats and ending. Kept here rather than in the
-    /// panel so they survive it closing for the share sheet and coming back.
+    /// The export panel's format, repeats and ending, and what `export()`
+    /// uses when it is given no options. Kept here rather than in the panel
+    /// so they survive it closing for the share sheet and coming back.
     var exportOptions = ExportOptions()
-    /// True while a WAV render is running off the main thread.
+    /// True while an export (WAV or MIDI) is running off the main thread.
     var isExporting = false
     /// 0...1 while `isExporting`. A long arrangement takes real time, and a
     /// spinner with no end in sight reads as a hang.
@@ -95,8 +96,8 @@ final class Studio {
     /// Where songs are read and written. Injectable so tests get a temp
     /// directory instead of the real Documents folder.
     @ObservationIgnored var store: SongStore
-    /// The offline WAV renderer. Injectable so a test can make export fail,
-    /// stall, or report whatever progress it likes without needing a way to
+    /// The offline renderer, WAV or MIDI by the options' format. Injectable so
+    /// a test can make export fail, stall, or report whatever progress it likes without needing a way to
     /// make the real renderer do those things.
     @ObservationIgnored var renderer: @Sendable (ExportRequest) -> ExportResult
     /// Seconds of quiet after the last edit before autosave fires. Tests turn
@@ -114,10 +115,10 @@ final class Studio {
 
     init(store: SongStore = .shared,
          autosaveEnabled: Bool = true,
-         // Wrapped in a closure rather than passed as `WavExport.render`: a
+         // Wrapped in a closure rather than passed as `Export.render`: a
          // bare static-method reference isn't itself `@Sendable`, and the
          // implicit conversion is a warning.
-         renderer: @escaping @Sendable (ExportRequest) -> ExportResult = { WavExport.render($0) }) {
+         renderer: @escaping @Sendable (ExportRequest) -> ExportResult = { Export.render($0) }) {
         self.store = store
         self.autosaveEnabled = autosaveEnabled
         self.renderer = renderer
@@ -1414,11 +1415,13 @@ final class Studio {
         open(copy)
     }
 
-    /// Renders the WAV off the main thread; a long arrangement can take a
+    /// Renders the export (WAV or MIDI) off the main thread; a long arrangement can take a
     /// while, and the render must not freeze the UI. `exportURL` clears at the
-    /// start so observers see a fresh value when the file is ready.
+    /// start so observers see a fresh value when the file is ready. With no
+    /// `options`, it takes the ones the export sheet keeps in `exportOptions`.
     @discardableResult
-    func export(options: ExportOptions = ExportOptions()) -> Int? {
+    func export(options: ExportOptions? = nil) -> Int? {
+        let options = options ?? exportOptions
         guard !isExporting else { return nil }
         let attempt = completedExportAttempt + 1
         isExporting = true
@@ -1465,7 +1468,9 @@ final class Studio {
             case .tooLong:
                 self.exportError = "Too long for one WAV — lower the repeat count."
             case .failed(let error):
-                self.exportError = WriteFailureMessage.export(name: song.name, error: error)
+                self.exportError = WriteFailureMessage.export(
+                    name: song.name, error: error,
+                    file: options.format.fileNoun)
             }
             self.completedExportAttempt = attempt
         }

@@ -2,7 +2,7 @@ package dev.individuation.chiptune.core.studio
 
 import dev.individuation.chiptune.core.audio.ExportRequest
 import dev.individuation.chiptune.core.audio.ExportResult
-import dev.individuation.chiptune.core.audio.WavExport
+import dev.individuation.chiptune.core.audio.ExportRenderer
 import dev.individuation.chiptune.core.model.Song
 import dev.individuation.chiptune.core.model.SongSection
 import dev.individuation.chiptune.core.store.FileSongStore
@@ -139,7 +139,7 @@ class StudioHarness(
         audio = audio,
         scheduler = scheduler,
         autosaveEnabled = autosaveEnabled,
-        renderer = renderer ?: { WavExport.render(it, exportDir) },
+        renderer = renderer ?: { ExportRenderer.render(it, exportDir) },
         exportExecutor = executor,
         shareWriter = SongShareWriter(shareDir),
     )

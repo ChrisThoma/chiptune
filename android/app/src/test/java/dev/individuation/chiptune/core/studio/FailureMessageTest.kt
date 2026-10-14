@@ -1,5 +1,6 @@
 package dev.individuation.chiptune.core.studio
 
+import dev.individuation.chiptune.core.audio.ExportOptions
 import dev.individuation.chiptune.core.model.SongDecodeException
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -151,6 +152,25 @@ class FailureMessageTest {
     @Test fun exportWordsMatchSaveAndShare() {
         assertEquals("Couldn't export \u201CNeon Ascent\u201D. The app doesn't have permission to write the WAV file.",
             WriteFailureMessage.export("Neon Ascent", permission))
+    }
+
+    @Test fun exportWordsNameTheFileThatFailed() {
+        assertEquals("Couldn't export \u201CNeon Ascent\u201D. The app doesn't have permission to write the MIDI file.",
+            WriteFailureMessage.export("Neon Ascent", permission, "MIDI file"))
+        assertEquals("MIDI file", ExportOptions.Format.MIDI.fileNoun)
+        assertEquals("WAV file", ExportOptions.Format.WAV.fileNoun)
+    }
+
+    /** A share or save failure reads the noun off the file that was offered,
+     * since the sheet's format may have been switched since the export finished. */
+    @Test fun fileNounComesFromTheExtension() {
+        assertEquals("MIDI file", WriteFailureMessage.fileNoun("mid"))
+        assertEquals("MIDI file", WriteFailureMessage.fileNoun("MID"))
+        assertEquals("WAV file", WriteFailureMessage.fileNoun("wav"))
+        assertEquals("WAV file", WriteFailureMessage.fileNoun("WAV"))
+        assertEquals("song file", WriteFailureMessage.fileNoun("chipsong"))
+        assertEquals("song file", WriteFailureMessage.fileNoun(""))
+        assertEquals("song file", WriteFailureMessage.fileNoun("txt"))
     }
 
     // MARK: Delete failed

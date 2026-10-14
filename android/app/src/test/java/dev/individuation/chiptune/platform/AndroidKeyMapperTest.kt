@@ -107,7 +107,7 @@ class AndroidKeyMapperTest {
         assertEquals(KeyEvent.KEYCODE_N, AndroidKeyMapper.keyCode(EditorShortcut.NEW_SONG))
         assertEquals(KeyEvent.KEYCODE_O, AndroidKeyMapper.keyCode(EditorShortcut.SONGS))
         assertEquals(KeyEvent.KEYCODE_D, AndroidKeyMapper.keyCode(EditorShortcut.DUPLICATE_SONG))
-        assertEquals(KeyEvent.KEYCODE_E, AndroidKeyMapper.keyCode(EditorShortcut.EXPORT_WAV))
+        assertEquals(KeyEvent.KEYCODE_E, AndroidKeyMapper.keyCode(EditorShortcut.EXPORT))
         assertEquals(KeyEvent.KEYCODE_S, AndroidKeyMapper.keyCode(EditorShortcut.SHARE_SONG))
         assertEquals(KeyEvent.KEYCODE_N, AndroidKeyMapper.keyCode(EditorShortcut.NEW_PATTERN))
         assertEquals(KeyEvent.KEYCODE_A, AndroidKeyMapper.keyCode(EditorShortcut.ARRANGEMENT))
