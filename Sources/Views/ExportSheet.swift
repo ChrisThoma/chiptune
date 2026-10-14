@@ -18,10 +18,11 @@ enum ExportNotesFooter {
 
 extension ExportNotesFooter {
     /// What sits under the Export button for `format`. A WAV keeps the notes
-    /// above. A MIDI file still carries every note of a muted track (at volume
-    /// 0), so the "would be silent" warning is replaced by a line saying where
-    /// the muted tracks went; the no-notes messages stay, since there is
-    /// nothing to export either way.
+    /// above. A MIDI file still carries a muted track's notes (at volume 0),
+    /// or, for a muted drum track beside one that plays, an empty track (see
+    /// `MidiExport.leavesEmpty`), so the "would be silent" warning is
+    /// replaced by a line saying where the muted tracks went; the no-notes
+    /// messages stay, since there is nothing to export either way.
     static func text(for song: Song, format: ExportOptions.Format) -> String? {
         switch format {
         case .wav:
@@ -29,7 +30,15 @@ extension ExportNotesFooter {
         case .midi:
             guard song.hasNotes else { return text(for: song) }
             var line = "The whole arrangement once — \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote."
-            if song.tracks.contains(where: \.muted) { line += " Muted tracks are in the file at volume 0." }
+            let emptied = song.tracks.filter { MidiExport.leavesEmpty($0, in: song.tracks) }.count
+            if song.tracks.contains(where: { $0.muted && !MidiExport.leavesEmpty($0, in: song.tracks) }) {
+                line += " Muted tracks are in the file at volume 0."
+            }
+            if emptied == 1 {
+                line += " A muted drum track is left empty, since it shares the drum channel with one that plays."
+            } else if emptied > 1 {
+                line += " Muted drum tracks are left empty, since they share the drum channel with one that plays."
+            }
             return line
         }
     }

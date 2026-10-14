@@ -69,8 +69,21 @@ class MidiGoldenTest {
             listOf("Mélodie", "Pulse 2 (muted)", "Triangle", "Noise A", "Noise B (muted)", "Noise C"),
             midi.chipTracks.map { MidiBytes.name(it) },
         )
-        val muted = MidiBytes.notes(midi.tracks[5])
-        assertFalse(muted.isEmpty())
-        assertEquals(setOf(1), muted.map { it.velocity }.toSet())
+        // The muted pulse has a channel of its own, so it keeps its notes and
+        // that channel's volume goes to 0 at the start.
+        assertFalse(MidiBytes.notes(midi.tracks[2]).isEmpty())
+        assertEquals(
+            listOf(MidiBytes.Timed(0, MidiBytes.Event.Control(1, 7, 0))),
+            midi.tracks[2].filter { it.event is MidiBytes.Event.Control },
+        )
+        // The muted noise track shares the drum channel with audible ones, so
+        // it is left with nothing but its name.
+        assertEquals(
+            listOf(
+                MidiBytes.Timed(0, MidiBytes.Event.Meta(0x03, MidiBytes.utf8("Noise B (muted)"))),
+                MidiBytes.Timed(end, MidiBytes.END_OF_TRACK),
+            ),
+            midi.tracks[5],
+        )
     }
 }

@@ -9,9 +9,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Port of `MidiExportMuteTests.swift`: a muted track is still in the file, so
- * unmuting it in a DAW gets the part back, but it plays silent until someone
- * does. */
+/** Port of `MidiExportMuteTests.swift`: a muted track is still in the file,
+ * silenced by a CC7 of 0 at its start that a DAW user can remove or raise to
+ * get the part back. A muted noise track beside an audible one is the
+ * exception: it is left empty. */
 class MidiExportMuteTest {
 
     private fun song(kinds: List<ChannelKind>, muted: Set<Int>): Song {
@@ -57,19 +58,38 @@ class MidiExportMuteTest {
         assertEquals("Noise (muted)", MidiBytes.name(midi.tracks[2]))
     }
 
-    @Test fun aMutedNoiseTrackBesideAnAudibleOnePlaysAtVelocityOneInstead() {
+    @Test fun aMutedNoiseTrackBesideAnAudibleOneIsLeftEmpty() {
         // A CC7 of 0 on channel 10 would silence the unmuted noise track too,
-        // so the muted one goes as quiet as a note can go instead.
+        // and quiet notes would land on the audible track's keys and ticks.
+        // So the muted one keeps its MIDI track and its name, and nothing else.
         val midi = MidiBytes(MidiExport.data(song(listOf(ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(1))))
+        assertEquals(3, midi.tracks.size)
         val audible = midi.tracks[1]
         val muted = midi.tracks[2]
         assertEquals(emptyList<MidiBytes.Timed>(), controls(audible))
-        assertEquals(emptyList<MidiBytes.Timed>(), controls(muted))
         // Hat at volume 0.5 is round(63.5) = 64.
         assertEquals(listOf(64, 64), MidiBytes.notes(audible).map { it.velocity })
-        assertEquals(listOf(1, 1), MidiBytes.notes(muted).map { it.velocity })
         assertEquals("Noise A", MidiBytes.name(audible))
-        assertEquals("Noise B (muted)", MidiBytes.name(muted))
+        // One sixteen-step pattern: 16 × 24 ticks.
+        assertEquals(
+            listOf(
+                MidiBytes.Timed(0, MidiBytes.Event.Meta(0x03, MidiBytes.utf8("Noise B (muted)"))),
+                MidiBytes.Timed(16 * 24, MidiBytes.END_OF_TRACK),
+            ),
+            muted,
+        )
+    }
+
+    @Test fun everyMutedNoiseTrackBesideAnAudibleOneIsLeftEmpty() {
+        val midi = MidiBytes(MidiExport.data(
+            song(listOf(ChannelKind.NOISE, ChannelKind.PULSE1, ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(0, 1, 3)),
+        ))
+        assertEquals(emptyList<MidiBytes.Note>(), MidiBytes.notes(midi.tracks[1]))
+        assertEquals(emptyList<MidiBytes.Note>(), MidiBytes.notes(midi.tracks[4]))
+        assertEquals(listOf(64, 64), MidiBytes.notes(midi.tracks[3]).map { it.velocity })
+        // The muted pulse has a channel of its own, so it is silenced as usual.
+        assertEquals(volumeZero(0), controls(midi.tracks[2]))
+        assertEquals(2, MidiBytes.notes(midi.tracks[2]).size)
     }
 
     @Test fun everyNoiseTrackMutedSilencesTheDrumChannelFromEach() {

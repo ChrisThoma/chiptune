@@ -50,12 +50,21 @@ enum MidiExport {
 
         file.append(chunk(conductor(for: song, endTick: endTick)))
         let channels = channels(for: song.tracks)
-        let audibleDrums = song.tracks.contains { $0.kind == .noise && !$0.muted }
         for index in song.tracks.indices {
-            file.append(chunk(track(index, of: song, channel: channels[index],
-                                    audibleDrums: audibleDrums, endTick: endTick)))
+            file.append(chunk(track(index, of: song, channel: channels[index], endTick: endTick)))
         }
         return file
+    }
+
+    /// Whether `track` goes into the file as its name alone. A muted track is
+    /// normally silenced with its channel's volume, but every noise track
+    /// shares the drum channel: with one of them playing, a CC7 of 0 would
+    /// silence that one too, and quieter notes would still land on its keys
+    /// and ticks. So a muted noise track beside an audible one keeps its MIDI
+    /// track, to keep one per chip track, and nothing else. The export
+    /// sheet's footer says so from this.
+    static func leavesEmpty(_ track: Track, in tracks: [Track]) -> Bool {
+        track.muted && track.kind == .noise && tracks.contains { $0.kind == .noise && !$0.muted }
     }
 
     /// GM's drum channel, "channel 10" to a person.
@@ -138,27 +147,22 @@ enum MidiExport {
     /// of a step can never meet another note's on.
     private static let maxDrumTicks = ticksPerStep - 1
 
-    /// One chip track's MIDI track. `audibleDrums` says whether
-    /// any noise track in the song is unmuted, which decides how a muted
-    /// noise track can be silenced.
-    private static func track(_ index: Int, of song: Song, channel: UInt8,
-                              audibleDrums: Bool, endTick: Int) -> TrackEvents {
+    /// One chip track's MIDI track.
+    private static func track(_ index: Int, of song: Song, channel: UInt8, endTick: Int) -> TrackEvents {
         let track = song.tracks[index]
         let instrument = track.instrument
         let isDrum = track.kind == .noise
         let pitch = isDrum ? drumMap(for: index, of: song) : { UInt8($0) }
 
-        // A muted track is written in full, so unmuting it in a DAW brings
-        // the part back, but silenced with its channel's volume. A muted noise
-        // track can't do that when an audible one shares the drum channel, so
-        // it goes as quiet as a note can instead.
-        let silenceChannel = track.muted && !(isDrum && audibleDrums)
-        let quietNotes = track.muted && !silenceChannel
+        // A muted track is written in full, silenced by a CC7 of 0 at its
+        // start: removing that event in a DAW, or raising it, brings the part
+        // back. `leavesEmpty` is the one exception.
+        let empty = leavesEmpty(track, in: song.tracks)
 
         // Volume goes into the velocity rather than a CC7, because the noise
         // tracks share one channel and one channel has one volume. Never 0,
         // which a note-on would read as a note-off.
-        let velocity = quietNotes ? 1 : UInt8(max(1, Int((instrument.volume * 127).rounded())))
+        let velocity = UInt8(max(1, Int((instrument.volume * 127).rounded())))
         // How long a decaying note is heard, in ticks. `decay` is the time to
         // -60 dB, which is where the synth's own envelope gives out.
         let decayTicks = max(1, Int((instrument.decay * song.tempo / 60 * Double(ticksPerQuarter)).rounded()))
@@ -166,10 +170,14 @@ enum MidiExport {
         var events = TrackEvents()
         let label = song.fullLabel(for: index)
         events.append(at: 0, text(0x03, track.muted ? "\(label) (muted)" : label))
+        if empty {
+            events.append(at: endTick, [0xFF, 0x2F, 0x00])
+            return events
+        }
         if let program = program(for: track.kind) {
             events.append(at: 0, [0xC0 | channel, program])
         }
-        if silenceChannel {
+        if track.muted {
             events.append(at: 0, [0xB0 | channel, 0x07, 0x00])
         }
 

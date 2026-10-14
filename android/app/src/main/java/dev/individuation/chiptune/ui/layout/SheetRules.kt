@@ -1,6 +1,7 @@
 package dev.individuation.chiptune.ui.layout
 
 import dev.individuation.chiptune.core.audio.ExportOptions
+import dev.individuation.chiptune.core.audio.MidiExport
 import dev.individuation.chiptune.core.audio.WavExport
 import dev.individuation.chiptune.core.model.Chip
 import dev.individuation.chiptune.core.model.ChannelKind
@@ -38,18 +39,27 @@ object ExportNotesFooter {
 }
 
 /** What sits under the Export button for [format]. A WAV keeps the notes above.
- * A MIDI file still carries every note of a muted track (at volume 0), so the
- * "would be silent" warning is replaced by a line saying where the muted
- * tracks went; the no-notes messages stay, since there is nothing to export
- * either way. */
+ * A MIDI file still carries a muted track's notes (at volume 0), or, for a
+ * muted drum track beside one that plays, an empty track (see
+ * [MidiExport.leavesEmpty]), so the "would be silent" warning is replaced by a
+ * line saying where the muted tracks went; the no-notes messages stay, since
+ * there is nothing to export either way. */
 fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = when (format) {
     ExportOptions.Format.WAV -> text(song)
     ExportOptions.Format.MIDI -> if (!song.hasNotes) {
         text(song)
     } else {
-        val line = "The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. " +
-            "Arpeggios come out as the note you wrote."
-        if (song.tracks.any { it.muted }) "$line Muted tracks are in the file at volume 0." else line
+        val line = StringBuilder("The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. ")
+            .append("Arpeggios come out as the note you wrote.")
+        val emptied = song.tracks.count { MidiExport.leavesEmpty(it, song.tracks) }
+        if (song.tracks.any { it.muted && !MidiExport.leavesEmpty(it, song.tracks) }) {
+            line.append(" Muted tracks are in the file at volume 0.")
+        }
+        when {
+            emptied == 1 -> line.append(" A muted drum track is left empty, since it shares the drum channel with one that plays.")
+            emptied > 1 -> line.append(" Muted drum tracks are left empty, since they share the drum channel with one that plays.")
+        }
+        line.toString()
     }
 }
 
