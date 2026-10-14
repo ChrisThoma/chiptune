@@ -62,7 +62,9 @@ final class Studio {
     var exportURL: URL?
     /// The export panel's format, repeats and ending, and what `export()`
     /// uses when it is given no options. Kept here rather than in the panel
-    /// so they survive it closing for the share sheet and coming back.
+    /// so they survive it closing for the share sheet and coming back after
+    /// a canceled share. They belong to one export, not to the app: when it
+    /// ends, `endExportFlow` puts them back to the defaults.
     var exportOptions = ExportOptions()
     /// True while an export (WAV or MIDI) is running off the main thread.
     var isExporting = false
@@ -1413,6 +1415,13 @@ final class Studio {
         copy.id = UUID()
         copy.name = song.name + " copy"
         open(copy)
+    }
+
+    /// The export is over (the panel closed by hand, or a share that won't
+    /// bring it back), so the next one starts at WAV, 1x, Seamless loop
+    /// rather than whatever this one picked.
+    func endExportFlow() {
+        exportOptions = ExportOptions()
     }
 
     /// Renders the export (WAV or MIDI) off the main thread; a long arrangement can take a

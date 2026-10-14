@@ -88,6 +88,18 @@ final class StudioExportTests: XCTestCase {
         XCTAssertEqual(seen.withLock { $0 }, [studio.exportOptions, ExportOptions()])
     }
 
+    /// The export options are one export's, not the app's: when the flow
+    /// ends, the next opening starts at WAV, 1x, Seamless loop.
+    func testEndingTheExportFlowPutsTheOptionsBackToTheDefaults() {
+        let studio = makeStudio()
+        studio.exportOptions = ExportOptions(format: .midi, loopCount: 3, tailMode: .ringOut)
+
+        studio.endExportFlow()
+
+        XCTAssertEqual(studio.exportOptions, ExportOptions())
+        XCTAssertEqual(ExportOptions(), ExportOptions(format: .wav, loopCount: 1, tailMode: .seamlessLoop))
+    }
+
     /// Nothing is injected, so this is the dispatcher the app ships with: the
     /// format the sheet picked has to reach the writer.
     func testDefaultRendererFollowsTheChosenFormat() throws {
