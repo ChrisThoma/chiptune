@@ -258,3 +258,16 @@ final class ExportFormatFooterTests: XCTestCase {
         XCTAssertNil(ExportFormatFooter.text(for: .wav))
     }
 }
+
+/// The line under the progress bar while an export runs.
+final class ExportProgressTextTests: XCTestCase {
+
+    func testAWavExportSaysHowFarAlongItIs() {
+        XCTAssertEqual(ExportProgressText.text(format: .wav, progress: 0.42), "Exporting… 42%")
+    }
+
+    /// A MIDI export never reports progress, so a percentage would sit at 0%.
+    func testAMidiExportGivesNoPercentage() {
+        XCTAssertEqual(ExportProgressText.text(format: .midi, progress: 0), "Exporting…")
+    }
+}
