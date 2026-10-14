@@ -39,11 +39,11 @@ object ExportNotesFooter {
 }
 
 /** What sits under the Export button for [format]. A WAV keeps the notes above.
- * A MIDI file still carries a muted track's notes (at volume 0), or, for a
- * muted drum track beside one that plays, an empty track (see
+ * A MIDI file still carries a muted or 0% track's notes (at volume 0), or, for
+ * such a drum track beside one that plays, an empty track (see
  * [MidiExport.emptiedTracks]), so the "would be silent" warning is replaced by a
- * line saying where the muted tracks went; the no-notes messages stay, since
- * there is nothing to export either way. */
+ * line saying where those tracks went; the no-notes messages stay, since there
+ * is nothing to export either way. */
 fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = when (format) {
     ExportOptions.Format.WAV -> text(song)
     ExportOptions.Format.MIDI -> if (!song.hasNotes) {
@@ -51,20 +51,22 @@ fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = 
     } else {
         val line = StringBuilder("The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. ")
             .append("Arpeggios come out as the note you wrote.")
-        // Worked out once: only a muted track with notes the arrangement
+        // Worked out once: only a silent track with notes the arrangement
         // plays has anything in the file to speak of.
         val chain = song.chain
         val emptied = MidiExport.emptiedTracks(song, chain)
-        val mutedWithNotes = song.tracks.indices.filter { song.tracks[it].muted && MidiExport.reaches(it, song, chain) }
-        val emptiedCount = mutedWithNotes.count { it in emptied }
-        val silencedCount = mutedWithNotes.size - emptiedCount
+        val silentWithNotes = song.tracks.indices.filter {
+            MidiExport.isSilent(song.tracks[it]) && MidiExport.reaches(it, song, chain)
+        }
+        val emptiedCount = silentWithNotes.count { it in emptied }
+        val silencedCount = silentWithNotes.size - emptiedCount
         when {
-            silencedCount == 1 -> line.append(" A muted track is in the file at volume 0.")
-            silencedCount > 1 -> line.append(" Muted tracks are in the file at volume 0.")
+            silencedCount == 1 -> line.append(" A muted or 0% track is in the file at volume 0.")
+            silencedCount > 1 -> line.append(" Muted or 0% tracks are in the file at volume 0.")
         }
         when {
-            emptiedCount == 1 -> line.append(" A muted drum track is left empty, since it shares the drum channel with one that plays.")
-            emptiedCount > 1 -> line.append(" Muted drum tracks are left empty, since they share the drum channel with one that plays.")
+            emptiedCount == 1 -> line.append(" A muted or 0% drum track is left empty, since it shares the drum channel with one that plays.")
+            emptiedCount > 1 -> line.append(" Muted or 0% drum tracks are left empty, since they share the drum channel with one that plays.")
         }
         line.toString()
     }

@@ -89,21 +89,31 @@ object MidiExport {
     }
 
     /** The tracks that go into the file as their name alone, by index. A
-     * muted track is normally silenced with its channel's volume, but every
-     * noise track shares the drum channel: with one of them playing, a CC7 of
-     * 0 would silence that one too, and quieter notes would still land on its
-     * keys and ticks. So a muted noise track beside one that plays keeps its
-     * MIDI track, to keep one per chip track, and nothing else. "Plays" means
-     * unmuted with a note [chain] reaches; an unmuted noise track with none
-     * leaves the drum channel free to silence. The export sheet's footer says
-     * so from this. */
+     * silent track ([isSilent]: muted, or at a volume that rounds to velocity
+     * 0) is normally silenced with its channel's volume, but every noise
+     * track shares the drum channel: with one of them playing, a CC7 of 0
+     * would silence that one too, and quieter notes would still land on its
+     * keys and ticks. So a silent noise track beside one that plays keeps
+     * its MIDI track, to keep one per chip track, and nothing else. "Plays"
+     * means not silent, with a note [chain] reaches; a noise track with
+     * none, or one that is itself silent, leaves the drum channel free to
+     * silence. The export sheet's footer says so from this. */
     fun emptiedTracks(song: Song, chain: List<Int>): Set<Int> {
         val drumPlays = song.tracks.indices.any {
-            song.tracks[it].kind == ChannelKind.NOISE && !song.tracks[it].muted && reaches(it, song, chain)
+            song.tracks[it].kind == ChannelKind.NOISE && !isSilent(song.tracks[it]) && reaches(it, song, chain)
         }
         if (!drumPlays) return emptySet()
-        return song.tracks.indices.filter { song.tracks[it].muted && song.tracks[it].kind == ChannelKind.NOISE }.toSet()
+        return song.tracks.indices.filter { isSilent(song.tracks[it]) && song.tracks[it].kind == ChannelKind.NOISE }.toSet()
     }
+
+    /** Whether [track] is written silenced: muted, or so quiet its notes'
+     * velocity rounds to 0. Such a track's notes still go in at velocity 1,
+     * the least a note-on can carry and still be a note, so the 0% one is
+     * silenced as a muted one is. Only a muted one is called muted. */
+    fun isSilent(track: Track): Boolean = track.muted || roundedVelocity(track.instrument.volume) == 0
+
+    /** round(volume × 127), before the floor of 1 a note-on needs. */
+    private fun roundedVelocity(volume: Double): Int = swiftRounded(volume * 127).toInt()
 
     /** Whether track [index] has a note [chain] plays: a pitch at a step
      * short of its pattern's length, the same notes the drum bands count. */
@@ -197,14 +207,16 @@ object MidiExport {
         val isDrum = track.kind == ChannelKind.NOISE
         val pitch: (Int) -> Int = if (isDrum) drumMap(index, song, chain) else { note -> note }
 
-        // A muted track is written in full, silenced by a CC7 of 0 at its
-        // start: removing that event in a DAW, or raising it, brings the part
-        // back. [empty], from [emptiedTracks], is the one exception.
+        // A silent track (muted, or at 0%: [isSilent]) is written in full,
+        // silenced by a CC7 of 0 at its start: removing that event in a DAW,
+        // or raising it, brings the part back. [empty], from
+        // [emptiedTracks], is the one exception.
 
         // Volume goes into the velocity rather than a CC7, because the noise
         // tracks share one channel and one channel has one volume. Never 0,
-        // which a note-on would read as a note-off.
-        val velocity = maxOf(1, swiftRounded(instrument.volume * 127).toInt())
+        // which a note-on would read as a note-off; a track that rounds to 0
+        // is silent, and its CC7 is what keeps it quiet.
+        val velocity = maxOf(1, roundedVelocity(instrument.volume))
         // How long a decaying note is heard, in ticks. `decay` is the time to
         // -60 dB, which is where the synth's own envelope gives out.
         val decayTicks = maxOf(1, swiftRounded(instrument.decay * song.tempo / 60 * TICKS_PER_QUARTER.toDouble()).toInt())
@@ -217,7 +229,7 @@ object MidiExport {
             return events
         }
         program(track.kind)?.let { events.append(0, 0xC0 or channel, it) }
-        if (track.muted) events.append(0, 0xB0 or channel, 0x07, 0x00)
+        if (isSilent(track)) events.append(0, 0xB0 or channel, 0x07, 0x00)
 
         // The note still sounding, and the tick its decay would end it by.
         var soundingNote = -1

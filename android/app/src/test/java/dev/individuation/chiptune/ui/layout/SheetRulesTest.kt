@@ -3,6 +3,7 @@ package dev.individuation.chiptune.ui.layout
 import dev.individuation.chiptune.core.TestSongs
 import dev.individuation.chiptune.core.audio.ExportOptions
 import dev.individuation.chiptune.core.audio.WavExport
+import dev.individuation.chiptune.core.audio.withInstrument
 import dev.individuation.chiptune.core.model.ChannelKind
 import dev.individuation.chiptune.core.model.Instrument
 import dev.individuation.chiptune.core.model.InstrumentPreset
@@ -74,7 +75,7 @@ class ExportFooterTest {
         val song = TestSongs.golden().let { s -> s.copy(tracks = s.tracks.mapIndexed { i, t -> if (i == 0) t.copy(muted = true) else t }) }
         assertEquals(
             "The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. " +
-                "Arpeggios come out as the note you wrote. A muted track is in the file at volume 0.",
+                "Arpeggios come out as the note you wrote. A muted or 0% track is in the file at volume 0.",
             ExportNotesFooter.text(song, midi),
         )
     }
@@ -83,7 +84,7 @@ class ExportFooterTest {
         val song = TestSongs.golden().let { s -> s.copy(tracks = s.tracks.mapIndexed { i, t -> if (i == 0 || i == 2) t.copy(muted = true) else t }) }
         assertEquals(
             "The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. " +
-                "Arpeggios come out as the note you wrote. Muted tracks are in the file at volume 0.",
+                "Arpeggios come out as the note you wrote. Muted or 0% tracks are in the file at volume 0.",
             ExportNotesFooter.text(song, midi),
         )
     }
@@ -92,7 +93,7 @@ class ExportFooterTest {
     @Test fun midiFooterDoesNotWarnAboutSilenceWhenEverythingIsMuted() {
         val text = ExportNotesFooter.text(mutedGolden, midi)!!
         assertFalse(text.contains("silent"))
-        assertTrue(text.endsWith("Muted tracks are in the file at volume 0."))
+        assertTrue(text.endsWith("Muted or 0% tracks are in the file at volume 0."))
     }
 
     /** Every track plays a note at step 0. */
@@ -110,13 +111,13 @@ class ExportFooterTest {
      * silenced with the channel's volume like any other muted track. */
     @Test fun midiFooterCountsMutedDrumsAtVolumeZeroWhenNoDrumPlays() {
         val song = song(listOf(ChannelKind.PULSE1, ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(1, 2))
-        assertEquals(lead(song) + " Muted tracks are in the file at volume 0.", ExportNotesFooter.text(song, midi))
+        assertEquals(lead(song) + " Muted or 0% tracks are in the file at volume 0.", ExportNotesFooter.text(song, midi))
     }
 
     @Test fun midiFooterSaysAMutedDrumBesideAPlayingOneIsLeftEmpty() {
         val song = song(listOf(ChannelKind.PULSE1, ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(2))
         assertEquals(
-            lead(song) + " A muted drum track is left empty, since it shares the drum channel with one that plays.",
+            lead(song) + " A muted or 0% drum track is left empty, since it shares the drum channel with one that plays.",
             ExportNotesFooter.text(song, midi),
         )
     }
@@ -124,7 +125,7 @@ class ExportFooterTest {
     @Test fun midiFooterSaysSoOfEveryEmptiedDrumTrack() {
         val song = song(listOf(ChannelKind.NOISE, ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(0, 2))
         assertEquals(
-            lead(song) + " Muted drum tracks are left empty, since they share the drum channel with one that plays.",
+            lead(song) + " Muted or 0% drum tracks are left empty, since they share the drum channel with one that plays.",
             ExportNotesFooter.text(song, midi),
         )
     }
@@ -132,8 +133,8 @@ class ExportFooterTest {
     @Test fun midiFooterGivesBothWhenBothHappen() {
         val song = song(listOf(ChannelKind.PULSE1, ChannelKind.TRIANGLE, ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(1, 3))
         assertEquals(
-            lead(song) + " A muted track is in the file at volume 0." +
-                " A muted drum track is left empty, since it shares the drum channel with one that plays.",
+            lead(song) + " A muted or 0% track is in the file at volume 0." +
+                " A muted or 0% drum track is left empty, since it shares the drum channel with one that plays.",
             ExportNotesFooter.text(song, midi),
         )
     }
@@ -144,7 +145,7 @@ class ExportFooterTest {
         val song = song(listOf(ChannelKind.PULSE1, ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(2)).let { s ->
             s.copy(patterns = listOf(s.patterns[0].copy(rows = s.patterns[0].rows.mapIndexed { i, row -> if (i == 1) Pattern.EMPTY_ROW else row })))
         }
-        assertEquals(lead(song) + " A muted track is in the file at volume 0.", ExportNotesFooter.text(song, midi))
+        assertEquals(lead(song) + " A muted or 0% track is in the file at volume 0.", ExportNotesFooter.text(song, midi))
     }
 
     private fun Song.withRow(track: Int, row: List<Int>) =
@@ -168,9 +169,40 @@ class ExportFooterTest {
         val song = song(listOf(ChannelKind.NOISE, ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(1, 2))
             .withRow(2, Pattern.EMPTY_ROW)
         assertEquals(
-            lead(song) + " A muted drum track is left empty, since it shares the drum channel with one that plays.",
+            lead(song) + " A muted or 0% drum track is left empty, since it shares the drum channel with one that plays.",
             ExportNotesFooter.text(song, midi),
         )
+    }
+
+    // 0% volume: written like a muted track, so counted with them.
+
+    @Test fun midiFooterCountsATrackAtZeroVolumeAsInTheFileAtVolumeZero() {
+        val song = song(listOf(ChannelKind.PULSE1, ChannelKind.TRIANGLE), muted = emptySet())
+            .withInstrument(1) { it.copy(volume = 0.0) }
+        assertEquals(lead(song) + " A muted or 0% track is in the file at volume 0.", ExportNotesFooter.text(song, midi))
+    }
+
+    @Test fun midiFooterCountsMutedAndZeroVolumeTracksTogether() {
+        val song = song(listOf(ChannelKind.PULSE1, ChannelKind.TRIANGLE, ChannelKind.PULSE2), muted = setOf(2))
+            .withInstrument(1) { it.copy(volume = 0.0) }
+        assertEquals(lead(song) + " Muted or 0% tracks are in the file at volume 0.", ExportNotesFooter.text(song, midi))
+    }
+
+    @Test fun midiFooterSaysAZeroVolumeDrumBesideAPlayingOneIsLeftEmpty() {
+        val song = song(listOf(ChannelKind.PULSE1, ChannelKind.NOISE, ChannelKind.NOISE), muted = emptySet())
+            .withInstrument(2) { it.copy(volume = 0.0) }
+        assertEquals(
+            lead(song) + " A muted or 0% drum track is left empty, since it shares the drum channel with one that plays.",
+            ExportNotesFooter.text(song, midi),
+        )
+    }
+
+    /** A drum track at 0% doesn't play, so the muted one beside it is at
+     * volume 0 rather than left empty, and so is the 0% one. */
+    @Test fun midiFooterLeavesNoDrumEmptyBesideAZeroVolumeDrum() {
+        val song = song(listOf(ChannelKind.NOISE, ChannelKind.NOISE), muted = setOf(1))
+            .withInstrument(0) { it.copy(volume = 0.0) }
+        assertEquals(lead(song) + " Muted or 0% tracks are in the file at volume 0.", ExportNotesFooter.text(song, midi))
     }
 
     @Test fun midiFooterKeepsTheNoNotesMessages() {

@@ -73,20 +73,34 @@ enum MidiExport {
     }
 
     /// The tracks that go into the file as their name alone, by index. A
-    /// muted track is normally silenced with its channel's volume, but every
+    /// silent track (`isSilent`: muted, or at a volume that rounds to
+    /// velocity 0) is normally silenced with its channel's volume, but every
     /// noise track shares the drum channel: with one of them playing, a CC7
     /// of 0 would silence that one too, and quieter notes would still land on
-    /// its keys and ticks. So a muted noise track beside one that plays keeps
-    /// its MIDI track, to keep one per chip track, and nothing else. "Plays"
-    /// means unmuted with a note `chain` reaches; an unmuted noise track with
-    /// none leaves the drum channel free to silence. The export sheet's
-    /// footer says so from this.
+    /// its keys and ticks. So a silent noise track beside one that plays
+    /// keeps its MIDI track, to keep one per chip track, and nothing else.
+    /// "Plays" means not silent, with a note `chain` reaches; a noise track
+    /// with none, or one that is itself silent, leaves the drum channel free
+    /// to silence. The export sheet's footer says so from this.
     static func emptiedTracks(of song: Song, chain: [Int]) -> Set<Int> {
         let drumPlays = song.tracks.indices.contains {
-            song.tracks[$0].kind == .noise && !song.tracks[$0].muted && reaches($0, of: song, chain: chain)
+            song.tracks[$0].kind == .noise && !isSilent(song.tracks[$0]) && reaches($0, of: song, chain: chain)
         }
         guard drumPlays else { return [] }
-        return Set(song.tracks.indices.filter { song.tracks[$0].muted && song.tracks[$0].kind == .noise })
+        return Set(song.tracks.indices.filter { isSilent(song.tracks[$0]) && song.tracks[$0].kind == .noise })
+    }
+
+    /// Whether `track` is written silenced: muted, or so quiet its notes'
+    /// velocity rounds to 0. Such a track's notes still go in at velocity 1,
+    /// the least a note-on can carry and still be a note, so the 0% one is
+    /// silenced as a muted one is. Only a muted one is called muted.
+    static func isSilent(_ track: Track) -> Bool {
+        track.muted || roundedVelocity(track.instrument.volume) == 0
+    }
+
+    /// round(volume × 127), before the floor of 1 a note-on needs.
+    private static func roundedVelocity(_ volume: Double) -> Int {
+        Int((volume * 127).rounded())
     }
 
     /// Whether track `index` has a note `chain` plays: a pitch at a step
@@ -187,14 +201,16 @@ enum MidiExport {
         let isDrum = track.kind == .noise
         let pitch = isDrum ? drumMap(for: index, of: song, chain: chain) : { UInt8($0) }
 
-        // A muted track is written in full, silenced by a CC7 of 0 at its
-        // start: removing that event in a DAW, or raising it, brings the part
-        // back. `empty`, from `emptiedTracks`, is the one exception.
+        // A silent track (muted, or at 0%: `isSilent`) is written in full,
+        // silenced by a CC7 of 0 at its start: removing that event in a DAW,
+        // or raising it, brings the part back. `empty`, from
+        // `emptiedTracks`, is the one exception.
 
         // Volume goes into the velocity rather than a CC7, because the noise
         // tracks share one channel and one channel has one volume. Never 0,
-        // which a note-on would read as a note-off.
-        let velocity = UInt8(max(1, Int((instrument.volume * 127).rounded())))
+        // which a note-on would read as a note-off; a track that rounds to 0
+        // is silent, and its CC7 is what keeps it quiet.
+        let velocity = UInt8(max(1, roundedVelocity(instrument.volume)))
         // How long a decaying note is heard, in ticks. `decay` is the time to
         // -60 dB, which is where the synth's own envelope gives out.
         let decayTicks = max(1, Int((instrument.decay * song.tempo / 60 * Double(ticksPerQuarter)).rounded()))
@@ -209,7 +225,7 @@ enum MidiExport {
         if let program = program(for: track.kind) {
             events.append(at: 0, [0xC0 | channel, program])
         }
-        if track.muted {
+        if isSilent(track) {
             events.append(at: 0, [0xB0 | channel, 0x07, 0x00])
         }
 
