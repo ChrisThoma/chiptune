@@ -67,7 +67,11 @@ object MidiExport {
      * straight from a file can't put an out-of-range tempo into the header. */
     fun data(song: Song): ByteArray {
         val normalized = song.normalized()
-        val endTick = normalized.arrangementSteps * TICKS_PER_STEP
+        // Worked out once: the arrangement's length, the drum bands, the
+        // emptied tracks and every track's walk all go by it.
+        val chain = normalized.chain
+        val endTick = chain.sumOf { normalized.patterns.getOrNull(it)?.length ?: 0 } * TICKS_PER_STEP
+        val emptied = emptiedTracks(normalized, chain)
 
         val file = ByteArrayOutputStream()
         file.write("MThd".toByteArray(Charsets.US_ASCII))
@@ -79,7 +83,7 @@ object MidiExport {
         file.write(chunk(conductor(normalized, endTick)))
         val channels = channels(normalized.tracks)
         for (index in normalized.tracks.indices) {
-            file.write(chunk(track(index, normalized, channels[index], endTick)))
+            file.write(chunk(track(index, normalized, chain, channels[index], index in emptied, endTick)))
         }
         return file.toByteArray()
     }
@@ -161,12 +165,12 @@ object MidiExport {
      * make nearly everything a snare. Only the notes the arrangement plays
      * count, so an unplayed pattern can't move the bands.
      */
-    private fun drumMap(index: Int, song: Song): (Int) -> Int {
+    private fun drumMap(index: Int, song: Song, chain: List<Int>): (Int) -> Int {
         val instrument = song.tracks[index].instrument
         drumPreset(instrument)?.let { preset ->
             PRESET_DRUMS[preset.name]?.let { drum -> return { drum } }
         }
-        val distinct = song.chain.flatMap { song.patterns[it].rows[index].take(song.patterns[it].length) }
+        val distinct = chain.flatMap { song.patterns[it].rows[index].take(song.patterns[it].length) }
             .filter { it >= 0 }.toSortedSet().toList()
         val bands = listOf(36, 38, 42)
         val drums = HashMap<Int, Int>()
@@ -187,16 +191,15 @@ object MidiExport {
     private const val MAX_DRUM_TICKS = TICKS_PER_STEP - 1
 
     /** One chip track's MIDI track. */
-    private fun track(index: Int, song: Song, channel: Int, endTick: Int): TrackEvents {
+    private fun track(index: Int, song: Song, chain: List<Int>, channel: Int, empty: Boolean, endTick: Int): TrackEvents {
         val track = song.tracks[index]
         val instrument = track.instrument
         val isDrum = track.kind == ChannelKind.NOISE
-        val pitch: (Int) -> Int = if (isDrum) drumMap(index, song) else { note -> note }
+        val pitch: (Int) -> Int = if (isDrum) drumMap(index, song, chain) else { note -> note }
 
         // A muted track is written in full, silenced by a CC7 of 0 at its
         // start: removing that event in a DAW, or raising it, brings the part
-        // back. [emptiedTracks] is the one exception.
-        val empty = index in emptiedTracks(song, song.chain)
+        // back. [empty], from [emptiedTracks], is the one exception.
 
         // Volume goes into the velocity rather than a CC7, because the noise
         // tracks share one channel and one channel has one volume. Never 0,
@@ -233,7 +236,7 @@ object MidiExport {
         // so a held note carries over a pattern boundary just as
         // `ChipCore.triggerStep` lets it.
         var tick = 0
-        for (patternIndex in song.chain) {
+        for (patternIndex in chain) {
             val pattern = song.patterns[patternIndex]
             for (step in 0 until pattern.length) {
                 val cell = pattern.rows[index][step]

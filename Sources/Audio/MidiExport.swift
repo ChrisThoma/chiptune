@@ -50,7 +50,11 @@ enum MidiExport {
     static func data(for song: Song) -> Data {
         var song = song
         song.normalize()
-        let endTick = song.arrangementSteps * ticksPerStep
+        // Worked out once: the arrangement's length, the drum bands, the
+        // emptied tracks and every track's walk all go by it.
+        let chain = song.chain
+        let endTick = chain.reduce(0) { $0 + (song.patterns[safe: $1]?.length ?? 0) } * ticksPerStep
+        let emptied = emptiedTracks(of: song, chain: chain)
 
         var file = Data()
         file.append(contentsOf: Array("MThd".utf8))
@@ -62,7 +66,8 @@ enum MidiExport {
         file.append(chunk(conductor(for: song, endTick: endTick)))
         let channels = channels(for: song.tracks)
         for index in song.tracks.indices {
-            file.append(chunk(track(index, of: song, channel: channels[index], endTick: endTick)))
+            file.append(chunk(track(index, of: song, chain: chain, channel: channels[index],
+                                    empty: emptied.contains(index), endTick: endTick)))
         }
         return file
     }
@@ -148,13 +153,13 @@ enum MidiExport {
     /// songs write their noise between 52 and 71, so fixed pitch ranges would
     /// make nearly everything a snare. Only the notes the arrangement plays
     /// count, so an unplayed pattern can't move the bands.
-    private static func drumMap(for index: Int, of song: Song) -> (Int8) -> UInt8 {
+    private static func drumMap(for index: Int, of song: Song, chain: [Int]) -> (Int8) -> UInt8 {
         let instrument = song.tracks[index].instrument
         if let preset = drumPreset(for: instrument),
            let drum = presetDrums[preset.name] {
             return { _ in drum }
         }
-        let distinct = Set(song.chain.flatMap { song.patterns[$0].rows[index].prefix(song.patterns[$0].length) }
+        let distinct = Set(chain.flatMap { song.patterns[$0].rows[index].prefix(song.patterns[$0].length) }
             .filter { $0 >= 0 }).sorted()
         let bands: [UInt8] = [36, 38, 42]
         var drums: [Int8: UInt8] = [:]
@@ -175,16 +180,16 @@ enum MidiExport {
     private static let maxDrumTicks = ticksPerStep - 1
 
     /// One chip track's MIDI track.
-    private static func track(_ index: Int, of song: Song, channel: UInt8, endTick: Int) -> TrackEvents {
+    private static func track(_ index: Int, of song: Song, chain: [Int], channel: UInt8, empty: Bool,
+                              endTick: Int) -> TrackEvents {
         let track = song.tracks[index]
         let instrument = track.instrument
         let isDrum = track.kind == .noise
-        let pitch = isDrum ? drumMap(for: index, of: song) : { UInt8($0) }
+        let pitch = isDrum ? drumMap(for: index, of: song, chain: chain) : { UInt8($0) }
 
         // A muted track is written in full, silenced by a CC7 of 0 at its
         // start: removing that event in a DAW, or raising it, brings the part
-        // back. `emptiedTracks` is the one exception.
-        let empty = emptiedTracks(of: song, chain: song.chain).contains(index)
+        // back. `empty`, from `emptiedTracks`, is the one exception.
 
         // Volume goes into the velocity rather than a CC7, because the noise
         // tracks share one channel and one channel has one volume. Never 0,
@@ -224,7 +229,7 @@ enum MidiExport {
         // so a held note carries over a pattern boundary just as
         // `ChipCore.triggerStep` lets it.
         var tick = 0
-        for patternIndex in song.chain {
+        for patternIndex in chain {
             let pattern = song.patterns[patternIndex]
             for step in 0..<pattern.length {
                 let cell = pattern.rows[index][step]
