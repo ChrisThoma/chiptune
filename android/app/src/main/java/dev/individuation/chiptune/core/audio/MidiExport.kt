@@ -33,10 +33,14 @@ object MidiExport {
      *
      * Only the song is used. Repeats and Ending shape a rendered loop; a MIDI
      * file is the arrangement once, and a DAW loops it. There is no progress
-     * to report or render to cancel either: the bytes take no time at all.
+     * to report: the bytes take no time at all. A cancel is still honored,
+     * before the write and after it, since closing the sheet or switching
+     * songs must not end in a share sheet.
      */
     fun render(request: ExportRequest, directory: File): ExportResult {
+        if (request.isCanceled()) return ExportResult.Canceled
         val target = filename(request.song, directory)
+        val replacing = target.exists()
         try {
             // Atomic, so a failed write leaves no half a file behind to be
             // shared, and an old export of the same name stays whole.
@@ -45,6 +49,13 @@ object MidiExport {
             return ExportResult.Failed(e)
         } catch (e: SecurityException) {
             return ExportResult.Failed(e)
+        }
+        if (request.isCanceled()) {
+            // A file that took the place of the previous export is whole and
+            // is now the song's only one, so it stays; a new one goes, as a
+            // canceled WAV's does.
+            if (!replacing) target.delete()
+            return ExportResult.Canceled
         }
         return ExportResult.Success(target)
     }

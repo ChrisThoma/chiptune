@@ -17,15 +17,26 @@ enum MidiExport {
     ///
     /// Only the song is used. Repeats and Ending shape a rendered loop; a MIDI
     /// file is the arrangement once, and a DAW loops it. There is no progress
-    /// to report or render to cancel either: the bytes take no time at all.
+    /// to report: the bytes take no time at all. A cancel is still honored,
+    /// before the write and after it, since closing the sheet or switching
+    /// songs must not end in a share sheet.
     static func render(_ request: ExportRequest) -> ExportResult {
+        guard !request.isCanceled() else { return .canceled }
         let url = filename(for: request.song)
+        let replacing = FileManager.default.fileExists(atPath: url.path)
         do {
             // Atomic, so a failed write leaves no half a file behind to be
             // shared, and an old export of the same name stays whole.
             try data(for: request.song).write(to: url, options: .atomic)
         } catch {
             return .failed(error)
+        }
+        if request.isCanceled() {
+            // A file that took the place of the previous export is whole and
+            // is now the song's only one, so it stays; a new one goes, as a
+            // canceled WAV's does.
+            if !replacing { try? FileManager.default.removeItem(at: url) }
+            return .canceled
         }
         return .success(url)
     }

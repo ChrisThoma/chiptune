@@ -177,6 +177,72 @@ final class MidiExportFileTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: mid.path))
     }
 
+    // MARK: Canceling
+
+    /// Closing the sheet or switching songs cancels: no file is shared.
+    func testACancelBeforeTheWriteWritesNothingAndKeepsThePreviousExport() throws {
+        var song = TestSongs.empty(name: "Kept")
+        song.patterns[0].rows[0][0] = 60
+        let first = try render(song)
+        let firstBytes = try Data(contentsOf: first)
+
+        song.patterns[0].rows[0][4] = 64
+        let result = MidiExport.render(ExportRequest(song: song, isCanceled: { true }))
+        guard case .canceled = result else { return XCTFail("expected a cancel, got \(result)") }
+        XCTAssertEqual(try Data(contentsOf: first), firstBytes)
+
+        var other = TestSongs.empty(name: "Never")
+        other.patterns[0].rows[0][0] = 60
+        let none = MidiExport.render(ExportRequest(song: other, isCanceled: { true }))
+        guard case .canceled = none else { return XCTFail("expected a cancel, got \(none)") }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: MidiExport.filename(for: other).path))
+    }
+
+    /// A cancel that lands while the file is written still cancels, and the
+    /// new file goes: nothing was there before it.
+    func testACancelDuringTheWriteRemovesTheNewFile() throws {
+        var song = TestSongs.empty(name: "Late")
+        song.patterns[0].rows[0][0] = 60
+        let path = MidiExport.filename(for: song).path
+        // True once the file is on disk, which is to say after the write.
+        let result = MidiExport.render(ExportRequest(song: song, isCanceled: {
+            FileManager.default.fileExists(atPath: path)
+        }))
+        guard case .canceled = result else { return XCTFail("expected a cancel, got \(result)") }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: path))
+    }
+
+    /// The write already replaced the previous export of that name, so the
+    /// new, whole file is kept rather than leaving the song with none.
+    func testALateCancelKeepsAFileThatReplacedThePreviousExport() throws {
+        var song = TestSongs.empty(name: "Again")
+        song.patterns[0].rows[0][0] = 60
+        let url = try render(song)
+
+        song.patterns[0].rows[0][4] = 64
+        let newBytes = MidiExport.data(for: song)
+        let result = MidiExport.render(ExportRequest(song: song, isCanceled: {
+            (try? Data(contentsOf: url)) == newBytes
+        }))
+        guard case .canceled = result else { return XCTFail("expected a cancel, got \(result)") }
+        XCTAssertEqual(try Data(contentsOf: url), newBytes)
+    }
+
+    /// The dispatcher prunes only after a success, so a canceled export
+    /// costs no older file.
+    func testACanceledExportPrunesNothing() throws {
+        var song = TestSongs.empty(name: "Old", tempo: 240)
+        song.patterns[0].rows[0][0] = 60
+        let old = try export(song, as: .midi)
+
+        song.name = "New"
+        var options = ExportOptions()
+        options.format = .midi
+        let result = Export.render(ExportRequest(song: song, options: options, isCanceled: { true }))
+        guard case .canceled = result else { return XCTFail("expected a cancel, got \(result)") }
+        XCTAssertEqual(try fileNames(in: old.deletingLastPathComponent()), ["Old.mid"])
+    }
+
     // MARK: Failure
 
     func testAFailedWriteReportsItsErrorAndKeepsThePreviousExport() throws {
