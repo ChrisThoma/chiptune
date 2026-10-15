@@ -184,7 +184,7 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
                             drawStopIndicator = {},
                             modifier = Modifier.fillMaxWidth().height(4.dp),
                         )
-                        Text(ExportCopy.rendering(progress), style = chipFont(11f), color = ChipColors.dim)
+                        Text(ExportCopy.exporting(options.format, progress), style = chipFont(11f), color = ChipColors.dim)
                     }
                     FormSeparator()
                     FormButtonRow("Cancel export", color = FormColors.destructive, onClick = { studio.cancelExport() })

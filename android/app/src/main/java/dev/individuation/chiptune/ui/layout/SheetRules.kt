@@ -122,8 +122,14 @@ object ExportCopy {
             "The last notes fade out past the end and the file finishes in silence. Best when the file is the finished thing."
     }
 
-    /** Swift's `Int(progress * 100)` truncates. */
-    fun rendering(progress: Double): String = "Rendering\u2026 ${(progress * 100).toInt()}%"
+    /** The line under the progress bar. "Exporting", not "Rendering", since
+     * it covers both formats; only a WAV reports progress, so only a WAV
+     * gives a percentage, where a MIDI one would sit at 0%. Swift's
+     * `Int(progress * 100)` truncates. Swift's `ExportProgressText`. */
+    fun exporting(format: ExportOptions.Format, progress: Double): String = when (format) {
+        ExportOptions.Format.WAV -> "Exporting\u2026 ${(progress * 100).toInt()}%"
+        ExportOptions.Format.MIDI -> "Exporting\u2026"
+    }
 
     fun canExport(hasNotes: Boolean, attemptInFlight: Boolean): Boolean = hasNotes && !attemptInFlight
 
