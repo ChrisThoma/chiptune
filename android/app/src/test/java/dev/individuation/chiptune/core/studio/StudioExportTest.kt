@@ -308,6 +308,18 @@ class StudioExportTest {
         assertEquals(3, h.studio.exportOptions.loopCount)
     }
 
+    /** The export options are one export's, not the app's: when the flow
+     * ends, the next opening starts at WAV, 1x, Seamless loop. */
+    @Test fun endingTheExportFlowPutsTheOptionsBackToTheDefaults() {
+        val h = make()
+        h.studio.exportOptions = ExportOptions(3, ExportOptions.TailMode.RING_OUT, ExportOptions.Format.MIDI)
+
+        h.studio.endExportFlow()
+
+        assertEquals(ExportOptions(), h.studio.exportOptions)
+        assertEquals(ExportOptions(), ExportOptions(1, ExportOptions.TailMode.SEAMLESS_LOOP, ExportOptions.Format.WAV))
+    }
+
     /** Nothing is injected, so this is the dispatcher the app ships with: the
      * format the sheet picked has to reach the writer. */
     @Test fun defaultRendererFollowsTheChosenFormat() {

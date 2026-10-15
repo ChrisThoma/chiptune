@@ -168,6 +168,9 @@ object ExportFlow {
         val closeExport: Boolean = false,
         val shareWhenExportCloses: Boolean = false,
         val shareNow: Boolean = false,
+        /** The export is over, so its options go back to the defaults and
+         * the next opening starts at WAV, 1x, Seamless loop. */
+        val endsFlow: Boolean = false,
     )
 
     fun afterRender(file: File?, exportPresented: Boolean): Step {
@@ -186,7 +189,16 @@ object ExportFlow {
     fun finishedExport(previousAttempt: Int, completedAttempt: Int, file: File?): File? =
         if (completedAttempt > previousAttempt) file else null
 
-    fun afterExportClosed(pendingShare: Boolean): Step = Step(shareNow = pendingShare)
+    /** The panel closing with no share owed was closed by hand (Close, a
+     * swipe, Escape, another song opening), which ends the export. Closing
+     * for the result dialog doesn't: the file still has to be offered. */
+    fun afterExportClosed(pendingShare: Boolean): Step =
+        Step(shareNow = pendingShare, endsFlow = !pendingShare)
+
+    /** The result dialog going away ends the export, whichever button closed
+     * it. iOS brings the panel back after a canceled share; nothing does
+     * here, so there is no later step to keep the options for. */
+    fun afterResultClosed(): Step = Step(endsFlow = true)
 
     /** A panel dismissed mid-render cancels the render. */
     fun afterPanelDisappeared(isExporting: Boolean): Boolean = isExporting

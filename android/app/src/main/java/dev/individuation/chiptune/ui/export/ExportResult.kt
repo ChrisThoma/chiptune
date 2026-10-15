@@ -66,8 +66,12 @@ fun ExportResultHost(editor: Editor) {
             if (previous == Presented.Export && now != Presented.Export) {
                 val step = ExportFlow.afterExportClosed(flow.waiting)
                 flow.waiting = false
+                if (step.endsFlow) editor.studio.endExportFlow()
                 val file = flow.file
                 if (step.shareNow && file != null) presentation.open(Presented.ExportResult(file))
+            }
+            if (previous is Presented.ExportResult && now !is Presented.ExportResult) {
+                if (ExportFlow.afterResultClosed().endsFlow) editor.studio.endExportFlow()
             }
             previous = now
         }

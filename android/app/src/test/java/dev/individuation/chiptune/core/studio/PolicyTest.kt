@@ -174,7 +174,35 @@ class PolicyTest {
 
     @Test fun panelClosingSpendsTheQueuedShare() {
         assertTrue(ExportFlow.afterExportClosed(pendingShare = true).shareNow)
-        assertEquals(ExportFlow.Step(), ExportFlow.afterExportClosed(pendingShare = false))
+    }
+
+    /** Closing the panel by hand, or with Escape, is not a share. */
+    @Test fun panelClosingWithNothingQueuedSharesNothing() {
+        val step = ExportFlow.afterExportClosed(pendingShare = false)
+        assertFalse(step.shareNow)
+        assertFalse(step.closeExport)
+        assertFalse(step.shareWhenExportCloses)
+    }
+
+    // MARK: When the export options go back to the defaults
+
+    /** Closing the panel by hand ends the export, so the next one starts at
+     * WAV, 1x, Seamless loop. */
+    @Test fun panelClosedByHandEndsTheFlow() {
+        assertTrue(ExportFlow.afterExportClosed(pendingShare = false).endsFlow)
+    }
+
+    /** Closing for the result dialog doesn't: the export isn't over until
+     * the file has been offered. */
+    @Test fun panelClosedForTheShareKeepsTheFlowGoing() {
+        assertFalse(ExportFlow.afterExportClosed(pendingShare = true).endsFlow)
+    }
+
+    /** Nothing brings the panel back once the result dialog has gone, so
+     * Share, Save to device and Close all end the export. */
+    @Test fun theResultDialogClosingEndsTheFlow() {
+        assertTrue(ExportFlow.afterResultClosed().endsFlow)
+        assertFalse(ExportFlow.afterResultClosed().shareNow)
     }
 
     @Test fun panelDisappearingMidRenderAsksForACancel() {
