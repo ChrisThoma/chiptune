@@ -1235,6 +1235,13 @@ class Studio(
 
     // MARK: Export
 
+    /** The export is over (the panel closed by hand, or the result dialog
+     * gone), so the next one starts at WAV, 1x, Seamless loop rather than
+     * whatever this one picked. */
+    fun endExportFlow() {
+        exportOptions = ExportOptions()
+    }
+
     /**
      * Renders the WAV or MIDI file on [exportExecutor]. Returns the attempt token, or null
      * when an export is already running. [exportFile] clears at the start so
