@@ -73,6 +73,17 @@ fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = 
     }
 }
 
+/** What sits under the WAV/MIDI picker. A MIDI file is the one a beginner
+ * can be surprised by: it opens in another app with that app's sounds, not
+ * the chip's. Null for a WAV, which is the sound itself. */
+object ExportFormatFooter {
+    fun text(format: ExportOptions.Format): String? = when (format) {
+        ExportOptions.Format.WAV -> null
+        ExportOptions.Format.MIDI ->
+            "A MIDI file holds your notes, not the chip sounds. The app you open it in plays them with its own instruments."
+    }
+}
+
 /** The format, repeats and ending controls freeze for the length of a render:
  * it keeps the settings it started with. */
 object ExportControls {

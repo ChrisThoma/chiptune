@@ -57,6 +57,7 @@ import dev.individuation.chiptune.ui.editor.adjustable
 import dev.individuation.chiptune.ui.editor.plainClickable
 import dev.individuation.chiptune.ui.layout.ExportControls
 import dev.individuation.chiptune.ui.layout.ExportCopy
+import dev.individuation.chiptune.ui.layout.ExportFormatFooter
 import dev.individuation.chiptune.ui.layout.ExportNotesFooter
 import dev.individuation.chiptune.ui.layout.Format
 import dev.individuation.chiptune.ui.layout.adjusted
@@ -125,7 +126,7 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 8.dp)
                 .navigationBarsPadding(),
         ) {
-            FormSection {
+            FormSection(footer = ExportFormatFooter.text(options.format)) {
                 FormatPicker(options.format, enabled = !locked) { studio.exportOptions = options.copy(format = it) }
             }
 
