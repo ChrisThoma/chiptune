@@ -279,10 +279,19 @@ class ExportCopyTest {
         )
     }
 
-    @Test fun renderingTruncatesThePercentLikeSwiftsInt() {
-        assertEquals("Rendering\u2026 0%", ExportCopy.rendering(0.0))
-        assertEquals("Rendering\u2026 99%", ExportCopy.rendering(0.999))
-        assertEquals("Rendering\u2026 100%", ExportCopy.rendering(1.0))
+    @Test fun aWavExportSaysHowFarAlongItIs() {
+        assertEquals("Exporting\u2026 42%", ExportCopy.exporting(ExportOptions.Format.WAV, 0.42))
+    }
+
+    @Test fun exportingTruncatesThePercentLikeSwiftsInt() {
+        assertEquals("Exporting\u2026 0%", ExportCopy.exporting(ExportOptions.Format.WAV, 0.0))
+        assertEquals("Exporting\u2026 99%", ExportCopy.exporting(ExportOptions.Format.WAV, 0.999))
+        assertEquals("Exporting\u2026 100%", ExportCopy.exporting(ExportOptions.Format.WAV, 1.0))
+    }
+
+    /** A MIDI export never reports progress, so a percentage would sit at 0%. */
+    @Test fun aMidiExportGivesNoPercentage() {
+        assertEquals("Exporting\u2026", ExportCopy.exporting(ExportOptions.Format.MIDI, 0.0))
     }
 
     @Test fun exportIsOfferedOnlyWithNotesAndNoAttemptInFlight() {
