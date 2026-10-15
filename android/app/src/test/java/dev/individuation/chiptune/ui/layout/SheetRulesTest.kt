@@ -234,6 +234,22 @@ class ExportFooterTest {
         assertFalse(ExportControls.freesExportButton(startedAttempt = null, completedAttempt = 1, producedFile = false))
 }
 
+/** What sits under the WAV/MIDI picker. Port of `ExportFormatFooterTests`. */
+class ExportFormatFooterTest {
+    /** A beginner doesn't know a MIDI file has no sounds in it. */
+    @Test fun midiSaysTheFileHoldsNotesNotSounds() {
+        assertEquals(
+            "A MIDI file holds your notes, not the chip sounds. The app you open it in plays them with its own instruments.",
+            ExportFormatFooter.text(ExportOptions.Format.MIDI),
+        )
+    }
+
+    /** A WAV is the sound itself; its repeats and ending say the rest. */
+    @Test fun wavHasNoFormatFooter() {
+        assertNull(ExportFormatFooter.text(ExportOptions.Format.WAV))
+    }
+}
+
 /** The export sheet's readouts, word for word from `ExportSheet.swift`. */
 class ExportCopyTest {
     @Test fun repeatsReadoutUsesTheTimesSign() = assertEquals("3\u00d7", ExportCopy.loopCount(3))
