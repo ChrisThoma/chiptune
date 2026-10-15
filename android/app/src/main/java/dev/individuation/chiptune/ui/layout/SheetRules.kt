@@ -39,8 +39,9 @@ object ExportNotesFooter {
 }
 
 /** What sits under the Export button for [format]. A WAV keeps the notes above.
- * A MIDI file still carries a muted or 0% track's notes (at volume 0), or, for
- * such a drum track beside one that plays, an empty track (see
+ * A MIDI file still carries a muted or 0% track's notes (at volume 0;
+ * "silent" to the user, who sets it as 0%), or, for such a drum track beside
+ * one that plays, an empty track (see
  * [MidiExport.emptiedTracks]), so the "would be silent" warning is replaced by a
  * line saying where those tracks went; the no-notes messages stay, since there
  * is nothing to export either way. */
@@ -61,12 +62,12 @@ fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = 
         val emptiedCount = silentWithNotes.count { it in emptied }
         val silencedCount = silentWithNotes.size - emptiedCount
         when {
-            silencedCount == 1 -> line.append(" A muted or 0% track is in the file at volume 0.")
-            silencedCount > 1 -> line.append(" Muted or 0% tracks are in the file at volume 0.")
+            silencedCount == 1 -> line.append(" A muted or silent track keeps its notes in the file, turned all the way down.")
+            silencedCount > 1 -> line.append(" Muted or silent tracks keep their notes in the file, turned all the way down.")
         }
         when {
-            emptiedCount == 1 -> line.append(" A muted or 0% drum track is left empty, since it shares the drum channel with one that plays.")
-            emptiedCount > 1 -> line.append(" Muted or 0% drum tracks are left empty, since they share the drum channel with one that plays.")
+            emptiedCount == 1 -> line.append(" A muted or silent drum track is left empty, because all drum tracks share one part in the file.")
+            emptiedCount > 1 -> line.append(" Muted or silent drum tracks are left empty, because all drum tracks share one part in the file.")
         }
         line.toString()
     }
