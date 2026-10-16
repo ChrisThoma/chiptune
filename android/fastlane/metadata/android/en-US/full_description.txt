@@ -1,0 +1,33 @@
+Chiptune is a step sequencer for writing music in a style of old game consoles. Simply tap a note, tap a cell in the grid, and it will play sounds from one of four NES-style channels. Chiptune has two pulses, a triangle and noise. Each channel is synthesized live rather than sampled.
+
+Patterns are customizable from 4 to 64 steps and can be chained into an arrangement. This lets a piece go from just a single loop into a full song with intros, verses, choruses, etc.
+
+WRITE
+• Compose on a grid of notes with 4 to 64 steps per pattern
+• Customize your track to cut notes short or let them ring
+• Set the tempo by typing it or nudging it a step at a time
+• Easily undo any changes
+• With a hardware keyboard, play the grid like a tracker, with Ctrl shortcuts for undo, export and more
+
+SOUND
+• Two pulse channels with four pulse widths, from thin and nasal to full square
+• A triangle channel ideal for basslines
+• Tunable noise for drums like a hi-hat or a low rumble
+• Volume, decay, and arpeggio controls per channel, so one channel can fake a chord
+• Sounds come with basic presets
+
+ARRANGE
+• Create sections with a named pattern and a repeat count
+• Loop one pattern while editing or play the whole song
+• Add multiple tracks of any sound when four channels aren't enough
+• On a tablet, the sound controls sit beside the grid
+
+SAVE AND SHARE
+• Songs autosave as you work so you never lose anything
+• Duplicate a song to try something slightly different
+• Export any song as a WAV file with a seamless loop or with the last notes ringing out
+• Export as a MIDI file to keep working on your notes in another music app
+• Share an export or save it straight to your device
+• Send a song file to a friend, or open one from Files, Gmail or Drive
+
+Chiptune works fully offline and never asks for a subscription. No account, no ads, no tracking.

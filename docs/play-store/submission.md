@@ -3,38 +3,49 @@
 Checklist of what is left before a Play Console listing goes live, in the
 style of `AppStore/CHECKLIST.md`. Listing copy and the items that need a
 decision are in `listing-draft.md` (**Needs Chris**). Status: the Android port
-is feature-complete through Phase 8 and builds; nothing has been created or
-uploaded in Play Console. Do not submit anything until Chris has worked
-through the open items.
+is feature-complete through Phase 8 and builds; the listing and a draft
+internal build are on Play (see Status). Do not submit anything until Chris
+has worked through the items left for him.
 
-## Open items for Chris
+## Status (2026-10-16)
 
-None of these can be done by an agent.
+Done through the Play Developer API (`android/Tools/play/play_sync.py`,
+key `~/.config/google-play/publisher.json`):
 
-1. **Google developer account.** Check it is verified and that a payments
-   profile exists if the app is paid (price decision in `listing-draft.md`).
-2. **Closed testing requirement.** A personal account created after
-   November 2023 needs at least **12 testers opted in to a closed test for 14
-   continuous days** before applying for production access. The 14 days are
-   the long pole; line up testers early.
-3. **Play Console app record.** Not created. Application ID
-   `dev.individuation.chiptune` (the same string as the iOS bundle ID).
-4. **Upload key.** Not created. Step 1 below.
-5. **Real-device pass.** Nothing has run on hardware yet. Check latency (the
-   emulator's ~180 ms is an artifact), a phone call during playback, headphones
-   unplugged mid-song, and a tablet with a physical keyboard. See
-   `docs/qa/APPMAP-android.md`.
-6. **Price, content rating, data safety, privacy policy URL, contact email.**
-   See `listing-draft.md`.
+- App record exists; listing title, short and full description, contact email
+  and website pushed from `android/fastlane/metadata/android/en-US/`.
+- Icon, feature graphic, 6 phone and 6 10-inch tablet screenshots uploaded
+  (`android/Tools/play/shoot.sh`, `make_feature_graphic.py`).
+- Upload key created: `~/.config/google-play/chiptune-upload.jks`, alias
+  `chiptune-upload`, password in the macOS Keychain item "Chiptune Play
+  upload key" (store and key password are the same). SHA-256
+  `8B:BF:0E:AE:...:4D:0B`. Back up the `.jks` and the password together.
+- versionCode 1 (1.0) uploaded as a **draft** release on Internal testing.
+- Privacy policy updated for Android backup, MIDI and the Play rating prompt
+  (individuation `5b27cd1`, live).
+
+Left for Chris, all web-only in Play Console:
+
+1. Store settings: category Music & Audio; App content: privacy policy URL.
+2. App content declarations: ads (none), target audience 13+, content rating
+   questionnaire (answers below), Data safety ("no data collected"), and
+   the government / financial / health / news declarations (all no).
+3. Price: Free or paid ($0.99 needs a payments profile).
+4. Internal testing: add testers, roll out the draft, install on a real
+   phone (checks in step 5 below).
+5. Closed testing: 12 testers opted in for 14 days, then apply for
+   production access.
 
 ## Remaining before submission
 
 1. **Create the upload key.** Play needs a keystore this project generates and
    keeps itself. Run once, outside the repo:
 
+   Done 2026-10-16; see Status. The command used, for a replacement:
+
    ```sh
-   keytool -genkeypair -v -keystore ~/chiptune-upload-key.jks \
-     -alias chiptune-upload -keyalg RSA -keysize 2048 -validity 10000
+   keytool -genkeypair -keystore ~/.config/google-play/chiptune-upload.jks \
+     -storetype PKCS12 -alias chiptune-upload -keyalg RSA -keysize 2048 -validity 10000
    ```
 
    Keep the `.jks` and its passwords in a password manager, never in the repo.
@@ -96,12 +107,13 @@ local R8 and size checks but cannot be uploaded.
 ```sh
 cd android
 export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.0.1.jdk/Contents/Home
-export CHIPTUNE_KEYSTORE=~/chiptune-upload-key.jks
-export CHIPTUNE_KEYSTORE_PASSWORD=...
+export CHIPTUNE_KEYSTORE=~/.config/google-play/chiptune-upload.jks
+export CHIPTUNE_KEYSTORE_PASSWORD="$(security find-generic-password -a chiptune-upload -s 'Chiptune Play upload key' -w)"
 export CHIPTUNE_KEY_ALIAS=chiptune-upload
-export CHIPTUNE_KEY_PASSWORD=...
+export CHIPTUNE_KEY_PASSWORD="$CHIPTUNE_KEYSTORE_PASSWORD"
 export CHIPTUNE_VERSION_CODE=1
 ./gradlew --no-daemon bundleRelease
+cd .. && python3 android/Tools/play/play_sync.py --bundle android/app/build/outputs/bundle/release/app-release.aab --track internal
 ```
 
 The signed bundle lands at `android/app/build/outputs/bundle/release/app-release.aab`.
