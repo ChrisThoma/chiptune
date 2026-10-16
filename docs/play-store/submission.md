@@ -35,18 +35,22 @@ Data safety (no data collected or shared), government / financial / health
 versionCode 2 merged release manifest has no `AD_ID` permission). App content
 shows nothing needing attention. Price: Paid, with per-country prices set.
 
-None of these changes is sent for review yet: Publishing overview holds them
-until "Send app for review", which stays disabled until the dashboard's
-production tasks are done. Managed publishing is off, so the app goes live
-as soon as review passes.
+Production (2026-10-16): all 173 countries / regions; release "2 (1.0)"
+from versionCode 2, full rollout, notes "Initial release.". One warning,
+not blocking: no native debug symbols uploaded. Catalog access preferences
+left unset (included in catalog exports by default).
+
+**Submitted for review 2026-10-16** (10 changes: production release,
+countries, store listing, declarations). Google says reviews typically take
+up to 7 days. Managed publishing is off, so the app goes live as soon as
+review passes.
 
 Left:
 
-1. Real-phone pass on the internal build (checks in step 5 below).
-2. Production countries and regions (open task on the dashboard).
-3. Production release from versionCode 2, then "Send app for review" in
-   Publishing overview. Turn on managed publishing first to pick the
-   launch moment.
+1. Real-phone pass on the internal build (checks in step 5 below); skipped
+   before submission.
+2. After launch: update individuation.dev/projects/chiptune and the README
+   with the Play link.
 
 Production access: the account is an organization account, so the
 12-tester, 14-day closed test rule for new personal accounts does not apply;
