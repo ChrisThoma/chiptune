@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.LibraryAdd
@@ -236,6 +237,7 @@ private fun SongMenu(editor: Editor) {
                 MenuRow("Keyboard shortcuts", Icons.Filled.Keyboard) { pick { editor.presentation.open(Presented.KeyboardHelp) } }
             }
             MenuRow("Contact support", Icons.Filled.Email) { pick { editor.effects.openUrl(EditorEffects.SUPPORT_URL) } }
+            MenuRow("Privacy policy", Icons.Filled.PrivacyTip) { pick { editor.effects.openUrl(EditorEffects.PRIVACY_URL) } }
             if (buildStamp.lines.isNotEmpty()) {
                 // Last, because it's read rarely; tapping copies the release
                 // and commit, since the reason to look is a bug report.

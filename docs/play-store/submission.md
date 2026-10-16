@@ -38,8 +38,8 @@ Left for Chris:
 4. Production access: the account is an organization account, so the
    12-tester, 14-day closed test rule for new personal accounts does not
    apply.
-5. Play's privacy page says the policy must also be linked inside the app;
-   the Android app links only to Support (`EditorEffects.SUPPORT_URL`).
+5. Done in versionCode 2: the song menu has a "Privacy policy" row;
+   it opens `EditorEffects.PRIVACY_URL`, the listing's policy.
 
 ## Remaining before submission
 

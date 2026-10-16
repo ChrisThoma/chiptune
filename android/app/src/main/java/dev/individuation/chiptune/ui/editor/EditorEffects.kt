@@ -67,6 +67,9 @@ interface EditorEffects {
         const val SONG_MIME = "application/json"
         const val SUPPORT_URL = "https://individuation.dev/contact/"
 
+        /** Play wants the listing's privacy policy reachable inside the app too. */
+        const val PRIVACY_URL = "https://individuation.dev/projects/chiptune/privacy.html"
+
         /** What to offer a file as, by its extension: an export is its format's
          * type, anything else a song file. Read off the file rather than the
          * sheet's format, which may have been switched since it was written. */
