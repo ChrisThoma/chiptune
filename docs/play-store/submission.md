@@ -20,26 +20,37 @@ key `~/.config/google-play/publisher.json`):
   `chiptune-upload`, password in the macOS Keychain item "Chiptune Play
   upload key" (store and key password are the same). SHA-256
   `8B:BF:0E:AE:...:4D:0B`. Back up the `.jks` and the password together.
-- versionCode 1 (1.0) uploaded as a **draft** release on Internal testing.
+- versionCode 2 (1.0) rolled out on Internal testing to the "VTqq" email
+  list (3 testers); a "Friends" list (2) exists but is not selected. This
+  build adds the song menu's "Privacy policy" row
+  (`EditorEffects.PRIVACY_URL`). Until review, testers see the temporary
+  name "dev.individuation.chiptune (unreviewed)".
 - Privacy policy updated for Android backup, MIDI and the Play rating prompt
   (individuation `5b27cd1`, live).
 
 Done in Play Console (Chrome, 2026-10-16): privacy policy URL, sign-in
 details (nothing restricted), ads (none), target audience (13-15, 16-17, 18+),
 Data safety (no data collected or shared), government / financial / health
-(none), category Music & Audio.
+(none), category Music & Audio, content rating, Advertising ID (No; the
+versionCode 2 merged release manifest has no `AD_ID` permission). App content
+shows nothing needing attention. Price: Paid, with per-country prices set.
 
-Left for Chris:
+None of these changes is sent for review yet: Publishing overview holds them
+until "Send app for review", which stays disabled until the dashboard's
+production tasks are done. Managed publishing is off, so the app goes live
+as soon as review passes.
 
-1. Content rating questionnaire (completing it accepts IARC's terms).
-2. Price: Free or paid ($0.99 needs a merchant account).
-3. Internal testing: add testers, roll out the draft, install on a real
-   phone (checks in step 5 below).
-4. Production access: the account is an organization account, so the
-   12-tester, 14-day closed test rule for new personal accounts does not
-   apply.
-5. Done in versionCode 2: the song menu has a "Privacy policy" row;
-   it opens `EditorEffects.PRIVACY_URL`, the listing's policy.
+Left:
+
+1. Real-phone pass on the internal build (checks in step 5 below).
+2. Production countries and regions (open task on the dashboard).
+3. Production release from versionCode 2, then "Send app for review" in
+   Publishing overview. Turn on managed publishing first to pick the
+   launch moment.
+
+Production access: the account is an organization account, so the
+12-tester, 14-day closed test rule for new personal accounts does not apply;
+the Production track is not locked behind closed testing.
 
 ## Remaining before submission
 
