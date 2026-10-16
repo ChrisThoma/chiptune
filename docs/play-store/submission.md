@@ -24,17 +24,22 @@ key `~/.config/google-play/publisher.json`):
 - Privacy policy updated for Android backup, MIDI and the Play rating prompt
   (individuation `5b27cd1`, live).
 
-Left for Chris, all web-only in Play Console:
+Done in Play Console (Chrome, 2026-10-16): privacy policy URL, sign-in
+details (nothing restricted), ads (none), target audience (13-15, 16-17, 18+),
+Data safety (no data collected or shared), government / financial / health
+(none), category Music & Audio.
 
-1. Store settings: category Music & Audio; App content: privacy policy URL.
-2. App content declarations: ads (none), target audience 13+, content rating
-   questionnaire (answers below), Data safety ("no data collected"), and
-   the government / financial / health / news declarations (all no).
-3. Price: Free or paid ($0.99 needs a payments profile).
-4. Internal testing: add testers, roll out the draft, install on a real
+Left for Chris:
+
+1. Content rating questionnaire (completing it accepts IARC's terms).
+2. Price: Free or paid ($0.99 needs a merchant account).
+3. Internal testing: add testers, roll out the draft, install on a real
    phone (checks in step 5 below).
-5. Closed testing: 12 testers opted in for 14 days, then apply for
-   production access.
+4. Production access: the account is an organization account, so the
+   12-tester, 14-day closed test rule for new personal accounts does not
+   apply.
+5. Play's privacy page says the policy must also be linked inside the app;
+   the Android app links only to Support (`EditorEffects.SUPPORT_URL`).
 
 ## Remaining before submission
 
