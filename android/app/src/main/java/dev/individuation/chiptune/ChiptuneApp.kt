@@ -20,6 +20,7 @@ import dev.individuation.chiptune.platform.AudioRate
 import dev.individuation.chiptune.platform.IncomingImports
 import dev.individuation.chiptune.platform.ShareRoots
 import dev.individuation.chiptune.platform.SharedPrefsKeyValueStore
+import dev.individuation.chiptune.platform.video.Mp4Writer
 import java.io.File
 import java.util.concurrent.Executors
 
@@ -31,7 +32,8 @@ import java.util.concurrent.Executors
  *
  * Who builds what, all on the main thread, inside [buildStudio]:
  * native rate -> [ChipCore] at that rate -> [AndroidAudioOutput] around it ->
- * prefs, [FileSongStore], [SongShareWriter], the WAV renderer and its
+ * prefs, [FileSongStore], [SongShareWriter], the export renderer (with the
+ * MediaCodec [Mp4Writer] for videos) and its
  * single-thread executor, [AndroidScheduler] -> [Studio] (which reads the
  * library and the last song from disk) -> the output's events wired to the
  * Studio's hooks. The only other threads are the output's render thread and
@@ -70,11 +72,12 @@ class ChiptuneApp : Application() {
         val output = AndroidAudioOutput(this, core)
         val prefs = SharedPrefsKeyValueStore(this)
         val exportDir = File(cacheDir, ShareRoots.EXPORT)
+        val videoWriter = Mp4Writer(resources)
         val built = Studio(
             store = FileSongStore(File(filesDir, "Songs"), prefs),
             audio = output,
             scheduler = AndroidScheduler(),
-            renderer = { ExportRenderer.render(it, exportDir) },
+            renderer = { ExportRenderer.render(it, exportDir, videoWriter) },
             exportExecutor = Executors.newSingleThreadExecutor { r -> Thread(r, "chiptune-export") },
             shareWriter = SongShareWriter(File(cacheDir, ShareRoots.SHARE)),
             core = core,

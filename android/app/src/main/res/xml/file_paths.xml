@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Only what the app hands to a share sheet: song files under cache/share/<share-ID>/
-     and WAV exports under cache/export/<SONG-ID>/. Keep in step with ShareRoots. -->
+     and WAV, MIDI and video exports under cache/export/<SONG-ID>/. A video's scratch
+     files sit in cache/export/video-scratch/ and are never shared. Keep in step with
+     ShareRoots. -->
 <paths>
     <cache-path name="share" path="share/" />
     <cache-path name="export" path="export/" />
