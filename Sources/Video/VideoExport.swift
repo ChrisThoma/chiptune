@@ -1,20 +1,270 @@
-import Foundation
+import AVFoundation
+import CoreVideo
 
 /// Renders a song as a 1080×1920, 30 fps H.264/AAC mp4 for Reels, TikTok and
 /// Shorts.
+///
+/// Audio first, then pictures: the soundtrack is rendered by `WavExport` to a
+/// scratch WAV (the first 30% of the progress bar), then every frame is drawn
+/// by `VideoFrameRenderer` and written alongside that audio by one
+/// `AVAssetWriter` (the rest). Frame `f` shows sample `f × 1470` of the same
+/// render, through `VideoTimeline`, so the picture cannot drift from the
+/// sound.
+///
+/// Nothing half-made is left behind. The WAV and the mp4 being written both
+/// live in `scratchDirectory`, outside the per-song export folder so neither
+/// clobbers the user's last WAV nor gets swept by `ExportFiles.pruneStale`,
+/// and both are deleted however the export ends. The finished mp4 is moved
+/// over the song's previous video only once it's complete, so a failure or a
+/// cancel keeps the old one.
 enum VideoExport {
     /// TikTok's upload limit, the longest of the three. WAV's own limit is
     /// about 13 hours, which says nothing useful about a video.
     static let maxSeconds = 600.0
 
+    static var scratchDirectory: URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("video-scratch", isDirectory: true)
+    }
+
+    /// The share of the progress bar the soundtrack takes. Drawing and
+    /// encoding the frames is most of the work.
+    private static let audioShare = 0.3
+
     static func render(_ request: ExportRequest) -> ExportResult {
+        var song = request.song
+        song.normalize()
         var options = request.options.clamped
         options.format = .video
-        let timeline = VideoTimeline(song: request.song, options: options)
+        let timeline = VideoTimeline(song: song, options: options)
         // Checked from the timeline before anything is rendered: finding out
         // after minutes of drawing frames would waste them on a predictable
         // refusal.
         guard timeline.seconds <= maxSeconds else { return .tooLong }
-        return .failed(CocoaError(.featureUnsupported))
+
+        let fm = FileManager.default
+        do {
+            try fm.createDirectory(at: scratchDirectory, withIntermediateDirectories: true)
+        } catch {
+            return .failed(error)
+        }
+        let stem = UUID().uuidString
+        let soundtrack = scratchDirectory.appendingPathComponent(stem + ".wav")
+        let partial = scratchDirectory.appendingPathComponent(stem + ".mp4")
+        defer {
+            try? fm.removeItem(at: soundtrack)
+            try? fm.removeItem(at: partial)
+        }
+
+        var audioRequest = request
+        audioRequest.song = song
+        audioRequest.options = options
+        audioRequest.progress = { request.progress($0 * audioShare) }
+        let audio = WavExport.render(audioRequest, to: soundtrack)
+        guard case .success = audio else { return audio }
+
+        let renderer = VideoFrameRenderer(song: song, options: options, timeline: timeline)
+        let encoded = encode(timeline: timeline, renderer: renderer, soundtrack: soundtrack,
+                             to: partial, request: request)
+        guard case .success = encoded else { return encoded }
+
+        let destination = ExportFiles.url(for: song, format: .video)
+        do {
+            if fm.fileExists(atPath: destination.path) {
+                _ = try fm.replaceItemAt(destination, withItemAt: partial)
+            } else {
+                try fm.moveItem(at: partial, to: destination)
+            }
+        } catch {
+            return .failed(error)
+        }
+        request.progress(1)
+        return .success(destination)
+    }
+
+    // MARK: Encoding
+
+    private static let width = Int(VideoLayout.size.width)
+    private static let height = Int(VideoLayout.size.height)
+
+    /// Writes every frame and the soundtrack into `url`. The two inputs are
+    /// fed from one loop, each whenever the writer is ready for it, so the
+    /// writer's interleaving never waits on a stream that isn't being fed.
+    private static func encode(timeline: VideoTimeline, renderer: VideoFrameRenderer,
+                               soundtrack: URL, to url: URL, request: ExportRequest) -> ExportResult {
+        let writer: AVAssetWriter
+        let reader: AVAssetReader
+        do {
+            writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+            reader = try AVAssetReader(asset: AVURLAsset(url: soundtrack))
+        } catch {
+            return .failed(error)
+        }
+
+        let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: width,
+            AVVideoHeightKey: height,
+            // Tagged explicitly so players don't guess at the Theme colours.
+            AVVideoColorPropertiesKey: [
+                AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_709_2,
+                AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_709_2,
+                AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_709_2,
+            ],
+            AVVideoCompressionPropertiesKey: [
+                AVVideoAverageBitRateKey: 8_000_000,
+                AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
+                AVVideoExpectedSourceFrameRateKey: VideoTimeline.fps,
+                AVVideoMaxKeyFrameIntervalKey: VideoTimeline.fps * 2,
+            ],
+        ])
+        videoInput.expectsMediaDataInRealTime = false
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: videoInput, sourcePixelBufferAttributes: [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferWidthKey as String: width,
+            kCVPixelBufferHeightKey as String: height,
+            kCVPixelBufferCGBitmapContextCompatibilityKey as String: true,
+        ])
+
+        let audioInput = AVAssetWriterInput(mediaType: .audio, outputSettings: [
+            AVFormatIDKey: kAudioFormatMPEG4AAC,
+            AVSampleRateKey: WavExport.sampleRate,
+            AVNumberOfChannelsKey: 1,
+            AVEncoderBitRateKey: 128_000,
+        ])
+        audioInput.expectsMediaDataInRealTime = false
+
+        guard let audioTrack = firstAudioTrack(of: reader.asset) else {
+            return .failed(CocoaError(.fileReadCorruptFile))
+        }
+        let audioOutput = AVAssetReaderTrackOutput(track: audioTrack, outputSettings: [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false,
+        ])
+        guard writer.canAdd(videoInput), writer.canAdd(audioInput), reader.canAdd(audioOutput) else {
+            return .failed(CocoaError(.fileWriteUnknown))
+        }
+        writer.add(videoInput)
+        writer.add(audioInput)
+        reader.add(audioOutput)
+
+        guard writer.startWriting() else { return .failed(writer.error ?? CocoaError(.fileWriteUnknown)) }
+        guard reader.startReading() else {
+            writer.cancelWriting()
+            return .failed(reader.error ?? CocoaError(.fileReadUnknown))
+        }
+        writer.startSession(atSourceTime: .zero)
+
+        func abandon() {
+            reader.cancelReading()
+            writer.cancelWriting()
+        }
+
+        let totalFrames = timeline.totalFrames
+        var frame = 0
+        var audioDone = false
+        var reported = audioShare
+        while frame < totalFrames || !audioDone {
+            if request.isCanceled() {
+                abandon()
+                return .canceled
+            }
+            var moved = false
+            if frame < totalFrames, videoInput.isReadyForMoreMediaData {
+                guard let buffer = drawFrame(frame, renderer: renderer, pool: adaptor.pixelBufferPool),
+                      adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(frame),
+                                                                          timescale: CMTimeScale(VideoTimeline.fps))) else {
+                    let error = writer.error ?? CocoaError(.fileWriteUnknown)
+                    abandon()
+                    return .failed(error)
+                }
+                frame += 1
+                if frame == totalFrames { videoInput.markAsFinished() }
+                moved = true
+                // At most a hundred hops to the main actor, as the WAV
+                // render does.
+                let fraction = audioShare + (1 - audioShare) * Double(frame) / Double(totalFrames)
+                if fraction - reported >= 0.01, fraction < 1 {
+                    reported = fraction
+                    request.progress(fraction)
+                }
+            }
+            if !audioDone, audioInput.isReadyForMoreMediaData {
+                if let sample = audioOutput.copyNextSampleBuffer() {
+                    guard audioInput.append(sample) else {
+                        let error = writer.error ?? CocoaError(.fileWriteUnknown)
+                        abandon()
+                        return .failed(error)
+                    }
+                } else {
+                    if reader.status == .failed {
+                        let error = reader.error ?? CocoaError(.fileReadUnknown)
+                        abandon()
+                        return .failed(error)
+                    }
+                    audioInput.markAsFinished()
+                    audioDone = true
+                }
+                moved = true
+            }
+            if writer.status == .failed {
+                let error = writer.error ?? CocoaError(.fileWriteUnknown)
+                abandon()
+                return .failed(error)
+            }
+            // Neither input wants anything yet: the encoders are busy.
+            if !moved { usleep(1000) }
+        }
+
+        // The last frame stays up to the end of the audio, so the file is as
+        // long as its soundtrack rather than rounded up to a whole frame.
+        writer.endSession(atSourceTime: CMTime(value: CMTimeValue(timeline.totalSamples),
+                                               timescale: CMTimeScale(WavExport.sampleRate)))
+        let done = DispatchSemaphore(value: 0)
+        writer.finishWriting { done.signal() }
+        done.wait()
+        guard writer.status == .completed else {
+            return .failed(writer.error ?? CocoaError(.fileWriteUnknown))
+        }
+        return .success(url)
+    }
+
+    /// The render runs synchronously on its own thread, so this waits on the
+    /// completion-handler form rather than hopping into async code.
+    private static func firstAudioTrack(of asset: AVAsset) -> AVAssetTrack? {
+        let loaded = DispatchSemaphore(value: 0)
+        nonisolated(unsafe) var track: AVAssetTrack?
+        asset.loadTracks(withMediaType: .audio) { tracks, _ in
+            track = tracks?.first
+            loaded.signal()
+        }
+        loaded.wait()
+        return track
+    }
+
+    private static func drawFrame(_ frame: Int, renderer: VideoFrameRenderer,
+                                  pool: CVPixelBufferPool?) -> CVPixelBuffer? {
+        guard let pool else { return nil }
+        var made: CVPixelBuffer?
+        guard CVPixelBufferPoolCreatePixelBuffer(nil, pool, &made) == kCVReturnSuccess,
+              let buffer = made else { return nil }
+        CVPixelBufferLockBaseAddress(buffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
+        guard let context = CGContext(
+            data: CVPixelBufferGetBaseAddress(buffer),
+            width: width, height: height, bitsPerComponent: 8,
+            bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
+            space: Palette.colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        ) else { return nil }
+        // UIKit's orientation: y runs down from the top, as VideoLayout's does.
+        context.translateBy(x: 0, y: CGFloat(height))
+        context.scaleBy(x: 1, y: -1)
+        autoreleasepool {
+            renderer.draw(frame: frame, in: context)
+        }
+        return buffer
     }
 }

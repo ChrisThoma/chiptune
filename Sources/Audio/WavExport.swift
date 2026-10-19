@@ -131,9 +131,7 @@ enum Export {
         switch request.options.format {
         case .wav: result = WavExport.render(request)
         case .midi: result = MidiExport.render(request)
-        // Wired to the encoder once it lands; until then a video request
-        // fails rather than writing something that isn't a video.
-        case .video: result = .failed(CocoaError(.featureUnsupported))
+        case .video: result = VideoExport.render(request)
         }
         if case .success(let url) = result {
             ExportFiles.pruneStale(keeping: url)
