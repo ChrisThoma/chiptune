@@ -63,6 +63,26 @@ class ExportFormatTest {
         assertEquals(ExportOptions.Format.MIDI, options.format)
     }
 
+    /** Port of `VideoExportOptionsTests.swift`'s format half. */
+    @Test fun videoNamesItsFile() {
+        assertEquals("Video", ExportOptions.Format.VIDEO.label)
+        assertEquals("mp4", ExportOptions.Format.VIDEO.fileExtension)
+        assertEquals("video", ExportOptions.Format.VIDEO.fileNoun)
+        assertEquals("video/mp4", ExportOptions.Format.VIDEO.mimeType)
+    }
+
+    @Test fun videoIsFoundFromItsExtensionInAnyCase() {
+        assertEquals(ExportOptions.Format.VIDEO, ExportOptions.Format.fromExtension("MP4"))
+        assertEquals(ExportOptions.Format.VIDEO, ExportOptions.Format.fromExtension("mp4"))
+    }
+
+    @Test fun theFormatsAreOfferedInPickerOrder() {
+        assertEquals(
+            listOf(ExportOptions.Format.WAV, ExportOptions.Format.MIDI, ExportOptions.Format.VIDEO),
+            ExportOptions.Format.entries,
+        )
+    }
+
     @Test fun wavFormatRendersAWavFile() {
         assertEquals("wav", file(render(song())).extension)
     }

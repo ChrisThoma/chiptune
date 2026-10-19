@@ -134,6 +134,43 @@ class ExportOptionsTest {
         assertEquals(ExportOptions(1, ExportOptions.TailMode.RING_OUT), ExportOptions(-5, ExportOptions.TailMode.RING_OUT).clamped)
     }
 
+    // MARK: Video
+
+    @Test fun theStyleDefaultsToGrid() {
+        assertEquals(ExportOptions.VideoStyle.GRID, ExportOptions().videoStyle)
+    }
+
+    /** Tests build options positionally, so the style comes after format. */
+    @Test fun videoStyleIsTheLastConstructorParameter() {
+        val options = ExportOptions(2, ExportOptions.TailMode.RING_OUT, ExportOptions.Format.VIDEO, ExportOptions.VideoStyle.COVER)
+        assertEquals(ExportOptions.Format.VIDEO, options.format)
+        assertEquals(ExportOptions.VideoStyle.COVER, options.videoStyle)
+    }
+
+    @Test fun clampingKeepsTheStyle() {
+        val options = ExportOptions(99, videoStyle = ExportOptions.VideoStyle.COVER)
+        assertEquals(ExportOptions.VideoStyle.COVER, options.clamped.videoStyle)
+    }
+
+    @Test fun eachStyleHasALabel() {
+        assertEquals(listOf(ExportOptions.VideoStyle.GRID, ExportOptions.VideoStyle.COVER), ExportOptions.VideoStyle.entries)
+        assertEquals("Grid", ExportOptions.VideoStyle.GRID.label)
+        assertEquals("Cover", ExportOptions.VideoStyle.COVER.label)
+    }
+
+    @Test fun videoAlwaysRingsOut() {
+        val options = ExportOptions(1, ExportOptions.TailMode.SEAMLESS_LOOP, ExportOptions.Format.VIDEO)
+        assertEquals(ExportOptions.TailMode.RING_OUT, options.effectiveTailMode)
+    }
+
+    @Test fun otherFormatsKeepTheChosenEnding() {
+        for (format in listOf(ExportOptions.Format.WAV, ExportOptions.Format.MIDI)) {
+            for (mode in ExportOptions.TailMode.entries) {
+                assertEquals("$format $mode", mode, ExportOptions(1, mode, format).effectiveTailMode)
+            }
+        }
+    }
+
     // MARK: Ending
 
     @Test fun ringOutEndsInSilence() {

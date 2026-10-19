@@ -46,7 +46,7 @@ object ExportNotesFooter {
  * line saying where those tracks went; the no-notes messages stay, since there
  * is nothing to export either way. */
 fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = when (format) {
-    ExportOptions.Format.WAV -> text(song)
+    ExportOptions.Format.WAV, ExportOptions.Format.VIDEO -> text(song)
     ExportOptions.Format.MIDI -> if (!song.hasNotes) {
         text(song)
     } else {
@@ -78,7 +78,7 @@ fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = 
  * the chip's. Null for a WAV, which is the sound itself. */
 object ExportFormatFooter {
     fun text(format: ExportOptions.Format): String? = when (format) {
-        ExportOptions.Format.WAV -> null
+        ExportOptions.Format.WAV, ExportOptions.Format.VIDEO -> null
         ExportOptions.Format.MIDI ->
             "A MIDI file holds your notes, not the chip sounds. The app you open it in plays them with its own instruments."
     }
@@ -139,7 +139,7 @@ object ExportCopy {
      * gives a percentage, where a MIDI one would sit at 0%. Swift's
      * `Int(progress * 100)` truncates. Swift's `ExportProgressText`. */
     fun exporting(format: ExportOptions.Format, progress: Double): String = when (format) {
-        ExportOptions.Format.WAV -> "Exporting\u2026 ${(progress * 100).toInt()}%"
+        ExportOptions.Format.WAV, ExportOptions.Format.VIDEO -> "Exporting\u2026 ${(progress * 100).toInt()}%"
         ExportOptions.Format.MIDI -> "Exporting\u2026"
     }
 

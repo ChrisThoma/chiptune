@@ -19,9 +19,14 @@ data class ExportOptions(
     val loopCount: Int = 1,
     val tailMode: TailMode = TailMode.SEAMLESS_LOOP,
     /** Which file the export writes. MIDI is the arrangement once, so
-     * [loopCount] and [tailMode] only shape a WAV. Last, because tests build
-     * options positionally. */
+     * [loopCount] and [tailMode] only shape a WAV. A video takes the repeats
+     * but always rings out ([effectiveTailMode]). After the two above,
+     * because tests build options positionally. */
     val format: Format = Format.WAV,
+    /** Only read by a video export; kept while another format is picked so
+     * switching back finds the style the user left. Last, for the same
+     * positional reason. */
+    val videoStyle: VideoStyle = VideoStyle.GRID,
 ) {
     /** Each format and everything that names it or its file: [label] in the
      * sheet ("Export WAV"), [fileExtension], [fileNoun] in an alert, and the
@@ -29,6 +34,7 @@ data class ExportOptions(
     enum class Format(val label: String, val fileExtension: String, val fileNoun: String, val mimeType: String) {
         WAV("WAV", "wav", "WAV file", "audio/wav"),
         MIDI("MIDI", "mid", "MIDI file", "audio/midi"),
+        VIDEO("Video", "mp4", "video", "video/mp4"),
         ;
 
         companion object {
@@ -39,6 +45,15 @@ data class ExportOptions(
         }
     }
 
+    /** How a video draws the song. Both are 1080x1920 with the same audio;
+     * only the picture differs. Swift's `ExportOptions.VideoStyle`. */
+    enum class VideoStyle(val label: String) {
+        /** The pattern grid scrolling past a fixed playing row, as in the app. */
+        GRID("Grid"),
+        /** A title card with a bar per track that pulses on each note. */
+        COVER("Cover"),
+    }
+
     enum class TailMode {
         /** Exactly `loopCount` passes long, with the final notes' ring-out
          * folded over the file's own start so it loops seamlessly. */
@@ -46,6 +61,13 @@ data class ExportOptions(
         /** `loopCount` passes, then silence while the last notes decay. */
         RING_OUT,
     }
+
+    /** The ending the render actually uses. A video always rings out: a
+     * seamless loop folds the last notes over the first, which is right on
+     * repeat but puts the song's closing notes under a picture of its
+     * opening. Everything that sizes or renders the audio reads this rather
+     * than [tailMode], so the readout and the file agree. */
+    val effectiveTailMode: TailMode get() = if (format == Format.VIDEO) TailMode.RING_OUT else tailMode
 
     val clamped: ExportOptions get() = copy(loopCount = minOf(maxOf(loopCount, 1), MAX_LOOP_COUNT))
 
@@ -83,6 +105,7 @@ object ExportRenderer {
         val result = when (request.options.format) {
             ExportOptions.Format.WAV -> WavExport.render(request, directory)
             ExportOptions.Format.MIDI -> MidiExport.render(request, directory)
+            ExportOptions.Format.VIDEO -> ExportResult.Failed(UnsupportedOperationException("video export is not wired yet"))
         }
         if (result is ExportResult.Success) ExportFiles.pruneStale(result.file)
         return result
