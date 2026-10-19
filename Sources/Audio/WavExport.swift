@@ -15,9 +15,10 @@ struct ExportOptions: Equatable, Sendable {
     }
 
     /// Which file the export writes. MIDI is the arrangement once, so
-    /// `loopCount` and `tailMode` only shape a WAV.
+    /// `loopCount` and `tailMode` only shape a WAV. A video takes the repeats
+    /// but always rings out (`effectiveTailMode`).
     enum Format: Equatable, Sendable, CaseIterable {
-        case wav, midi
+        case wav, midi, video
 
         /// What the sheet calls it: the picker's segment and the button's
         /// "Export WAV".
@@ -25,6 +26,7 @@ struct ExportOptions: Equatable, Sendable {
             switch self {
             case .wav: return "WAV"
             case .midi: return "MIDI"
+            case .video: return "Video"
             }
         }
 
@@ -32,6 +34,7 @@ struct ExportOptions: Equatable, Sendable {
             switch self {
             case .wav: return "wav"
             case .midi: return "mid"
+            case .video: return "mp4"
             }
         }
 
@@ -40,6 +43,7 @@ struct ExportOptions: Equatable, Sendable {
             switch self {
             case .wav: return "WAV file"
             case .midi: return "MIDI file"
+            case .video: return "video"
             }
         }
 
@@ -53,10 +57,38 @@ struct ExportOptions: Equatable, Sendable {
         }
     }
 
+    /// How a video draws the song. Both are 1080×1920 with the same audio;
+    /// only the picture differs.
+    enum VideoStyle: Equatable, Sendable, CaseIterable {
+        /// The pattern grid scrolling past a fixed playing row, as in the app.
+        case grid
+        /// A title card with a bar per track that pulses on each note.
+        case cover
+
+        var label: String {
+            switch self {
+            case .grid: return "Grid"
+            case .cover: return "Cover"
+            }
+        }
+    }
+
     var format: Format = .wav
     /// Passes of the whole arrangement.
     var loopCount: Int = 1
     var tailMode: TailMode = .seamlessLoop
+    /// Only read by a video export; kept while another format is picked so
+    /// switching back finds the style the user left.
+    var videoStyle: VideoStyle = .grid
+
+    /// The ending the render actually uses. A video always rings out: a
+    /// seamless loop folds the last notes over the first, which is right on
+    /// repeat but puts the song's closing notes under a picture of its
+    /// opening. Everything that sizes or renders the audio reads this rather
+    /// than `tailMode`, so the readout and the file agree.
+    var effectiveTailMode: TailMode {
+        format == .video ? .ringOut : tailMode
+    }
 
     static let maxLoopCount = 16
 
@@ -99,6 +131,9 @@ enum Export {
         switch request.options.format {
         case .wav: result = WavExport.render(request)
         case .midi: result = MidiExport.render(request)
+        // Wired to the encoder once it lands; until then a video request
+        // fails rather than writing something that isn't a video.
+        case .video: result = .failed(CocoaError(.featureUnsupported))
         }
         if case .success(let url) = result {
             ExportFiles.pruneStale(keeping: url)
@@ -122,11 +157,11 @@ enum ExportFiles {
 
     /// Renaming a song leaves its old exports sitting in the same per-song
     /// temp directory as the new one — storage that accumulates silently since
-    /// nothing else ever visits that directory. Any export, WAV or MIDI, under
-    /// a name other than `url`'s goes, as does an older file of `url`'s own
-    /// type; the other format's file under the current name stays, since the
-    /// song's WAV and its MIDI file are each worth keeping while the other is
-    /// exported. Files the exporters don't write are left alone. Only run once
+    /// nothing else ever visits that directory. Any export, WAV, MIDI or
+    /// video, under a name other than `url`'s goes, as does an older file of
+    /// `url`'s own type; the other formats' files under the current name
+    /// stay, since the song's WAV, MIDI file and video are each worth keeping
+    /// while another is exported. Files the exporters don't write are left alone. Only run once
     /// the new file is safely written, so a later failure never costs the
     /// previous export. Best-effort: a cleanup failure doesn't fail the export
     /// that just succeeded.
@@ -182,11 +217,15 @@ enum WavExport {
     /// hundreds of MB of floats, so everything past the first second streams
     /// through a raw temp file instead of living in one giant buffer. Only the
     /// opening stretch stays resident, and only when the tail folds over it.
-    static func render(_ request: ExportRequest) -> ExportResult {
+    ///
+    /// `destination` defaults to the song's WAV export. The video export
+    /// passes a scratch file instead, so rendering its soundtrack never
+    /// replaces the WAV the user last exported.
+    static func render(_ request: ExportRequest, to destination: URL? = nil) -> ExportResult {
         var song = request.song
         song.normalize()
         let options = request.options.clamped
-        let folding = options.tailMode == .seamlessLoop
+        let folding = options.effectiveTailMode == .seamlessLoop
 
         let samplesPerStep = Chip.samplesPerStep(tempo: song.tempo, sampleRate: sampleRate)
         let onePass = samplesPerStep * max(song.arrangementSteps, 1)
@@ -314,7 +353,7 @@ enum WavExport {
                               bodySamples: streamed,
                               scale: scale,
                               isCanceled: request.isCanceled,
-                              to: filename(for: song))
+                              to: destination ?? filename(for: song))
         if case .success = result {
             report(totalFrames)
         }

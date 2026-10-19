@@ -26,7 +26,7 @@ extension ExportNotesFooter {
     /// no-notes messages stay, since there is nothing to export either way.
     static func text(for song: Song, format: ExportOptions.Format) -> String? {
         switch format {
-        case .wav:
+        case .wav, .video:
             return text(for: song)
         case .midi:
             guard song.hasNotes else { return text(for: song) }
@@ -61,7 +61,7 @@ extension ExportNotesFooter {
 enum ExportFormatFooter {
     static func text(for format: ExportOptions.Format) -> String? {
         switch format {
-        case .wav: return nil
+        case .wav, .video: return nil
         case .midi:
             return "A MIDI file holds your notes, not the chip sounds. The app you open it in plays them with its own instruments."
         }
@@ -74,7 +74,7 @@ enum ExportFormatFooter {
 enum ExportProgressText {
     static func text(format: ExportOptions.Format, progress: Double) -> String {
         switch format {
-        case .wav: return "Exporting… \(Int(progress * 100))%"
+        case .wav, .video: return "Exporting… \(Int(progress * 100))%"
         case .midi: return "Exporting…"
         }
     }
@@ -89,7 +89,7 @@ enum ExportProgressText {
 enum ExportPopoverSize {
     static func heights(for format: ExportOptions.Format) -> (min: CGFloat, ideal: CGFloat) {
         switch format {
-        case .wav: return (min: 420, ideal: 560)
+        case .wav, .video: return (min: 420, ideal: 560)
         case .midi: return (min: 300, ideal: 340)
         }
     }
