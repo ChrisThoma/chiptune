@@ -189,6 +189,28 @@ class WavExportTest {
         assertArrayEquals(firstBytes, first.readBytes())
     }
 
+    // MARK: Destination
+
+    /** The video renders its audio to a scratch file. Writing it to the WAV
+     * export's own path would replace the user's last WAV of the song with a
+     * ring-out copy they never asked for. Port of
+     * `testRenderingToADestinationLeavesTheUsersWavAlone`. */
+    @Test fun renderingToADestinationLeavesTheUsersWavAlone() {
+        val song = TestSongs.empty(name = "Dest", tempo = 240.0, length = 4).setNote(0, 0, 60)
+        val userWav = export(song)
+        val before = userWav.readBytes()
+
+        val scratch = File(temp.root, "video-scratch/dest.wav")
+        val result = WavExport.render(
+            ExportRequest(song, ExportOptions(3, ExportOptions.TailMode.RING_OUT)), temp.root, scratch)
+
+        assertEquals(ExportResult.Success(scratch), result)
+        assertTrue(scratch.exists())
+        assertNotEquals(before.size, scratch.readBytes().size)
+        assertArrayEquals("the user's WAV must be byte-identical", before, userWav.readBytes())
+        assertEquals(setOf("Dest.wav"), userWav.parentFile!!.list()!!.toSet())
+    }
+
     // MARK: Failure (port-specific: the root is injectable, so it can be made unusable)
 
     @Test fun anUnwritableRootFailsRatherThanThrowing() {

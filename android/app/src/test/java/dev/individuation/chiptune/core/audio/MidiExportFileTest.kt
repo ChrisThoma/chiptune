@@ -162,6 +162,18 @@ class MidiExportFileTest {
         assertEquals(setOf("New.wav", "New.mid", "keep.txt"), fileNames(dir))
     }
 
+    /** Port of `testPruningKeepsEachFormatUnderTheCurrentNameAndDropsAStaleVideo`:
+     * the WAV, MIDI file and video under the current name are each worth
+     * keeping while another is exported; a video under an old name goes. */
+    @Test fun pruningKeepsEachFormatUnderTheCurrentNameAndDropsAStaleVideo() {
+        val dir = temp.newFolder("prune")
+        for (name in listOf("New.wav", "New.mid", "New.mp4", "Old.mp4", "notes.txt")) {
+            File(dir, name).writeBytes(byteArrayOf(1))
+        }
+        ExportFiles.pruneStale(File(dir, "New.wav"))
+        assertEquals(setOf("New.mid", "New.mp4", "New.wav", "notes.txt"), fileNames(dir))
+    }
+
     /** Switching formats is not a stale export: the song's WAV and its MIDI
      * file are both wanted. */
     @Test fun eachFormatLeavesTheOthersFileAlone() {

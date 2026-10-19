@@ -127,10 +127,11 @@ object ExportFiles {
     }
 
     /** Renaming a song leaves its old exports sitting in the same per-song
-     * folder as the new one. Any export, WAV or MIDI, under a name other than
-     * [keeping]'s goes, as does an older file of [keeping]'s own type; the
-     * other format's file under the current name stays, since the song's WAV
-     * and its MIDI file are each worth keeping while the other is exported.
+     * folder as the new one. Any export, WAV, MIDI or video, under a name
+     * other than [keeping]'s goes, as does an older file of [keeping]'s own
+     * type; the other formats' files under the current name stay, since the
+     * song's WAV, MIDI file and video are each worth keeping while another is
+     * exported.
      * Files the exporters don't write are left alone. Only run once the new
      * file is safely written, so a later failure never costs the previous
      * export. Best-effort: a cleanup failure doesn't fail the export that
@@ -181,11 +182,15 @@ object WavExport {
     fun render(song: Song, directory: File): File? =
         (render(ExportRequest(song), directory) as? ExportResult.Success)?.file
 
-    /** Renders [request] and writes the WAV under [directory]. */
-    fun render(request: ExportRequest, directory: File): ExportResult {
+    /** Renders [request] and writes the WAV under [directory].
+     *
+     * [destination] defaults to the song's WAV export. The video export
+     * passes a scratch file instead, so rendering its soundtrack never
+     * replaces the WAV the user last exported. */
+    fun render(request: ExportRequest, directory: File, destination: File? = null): ExportResult {
         val song = request.song.normalized()
         val options = request.options.clamped
-        val folding = options.tailMode == ExportOptions.TailMode.SEAMLESS_LOOP
+        val folding = options.effectiveTailMode == ExportOptions.TailMode.SEAMLESS_LOOP
 
         val samplesPerStep = Chip.samplesPerStep(song.tempo, SAMPLE_RATE).toLong()
         val onePass = samplesPerStep * maxOf(song.arrangementSteps, 1)
@@ -304,7 +309,7 @@ object WavExport {
             val scale: Float = if (peak > 1f) 1f / peak else 1f
 
             val streamed = (bodySamples - headLen) + (if (folding) 0 else tail)
-            val target = filename(song, directory)
+            val target = destination?.also { it.parentFile?.mkdirs() } ?: filename(song, directory)
             val result = writeWav(head, rawFile, streamed, scale, request.isCanceled, target)
             if (result is ExportResult.Success) report(totalFrames)
             return result

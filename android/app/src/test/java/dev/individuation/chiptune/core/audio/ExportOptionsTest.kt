@@ -171,6 +171,20 @@ class ExportOptionsTest {
         }
     }
 
+    /** The WAV under a video carries the ring-out, so the picture has a tail
+     * to end on, even with Seamless loop still selected from an earlier WAV
+     * export. */
+    @Test fun aVideoRequestRendersItsAudioWithTheTail() {
+        val song = makeSong()
+        val tail = (sampleRate * WavExport.tailSeconds(song)).toInt()
+        val scratch = File(temp.root, "video-scratch/tail.wav")
+        val result = WavExport.render(
+            ExportRequest(song, ExportOptions(1, ExportOptions.TailMode.SEAMLESS_LOOP, ExportOptions.Format.VIDEO)),
+            temp.root, scratch)
+        assertEquals(ExportResult.Success(scratch), result)
+        assertEquals(onePassSamples(song) + tail, samples(scratch).size)
+    }
+
     // MARK: Ending
 
     @Test fun ringOutEndsInSilence() {
