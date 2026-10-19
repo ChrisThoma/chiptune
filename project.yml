@@ -104,6 +104,9 @@ targets:
         # Nothing here encrypts anything. Declaring it up front skips the
         # export-compliance question on every App Store Connect upload.
         ITSAppUsesNonExemptEncryption: false
+        # An exported video in the share sheet offers Save Video, which writes
+        # to the photo library. Without this string that tap crashes the app.
+        NSPhotoLibraryAddUsageDescription: Chiptune saves exported videos to your photo library.
         # An imported song is copied into the library and edited there; the
         # original file is only ever read. Saying so silences the build warning
         # and keeps Files from offering an in-place edit that never happens.
