@@ -251,6 +251,26 @@ class StudioExportTest {
         assertEquals("Too long for one WAV \u2014 lower the repeat count.", h.studio.exportError)
     }
 
+    /** A video's limit is the ten minutes TikTok takes, not the WAV's RIFF
+     * size, so its alert says so. Port of iOS's too-long cases. */
+    @Test fun aTooLongVideoNamesTheTenMinuteCap() {
+        val text = ExportTooLongMessage.text(ExportOptions.Format.VIDEO)
+        assertTrue(text, text.contains("10 minutes"))
+        assertNotEquals(ExportTooLongMessage.text(ExportOptions.Format.WAV), text)
+    }
+
+    @Test fun aTooLongWavKeepsItsWording() {
+        assertEquals("Too long for one WAV — lower the repeat count.", ExportTooLongMessage.text(ExportOptions.Format.WAV))
+    }
+
+    @Test fun aTooLongVideoExportShowsTheVideoMessage() {
+        val h = make { ExportResult.TooLong }
+        h.studio.exportOptions = ExportOptions(format = ExportOptions.Format.VIDEO)
+        h.studio.export()
+        h.waitForExport()
+        assertEquals(ExportTooLongMessage.text(ExportOptions.Format.VIDEO), h.studio.exportError)
+    }
+
     @Test fun aSuccessfulExportReportsNoError() {
         val file = scratchWav("ok")
         val h = make { ExportResult.Success(file) }

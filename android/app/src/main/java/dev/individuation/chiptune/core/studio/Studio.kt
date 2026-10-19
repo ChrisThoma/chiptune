@@ -1286,7 +1286,7 @@ class Studio(
                 is ExportResult.Success -> base.copy(exportFile = result.file)
                 // Canceling is not failing; an alert for it would be noise.
                 ExportResult.Canceled -> base
-                ExportResult.TooLong -> base.copy(exportError = TOO_LONG_MESSAGE)
+                ExportResult.TooLong -> base.copy(exportError = ExportTooLongMessage.text(format))
                 is ExportResult.Failed -> base.copy(
                     exportError = WriteFailureMessage.export(name, result.error, format.fileNoun),
                 )
@@ -1303,7 +1303,6 @@ class Studio(
         /** The octaves the keyboard reaches. */
         val OCTAVE_RANGE: IntRange = 0..8
 
-        const val TOO_LONG_MESSAGE = "Too long for one WAV \u2014 lower the repeat count."
 
         /** A short riff so the app makes noise the moment it opens. */
         fun seededDemo(): Song {
