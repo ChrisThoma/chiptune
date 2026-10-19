@@ -145,4 +145,31 @@ final class StudioExportTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(second), try XCTUnwrap(first) + 1)
         XCTAssertEqual(studio.exportURL, standIn)
     }
+
+    // MARK: Too long
+
+    /// A video's limit is the ten minutes TikTok takes, not the WAV's RIFF
+    /// size, so it gets its own advice.
+    func testATooLongVideoNamesTheTenMinuteCap() {
+        let text = ExportTooLongMessage.text(format: .video)
+        XCTAssertTrue(text.contains("10 minutes"), text)
+        XCTAssertNotEqual(text, ExportTooLongMessage.text(format: .wav))
+    }
+
+    /// Pinned word for word by ErrorSurfacingTests too.
+    func testATooLongWavKeepsItsWording() {
+        XCTAssertEqual(ExportTooLongMessage.text(format: .wav),
+                       "Too long for one WAV — lower the repeat count.")
+    }
+
+    func testATooLongVideoExportShowsTheVideoMessage() {
+        let studio = Studio(store: makeTempStore().store, autosaveEnabled: false,
+                            renderer: { _ in .tooLong })
+        addTeardownBlock { @MainActor in studio.invalidateTimers() }
+        var options = ExportOptions()
+        options.format = .video
+        studio.export(options: options)
+        waitForExport(studio)
+        XCTAssertEqual(studio.exportError, ExportTooLongMessage.text(format: .video))
+    }
 }

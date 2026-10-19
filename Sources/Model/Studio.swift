@@ -1475,7 +1475,7 @@ final class Studio {
                 // alert for something the user just asked to stop is noise.
                 break
             case .tooLong:
-                self.exportError = "Too long for one WAV — lower the repeat count."
+                self.exportError = ExportTooLongMessage.text(format: options.format)
             case .failed(let error):
                 self.exportError = WriteFailureMessage.export(
                     name: song.name, error: error,
