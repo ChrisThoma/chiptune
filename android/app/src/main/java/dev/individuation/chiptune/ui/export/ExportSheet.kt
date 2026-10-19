@@ -58,6 +58,7 @@ import dev.individuation.chiptune.ui.editor.plainClickable
 import dev.individuation.chiptune.ui.layout.ExportControls
 import dev.individuation.chiptune.ui.layout.ExportCopy
 import dev.individuation.chiptune.ui.layout.ExportFormatFooter
+import dev.individuation.chiptune.ui.layout.ExportLength
 import dev.individuation.chiptune.ui.layout.ExportNotesFooter
 import dev.individuation.chiptune.ui.layout.Format
 import dev.individuation.chiptune.ui.layout.adjusted
@@ -67,7 +68,7 @@ import dev.individuation.chiptune.ui.theme.chipFont
 import androidx.compose.ui.text.font.FontWeight
 
 /**
- * WAV or MIDI export (iOS `ExportSheet`), opened by "Export\u2026" in the song menu.
+ * WAV, MIDI or video export (iOS `ExportSheet`), opened by "Export\u2026" in the song menu.
  *
  * Closing it while a render runs cancels the render, however it closes:
  * Close, a swipe down, or `closeAll()` (`ExportFlow.afterPanelDisappeared`).
@@ -127,10 +128,13 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
                 .navigationBarsPadding(),
         ) {
             FormSection(footer = ExportFormatFooter.text(options.format)) {
-                FormatPicker(options.format, enabled = !locked) { studio.exportOptions = options.copy(format = it) }
+                SegmentedChoice(
+                    ExportOptions.Format.entries, options.format, enabled = !locked,
+                    label = { it.label }, description = ExportCopy::formatSegment,
+                ) { studio.exportOptions = options.copy(format = it) }
             }
 
-            if (ExportCopy.hasRepeatsAndEnding(options.format)) {
+            if (ExportCopy.hasRepeats(options.format)) {
                 FormSection(footer = ExportCopy.repeatsFooter(song, options)) {
                     // The stepper speaks for the row, as one "Repeats" element.
                     FormRow(Modifier.alpha(if (locked) 0.4f else 1f)) {
@@ -151,7 +155,9 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
                         )
                     }
                 }
+            }
 
+            if (ExportCopy.hasEnding(options.format)) {
                 FormSection(header = "Ending", footer = ExportCopy.endingFooter(options.tailMode)) {
                     // One adjustable "Ending" element for TalkBack, as iOS has.
                     Column(
@@ -175,6 +181,16 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
                 }
             }
 
+            if (ExportCopy.hasStyle(options.format)) {
+                // Frozen and dimmed during a render, like Repeats.
+                FormSection(header = "Style") {
+                    SegmentedChoice(
+                        ExportOptions.VideoStyle.entries, options.videoStyle, enabled = !locked,
+                        label = { it.label }, description = ExportCopy::styleSegment,
+                    ) { studio.exportOptions = options.copy(videoStyle = it) }
+                }
+            }
+
             FormSection(footer = ExportNotesFooter.text(song, options.format)) {
                 if (isExporting) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -194,7 +210,8 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
                         ExportCopy.exportButton(options.format),
                         icon = Icons.Filled.IosShare,
                         color = ChipColors.text,
-                        enabled = ExportCopy.canExport(song.hasNotes, startedAttempt != null),
+                        enabled = ExportCopy.canExport(song.hasNotes, startedAttempt != null) &&
+                            !ExportCopy.blocksExport(options.format, ExportLength.seconds(song, options)),
                         onClick = {
                             if (startedAttempt == null) startedAttempt = studio.export()
                         },
@@ -226,21 +243,26 @@ private fun EndingRow(label: String, selected: Boolean, enabled: Boolean, onClic
     }
 }
 
-/** The WAV / MIDI choice, iOS's segmented picker. Frozen like the other
- * settings during a render, which keeps the format it started with. */
+/** A segmented choice frozen like the other settings during a render, which
+ * keeps what it started with. The label is on each segment, not on the row:
+ * a described row with no action of its own is a TalkBack stop. */
 @Composable
-private fun FormatPicker(format: ExportOptions.Format, enabled: Boolean, onSelect: (ExportOptions.Format) -> Unit) {
-    val formats = ExportOptions.Format.entries
-    // The label is on each segment (see [ExportCopy.formatSegment]), not
-    // here: a described row with no action of its own is a TalkBack stop.
+private fun <T> SegmentedChoice(
+    options: List<T>,
+    selected: T,
+    enabled: Boolean,
+    label: (T) -> String,
+    description: (T) -> String,
+    onSelect: (T) -> Unit,
+) {
     FormRow(Modifier.alpha(if (enabled) 1f else 0.4f)) {
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            formats.forEachIndexed { i, option ->
+            options.forEachIndexed { i, option ->
                 SegmentedButton(
-                    selected = option == format,
+                    selected = option == selected,
                     onClick = { onSelect(option) },
-                    modifier = Modifier.semantics { contentDescription = ExportCopy.formatSegment(option) },
-                    shape = SegmentedButtonDefaults.itemShape(index = i, count = formats.size),
+                    modifier = Modifier.semantics { contentDescription = description(option) },
+                    shape = SegmentedButtonDefaults.itemShape(index = i, count = options.size),
                     enabled = enabled,
                     colors = SegmentedButtonDefaults.colors(
                         activeContainerColor = ChipColors.grid,
@@ -258,7 +280,7 @@ private fun FormatPicker(format: ExportOptions.Format, enabled: Boolean, onSelec
                     ),
                     icon = {},
                 ) {
-                    Text(option.label, fontSize = 15.sp)
+                    Text(label(option), fontSize = 15.sp)
                 }
             }
         }
