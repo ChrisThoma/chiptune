@@ -266,8 +266,15 @@ struct ExportSheet: View {
         Section {
             stylePicker
                 .disabled(settingsLocked)
+                // Dimmed like the repeats row: the disabled picker barely
+                // shows it.
+                .opacity(settingsLocked ? 0.4 : 1)
         } header: {
-            Text("Style")
+            // The menu row at accessibility sizes carries its own "Style"
+            // label, as Format's does, so the header would say it twice.
+            if !dynamicTypeSize.isAccessibilitySize {
+                Text("Style")
+            }
         }
     }
 
