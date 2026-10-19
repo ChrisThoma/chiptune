@@ -61,7 +61,8 @@ extension ExportNotesFooter {
 enum ExportFormatFooter {
     static func text(for format: ExportOptions.Format) -> String? {
         switch format {
-        case .wav, .video: return nil
+        case .wav: return nil
+        case .video: return "A 9:16 video for Reels, TikTok and Shorts."
         case .midi:
             return "A MIDI file holds your notes, not the chip sounds. The app you open it in plays them with its own instruments."
         }
@@ -89,9 +90,37 @@ enum ExportProgressText {
 enum ExportPopoverSize {
     static func heights(for format: ExportOptions.Format) -> (min: CGFloat, ideal: CGFloat) {
         switch format {
-        case .wav, .video: return (min: 420, ideal: 560)
+        case .wav: return (min: 420, ideal: 560)
+        case .video: return (min: 480, ideal: 620)
         case .midi: return (min: 300, ideal: 340)
         }
+    }
+}
+
+/// The length readout under Repeats, and what to say when the file will run
+/// past what a video can be.
+enum ExportLength {
+    /// Reels and Shorts cut a video off here.
+    static let shortsLimitSeconds = 180.0
+
+    /// Rough length of the file, so the repeat count means something. Reads
+    /// the effective ending, so a video's length includes its tail.
+    static func seconds(song: Song, options: ExportOptions) -> Double {
+        var seconds = song.arrangementDuration * Double(options.loopCount)
+        if options.effectiveTailMode == .ringOut { seconds += WavExport.tailSeconds(for: song) }
+        return seconds
+    }
+
+    /// nil for anything but a video that runs long.
+    static func warning(format: ExportOptions.Format, seconds: Double) -> String? {
+        guard format == .video else { return nil }
+        if seconds > VideoExport.maxSeconds {
+            return "Too long for a video — \(Format.clock(VideoExport.maxSeconds)) max."
+        }
+        if seconds > shortsLimitSeconds {
+            return "Reels and Shorts cut off at \(Format.clock(shortsLimitSeconds))."
+        }
+        return nil
     }
 }
 
@@ -101,6 +130,23 @@ enum ExportPopoverSize {
 /// Takes the same flag the progress bar and Cancel export are shown from.
 enum ExportControls {
     static func settingsLocked(isExporting: Bool) -> Bool { isExporting }
+
+    /// A MIDI file is the arrangement once, so repeats don't apply to it.
+    static func showsRepeats(_ format: ExportOptions.Format) -> Bool {
+        format == .wav || format == .video
+    }
+
+    /// Only a WAV has an ending to choose: a video always rings out.
+    static func showsEnding(_ format: ExportOptions.Format) -> Bool { format == .wav }
+
+    /// Only a video has a picture to style.
+    static func showsStyle(_ format: ExportOptions.Format) -> Bool { format == .video }
+
+    /// Whether the Export button is off because the file couldn't be made:
+    /// a video past `VideoExport.maxSeconds` is refused before it renders.
+    static func blocksExport(format: ExportOptions.Format, seconds: Double) -> Bool {
+        format == .video && seconds > VideoExport.maxSeconds
+    }
 
     /// Whether the Export button comes back once the render it started has
     /// finished. A failed or canceled one frees it for another try. One that
@@ -193,7 +239,7 @@ struct ExportSheet: View {
             // against this row, so dim the whole row explicitly.
             .opacity(settingsLocked ? 0.4 : 1)
         } footer: {
-            Text("The whole arrangement, \(Format.count(studio.exportOptions.loopCount, "time")) — \(duration).")
+            Text(lengthFooter)
         }
     }
 
@@ -213,6 +259,36 @@ struct ExportSheet: View {
             Text(studio.exportOptions.tailMode == .seamlessLoop
                  ? "The last notes ring on into the start, so the file loops with no gap. Best for dropping into something else."
                  : "The last notes fade out past the end and the file finishes in silence. Best when the file is the finished thing.")
+        }
+    }
+
+    private var styleSection: some View {
+        Section {
+            stylePicker
+                .disabled(settingsLocked)
+        } header: {
+            Text("Style")
+        }
+    }
+
+    /// Same shape as the format picker: segmented, a menu at the
+    /// accessibility text sizes.
+    @ViewBuilder
+    private var stylePicker: some View {
+        let picker = Picker("Style", selection: $studio.exportOptions.videoStyle) {
+            ForEach(ExportOptions.VideoStyle.allCases, id: \.self) { style in
+                Text(style.label).tag(style)
+            }
+        }
+        if dynamicTypeSize.isAccessibilitySize {
+            picker
+                .pickerStyle(.menu)
+                .accessibilityLabel("Style")
+        } else {
+            picker
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .accessibilityLabel("Style")
         }
     }
 
@@ -267,10 +343,9 @@ struct ExportSheet: View {
 
                 // A MIDI file is the arrangement once, so neither control
                 // applies to it.
-                if format == .wav {
-                    repeatsSection
-                    endingSection
-                }
+                if ExportControls.showsRepeats(format) { repeatsSection }
+                if ExportControls.showsEnding(format) { endingSection }
+                if ExportControls.showsStyle(format) { styleSection }
 
                 Section {
                     if studio.isExporting {
@@ -291,7 +366,8 @@ struct ExportSheet: View {
                         } label: {
                             exportLabel
                         }
-                        .disabled(startedAttempt != nil || !studio.song.hasNotes)
+                        .disabled(startedAttempt != nil || !studio.song.hasNotes
+                                   || ExportControls.blocksExport(format: format, seconds: length))
                     }
                 } footer: {
                     if let text = ExportNotesFooter.text(for: studio.song, format: format) {
@@ -311,7 +387,7 @@ struct ExportSheet: View {
             .overlay(alignment: .topLeading) {
                 // Only while the Ending picker exists: a MIDI export has no
                 // ending, and a hidden adjustable would still be announced.
-                if format == .wav {
+                if ExportControls.showsEnding(format) {
                     accessibilitySelector(
                         label: "Ending",
                         value: studio.exportOptions.tailMode == .seamlessLoop ? "Seamless loop" : "Ring out",
@@ -348,10 +424,14 @@ struct ExportSheet: View {
         .preferredColorScheme(.dark)
     }
 
-    /// Rough length of the file, so the repeat count means something.
-    private var duration: String {
-        var seconds = studio.song.arrangementDuration * Double(studio.exportOptions.loopCount)
-        if studio.exportOptions.tailMode == .ringOut { seconds += WavExport.tailSeconds(for: studio.song) }
-        return Format.clock(seconds)
+    private var length: Double {
+        ExportLength.seconds(song: studio.song, options: studio.exportOptions)
+    }
+
+    /// The repeats readout, with a video's length warning after it.
+    private var lengthFooter: String {
+        let line = "The whole arrangement, \(Format.count(studio.exportOptions.loopCount, "time")) — \(Format.clock(length))."
+        guard let warning = ExportLength.warning(format: format, seconds: length) else { return line }
+        return "\(line) \(warning)"
     }
 }

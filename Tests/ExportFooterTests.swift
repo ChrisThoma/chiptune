@@ -257,6 +257,10 @@ final class ExportFormatFooterTests: XCTestCase {
     func testWavHasNoFormatFooter() {
         XCTAssertNil(ExportFormatFooter.text(for: .wav))
     }
+
+    func testVideoSaysWhereItIsFor() {
+        XCTAssertEqual(ExportFormatFooter.text(for: .video), "A 9:16 video for Reels, TikTok and Shorts.")
+    }
 }
 
 /// The line under the progress bar while an export runs.
@@ -269,5 +273,9 @@ final class ExportProgressTextTests: XCTestCase {
     /// A MIDI export never reports progress, so a percentage would sit at 0%.
     func testAMidiExportGivesNoPercentage() {
         XCTAssertEqual(ExportProgressText.text(format: .midi, progress: 0), "Exporting…")
+    }
+
+    func testAVideoExportSaysHowFarAlongItIs() {
+        XCTAssertEqual(ExportProgressText.text(format: .video, progress: 0.5), "Exporting… 50%")
     }
 }

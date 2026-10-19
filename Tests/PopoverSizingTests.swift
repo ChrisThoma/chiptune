@@ -59,6 +59,12 @@ final class ExportPopoverSizeTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(ExportPopoverSize.heights(for: .wav).ideal, 560)
     }
 
+    /// Repeats and Style stack under the format picker, so a video needs
+    /// at least the room a WAV's Repeats and Ending do.
+    func testVideoIsTallEnoughForRepeatsAndStyle() {
+        XCTAssertGreaterThanOrEqual(ExportPopoverSize.heights(for: .video).ideal, 580)
+    }
+
     func testMidiLeavesNoBigEmptyBlock() {
         let midi = ExportPopoverSize.heights(for: .midi)
         XCTAssertLessThanOrEqual(midi.ideal, 360)
