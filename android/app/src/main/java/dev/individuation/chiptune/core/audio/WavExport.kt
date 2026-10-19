@@ -4,6 +4,8 @@ import dev.individuation.chiptune.core.model.Chip
 import dev.individuation.chiptune.core.model.Song
 import dev.individuation.chiptune.core.model.SongDocument
 import dev.individuation.chiptune.core.model.swiftClamp
+import dev.individuation.chiptune.core.video.VideoExport
+import dev.individuation.chiptune.core.video.VideoWriter
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -97,15 +99,19 @@ class ExportRequest(
 )
 
 /** Picks the writer for the format the export sheet chose. Studio's default
- * renderer, so the sheet's WAV / MIDI choice reaches the file without Studio
- * knowing either format. Clears the song's stale exports once the new file is
- * written, so neither writer has to. */
+ * renderer, so the sheet's format choice reaches the file without Studio
+ * knowing any format. Clears the song's stale exports once the new file is
+ * written, so no writer has to.
+ *
+ * [video] encodes a video's frames. It is the platform's MediaCodec writer in
+ * the app and absent on the JVM, where a video export fails rather than
+ * pretending; core never imports android. */
 object ExportRenderer {
-    fun render(request: ExportRequest, directory: File): ExportResult {
+    fun render(request: ExportRequest, directory: File, video: VideoWriter? = null): ExportResult {
         val result = when (request.options.format) {
             ExportOptions.Format.WAV -> WavExport.render(request, directory)
             ExportOptions.Format.MIDI -> MidiExport.render(request, directory)
-            ExportOptions.Format.VIDEO -> ExportResult.Failed(UnsupportedOperationException("video export is not wired yet"))
+            ExportOptions.Format.VIDEO -> VideoExport.render(request, directory, video)
         }
         if (result is ExportResult.Success) ExportFiles.pruneStale(result.file)
         return result
