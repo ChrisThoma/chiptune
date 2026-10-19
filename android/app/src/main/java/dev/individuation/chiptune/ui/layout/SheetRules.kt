@@ -12,6 +12,7 @@ import dev.individuation.chiptune.core.model.SongClock
 import dev.individuation.chiptune.core.model.Track
 import dev.individuation.chiptune.core.text.Graphemes
 import dev.individuation.chiptune.core.text.SwiftText
+import dev.individuation.chiptune.core.video.VideoExport
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -78,7 +79,8 @@ fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = 
  * the chip's. Null for a WAV, which is the sound itself. */
 object ExportFormatFooter {
     fun text(format: ExportOptions.Format): String? = when (format) {
-        ExportOptions.Format.WAV, ExportOptions.Format.VIDEO -> null
+        ExportOptions.Format.WAV -> null
+        ExportOptions.Format.VIDEO -> "A 9:16 video for Reels, TikTok and Shorts."
         ExportOptions.Format.MIDI ->
             "A MIDI file holds your notes, not the chip sounds. The app you open it in plays them with its own instruments."
     }
@@ -98,6 +100,29 @@ object ExportControls {
         startedAttempt != null && completedAttempt >= startedAttempt && !producedFile
 }
 
+/** The length readout under Repeats, and what to say when the file will run
+ * long. Port of `ExportLength`. */
+object ExportLength {
+    /** Reels and Shorts cut a video off here. */
+    const val SHORTS_LIMIT_SECONDS = 180.0
+
+    /** Rough length of the file, so the repeat count means something. Reads
+     * the effective ending, so a video's length includes its tail. */
+    fun seconds(song: Song, options: ExportOptions): Double {
+        var seconds = song.arrangementDuration * options.loopCount
+        if (options.effectiveTailMode == ExportOptions.TailMode.RING_OUT) seconds += WavExport.tailSeconds(song)
+        return seconds
+    }
+
+    /** Null for anything but a video that runs long. */
+    fun warning(format: ExportOptions.Format, seconds: Double): String? {
+        if (format != ExportOptions.Format.VIDEO) return null
+        if (seconds > VideoExport.MAX_SECONDS) return "Too long for a video — ${Format.clock(VideoExport.MAX_SECONDS)} max."
+        if (seconds > SHORTS_LIMIT_SECONDS) return "Reels and Shorts cut off at ${Format.clock(SHORTS_LIMIT_SECONDS)}."
+        return null
+    }
+}
+
 object ExportCopy {
     fun exportButton(format: ExportOptions.Format): String = "Export ${format.label}"
 
@@ -108,19 +133,37 @@ object ExportCopy {
     fun formatSegment(format: ExportOptions.Format): String = "Format, ${format.label}"
 
     /** A MIDI file is the arrangement once, so Repeats and Ending only shape a WAV. */
-    fun hasRepeatsAndEnding(format: ExportOptions.Format): Boolean = format == ExportOptions.Format.WAV
+    fun hasRepeats(format: ExportOptions.Format): Boolean = when (format) {
+        ExportOptions.Format.WAV, ExportOptions.Format.VIDEO -> true
+        ExportOptions.Format.MIDI -> false
+    }
+
+    /** Only a WAV has an ending to choose: a video always rings out. */
+    fun hasEnding(format: ExportOptions.Format): Boolean = format == ExportOptions.Format.WAV
+
+    /** Only a video has a picture to style. */
+    fun hasStyle(format: ExportOptions.Format): Boolean = format == ExportOptions.Format.VIDEO
+
+    /** Whether the Export button is off because the file couldn't be made: a
+     * video past [VideoExport.MAX_SECONDS] is refused before it renders. */
+    fun blocksExport(format: ExportOptions.Format, seconds: Double): Boolean =
+        format == ExportOptions.Format.VIDEO && seconds > VideoExport.MAX_SECONDS
+
+    /** What TalkBack reads for one segment of the style picker; the picker's
+     * name rides on each segment, as the format picker's does. */
+    fun styleSegment(style: ExportOptions.VideoStyle): String = "Style, ${style.label}"
 
     fun loopCount(n: Int): String = "$n\u00d7"
 
     /** Rough length of the file, so the repeat count means something. */
-    fun duration(song: Song, options: ExportOptions): String {
-        var seconds = song.arrangementDuration * options.loopCount
-        if (options.tailMode == ExportOptions.TailMode.RING_OUT) seconds += WavExport.tailSeconds(song)
-        return Format.clock(seconds)
-    }
+    fun duration(song: Song, options: ExportOptions): String = Format.clock(ExportLength.seconds(song, options))
 
-    fun repeatsFooter(song: Song, options: ExportOptions): String =
-        "The whole arrangement, ${Format.count(options.loopCount, "time")} \u2014 ${duration(song, options)}."
+    /** The repeats readout, with a video's length warning after it. */
+    fun repeatsFooter(song: Song, options: ExportOptions): String {
+        val line = "The whole arrangement, ${Format.count(options.loopCount, "time")} \u2014 ${duration(song, options)}."
+        val warning = ExportLength.warning(options.format, ExportLength.seconds(song, options)) ?: return line
+        return "$line $warning"
+    }
 
     fun endingLabel(mode: ExportOptions.TailMode): String = when (mode) {
         ExportOptions.TailMode.SEAMLESS_LOOP -> "Seamless loop"

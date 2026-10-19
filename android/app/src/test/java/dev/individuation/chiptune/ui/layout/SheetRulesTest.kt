@@ -2,6 +2,7 @@ package dev.individuation.chiptune.ui.layout
 
 import dev.individuation.chiptune.core.TestSongs
 import dev.individuation.chiptune.core.audio.ExportOptions
+import dev.individuation.chiptune.core.video.VideoExport
 import dev.individuation.chiptune.core.audio.WavExport
 import dev.individuation.chiptune.core.audio.withInstrument
 import dev.individuation.chiptune.core.model.ChannelKind
@@ -323,10 +324,91 @@ class ExportCopyTest {
         assertEquals("Export MIDI", ExportCopy.exportButton(ExportOptions.Format.MIDI))
     }
 
-    /** A MIDI file is the arrangement once, so neither control applies to it. */
-    @Test fun onlyAWavHasRepeatsAndEnding() {
-        assertTrue(ExportCopy.hasRepeatsAndEnding(ExportOptions.Format.WAV))
-        assertFalse(ExportCopy.hasRepeatsAndEnding(ExportOptions.Format.MIDI))
+    /** A WAV and a video both play the arrangement more than once; a MIDI
+     * file is the arrangement once. */
+    @Test fun repeatsShowForWavAndVideoOnly() {
+        assertTrue(ExportCopy.hasRepeats(ExportOptions.Format.WAV))
+        assertTrue(ExportCopy.hasRepeats(ExportOptions.Format.VIDEO))
+        assertFalse(ExportCopy.hasRepeats(ExportOptions.Format.MIDI))
+    }
+
+    /** A video always rings out, so only a WAV has an ending to choose. */
+    @Test fun onlyAWavHasAnEnding() {
+        assertTrue(ExportCopy.hasEnding(ExportOptions.Format.WAV))
+        assertFalse(ExportCopy.hasEnding(ExportOptions.Format.VIDEO))
+        assertFalse(ExportCopy.hasEnding(ExportOptions.Format.MIDI))
+    }
+
+    @Test fun onlyAVideoHasAStyle() {
+        assertTrue(ExportCopy.hasStyle(ExportOptions.Format.VIDEO))
+        assertFalse(ExportCopy.hasStyle(ExportOptions.Format.WAV))
+        assertFalse(ExportCopy.hasStyle(ExportOptions.Format.MIDI))
+    }
+
+    @Test fun styleSegmentsAreLabelledGridAndCover() {
+        assertEquals("Grid", ExportOptions.VideoStyle.GRID.label)
+        assertEquals("Cover", ExportOptions.VideoStyle.COVER.label)
+        assertEquals("Style, Grid", ExportCopy.styleSegment(ExportOptions.VideoStyle.GRID))
+        assertEquals("Style, Cover", ExportCopy.styleSegment(ExportOptions.VideoStyle.COVER))
+    }
+
+    @Test fun anOverlongVideoBlocksTheExportButton() {
+        val over = VideoExport.MAX_SECONDS + 1
+        assertTrue(ExportCopy.blocksExport(ExportOptions.Format.VIDEO, over))
+        assertFalse(ExportCopy.blocksExport(ExportOptions.Format.VIDEO, VideoExport.MAX_SECONDS))
+        assertFalse(ExportCopy.blocksExport(ExportOptions.Format.WAV, over))
+        assertFalse(ExportCopy.blocksExport(ExportOptions.Format.MIDI, over))
+    }
+
+    @Test fun videoSaysWhereItIsFor() {
+        assertEquals("A 9:16 video for Reels, TikTok and Shorts.", ExportFormatFooter.text(ExportOptions.Format.VIDEO))
+    }
+
+    @Test fun aVideoExportSaysHowFarAlongItIs() {
+        assertEquals("Exporting\u2026 50%", ExportCopy.exporting(ExportOptions.Format.VIDEO, 0.5))
+    }
+
+    /** A video rings out whatever the stored ending says, so its length
+     * includes the tail. */
+    @Test fun aVideosLengthIncludesTheTail() {
+        val song = TestSongs.empty(length = 64)
+        val options = ExportOptions(
+            loopCount = 2, tailMode = ExportOptions.TailMode.SEAMLESS_LOOP, format = ExportOptions.Format.VIDEO,
+        )
+        assertEquals(16.0 + WavExport.tailSeconds(song), ExportLength.seconds(song, options), 0.0001)
+        assertEquals(Format.clock(16.0 + WavExport.tailSeconds(song)), ExportCopy.duration(song, options))
+    }
+
+    @Test fun aSeamlessWavHasNoTail() {
+        val song = TestSongs.empty(length = 64)
+        val options = ExportOptions(tailMode = ExportOptions.TailMode.SEAMLESS_LOOP)
+        assertEquals(8.0, ExportLength.seconds(song, options), 0.0001)
+    }
+
+    @Test fun aVideoOverThreeMinutesWarnsAboutReelsAndShorts() {
+        assertEquals("Reels and Shorts cut off at 3:00.", ExportLength.warning(ExportOptions.Format.VIDEO, 181.0))
+        assertNull(ExportLength.warning(ExportOptions.Format.VIDEO, 180.0))
+    }
+
+    @Test fun aWavOrMidiNeverWarnsAboutLength() {
+        assertNull(ExportLength.warning(ExportOptions.Format.WAV, 400.0))
+        assertNull(ExportLength.warning(ExportOptions.Format.MIDI, 400.0))
+    }
+
+    @Test fun aVideoOverTheCapSaysItIsTooLong() {
+        assertEquals("Too long for a video \u2014 10:00 max.", ExportLength.warning(ExportOptions.Format.VIDEO, 601.0))
+        assertEquals("Reels and Shorts cut off at 3:00.", ExportLength.warning(ExportOptions.Format.VIDEO, 600.0))
+    }
+
+    @Test fun theRepeatsFooterCarriesTheLengthWarning() {
+        val song = TestSongs.empty(length = 64) // 8 s a pass
+        val video = ExportOptions(loopCount = 30, format = ExportOptions.Format.VIDEO) // 240 s + tail
+        val line = ExportCopy.repeatsFooter(song, video)
+        assertTrue(line, line.endsWith(" Reels and Shorts cut off at 3:00."))
+        assertEquals(
+            "The whole arrangement, 2 times \u2014 ${ExportCopy.duration(song, ExportOptions(loopCount = 2))}.",
+            ExportCopy.repeatsFooter(song, ExportOptions(loopCount = 2)),
+        )
     }
 
     @Test fun resultTitleNamesTheFile() = assertEquals("Exported Golden.wav", ExportCopy.resultTitle("Golden.wav"))
