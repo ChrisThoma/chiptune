@@ -188,6 +188,48 @@ class VideoExportTest {
         assertEquals(emptyList<String>(), scratchFiles())
     }
 
+    // MARK: Sync
+
+    /** The JVM half of iOS's late-note sync test: past frame 0 too, the
+     * picture keeps time with the sound. One loud note on step 24 of 32, in
+     * the very soundtrack the writer is handed: the first frame whose
+     * timeline shows step 24 never leads the note's onset and trails it by
+     * at most a frame. (Frame f shows sample f x 1470, so trailing by up to
+     * a frame is the design.) Where the muxed file puts that frame is the
+     * encoder's job and is checked on a device. */
+    @Test fun aLateNotesFirstFrameNeverLeadsItsOnsetAndTrailsByAtMostAFrame() {
+        var pcm = ShortArray(0)
+        val capturing = object : FakeWriter() {
+            override fun write(job: VideoJob): ExportResult {
+                pcm = WavFile.pcm16(job.soundtrack)
+                return super.write(job)
+            }
+        }
+        val song = TestSongs.empty(name = "Sync", tempo = 120.0, length = 32).setNote(0, 24, 69)
+        val options = video()
+        val result = ExportRenderer.render(ExportRequest(song, options), temp.root, capturing)
+        assertTrue("$result", result is ExportResult.Success)
+
+        val peak = pcm.maxOf { kotlin.math.abs(it.toInt()) }
+        assertTrue("the note should be loud: $peak", peak > 0.05 * Short.MAX_VALUE)
+        val onset = pcm.indexOfFirst { kotlin.math.abs(it.toInt()) > peak * 0.3 }
+        assertTrue("no onset found", onset >= 0)
+
+        val timeline = VideoTimeline(song, options)
+        val expectedFrame = (0 until timeline.totalFrames).first { (timeline.position(it)?.step ?: 0) >= 24 }
+        // Where the writer stamps that frame: f / 30 s, in samples.
+        val frameStart = expectedFrame * WavExport.SAMPLE_RATE.toInt() / VideoTimeline.FPS
+        // The note starts sounding on its step's first sample; the 30% mark
+        // is reached within a few samples of the attack.
+        val stepStart = 24 * timeline.samplesPerStep
+        assertTrue("onset $onset is before step 24 starts at $stepStart", onset >= stepStart)
+        assertTrue("onset $onset is long after step 24 starts at $stepStart", onset - stepStart < 64)
+        assertTrue("frame $expectedFrame (sample $frameStart) shows step 24 before its note sounds at $onset",
+            frameStart >= stepStart)
+        assertTrue("frame $expectedFrame (sample $frameStart) shows step 24 more than a frame after it sounds at $onset",
+            frameStart <= onset + VideoTimeline.SAMPLES_PER_FRAME)
+    }
+
     /** A writer that throws is a failure, not a crash, and still cleans up. */
     @Test fun aThrowingWriterIsAFailure() {
         val throwing = object : FakeWriter() {
