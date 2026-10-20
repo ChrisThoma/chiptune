@@ -81,7 +81,7 @@ fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = 
 object ExportFormatFooter {
     fun text(format: ExportOptions.Format): String? = when (format) {
         ExportOptions.Format.WAV -> null
-        ExportOptions.Format.VIDEO -> "A 9:16 video for Reels, TikTok and Shorts."
+        ExportOptions.Format.VIDEO -> "A 9:16 video for sharing to IG, TikTok, YouTube, etc."
         ExportOptions.Format.MIDI ->
             "A MIDI file holds your notes, not the chip sounds. The app you open it in plays them with its own instruments."
     }
@@ -159,6 +159,12 @@ object ExportCopy {
     /** What TalkBack reads for one segment of the style picker; the picker's
      * name rides on each segment, as the format picker's does. */
     fun styleSegment(style: ExportOptions.VideoStyle): String = "Style, ${style.label}"
+
+    /** What the chosen video style looks like, under the Grid/Cartridge picker. */
+    fun styleFooter(style: ExportOptions.VideoStyle): String = when (style) {
+        ExportOptions.VideoStyle.GRID -> "The pattern grid scrolls along as the song plays, the way it looks in the editor."
+        ExportOptions.VideoStyle.COVER -> "A game cartridge with the song's title and a bar for each channel that jumps with its notes."
+    }
 
     fun loopCount(n: Int): String = "$n\u00d7"
 

@@ -259,7 +259,21 @@ final class ExportFormatFooterTests: XCTestCase {
     }
 
     func testVideoSaysWhereItIsFor() {
-        XCTAssertEqual(ExportFormatFooter.text(for: .video), "A 9:16 video for Reels, TikTok and Shorts.")
+        XCTAssertEqual(ExportFormatFooter.text(for: .video), "A 9:16 video for sharing to IG, TikTok, YouTube, etc.")
+    }
+}
+
+/// What sits under the Grid/Cartridge picker: what the chosen style looks like.
+final class ExportStyleFooterTests: XCTestCase {
+
+    func testGridSaysTheGridScrolls() {
+        XCTAssertEqual(ExportStyleFooter.text(for: .grid),
+                       "The pattern grid scrolls along as the song plays, the way it looks in the editor.")
+    }
+
+    func testCartridgeSaysWhatIsOnTheCartridge() {
+        XCTAssertEqual(ExportStyleFooter.text(for: .cover),
+                       "A game cartridge with the song's title and a bar for each channel that jumps with its notes.")
     }
 }
 

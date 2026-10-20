@@ -62,9 +62,20 @@ enum ExportFormatFooter {
     static func text(for format: ExportOptions.Format) -> String? {
         switch format {
         case .wav: return nil
-        case .video: return "A 9:16 video for Reels, TikTok and Shorts."
+        case .video: return "A 9:16 video for sharing to IG, TikTok, YouTube, etc."
         case .midi:
             return "A MIDI file holds your notes, not the chip sounds. The app you open it in plays them with its own instruments."
+        }
+    }
+}
+
+/// What sits under the Grid/Cartridge picker, so the two names say what
+/// each video looks like before one is rendered.
+enum ExportStyleFooter {
+    static func text(for style: ExportOptions.VideoStyle) -> String {
+        switch style {
+        case .grid: return "The pattern grid scrolls along as the song plays, the way it looks in the editor."
+        case .cover: return "A game cartridge with the song's title and a bar for each channel that jumps with its notes."
         }
     }
 }
@@ -284,6 +295,8 @@ struct ExportSheet: View {
                 Text("Style")
                     .accessibilityHidden(true)
             }
+        } footer: {
+            Text(ExportStyleFooter.text(for: studio.exportOptions.videoStyle))
         }
     }
 

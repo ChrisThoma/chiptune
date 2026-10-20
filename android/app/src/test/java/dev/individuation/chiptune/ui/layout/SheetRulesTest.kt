@@ -363,7 +363,18 @@ class ExportCopyTest {
     }
 
     @Test fun videoSaysWhereItIsFor() {
-        assertEquals("A 9:16 video for Reels, TikTok and Shorts.", ExportFormatFooter.text(ExportOptions.Format.VIDEO))
+        assertEquals("A 9:16 video for sharing to IG, TikTok, YouTube, etc.", ExportFormatFooter.text(ExportOptions.Format.VIDEO))
+    }
+
+    @Test fun eachStyleSaysWhatItLooksLike() {
+        assertEquals(
+            "The pattern grid scrolls along as the song plays, the way it looks in the editor.",
+            ExportCopy.styleFooter(ExportOptions.VideoStyle.GRID),
+        )
+        assertEquals(
+            "A game cartridge with the song's title and a bar for each channel that jumps with its notes.",
+            ExportCopy.styleFooter(ExportOptions.VideoStyle.COVER),
+        )
     }
 
     @Test fun aVideoExportSaysHowFarAlongItIs() {

@@ -183,7 +183,7 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
 
             if (ExportCopy.hasStyle(options.format)) {
                 // Frozen and dimmed during a render, like Repeats.
-                FormSection(header = "Style") {
+                FormSection(header = "Style", footer = ExportCopy.styleFooter(options.videoStyle)) {
                     SegmentedChoice(
                         ExportOptions.VideoStyle.entries, options.videoStyle, enabled = !locked,
                         label = { it.label }, description = ExportCopy::styleSegment,
