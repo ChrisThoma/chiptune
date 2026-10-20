@@ -95,6 +95,27 @@ final class StudioImportTests: XCTestCase {
         XCTAssertEqual(after, PresentedSurfaces())
     }
 
+    /// An import over a finished export's share sheet, or over the song
+    /// file's share sheet, left that sheet up offering the previous song's
+    /// file over the newly opened one (#8). Both share sheets close too.
+    func testWarmImportClosesBothShareSheets() throws {
+        let previousSongID = studio.song.id
+        let url = try writeSong(studio.song)
+        XCTAssertTrue(studio.importSong(from: url))
+
+        let sharing = PresentedSurfaces(exportShare: true, songFileShare: true)
+        let after = sharing.afterOpeningSong(previousSongID: previousSongID,
+                                             currentSongID: studio.song.id)
+        XCTAssertFalse(after.exportShare, "the export share sheet must close")
+        XCTAssertFalse(after.songFileShare, "the song-file share sheet must close")
+    }
+
+    func testSameSongLeavesShareSheetsUp() {
+        let id = studio.song.id
+        let sharing = PresentedSurfaces(exportShare: true, songFileShare: true)
+        XCTAssertEqual(sharing.afterOpeningSong(previousSongID: id, currentSongID: id), sharing)
+    }
+
     func testMalformedImportLeavesPresentedSurfacesAlone() throws {
         let before = studio.song.id
         let url = FileManager.default.temporaryDirectory

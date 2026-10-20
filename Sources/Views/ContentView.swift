@@ -49,6 +49,11 @@ struct PresentedSurfaces: Equatable {
     var arrangement = false
     var export = false
     var instrumentEditor = false
+    /// A finished export's share sheet, offering a file rendered from the
+    /// song that was open.
+    var exportShare = false
+    /// The song file's share sheet (••• Share song file).
+    var songFileShare = false
 
     func afterOpeningSong(previousSongID: UUID, currentSongID: UUID) -> PresentedSurfaces {
         previousSongID == currentSongID ? self : PresentedSurfaces()
@@ -364,12 +369,19 @@ struct ContentView: View {
             )
             let after = PresentedSurfaces(songs: showingSongs,
                                           arrangement: showingArrangement,
-                                          export: showingExport)
+                                          export: showingExport,
+                                          exportShare: showingShare,
+                                          songFileShare: studio.shareURL != nil)
                 .afterOpeningSong(previousSongID: previousSongID,
                                   currentSongID: currentSongID)
             if showingExport && !after.export { studio.cancelExport() }
             showingArrangement = after.arrangement
             showingExport = after.export
+            // A share sheet still offering the previous song's file goes too.
+            // Its dismissal runs `afterShare`, which sees a different song
+            // open and neither reopens the Export panel nor keeps the choices.
+            showingShare = after.exportShare
+            if !after.songFileShare { studio.shareURL = nil }
             // The export options belong to the song that was open. With the
             // share sheet up there is no panel to close, so nothing else
             // would put them back to the defaults until that share ends.
