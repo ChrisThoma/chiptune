@@ -30,7 +30,14 @@ enum VideoExport {
     /// encoding the frames is most of the work.
     private static let audioShare = 0.3
 
-    static func render(_ request: ExportRequest) -> ExportResult {
+    /// Test seams into the middle of a render. The app never passes any.
+    struct Hooks {
+        /// Runs once the writer has finished the file, before it is moved
+        /// over the song's previous video.
+        var finishedWriting: () -> Void = {}
+    }
+
+    static func render(_ request: ExportRequest, hooks: Hooks = Hooks()) -> ExportResult {
         var song = request.song
         song.normalize()
         var options = request.options.clamped
@@ -73,6 +80,10 @@ enum VideoExport {
         let encoded = encode(timeline: timeline, renderer: renderer, soundtrack: soundtrack,
                              to: partial, request: request)
         guard case .success = encoded else { return encoded }
+        hooks.finishedWriting()
+        // Finishing the file takes a moment, and a cancel tapped during it
+        // is still a cancel: the previous video stays and nothing is shared.
+        guard !request.isCanceled() else { return .canceled }
 
         let destination = ExportFiles.url(for: song, format: .video)
         do {

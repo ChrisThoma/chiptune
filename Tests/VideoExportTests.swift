@@ -128,6 +128,24 @@ final class VideoExportTests: XCTestCase {
         XCTAssertEqual(scratchFiles(), [])
     }
 
+    /// Cancel tapped while the writer is finishing the file — after the last
+    /// frame, before the move — is still a cancel: the old video stays and
+    /// nothing is handed to the share sheet.
+    func testACancelDuringFinishWritingKeepsThePreviousVideo() throws {
+        let song = song()
+        let first = try exported(song, videoOptions())
+        let before = try Data(contentsOf: first)
+        let finished = Flag()
+        let result = VideoExport.render(
+            ExportRequest(song: song, options: videoOptions(loops: 2),
+                          isCanceled: { finished.isSet }),
+            hooks: VideoExport.Hooks(finishedWriting: { finished.set() }))
+        XCTAssertTrue(finished.isSet, "the render should have reached the end of writing")
+        guard case .canceled = result else { return XCTFail("expected a cancel, got \(result)") }
+        XCTAssertEqual(try Data(contentsOf: first), before, "the previous video was replaced")
+        XCTAssertEqual(scratchFiles(), [])
+    }
+
     /// A crash or a kill mid-render skips the cleanup, so the next export
     /// clears whatever the last one left. Only one export runs at a time
     /// (`Studio.export` refuses a second), so nothing in there is live.
@@ -270,6 +288,14 @@ final class Recorder: @unchecked Sendable {
     private var list: [Double] = []
     var values: [Double] { lock.withLock { list } }
     func append(_ value: Double) { lock.withLock { list.append(value) } }
+}
+
+/// A thread-safe switch that only turns on.
+final class Flag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var on = false
+    var isSet: Bool { lock.withLock { on } }
+    func set() { lock.withLock { on = true } }
 }
 
 /// A thread-safe tally for closures the renderer calls off the main thread.
