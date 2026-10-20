@@ -383,11 +383,27 @@ final class VideoExportTests: XCTestCase {
             return XCTFail("no onset found")
         }
         let onsetTime = Double(onset) / WavExport.sampleRate
+        let frameDuration = 1.0 / Double(VideoTimeline.fps)
+        // Frame f shows sample f × 1470, so the first frame showing a step
+        // starts at or after the step does and can trail it by up to a frame.
+        // That is the design; what must never happen is the picture leading
+        // the sound. 5 ms allows for where AAC decoding puts the onset.
+        let decodeTolerance = 0.005
+        guard let expectedFrame = (0..<timeline.totalFrames).first(where: {
+            (timeline.position(frame: $0)?.step ?? 0) >= 24
+        }) else { return XCTFail("the timeline never shows step 24") }
+        let expectedTime = Double(expectedFrame) * frameDuration
+        XCTAssertGreaterThanOrEqual(expectedTime, onsetTime - decodeTolerance,
+                                    "frame \(expectedFrame) shows step 24 before its note sounds at \(onsetTime) s")
+        XCTAssertLessThanOrEqual(expectedTime, onsetTime + frameDuration + decodeTolerance,
+                                 "frame \(expectedFrame) shows step 24 more than a frame after it sounds at \(onsetTime) s")
+
+        // And the file puts that frame where the timeline says.
         guard let frameTime = try await firstLightFrameTime(url) else {
             return XCTFail("no frame shows step 24")
         }
-        XCTAssertEqual(frameTime, onsetTime, accuracy: 1.0 / Double(VideoTimeline.fps),
-                       "step 24 shows at \(frameTime) s, its note sounds at \(onsetTime) s")
+        XCTAssertEqual(frameTime, expectedTime, accuracy: decodeTolerance,
+                       "step 24 shows at \(frameTime) s in the file, frame \(expectedFrame) starts at \(expectedTime) s")
     }
 
     // MARK: Too long
