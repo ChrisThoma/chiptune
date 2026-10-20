@@ -184,6 +184,38 @@ enum ExportFiles {
 enum WavExport {
     static let sampleRate = 44100.0
     private static let chunk = 4096
+
+    /// Where the raw float stream lives while a render runs. Its own folder,
+    /// apart from `VideoExport.scratchDirectory`, so the video's sweep and
+    /// this one never take each other's files: the video's soundtrack is
+    /// rendered by this code into that folder.
+    static var scratchDirectory: URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("wav-scratch", isDirectory: true)
+    }
+
+    /// A render killed mid-way (the app force-quit, or terminated in the
+    /// background) never reached its cleanup, and a ten-minute song's raw
+    /// stream is about 100 MB. Only one export runs at a time —
+    /// `Studio.export` refuses a second while `isExporting` — so whatever is
+    /// in the scratch folder belongs to a dead render. Builds before the
+    /// folder wrote the stream to the top of the temp folder, so a `.raw`
+    /// there is swept too.
+    ///
+    /// Removing and recreating the folder throws, rather than shrugging, so a
+    /// read-only temp folder fails here with the permission error the alert
+    /// names, as the raw file's own write used to.
+    private static func resetScratch() throws {
+        let fm = FileManager.default
+        let top = fm.temporaryDirectory
+        for entry in (try? fm.contentsOfDirectory(at: top, includingPropertiesForKeys: nil)) ?? []
+        where entry.pathExtension == "raw" {
+            try? fm.removeItem(at: entry)
+        }
+        if fm.fileExists(atPath: scratchDirectory.path) {
+            try fm.removeItem(at: scratchDirectory)
+        }
+        try fm.createDirectory(at: scratchDirectory, withIntermediateDirectories: true)
+    }
     /// How long the last notes are given to decay past the end.
     ///
     /// The envelope hits -60dB at `decay` seconds and is culled to exact zero
@@ -257,11 +289,12 @@ enum WavExport {
         }
 
         let fm = FileManager.default
-        let rawURL = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".raw")
+        let rawURL = scratchDirectory.appendingPathComponent(UUID().uuidString + ".raw")
         // `Data().write` rather than `createFile`, which only returns false:
         // the thrown error is what tells a read-only folder from a full disk.
         let raw: FileHandle
         do {
+            try resetScratch()
             try Data().write(to: rawURL)
             raw = try FileHandle(forWritingTo: rawURL)
         } catch {

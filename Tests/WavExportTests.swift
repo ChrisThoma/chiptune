@@ -233,4 +233,73 @@ final class WavExportTests: XCTestCase {
                       "a failed rerender must not touch the previous export")
         XCTAssertEqual(try Data(contentsOf: firstURL), firstBytes)
     }
+
+    // MARK: Scratch
+
+    /// Raw float files anywhere the render streams its body: the managed
+    /// scratch folder, and the top of the temp folder where earlier builds
+    /// wrote them.
+    private func rawDebris() -> [String] {
+        let fm = FileManager.default
+        let scratch = (try? fm.contentsOfDirectory(atPath: WavExport.scratchDirectory.path)) ?? []
+        let top = ((try? fm.contentsOfDirectory(atPath: fm.temporaryDirectory.path)) ?? [])
+            .filter { $0.hasSuffix(".raw") }
+        return scratch + top
+    }
+
+    private func shortSong() -> Song {
+        var song = TestSongs.empty(tempo: 240)
+        song.patterns[0].rows[0][0] = 60
+        return song
+    }
+
+    /// A render killed mid-way (the app force-quit, or terminated in the
+    /// background) never reaches its cleanup, and a ten-minute song's raw
+    /// stream is about 100 MB. The next render clears it.
+    func testARenderSweepsARawFileLeftByAKilledOne() throws {
+        let fm = FileManager.default
+        try fm.createDirectory(at: WavExport.scratchDirectory, withIntermediateDirectories: true)
+        let stale = WavExport.scratchDirectory.appendingPathComponent(UUID().uuidString + ".raw")
+        try Data(repeating: 1, count: 1024).write(to: stale)
+
+        _ = try XCTUnwrap(WavExport.render(song: shortSong()))
+
+        XCTAssertFalse(fm.fileExists(atPath: stale.path), "the killed render's raw file is still there")
+        XCTAssertEqual(rawDebris(), [])
+    }
+
+    /// Builds before the scratch folder wrote the raw stream straight into
+    /// the temp folder, so a kill there left one nothing would ever visit.
+    func testARenderSweepsARawFileAnEarlierBuildLeftInTheTempFolder() throws {
+        let fm = FileManager.default
+        let stale = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".raw")
+        try Data(repeating: 1, count: 1024).write(to: stale)
+
+        _ = try XCTUnwrap(WavExport.render(song: shortSong()))
+
+        XCTAssertFalse(fm.fileExists(atPath: stale.path), "the earlier build's raw file is still there")
+    }
+
+    func testARenderLeavesNoRawDebris() throws {
+        _ = try XCTUnwrap(WavExport.render(song: shortSong()))
+        XCTAssertEqual(rawDebris(), [])
+    }
+
+    /// The video's soundtrack is rendered into the video's own scratch
+    /// folder; sweeping the WAV's must not take it, and a killed render's raw
+    /// file still goes.
+    func testAVideoExportSweepsARawFileLeftByAKilledRender() throws {
+        let fm = FileManager.default
+        try fm.createDirectory(at: WavExport.scratchDirectory, withIntermediateDirectories: true)
+        let stale = WavExport.scratchDirectory.appendingPathComponent(UUID().uuidString + ".raw")
+        try Data(repeating: 1, count: 1024).write(to: stale)
+
+        var options = ExportOptions()
+        options.format = .video
+        let result = VideoExport.render(ExportRequest(song: shortSong(), options: options))
+        guard case .success = result else { return XCTFail("video export did not succeed: \(result)") }
+
+        XCTAssertFalse(fm.fileExists(atPath: stale.path), "the killed render's raw file is still there")
+        XCTAssertEqual(rawDebris(), [])
+    }
 }
