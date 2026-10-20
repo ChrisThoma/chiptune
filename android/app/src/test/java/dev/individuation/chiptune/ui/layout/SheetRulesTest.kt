@@ -3,6 +3,8 @@ package dev.individuation.chiptune.ui.layout
 import dev.individuation.chiptune.core.TestSongs
 import dev.individuation.chiptune.core.audio.ExportOptions
 import dev.individuation.chiptune.core.video.VideoExport
+import dev.individuation.chiptune.core.video.VideoTimeline
+import dev.individuation.chiptune.core.model.Chip
 import dev.individuation.chiptune.core.audio.WavExport
 import dev.individuation.chiptune.core.audio.withInstrument
 import dev.individuation.chiptune.core.model.ChannelKind
@@ -375,8 +377,10 @@ class ExportCopyTest {
         val options = ExportOptions(
             loopCount = 2, tailMode = ExportOptions.TailMode.SEAMLESS_LOOP, format = ExportOptions.Format.VIDEO,
         )
-        assertEquals(16.0 + WavExport.tailSeconds(song), ExportLength.seconds(song, options), 0.0001)
+        assertEquals(16.0 + WavExport.tailSeconds(song), ExportLength.seconds(song, options), 0.01)
         assertEquals(Format.clock(16.0 + WavExport.tailSeconds(song)), ExportCopy.duration(song, options))
+        // Exactly the renderer's length, which counts whole samples a step.
+        assertEquals(VideoTimeline(song, options).seconds, ExportLength.seconds(song, options), 0.0)
     }
 
     @Test fun aSeamlessWavHasNoTail() {
@@ -401,8 +405,9 @@ class ExportCopyTest {
     }
 
     @Test fun theRepeatsFooterCarriesTheLengthWarning() {
-        val song = TestSongs.empty(length = 64) // 8 s a pass
-        val video = ExportOptions(loopCount = 30, format = ExportOptions.Format.VIDEO) // 240 s + tail
+        val song = TestSongs.empty(tempo = 60.0, length = 64) // 16 s a pass
+        // 192 s + tail. Repeats stop at 16, as the stepper and the renderer do.
+        val video = ExportOptions(loopCount = 12, format = ExportOptions.Format.VIDEO)
         val line = ExportCopy.repeatsFooter(song, video)
         assertTrue(line, line.endsWith(" Reels and Shorts cut off at 3:00."))
         assertEquals(
@@ -574,4 +579,64 @@ class InstrumentEditorCopyTest {
 
     @Test fun defaultInstrumentsMatchTheirKindsFirstPreset() =
         assertEquals("Bass", InstrumentEditorCopy.presetName(Instrument.defaultFor(ChannelKind.TRIANGLE), ChannelKind.TRIANGLE))
+}
+
+/** The sheet's Export button and the renderer agree on which videos are over
+ * the cap. Port of iOS's `ExportCapAgreementTests`: the sheet once worked the
+ * length out from the exact step length while the renderer counts whole
+ * samples per step, so a song a hair under ten minutes on the sheet could be
+ * refused after the tap. */
+class ExportCapAgreementTest {
+
+    /** [steps] steps in one pass at [tempo]: whole 64-step patterns, then one
+     * shorter pattern for the rest. One track, no notes, so the tail is 1 s. */
+    private fun song(tempo: Double, steps: Int): Song {
+        val base = TestSongs.empty(name = "Cap", tempo = tempo, length = 64)
+        val sections = ArrayList<SongSection>()
+        var left = steps / 64
+        while (left > 0) {
+            val repeats = minOf(left, SongSection.MAX_REPEATS)
+            sections.add(SongSection(patternID = base.patterns[0].id, repeats = repeats))
+            left -= repeats
+        }
+        val patterns = base.patterns.toMutableList()
+        val rest = steps % 64
+        if (rest > 0) {
+            val tail = Pattern(name = "B", length = rest, trackCount = base.tracks.size)
+            patterns.add(tail)
+            sections.add(SongSection(patternID = tail.id))
+        }
+        return base.copy(patterns = patterns, arrangement = sections)
+    }
+
+    private val video = ExportOptions(format = ExportOptions.Format.VIDEO)
+
+    private fun sheetBlocks(song: Song): Boolean =
+        ExportCopy.blocksExport(ExportOptions.Format.VIDEO, ExportLength.seconds(song, video))
+
+    private fun rendererRefuses(song: Song): Boolean = VideoTimeline(song, video).seconds > VideoExport.MAX_SECONDS
+
+    /** The case iOS's review found: 599.985 s by the exact step length,
+     * 600.023 s by whole samples. */
+    @Test fun a133BpmSongJustOverTheCapIsBlockedOnTheSheet() {
+        val song = song(tempo = 133.0, steps = 5311)
+        assertEquals(5311, song.arrangementSteps)
+        assertTrue("the renderer refuses this one", rendererRefuses(song))
+        assertTrue("so the sheet must not offer Export", sheetBlocks(song))
+    }
+
+    @Test fun theSheetAndTheRendererAgreeNearTheCap() {
+        val disagreements = ArrayList<String>()
+        var tempo = 60.0
+        while (tempo <= 200.0) {
+            // Steps that put one pass plus the 1 s tail near 600 s.
+            val center = Math.round(599 * tempo * Chip.STEPS_PER_BEAT / 60).toInt()
+            for (steps in center - 3..center + 3) {
+                val song = song(tempo, steps)
+                if (sheetBlocks(song) != rendererRefuses(song)) disagreements.add("$tempo BPM, $steps steps")
+            }
+            tempo += 1.0
+        }
+        assertEquals(emptyList<String>(), disagreements)
+    }
 }

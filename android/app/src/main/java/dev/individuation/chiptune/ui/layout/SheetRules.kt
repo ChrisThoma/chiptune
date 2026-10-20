@@ -13,6 +13,7 @@ import dev.individuation.chiptune.core.model.Track
 import dev.individuation.chiptune.core.text.Graphemes
 import dev.individuation.chiptune.core.text.SwiftText
 import dev.individuation.chiptune.core.video.VideoExport
+import dev.individuation.chiptune.core.video.VideoTimeline
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -107,8 +108,14 @@ object ExportLength {
     const val SHORTS_LIMIT_SECONDS = 180.0
 
     /** Rough length of the file, so the repeat count means something. Reads
-     * the effective ending, so a video's length includes its tail. */
+     * the effective ending, so a video's length includes its tail.
+     *
+     * A video's is exact: it comes from the same [VideoTimeline] (normalized
+     * song, whole samples per step, truncated tail) that [VideoExport]
+     * checks against the cap, so the Export button is never offered for a
+     * video the renderer would then refuse as too long. */
     fun seconds(song: Song, options: ExportOptions): Double {
+        if (options.format == ExportOptions.Format.VIDEO) return VideoTimeline(song, options).seconds
         var seconds = song.arrangementDuration * options.loopCount
         if (options.effectiveTailMode == ExportOptions.TailMode.RING_OUT) seconds += WavExport.tailSeconds(song)
         return seconds
