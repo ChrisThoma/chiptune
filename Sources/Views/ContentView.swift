@@ -144,14 +144,21 @@ enum ExportFlow {
     /// of that sheet without sharing usually means trying another ending or
     /// repeat count, so it returns. A completed share is the end of the job,
     /// and a failed one is already putting up its own alert.
-    static func reopensExportAfterShare(outcome: ReviewPromptPolicy.ShareOutcome) -> Bool {
-        outcome == .canceled
+    ///
+    /// Only for the song the file came from. A .chipsong opened from another
+    /// app while the sheet is up swaps the song underneath it, and the panel
+    /// coming back then would offer to export a song nobody asked to, with
+    /// the old one's options.
+    static func reopensExportAfterShare(outcome: ReviewPromptPolicy.ShareOutcome,
+                                        sharedSongID: UUID?, currentSongID: UUID) -> Bool {
+        outcome == .canceled && sharedSongID == currentSongID
     }
 
     /// Whatever doesn't bring the panel back ends the export. One that does
     /// is the same export, and the panel shows what was picked in it.
-    static func endsFlowAfterShare(outcome: ReviewPromptPolicy.ShareOutcome) -> Bool {
-        !reopensExportAfterShare(outcome: outcome)
+    static func endsFlowAfterShare(outcome: ReviewPromptPolicy.ShareOutcome,
+                                   sharedSongID: UUID?, currentSongID: UUID) -> Bool {
+        !reopensExportAfterShare(outcome: outcome, sharedSongID: sharedSongID, currentSongID: currentSongID)
     }
 
     /// The file a just-finished render left to share, read off the studio's
@@ -272,6 +279,10 @@ struct ContentView: View {
     /// outcome never carries over. `UIActivityViewController` calls its
     /// handler on every way out, a plain close included (as canceled).
     @State private var shareEnding = ShareSheetEnding()
+    /// The song the export share sheet's file was rendered from, so a
+    /// canceled share brings the Export panel back only if that song is
+    /// still the one open. See `ExportFlow.reopensExportAfterShare`.
+    @State private var sharedSongID: UUID?
     /// A `.chipsong` is hovering over the editor, waiting to be dropped.
     @State private var songDropTargeted = false
     @FocusState private var nameFocused: Bool
@@ -350,6 +361,10 @@ struct ContentView: View {
             if showingExport && !after.export { studio.cancelExport() }
             showingArrangement = after.arrangement
             showingExport = after.export
+            // The export options belong to the song that was open. With the
+            // share sheet up there is no panel to close, so nothing else
+            // would put them back to the defaults until that share ends.
+            if previousSongID != currentSongID { studio.endExportFlow() }
         }
         // Arrangement and Export are no longer presented here: each hangs off
         // the control that opens it — ARR in the transport, the ••• menu — so
@@ -384,6 +399,7 @@ struct ContentView: View {
                 lastRequestExportCount: lastReviewRequestExportCount
             )
             shareEnding = ShareSheetEnding()
+            sharedSongID = studio.song.id
             // The options panel gets out of the way first, and the share sheet
             // waits for it to actually be gone — see `ExportFlow`.
             let step = ExportFlow.afterRender(url: url, exportPresented: showingExport)
@@ -543,8 +559,15 @@ struct ContentView: View {
             successfulExports: successfulExportCount,
             lastRequestExportCount: lastReviewRequestExportCount)
         reviewAfterSharing = false
-        if ExportFlow.reopensExportAfterShare(outcome: outcome) { showingExport = true }
-        if ExportFlow.endsFlowAfterShare(outcome: outcome) { studio.endExportFlow() }
+        if ExportFlow.reopensExportAfterShare(outcome: outcome, sharedSongID: sharedSongID,
+                                              currentSongID: studio.song.id) {
+            showingExport = true
+        }
+        if ExportFlow.endsFlowAfterShare(outcome: outcome, sharedSongID: sharedSongID,
+                                         currentSongID: studio.song.id) {
+            studio.endExportFlow()
+        }
+        sharedSongID = nil
         lastReviewRequestExportCount = result.lastRequestExportCount
         guard result.shouldRequestReview else { return }
         // StoreKit decides whether a request is actually shown.

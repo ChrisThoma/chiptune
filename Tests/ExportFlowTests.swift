@@ -13,6 +13,7 @@ import XCTest
 final class ExportFlowTests: XCTestCase {
 
     private let url = URL(fileURLWithPath: "/tmp/song.wav")
+    private let song = UUID()
 
     /// A render that produced nothing — canceled, or failed — changes nothing.
     func testNoURLAsksForNothing() {
@@ -62,12 +63,12 @@ final class ExportFlowTests: XCTestCase {
     }
 
     func testACanceledShareKeepsTheFlowGoing() {
-        XCTAssertFalse(ExportFlow.endsFlowAfterShare(outcome: .canceled))
+        XCTAssertFalse(ExportFlow.endsFlowAfterShare(outcome: .canceled, sharedSongID: song, currentSongID: song))
     }
 
     func testACompletedOrFailedShareEndsTheFlow() {
-        XCTAssertTrue(ExportFlow.endsFlowAfterShare(outcome: .completed))
-        XCTAssertTrue(ExportFlow.endsFlowAfterShare(outcome: .failed))
+        XCTAssertTrue(ExportFlow.endsFlowAfterShare(outcome: .completed, sharedSongID: song, currentSongID: song))
+        XCTAssertTrue(ExportFlow.endsFlowAfterShare(outcome: .failed, sharedSongID: song, currentSongID: song))
     }
 
     /// The Close button pairs a cancel with its dismiss, but a swipe-to-dismiss
@@ -88,18 +89,40 @@ final class ExportFlowTests: XCTestCase {
     /// Backing out of the share sheet without sharing is "let me try another
     /// ending", so the panel comes back for it.
     func testCanceledShareReturnsToTheExportPanel() {
-        XCTAssertTrue(ExportFlow.reopensExportAfterShare(outcome: .canceled))
+        XCTAssertTrue(ExportFlow.reopensExportAfterShare(outcome: .canceled, sharedSongID: song, currentSongID: song))
     }
 
     /// The file went somewhere; the job is done.
     func testCompletedShareLeavesTheExportPanelClosed() {
-        XCTAssertFalse(ExportFlow.reopensExportAfterShare(outcome: .completed))
+        XCTAssertFalse(ExportFlow.reopensExportAfterShare(outcome: .completed, sharedSongID: song, currentSongID: song))
     }
 
     /// A failed share is already raising its own alert, which a popover
     /// coming up underneath would fight for the screen.
     func testFailedShareLeavesTheExportPanelClosed() {
-        XCTAssertFalse(ExportFlow.reopensExportAfterShare(outcome: .failed))
+        XCTAssertFalse(ExportFlow.reopensExportAfterShare(outcome: .failed, sharedSongID: song, currentSongID: song))
+    }
+
+    /// A .chipsong opened from another app while the share sheet was up
+    /// swaps the song underneath it. Backing out of the share then brought
+    /// the Export panel up over the new song, holding the old one's
+    /// options: the new song never asked to be exported.
+    func testACanceledShareOfASongNoLongerOpenLeavesTheExportPanelClosed() {
+        XCTAssertFalse(ExportFlow.reopensExportAfterShare(outcome: .canceled,
+                                                          sharedSongID: song, currentSongID: UUID()))
+    }
+
+    /// With the panel staying shut, the old song's options go back to the
+    /// defaults rather than waiting for the next export to pick them up.
+    func testACanceledShareOfASongNoLongerOpenEndsTheFlow() {
+        XCTAssertTrue(ExportFlow.endsFlowAfterShare(outcome: .canceled,
+                                                    sharedSongID: song, currentSongID: UUID()))
+    }
+
+    /// No song recorded for the share means nothing to return to.
+    func testACanceledShareWithNoSongRecordedLeavesTheExportPanelClosed() {
+        XCTAssertFalse(ExportFlow.reopensExportAfterShare(outcome: .canceled,
+                                                          sharedSongID: nil, currentSongID: song))
     }
 
     // MARK: Reading a finished export off the attempt counter
