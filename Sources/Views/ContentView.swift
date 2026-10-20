@@ -150,15 +150,24 @@ enum ExportFlow {
     /// coming back then would offer to export a song nobody asked to, with
     /// the old one's options.
     static func reopensExportAfterShare(outcome: ReviewPromptPolicy.ShareOutcome,
-                                        sharedSongID: UUID?, currentSongID: UUID) -> Bool {
-        outcome == .canceled && sharedSongID == currentSongID
+                                        sharedSongID: UUID?, currentSongID: UUID,
+                                        panelIsPopover: Bool = false) -> Bool {
+        // A popover that comes back unasked sits over the editor, and the
+        // user's next tap lands outside it and only dismisses it: one tap on
+        // ••• or Play did nothing. Only the sheet form returns.
+        outcome == .canceled && sharedSongID == currentSongID && !panelIsPopover
     }
 
     /// Whatever doesn't bring the panel back ends the export. One that does
     /// is the same export, and the panel shows what was picked in it.
     static func endsFlowAfterShare(outcome: ReviewPromptPolicy.ShareOutcome,
-                                   sharedSongID: UUID?, currentSongID: UUID) -> Bool {
-        !reopensExportAfterShare(outcome: outcome, sharedSongID: sharedSongID, currentSongID: currentSongID)
+                                   sharedSongID: UUID?, currentSongID: UUID,
+                                   panelIsPopover: Bool = false) -> Bool {
+        // A canceled share of this song with the popover left shut is the same
+        // export still: the options stay for the next manual opening.
+        if outcome == .canceled && sharedSongID == currentSongID && panelIsPopover { return false }
+        return !reopensExportAfterShare(outcome: outcome, sharedSongID: sharedSongID,
+                                        currentSongID: currentSongID, panelIsPopover: panelIsPopover)
     }
 
     /// The file a just-finished render left to share, read off the studio's
@@ -560,11 +569,13 @@ struct ContentView: View {
             lastRequestExportCount: lastReviewRequestExportCount)
         reviewAfterSharing = false
         if ExportFlow.reopensExportAfterShare(outcome: outcome, sharedSongID: sharedSongID,
-                                              currentSongID: studio.song.id) {
+                                              currentSongID: studio.song.id,
+                                              panelIsPopover: horizontalSizeClass == .regular) {
             showingExport = true
         }
         if ExportFlow.endsFlowAfterShare(outcome: outcome, sharedSongID: sharedSongID,
-                                         currentSongID: studio.song.id) {
+                                         currentSongID: studio.song.id,
+                                         panelIsPopover: horizontalSizeClass == .regular) {
             studio.endExportFlow()
         }
         sharedSongID = nil

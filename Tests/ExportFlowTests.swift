@@ -125,6 +125,29 @@ final class ExportFlowTests: XCTestCase {
                                                           sharedSongID: nil, currentSongID: song))
     }
 
+    /// Issue #4. At regular width the panel is a popover. Closing the share
+    /// sheet brought it back unasked, and the user's next tap landed outside
+    /// it and only dismissed it, so a single tap on ••• or Play did nothing.
+    func testACanceledShareDoesNotRaiseTheExportPopover() {
+        XCTAssertFalse(ExportFlow.reopensExportAfterShare(outcome: .canceled, sharedSongID: song,
+                                                          currentSongID: song, panelIsPopover: true))
+    }
+
+    /// Without the popover coming back the options stay as picked, so the
+    /// next time Export is opened by hand it still shows them.
+    func testACanceledShareKeepsTheFlowGoingWhenThePopoverStaysShut() {
+        XCTAssertFalse(ExportFlow.endsFlowAfterShare(outcome: .canceled, sharedSongID: song,
+                                                     currentSongID: song, panelIsPopover: true))
+    }
+
+    /// A sheet (compact width) still returns, and a completed share still ends.
+    func testASheetPanelStillReturnsAfterACanceledShare() {
+        XCTAssertTrue(ExportFlow.reopensExportAfterShare(outcome: .canceled, sharedSongID: song,
+                                                         currentSongID: song, panelIsPopover: false))
+        XCTAssertTrue(ExportFlow.endsFlowAfterShare(outcome: .completed, sharedSongID: song,
+                                                    currentSongID: song, panelIsPopover: true))
+    }
+
     // MARK: Reading a finished export off the attempt counter
 
     /// Exporting the same song in the same format again writes the same path,
