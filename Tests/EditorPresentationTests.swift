@@ -116,4 +116,17 @@ final class EditorActionsSnapshotTests: XCTestCase {
         XCTAssertTrue(EditorPresentation.commandEnabled(editor: editor))
         XCTAssertEqual(calls, 0)
     }
+
+    /// The docked instrument editor owns its own Clear track and Delete track
+    /// alerts, and the grid reports nothing for them while docked (#1).
+    func testTrackClearAndDeleteAlertsAreSongBound() {
+        let all = Set(SongBoundPresenters.Surface.allCases)
+        XCTAssertTrue(all.isSuperset(of: [.trackClear, .trackDelete]))
+        for surface in [SongBoundPresenters.Surface.trackClear, .trackDelete] {
+            var presenters = SongBoundPresenters()
+            presenters.set(surface, presented: true)
+            XCTAssertFalse(EditorPresentation.canChangeSong(songBoundPresented: presenters.isPresented),
+                           "\(surface)")
+        }
+    }
 }

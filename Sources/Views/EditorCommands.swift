@@ -109,6 +109,10 @@ enum EditorPresentation {
 struct SongBoundPresenters: Equatable {
     enum Surface: CaseIterable {
         case patternRename, patternClear, patternDelete, tempoAlert, trackSound
+        /// The instrument editor's own Clear track and Delete track alerts.
+        /// Docked beside the grid the editor is not the popover the grid
+        /// reports as `.trackSound`, so it reports these itself.
+        case trackClear, trackDelete
     }
 
     private var active: Set<Surface> = []

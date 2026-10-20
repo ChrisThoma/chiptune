@@ -328,6 +328,8 @@ struct InstrumentEditor: View {
             // and the grid shows through the sheet. SongListView does the same.
             .scrollContentBackground(.hidden)
             .background(Theme.background.ignoresSafeArea())
+            .reportsPresentation(.trackClear, isPresented: pendingClear != nil, studio: studio)
+            .reportsPresentation(.trackDelete, isPresented: pendingDeleteIndex != nil, studio: studio)
             .alert(
                 pendingClear.map { "Clear this track in pattern \(studio.song.patterns[safe: $0.pattern]?.name ?? "")?" } ?? "",
                 isPresented: Binding(get: { pendingClear != nil },
