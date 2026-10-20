@@ -6,6 +6,7 @@ import dev.individuation.chiptune.core.audio.ExportRequest
 import dev.individuation.chiptune.core.audio.ExportResult
 import dev.individuation.chiptune.core.audio.WavExport
 import dev.individuation.chiptune.core.model.Song
+import dev.individuation.chiptune.core.studio.WriteFailureMessage
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
@@ -118,6 +119,9 @@ object VideoExport {
             } catch (e: Exception) {
                 ExportResult.Failed(e)
             }
+            if (encoded is ExportResult.Failed) {
+                return ExportResult.Failed(VideoWriteFailure.explain(encoded.error, scratch.usableSpace))
+            }
             if (encoded !is ExportResult.Success) return encoded
             // Stopping the muxer takes a moment, and a cancel tapped during
             // it is still a cancel: the previous video stays and nothing is
@@ -138,5 +142,25 @@ object VideoExport {
             soundtrack.delete()
             partial.delete()
         }
+    }
+}
+
+/**
+ * Says when a video writer's failure was a full disk. iOS's writer reports
+ * one in its own words (`AVError.diskFull`); MediaMuxer reports one as a bare
+ * IllegalStateException with no errno, so the alert would say only that the
+ * video couldn't be written. A failure with no cause of its own, on a volume
+ * left with less than [LOW_SPACE_BYTES], is relabelled ENOSPC so
+ * [WriteFailureMessage] says there isn't enough free space.
+ */
+object VideoWriteFailure {
+    /** About eight seconds of the 8 Mbps video: less than the muxer needs to
+     * go on writing, and more than a full volume reports free. */
+    const val LOW_SPACE_BYTES = 8L * 1024 * 1024
+
+    fun explain(error: Throwable, freeBytes: Long): Throwable {
+        if (freeBytes >= LOW_SPACE_BYTES) return error
+        if (WriteFailureMessage.cause(error) != WriteFailureMessage.Cause.OTHER) return error
+        return IOException("ENOSPC (No space left on device)", error)
     }
 }
