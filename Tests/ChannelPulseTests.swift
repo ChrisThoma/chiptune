@@ -126,6 +126,38 @@ final class ChannelPulseTests: XCTestCase {
         XCTAssertLessThan(pulse.levels(frame: 13)[0], pulse.levels(frame: 12)[0])
     }
 
+    // MARK: Shared fixture
+
+    private struct Fixture: Decodable {
+        struct Row: Decodable {
+            let frame: Int
+            let levels: [Double]?
+        }
+        let loopCount: Int
+        let song: Song
+        let frames: [Row]
+    }
+
+    /// `video-timeline.json` carries every frame's bar levels, worked out by
+    /// the reference script: a muted track that stays dark, a sustaining one
+    /// that still flashes, note-offs, and the fade on into the tail.
+    func testTheSharedFixtureLevelsMatch() throws {
+        let data = try Data(contentsOf: try FixtureFiles.url("video-timeline.json"))
+        let fixture = try JSONDecoder().decode(Fixture.self, from: data)
+        let pulse = pulse(fixture.song, loops: fixture.loopCount)
+        let rows = fixture.frames.filter { $0.levels != nil }
+        XCTAssertEqual(rows.count, fixture.frames.count, "every frame has its levels")
+        XCTAssertTrue(rows.contains { $0.levels?.contains(where: { $0 > 0 && $0 < 1 }) == true }, "some bar is mid-fade")
+        for row in rows {
+            let want = row.levels ?? []
+            let got = pulse.levels(frame: row.frame)
+            XCTAssertEqual(got.count, want.count, "frame \(row.frame)")
+            for (index, level) in zip(got, want).enumerated() {
+                XCTAssertEqual(level.0, level.1, accuracy: 1e-9, "frame \(row.frame) / track \(index)")
+            }
+        }
+    }
+
     /// The first step of the second pass is the first step again.
     func testTheSecondPassFlashesAgain() {
         var song = song()
