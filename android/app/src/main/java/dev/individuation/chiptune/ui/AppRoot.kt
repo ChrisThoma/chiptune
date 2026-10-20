@@ -30,8 +30,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.individuation.chiptune.ChiptuneApp
 import dev.individuation.chiptune.platform.SongImporter
@@ -56,6 +59,15 @@ fun AppRoot(model: StudioViewModel, screenshotMode: ScreenshotMode?) {
     val context = LocalContext.current
     val incoming = (context.applicationContext as ChiptuneApp).incoming
     val pending by incoming.pending.collectAsStateWithLifecycle()
+    // The screen stays on while a video renders, so the phone doesn't lock
+    // and stop the activity halfway (iOS's isIdleTimerDisabled). Collected
+    // whatever the lifecycle, so it is let go even while stopped.
+    val keepScreenOn by (context.applicationContext as ChiptuneApp).exportKeepAlive.active.collectAsState()
+    val view = LocalView.current
+    DisposableEffect(view, keepScreenOn) {
+        view.keepScreenOn = keepScreenOn
+        onDispose { view.keepScreenOn = false }
+    }
     // A song opened with Chiptune waits for the Studio, as iOS's pendingImport does.
     LaunchedEffect(studio, pending) {
         val ready = studio

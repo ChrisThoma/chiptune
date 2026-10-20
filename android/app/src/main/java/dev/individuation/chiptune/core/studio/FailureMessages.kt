@@ -32,6 +32,22 @@ object WriteFailureMessage {
     fun export(name: String, error: Throwable, file: String): String =
         "Couldn't export ${shown(name)}. ${reasonAndAdvice(error, file)}"
 
+    /** "Couldn't export \u201CName\u201D. <reason>", knowing whether the app
+     * left the screen while it rendered. Port of iOS's
+     * `export(name:error:format:leftForeground:)`. A video's encoder and
+     * muxer belong to a process Android may freeze, reclaim the codec from
+     * or kill once nothing of it is on screen, so a video that failed for no
+     * named reason after the app left the screen says to stay in the app:
+     * trying again the same way would fail the same way. A named cause
+     * (permission, space) is still named. A WAV renders on the CPU alone and
+     * isn't affected. */
+    fun export(name: String, error: Throwable, format: ExportOptions.Format, leftForeground: Boolean): String {
+        if (format == ExportOptions.Format.VIDEO && leftForeground && cause(error) == Cause.OTHER) {
+            return "Couldn't export ${shown(name)}. Keep Chiptune open while the video renders."
+        }
+        return export(name, error, format.fileNoun)
+    }
+
     /** What a file of this extension is called in an alert: an export is its
      * format's file, and anything else is a song file, the one other kind of
      * file the app hands over. Named from the file that was offered rather

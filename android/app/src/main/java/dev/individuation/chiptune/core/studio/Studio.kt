@@ -61,6 +61,9 @@ class Studio(
     private val shareWriter: SongShareWriter,
     /** The DSP core every edit is mirrored into. Built at the output's rate. */
     val core: ChipCore = ChipCore(44100.0),
+    /** Holds the screen on while a video renders. Injectable so a test can
+     * see it begun and ended on every way a render finishes. */
+    private val keepAlive: ExportKeepAlive = ExportKeepAlive.None,
 ) {
     /** A point the editor can be put back to. The selection travels with the
      * song: `pushAll` clamps both indices into the current song, so they can't
@@ -1253,6 +1256,11 @@ class Studio(
         if (isExporting) return null
         val attempt = completedExportAttempt + 1
         update { it.copy(isExporting = true, exportFile = null, exportError = null, exportProgress = 0.0) }
+        // Only a video needs it: its frames go through a hardware encoder the
+        // system may take back once the app is off screen. Ended in
+        // finishExport, however the render ends.
+        val keepAlive = if (options.format == ExportOptions.Format.VIDEO) keepAlive else null
+        keepAlive?.begin()
         val token = AtomicBoolean(false)
         exportCancel = token
         val song = song
@@ -1268,17 +1276,24 @@ class Studio(
             } catch (e: Throwable) {
                 ExportResult.Failed(e)
             }
-            scheduler.post { finishExport(result, attempt, song.name, options.format) }
+            scheduler.post { finishExport(result, attempt, song.name, options.format, keepAlive) }
         }
         try {
             exportExecutor.execute(job)
         } catch (e: RejectedExecutionException) {
-            finishExport(ExportResult.Failed(e), attempt, song.name, options.format)
+            finishExport(ExportResult.Failed(e), attempt, song.name, options.format, keepAlive)
         }
         return attempt
     }
 
-    private fun finishExport(result: ExportResult, attempt: Int, name: String, format: ExportOptions.Format) {
+    private fun finishExport(
+        result: ExportResult,
+        attempt: Int,
+        name: String,
+        format: ExportOptions.Format,
+        keepAlive: ExportKeepAlive?,
+    ) {
+        val leftForeground = keepAlive?.end() ?: false
         exportCancel = null
         update {
             val base = it.copy(isExporting = false, exportProgress = 0.0, completedExportAttempt = attempt)
@@ -1288,7 +1303,7 @@ class Studio(
                 ExportResult.Canceled -> base
                 ExportResult.TooLong -> base.copy(exportError = ExportTooLongMessage.text(format))
                 is ExportResult.Failed -> base.copy(
-                    exportError = WriteFailureMessage.export(name, result.error, format.fileNoun),
+                    exportError = WriteFailureMessage.export(name, result.error, format, leftForeground),
                 )
             }
         }

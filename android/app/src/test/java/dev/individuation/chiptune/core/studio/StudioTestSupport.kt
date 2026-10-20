@@ -128,6 +128,7 @@ class StudioHarness(
     val temp: TempStore = TempStore(),
     autosaveEnabled: Boolean = false,
     renderer: ((ExportRequest) -> ExportResult)? = null,
+    keepAlive: ExportKeepAlive = ExportKeepAlive.None,
 ) {
     val scheduler = ManualScheduler()
     val audio = FakeAudioOutput()
@@ -142,6 +143,7 @@ class StudioHarness(
         renderer = renderer ?: { ExportRenderer.render(it, exportDir) },
         exportExecutor = executor,
         shareWriter = SongShareWriter(shareDir),
+        keepAlive = keepAlive,
     )
 
     /** Pumps posted work until the export finishes (Swift's `waitForExport`). */

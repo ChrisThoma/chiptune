@@ -18,6 +18,7 @@ import dev.individuation.chiptune.platform.AndroidScheduler
 import dev.individuation.chiptune.platform.AudioOutputEvents
 import dev.individuation.chiptune.platform.AudioRate
 import dev.individuation.chiptune.platform.IncomingImports
+import dev.individuation.chiptune.platform.ScreenOnExportKeepAlive
 import dev.individuation.chiptune.platform.ShareRoots
 import dev.individuation.chiptune.platform.SharedPrefsKeyValueStore
 import dev.individuation.chiptune.platform.video.Mp4Writer
@@ -48,6 +49,10 @@ class ChiptuneApp : Application() {
     /** The Studio, once [buildStudio] has run. Main thread only. */
     /** Song files that arrived by VIEW/SEND, waiting for the Studio. */
     val incoming = IncomingImports()
+
+    /** Holds the screen on while a video renders; [AppRoot] watches it.
+     * Built on first use, on the main thread, after [onCreate]. */
+    val exportKeepAlive: ScreenOnExportKeepAlive by lazy { ScreenOnExportKeepAlive() }
 
     var studio: Studio? = null
         private set
@@ -81,6 +86,7 @@ class ChiptuneApp : Application() {
             exportExecutor = Executors.newSingleThreadExecutor { r -> Thread(r, "chiptune-export") },
             shareWriter = SongShareWriter(File(cacheDir, ShareRoots.SHARE)),
             core = core,
+            keepAlive = exportKeepAlive,
         )
         output.events = object : AudioOutputEvents {
             override fun onAudioFocusLost() = built.onAudioFocusLost()
