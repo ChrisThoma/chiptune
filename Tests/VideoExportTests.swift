@@ -128,6 +128,19 @@ final class VideoExportTests: XCTestCase {
         XCTAssertEqual(scratchFiles(), [])
     }
 
+    /// A crash or a kill mid-render skips the cleanup, so the next export
+    /// clears whatever the last one left. Only one export runs at a time
+    /// (`Studio.export` refuses a second), so nothing in there is live.
+    func testAnExportSweepsScratchLeftByAKilledOne() throws {
+        let fm = FileManager.default
+        try fm.createDirectory(at: VideoExport.scratchDirectory, withIntermediateDirectories: true)
+        let stale = VideoExport.scratchDirectory.appendingPathComponent("killed.mp4")
+        try Data(repeating: 1, count: 1024).write(to: stale)
+        _ = try exported(song(), videoOptions())
+        XCTAssertFalse(fm.fileExists(atPath: stale.path), "the killed export's partial file is still there")
+        XCTAssertEqual(scratchFiles(), [])
+    }
+
     func testASuccessLeavesNoScratch() throws {
         _ = try exported(song(), videoOptions())
         XCTAssertEqual(scratchFiles(), [])

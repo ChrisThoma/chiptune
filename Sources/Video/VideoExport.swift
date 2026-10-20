@@ -43,6 +43,13 @@ enum VideoExport {
 
         let fm = FileManager.default
         do {
+            // A render killed mid-way (a crash, the app terminated in the
+            // background) never reached its cleanup. Only one export runs at
+            // a time — `Studio.export` refuses a second while `isExporting` —
+            // so whatever is in here belongs to a dead one.
+            if fm.fileExists(atPath: scratchDirectory.path) {
+                try fm.removeItem(at: scratchDirectory)
+            }
             try fm.createDirectory(at: scratchDirectory, withIntermediateDirectories: true)
         } catch {
             return .failed(error)
