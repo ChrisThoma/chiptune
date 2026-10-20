@@ -14,6 +14,10 @@ import dev.individuation.chiptune.core.video.Yuv
 import java.io.FileInputStream
 import java.io.IOException
 import java.nio.ByteBuffer
+import java.nio.IntBuffer
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /**
  * Encodes a [VideoJob] as an H.264/AAC mp4 with MediaCodec and MediaMuxer:
@@ -23,7 +27,10 @@ import java.nio.ByteBuffer
  * Every frame is drawn by [VideoFrameDrawer], converted to YUV 4:2:0 with
  * [Yuv] straight into the encoder's input image (whatever plane layout the
  * device uses), and stamped with an explicit presentation time from the
- * frame number, so the picture runs at exactly 30 fps against the audio. The
+ * frame number, so the picture runs at exactly 30 fps against the audio.
+ * For speed, the conversion is split into bands on a few threads, and the
+ * next frame is drawn while the current one converts; the bitmap's memory is
+ * copied out as it is rather than unpacked pixel by pixel. The
  * soundtrack's PCM is fed to the AAC encoder from the scratch WAV, timed by
  * sample count, and kept no more than a second ahead of the pictures so
  * neither stream waits long on the other.
@@ -58,7 +65,22 @@ class Mp4Writer(private val resources: Resources) : VideoWriter {
         private val width = VideoLayout.WIDTH
         private val height = VideoLayout.HEIGHT
         private val totalFrames = job.timeline.totalFrames
-        private val pixels = IntArray(width * height)
+
+        /** Two frames' pixels: [ready] holds frame [readyFrame], converting,
+         * while the next is drawn into [spare]. In the bitmap's own memory
+         * order (see [Yuv.Order.ABGR]). */
+        private var ready = IntArray(width * height)
+        private var spare = IntArray(width * height)
+        private var readyFrame = -1
+
+        /** Converts each frame in [BANDS] horizontal bands at once. */
+        private val converters: ExecutorService = Executors.newFixedThreadPool(BANDS) { task ->
+            Thread(task, "VideoYuv").apply { isDaemon = true }
+        }
+
+        private fun render(frame: Int, into: IntArray) {
+            drawer.draw(frame).copyPixelsToBuffer(IntBuffer.wrap(into))
+        }
 
         private val video: MediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
         private val audio: MediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
@@ -139,14 +161,43 @@ class Mp4Writer(private val resources: Resources) : VideoWriter {
                 return true
             }
             val image = video.getInputImage(index) ?: throw IOException("The video encoder gave no input image.")
-            drawer.draw(frame).getPixels(pixels, 0, width, 0, 0, width, height)
+            if (readyFrame != frame) {
+                render(frame, ready)
+                readyFrame = frame
+            }
             val planes = image.planes
-            Yuv.fromArgb(
-                pixels, width, height,
-                Yuv.Plane(planes[0].buffer, 0, planes[0].rowStride, planes[0].pixelStride),
-                Yuv.Plane(planes[1].buffer, 0, planes[1].rowStride, planes[1].pixelStride),
-                Yuv.Plane(planes[2].buffer, 0, planes[2].rowStride, planes[2].pixelStride),
-            )
+            val y = Yuv.Plane(planes[0].buffer, 0, planes[0].rowStride, planes[0].pixelStride)
+            val u = Yuv.Plane(planes[1].buffer, 0, planes[1].rowStride, planes[1].pixelStride)
+            val v = Yuv.Plane(planes[2].buffer, 0, planes[2].rowStride, planes[2].pixelStride)
+            val pixels = ready
+            val chromaHeight = (height + 1) / 2
+            val bands = (0 until BANDS).map { band ->
+                converters.submit {
+                    Yuv.fromArgb(pixels, width, height, y, u, v, Yuv.Order.ABGR,
+                        chromaRows = band * chromaHeight / BANDS until (band + 1) * chromaHeight / BANDS)
+                }
+            }
+            // The next frame is drawn while this one converts. However the
+            // drawing ends, every band is waited for before going on, so none
+            // is still writing into the image when the encoder takes it back.
+            var failure: Throwable? = null
+            try {
+                if (frame + 1 < totalFrames) {
+                    render(frame + 1, spare)
+                    spare = ready.also { ready = spare }
+                    readyFrame = frame + 1
+                }
+            } catch (e: Throwable) {
+                failure = e
+            }
+            for (band in bands) {
+                try {
+                    band.get()
+                } catch (e: ExecutionException) {
+                    if (failure == null) failure = e.cause ?: e
+                }
+            }
+            failure?.let { throw it }
             val size = video.getInputBuffer(index)?.capacity() ?: (width * height * 3 / 2)
             video.queueInputBuffer(index, 0, size, presentationUs(frame), 0)
             frame += 1
@@ -236,6 +287,7 @@ class Mp4Writer(private val resources: Resources) : VideoWriter {
         }
 
         fun release() {
+            converters.shutdownNow()
             runCatching { pcm.close() }
             runCatching { video.stop() }
             runCatching { video.release() }
@@ -252,5 +304,8 @@ class Mp4Writer(private val resources: Resources) : VideoWriter {
         const val AUDIO_BIT_RATE = 128_000
         const val AUDIO_CHUNK_SAMPLES = 4096
         const val WAV_HEADER = 44
+        /** Threads converting each frame to YUV: the Pixel 3 XL's four big
+         * cores, while the encoder thread draws the next frame. */
+        const val BANDS = 4
     }
 }
