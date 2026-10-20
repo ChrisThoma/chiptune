@@ -25,6 +25,13 @@ data class FrameRect(val x: Double, val y: Double, val width: Double, val height
     fun insetBy(dx: Double, dy: Double): FrameRect = FrameRect(x + dx, y + dy, width - 2 * dx, height - 2 * dy)
 
     fun offsetBy(dx: Double, dy: Double): FrameRect = FrameRect(x + dx, y + dy, width, height)
+
+    /** CGRect's `union`: the smallest rectangle holding both. */
+    fun union(other: FrameRect): FrameRect {
+        val left = minOf(minX, other.minX)
+        val top = minOf(minY, other.minY)
+        return FrameRect(left, top, maxOf(maxX, other.maxX) - left, maxOf(maxY, other.maxY) - top)
+    }
 }
 
 /** A point in video pixels, origin top left. CGPoint's shape. */
@@ -110,25 +117,26 @@ class VideoLayout(trackCount: Int) {
         return FrameRect(x, centerY - cellHeight / 2, columnWidth, cellHeight)
     }
 
+    /** A whole row's cells, gutter to last column. */
+    fun rowRect(centerY: Double): FrameRect = FrameRect(gridOriginX, centerY - cellHeight / 2, gridContentWidth, cellHeight)
+
     /** The highlight behind the playing row, spanning gutter and columns. */
     val playheadRowRect: FrameRect
         get() = FrameRect(gridOriginX - 12, playheadY - rowPitch / 2, gridContentWidth + 24, rowPitch)
 
-    /** Where [step]'s row is centred when the song is [position] steps into
-     * the pattern (fraction included). At `position == step` that is the
-     * playhead row, so a note reaches it on the frame its sound starts. */
+    /** Where [step]'s row is centred when the grid shows [position] (steps
+     * since the start of the body, fraction included) on the playhead row. */
     fun rowCenterY(step: Int, position: Double): Double = playheadY + (step - position) * rowPitch
 
-    /** The steps of a [patternLength]-step pattern with any part of their row
-     * inside [gridRect] at [position]. Only the current pattern is drawn, so
-     * the window stops at its first and last steps rather than showing the
-     * neighbours. */
-    fun visibleSteps(position: Double, patternLength: Int): IntRange {
+    /** The steps, counted across the whole body, with any part of their row
+     * inside [gridRect] at [position]. The window stops at the song's first
+     * and last steps: nothing is drawn before the start or past the end. */
+    fun visibleSteps(position: Double, stepCount: Int): IntRange {
         val reach = (gridRect.height / 2 + cellHeight / 2) / rowPitch
         // Strictly inside: a row whose edge only meets the grid's edge shows nothing.
         val lower = floor(position - reach).toInt() + 1
         val upper = ceil(position + reach).toInt() - 1
-        val last = maxOf(patternLength - 1, 0)
+        val last = maxOf(stepCount - 1, 0)
         val lo = minOf(maxOf(lower, 0), last)
         return lo..maxOf(minOf(upper, last), lo)
     }
@@ -259,6 +267,22 @@ class VideoLayout(trackCount: Int) {
         /** iOS `Theme.cellRadius` and Android `ChipRadii.cell`. */
         const val CELL_RADIUS = 5.0
 
+        /** How much of a step the sounding row holds still on the playhead
+         * before the grid starts moving on to the next. */
+        const val SCROLL_HOLD = 0.7
+
+        /** Where the grid is, in steps, [elapsed] steps into the body: held on
+         * the sounding step for most of it, then eased to the next over the
+         * step's last 30%, so the scroll is continuous at slow tempos but the
+         * sounding row is never half a row off the playhead mid-step. The
+         * last step holds, since nothing follows it. */
+        fun scrollPosition(elapsed: Double, lastStep: Int): Double {
+            val step = minOf(maxOf(elapsed, 0.0).toInt(), lastStep)
+            if (step >= lastStep) return step.toDouble()
+            val into = ((elapsed - step - SCROLL_HOLD) / (1 - SCROLL_HOLD)).coerceIn(0.0, 1.0)
+            return step + into * into * (3 - 2 * into)
+        }
+
         /** Track names are drawn this large unless their slots are narrow. */
         const val FULL_NAME_FONT_SIZE = 26.0
 
@@ -284,5 +308,64 @@ class VideoLayout(trackCount: Int) {
 
         /** The bottom of everything but the tag. */
         val contentBottom: Double = tagRect.minY - 24
+    }
+}
+
+/**
+ * What the Grid style draws on one frame: which rows, where, and where the
+ * playing band is. Pure geometry from the timeline, so the scroll can be
+ * tested frame by frame without drawing. Port of iOS's `GridFrame`.
+ */
+data class GridFrame(
+    /** The step that is sounding: the header names its pattern and step. */
+    val playing: VideoTimeline.Position,
+    val soundingStep: Int,
+    val rows: List<Row>,
+    /** The highlight behind the sounding row. */
+    val band: FrameRect,
+    /** 1 through the body, falling to 0 over the ring-out. */
+    val bandLight: Double,
+) {
+    data class Row(
+        /** Steps since the start of the body, across chain slots and passes. */
+        val globalStep: Int,
+        /** Index into `song.patterns`. */
+        val pattern: Int,
+        /** Step inside that pattern: the row's own number. */
+        val step: Int,
+        val centerY: Double,
+    )
+
+    companion object {
+        /** Swift's failable `init(layout:timeline:frame:)`: null when the
+         * song has no steps. */
+        fun of(layout: VideoLayout, timeline: VideoTimeline, frame: Int): GridFrame? {
+            // Rows are laid out by step across the whole body, so the steps of
+            // the next chain slot, or of the next pass after the loop wrap,
+            // come up under the current ones and the scroll never jumps back.
+            // In the ring-out nothing new plays, so the grid rests on the last
+            // step and the band fades with the sound.
+            val total = timeline.stepsPerPass * timeline.loopCount
+            val elapsed = timeline.elapsedSteps(frame)
+            val sounding = minOf(maxOf(elapsed, 0.0).toInt(), total - 1)
+            val at = timeline.positionOfStep(sounding) ?: return null
+            val position = VideoLayout.scrollPosition(elapsed, total - 1)
+
+            val rows = layout.visibleSteps(position, total).mapNotNull { step ->
+                timeline.positionOfStep(step)?.let {
+                    Row(step, it.pattern, it.step, layout.rowCenterY(step, position))
+                }
+            }
+            // While the grid moves on, the band stretches up to keep the
+            // sounding row inside it until its step ends.
+            val lift = layout.rowCenterY(sounding, position) - layout.playheadY
+            val band = layout.playheadRowRect.union(layout.playheadRowRect.offsetBy(0.0, lift))
+            val light = if (timeline.position(frame) == null) {
+                maxOf(0.0, 1 - (timeline.sample(frame) - timeline.bodySamples).toDouble() / maxOf(timeline.tailSamples, 1))
+            } else {
+                1.0
+            }
+            return GridFrame(at, sounding, rows, band, light)
+        }
     }
 }

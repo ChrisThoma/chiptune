@@ -1,8 +1,12 @@
 package dev.individuation.chiptune.core.video
 
+import dev.individuation.chiptune.core.TestSongs
+import dev.individuation.chiptune.core.audio.ExportOptions
+import dev.individuation.chiptune.core.model.Song
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import java.awt.Font
 import java.awt.font.FontRenderContext
@@ -85,7 +89,7 @@ class VideoLayoutTest {
         assertEquals(layout.gridRect.midY, layout.playheadY, 0.5)
     }
 
-    @Test fun theVisibleWindowClampsAtThePatternsEnds() {
+    @Test fun theVisibleWindowClampsAtTheSongsEnds() {
         val layout = VideoLayout(4)
         assertEquals(0, layout.visibleSteps(0.0, 16).first)
         assertEquals(15, layout.visibleSteps(15.0, 16).last)
@@ -150,6 +154,124 @@ class VideoLayoutTest {
         assertEquals(85.0, VideoLayout(8).columnWidth, 0.0)
         assertEquals(25.0, VideoLayout(8).cellFontSize, 0.0)
         assertEquals(5.0 * 58 / 24, layout.cellRadius, 1e-9)
+    }
+
+    // MARK: Grid scroll
+
+    private fun timeline(song: Song, loops: Int = 1): VideoTimeline =
+        VideoTimeline(song, ExportOptions(loops, format = ExportOptions.Format.VIDEO))
+
+    private fun bodyFrames(timeline: VideoTimeline): IntRange =
+        0 until (timeline.bodySamples + VideoTimeline.SAMPLES_PER_FRAME - 1) / VideoTimeline.SAMPLES_PER_FRAME
+
+    /** A 4-step pattern into a 16-step one, played twice: two pattern
+     * changes and a loop wrap per pass. */
+    private fun shortThenLong(tempo: Double = 150.0): VideoTimeline =
+        timeline(TestSongs.twoPatterns(lengths = 4 to 16, repeats = 1 to 1, tempo = tempo), loops = 2)
+
+    /** The grid scrolls as one piece across pattern changes and the loop
+     * wrap: between two frames every row that is in both moves by the same
+     * amount, up and never by more than a row, and the rows coming up next
+     * are already there, from whichever pattern they belong to. */
+    @Test fun rowsScrollContinuouslyAcrossPatternChangesAndTheLoopWrap() {
+        val layout = VideoLayout(1)
+        val timeline = shortThenLong()
+        val total = timeline.stepsPerPass * timeline.loopCount
+        var previous: GridFrame? = null
+        for (frame in bodyFrames(timeline)) {
+            val grid = GridFrame.of(layout, timeline, frame) ?: return fail("frame $frame has no grid")
+            val steps = grid.rows.map { it.globalStep }
+            assertEquals("frame $frame skips a row", (steps.first()..steps.last()).toList(), steps)
+            for (ahead in 1..3) {
+                if (grid.soundingStep + ahead < total) {
+                    assertTrue("frame $frame is missing the row $ahead ahead", grid.soundingStep + ahead in steps)
+                }
+            }
+            if (grid.soundingStep > 0) assertTrue("frame $frame is missing the row behind", grid.soundingStep - 1 in steps)
+            for (row in grid.rows) {
+                val at = timeline.positionOfStep(row.globalStep)
+                assertEquals("frame $frame / ${row.globalStep}", at?.pattern, row.pattern)
+                assertEquals("frame $frame / ${row.globalStep} is numbered by its own pattern", at?.step, row.step)
+            }
+            assertEquals("frame $frame header", timeline.position(frame), grid.playing)
+            previous?.let { before ->
+                val was = before.rows.associate { it.globalStep to it.centerY }
+                val moves = grid.rows.mapNotNull { row -> was[row.globalStep]?.let { row.centerY - it } }
+                assertTrue("frame $frame shares no row with the frame before", moves.isNotEmpty())
+                val first = moves.first()
+                for (move in moves) assertEquals("frame $frame tears", first, move, 0.001)
+                assertTrue("frame $frame scrolls back down", first <= 0.001)
+                assertTrue("frame $frame jumps more than a row", first >= -layout.rowPitch - 0.001)
+            }
+            previous = grid
+        }
+    }
+
+    /** Nothing is drawn before the song's first step or past its last. */
+    @Test fun rowsStopAtTheSongsEnds() {
+        val layout = VideoLayout(1)
+        val timeline = shortThenLong()
+        val total = timeline.stepsPerPass * timeline.loopCount
+        for (frame in 0 until timeline.totalFrames) {
+            for (row in GridFrame.of(layout, timeline, frame)?.rows.orEmpty()) {
+                assertTrue("frame $frame / ${row.globalStep}", row.globalStep in 0 until total)
+            }
+        }
+    }
+
+    /** The row whose sound is playing stays inside the highlighted band on
+     * every frame of its step, at slow, middling, fast and uneven tempos. */
+    @Test fun theSoundingRowStaysInsideTheBandForItsWholeStep() {
+        for (count in listOf(1, 8)) {
+            val layout = VideoLayout(count)
+            for (tempo in listOf(40.0, 60.0, 97.0, 137.0, 150.0, 300.0)) {
+                val timeline = shortThenLong(tempo)
+                for (frame in bodyFrames(timeline)) {
+                    val grid = GridFrame.of(layout, timeline, frame)
+                    val row = grid?.rows?.firstOrNull { it.globalStep == grid.soundingStep }
+                    if (grid == null || row == null) {
+                        fail("$tempo BPM frame $frame doesn't draw its sounding row"); return
+                    }
+                    assertEquals(timeline.sample(frame) / timeline.samplesPerStep, grid.soundingStep)
+                    val rect = layout.rowRect(row.centerY)
+                    assertTrue("$count tracks, $tempo BPM frame $frame: $rect outside ${grid.band}", grid.band.contains(rect))
+                    assertTrue("$tempo BPM frame $frame", grid.band.height <= 2 * layout.rowPitch + 0.001)
+                }
+            }
+        }
+    }
+
+    /** For most of its step the sounding row sits still on the playhead,
+     * with the band its own size; the grid only moves on in the step's last
+     * part. */
+    @Test fun theSoundingRowHoldsOnThePlayheadForMostOfItsStep() {
+        val layout = VideoLayout(4)
+        val timeline = shortThenLong(tempo = 60.0)
+        for (frame in bodyFrames(timeline)) {
+            val into = (timeline.sample(frame) % timeline.samplesPerStep).toDouble() / timeline.samplesPerStep
+            if (into >= 0.65) continue
+            val grid = GridFrame.of(layout, timeline, frame) ?: continue
+            val row = grid.rows.firstOrNull { it.globalStep == grid.soundingStep } ?: continue
+            assertEquals("frame $frame", layout.playheadY, row.centerY, 0.001)
+            assertEquals("frame $frame", layout.playheadRowRect, grid.band)
+        }
+    }
+
+    /** In the ring-out the grid rests on the last step and the band fades. */
+    @Test fun theGridRestsOnTheLastStepInTheTail() {
+        val layout = VideoLayout(4)
+        val timeline = shortThenLong()
+        val last = timeline.stepsPerPass * timeline.loopCount - 1
+        var light = 1.0
+        for (frame in bodyFrames(timeline).last + 1 until timeline.totalFrames) {
+            val grid = GridFrame.of(layout, timeline, frame) ?: return fail("frame $frame")
+            assertEquals(last, grid.soundingStep)
+            assertEquals(layout.playheadY, grid.rows.first { it.globalStep == last }.centerY, 0.0)
+            assertEquals(layout.playheadRowRect, grid.band)
+            assertTrue(grid.bandLight <= light)
+            light = grid.bandLight
+        }
+        assertTrue(light < 0.1)
     }
 
     // MARK: Cartridge

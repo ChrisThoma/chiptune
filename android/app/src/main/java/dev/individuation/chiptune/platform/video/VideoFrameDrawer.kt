@@ -24,6 +24,7 @@ import dev.individuation.chiptune.core.model.Pattern
 import dev.individuation.chiptune.core.model.Song
 import dev.individuation.chiptune.core.video.ChannelPulse
 import dev.individuation.chiptune.core.video.FrameRect
+import dev.individuation.chiptune.core.video.GridFrame
 import dev.individuation.chiptune.core.video.VideoLayout
 import dev.individuation.chiptune.core.video.VideoTimeline
 import dev.individuation.chiptune.ui.theme.ChipColors
@@ -35,7 +36,8 @@ import kotlin.math.abs
  * sizes are fixed pixels from [VideoLayout], so the frame is a picture of the
  * song, the same on every phone, and lines up with the iOS one.
  *
- * Grid: the current pattern scrolls up past a fixed playing row. The row that
+ * Grid: the song's steps, across patterns and passes, scroll up past a fixed
+ * playing row ([GridFrame]). The row that
  * is sounding is at full colour; rows away from it dim into the background,
  * so the eye stays on the beat. Cover (shown as "Cartridge"): a grey game
  * cartridge whose label carries the title, tempo and length, a bar per track
@@ -109,33 +111,20 @@ class VideoFrameDrawer(
     // MARK: Grid
 
     private fun drawGrid(frame: Int) {
-        // In the ring-out nothing new plays, so the grid rests on the last
-        // step and the playing row's highlight fades with the sound.
-        val lastStep = timeline.stepsPerPass * timeline.loopCount - 1
-        val elapsed = timeline.elapsedSteps(frame)
-        val inTail = timeline.position(frame) == null
-        val globalStep = minOf(elapsed.toInt(), lastStep)
-        val at = timeline.positionOfStep(globalStep) ?: return
-        val pattern = song.patterns.getOrNull(at.pattern) ?: return
-        val fraction = if (inTail) 0.0 else elapsed - globalStep
-        val position = at.step + fraction
-        val tailFade = if (inTail) {
-            maxOf(0.0, 1 - (timeline.sample(frame) - timeline.bodySamples).toDouble() / maxOf(timeline.tailSamples, 1))
-        } else {
-            1.0
-        }
+        val grid = GridFrame.of(layout, timeline, frame) ?: return
+        val playing = song.patterns.getOrNull(grid.playing.pattern) ?: return
 
-        drawGridHeader(pattern, at.step)
+        drawGridHeader(playing, grid.playing.step)
         drawColumnHeaders()
 
         canvas.withClip(layout.gridRect.toRectF()) {
-            fill.color = TEXT.withAlpha(0.10 * tailFade).flattened(BACKGROUND).argb
+            fill.color = TEXT.withAlpha(0.10 * grid.bandLight).flattened(BACKGROUND).argb
             val radius = (layout.cellRadius + 4).toFloat()
-            drawRoundRect(layout.playheadRowRect.toRectF(), radius, radius, fill)
+            drawRoundRect(grid.band.toRectF(), radius, radius, fill)
 
-            for (step in layout.visibleSteps(position, pattern.length)) {
-                val y = layout.rowCenterY(step, position)
-                drawRow(pattern, step, y, rowLight(y))
+            for (row in grid.rows) {
+                val pattern = song.patterns.getOrNull(row.pattern) ?: continue
+                drawRow(pattern, row.step, row.centerY, rowLight(row.centerY))
             }
         }
     }
