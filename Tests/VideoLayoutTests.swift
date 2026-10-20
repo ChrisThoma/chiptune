@@ -16,7 +16,22 @@ final class VideoLayoutTests: XCTestCase {
         let safe = VideoLayout.safeRect
         XCTAssertTrue(frame.contains(safe))
         XCTAssertGreaterThanOrEqual(safe.minY, 1920 * 0.12)
-        XCTAssertLessThanOrEqual(safe.maxY, 1920 * 0.80)
+        XCTAssertLessThanOrEqual(safe.maxY, 1920 - Self.captionReach)
+    }
+
+    /// TikTok's caption, account name and sound line can stack up to about
+    /// 480px from the bottom of a 1920px frame on a long caption.
+    private static let captionReach: CGFloat = 480
+
+    func testTheBottomBandClearsALongTikTokCaption() {
+        XCTAssertGreaterThanOrEqual(VideoLayout.bottomBand, Self.captionReach)
+        for count in [1, 4, 8] {
+            let layout = VideoLayout(trackCount: count)
+            for (name, rect) in [("tag", VideoLayout.tagRect), ("grid", layout.gridRect),
+                                 ("cartridge", layout.cartridgeRect)] {
+                XCTAssertLessThanOrEqual(rect.maxY, 1920 - Self.captionReach, "\(count) / \(name)")
+            }
+        }
     }
 
     // MARK: Grid
@@ -218,18 +233,18 @@ final class VideoLayoutTests: XCTestCase {
     /// draw the same cartridge.
     func testTheCartridgeGeometryIsPinned() {
         let layout = VideoLayout(trackCount: 4)
-        XCTAssertEqual(layout.cartridgeRect, CGRect(x: 150, y: 252, width: 780, height: 1180))
+        XCTAssertEqual(layout.cartridgeRect, CGRect(x: 150, y: 252, width: 780, height: 1100))
         XCTAssertEqual(layout.cartridgeNotch, 96)
         XCTAssertEqual(layout.cartridgeCornerRadius, 28)
         XCTAssertEqual(layout.gripRidgeRects.count, 5)
         XCTAssertEqual(layout.gripRidgeRects.first, CGRect(x: 214, y: 286, width: 580, height: 8))
-        XCTAssertEqual(layout.labelRecessRect, CGRect(x: 202, y: 402, width: 676, height: 854))
-        XCTAssertEqual(layout.labelRect, CGRect(x: 216, y: 416, width: 648, height: 826))
-        XCTAssertEqual(layout.triangleRect, CGRect(x: 508, y: 1316, width: 64, height: 56))
+        XCTAssertEqual(layout.labelRecessRect, CGRect(x: 202, y: 402, width: 676, height: 774))
+        XCTAssertEqual(layout.labelRect, CGRect(x: 216, y: 416, width: 648, height: 746))
+        XCTAssertEqual(layout.triangleRect, CGRect(x: 508, y: 1236, width: 64, height: 56))
         XCTAssertEqual(layout.coverTitleRect, CGRect(x: 256, y: 456, width: 568, height: 190))
-        XCTAssertEqual(layout.coverProgressRect, CGRect(x: 256, y: 1142, width: 568, height: 14))
-        XCTAssertEqual(layout.coverBarRect(track: 0), CGRect(x: 256, y: 752, width: 124, height: 300))
-        XCTAssertEqual(VideoLayout(trackCount: 8).coverBarRect(track: 7), CGRect(x: 774, y: 752, width: 50, height: 300))
+        XCTAssertEqual(layout.coverProgressRect, CGRect(x: 256, y: 1062, width: 568, height: 14))
+        XCTAssertEqual(layout.coverBarRect(track: 0), CGRect(x: 256, y: 752, width: 124, height: 220))
+        XCTAssertEqual(VideoLayout(trackCount: 8).coverBarRect(track: 7), CGRect(x: 774, y: 752, width: 50, height: 220))
     }
 
     // MARK: Tag
@@ -237,7 +252,7 @@ final class VideoLayoutTests: XCTestCase {
     func testTheTagIsInsideTheFrameAndClearOfTheBottomOverlays() {
         let tag = VideoLayout.tagRect
         XCTAssertTrue(frame.contains(tag))
-        XCTAssertLessThanOrEqual(tag.maxY, 1920 * 0.80)
+        XCTAssertLessThanOrEqual(tag.maxY, 1920 - Self.captionReach)
         XCTAssertGreaterThanOrEqual(tag.minY, 1920 * 0.12)
         XCTAssertGreaterThanOrEqual(tag.minX, VideoLayout.safeRect.minX)
         XCTAssertLessThanOrEqual(tag.maxY, VideoLayout.size.height - VideoLayout.bottomBand)

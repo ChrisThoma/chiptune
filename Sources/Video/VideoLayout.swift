@@ -13,8 +13,9 @@ struct VideoLayout {
     static let size = CGSize(width: 1080, height: 1920)
     /// Kept clear at the top: 12.5% of the height.
     static let topBand: CGFloat = 240
-    /// Kept clear at the bottom: about 21%, where the caption sits.
-    static let bottomBand: CGFloat = 400
+    /// Kept clear at the bottom: a quarter of the height. TikTok's caption,
+    /// account name and sound line reach about 480px up on a long caption.
+    static let bottomBand: CGFloat = 480
     /// Wide enough on the right to clear TikTok's button column; the same on
     /// the left so the content stays centred.
     static let sideMargin: CGFloat = 120
