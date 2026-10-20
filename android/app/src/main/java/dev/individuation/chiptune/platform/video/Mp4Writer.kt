@@ -107,7 +107,7 @@ class Mp4Writer(private val resources: Resources) : VideoWriter {
          * fps, slower than the frames could be drawn). The rate and the
          * non-realtime priority are what Android's own transcoder asks for
          * at 1080p. */
-        private fun videoFormat(unthrottled: Boolean): MediaFormat =
+        private fun videoFormat(unthrottled: Boolean, srgb: Boolean): MediaFormat =
             MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
                 setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible)
                 setInteger(MediaFormat.KEY_BIT_RATE, VIDEO_BIT_RATE)
@@ -118,10 +118,15 @@ class Mp4Writer(private val resources: Resources) : VideoWriter {
                     setInteger(MediaFormat.KEY_PRIORITY, 1)
                 }
                 // Tagged explicitly, as iOS does, so players don't guess at
-                // the theme colours; Yuv converts with these coefficients.
+                // the theme colours. Yuv converts with BT.709's matrix into
+                // limited range, and 709's primaries are sRGB's. The frames
+                // are drawn in sRGB, so the transfer is sRGB's: tagged 709's
+                // curve, a player that honours it shows every mid-grey
+                // lighter than drawn (iOS 7f82f90). An encoder that refuses
+                // the sRGB tag gets 709's rather than no video.
                 setInteger(MediaFormat.KEY_COLOR_STANDARD, MediaFormat.COLOR_STANDARD_BT709)
                 setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED)
-                setInteger(MediaFormat.KEY_COLOR_TRANSFER, MediaFormat.COLOR_TRANSFER_SDR_VIDEO)
+                setInteger(MediaFormat.KEY_COLOR_TRANSFER, if (srgb) COLOR_TRANSFER_SRGB else MediaFormat.COLOR_TRANSFER_SDR_VIDEO)
                 // High profile, as iOS writes, where the encoder offers it:
                 // Baseline blocks up the near-black background on the
                 // opening keyframe.
@@ -134,13 +139,17 @@ class Mp4Writer(private val resources: Resources) : VideoWriter {
             }
 
         init {
-            try {
-                video.configure(videoFormat(unthrottled = true), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-            } catch (e: Exception) {
-                // An encoder that refuses the operating rate still encodes
-                // at its own pace.
-                video.reset()
-                video.configure(videoFormat(unthrottled = false), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            // An encoder that refuses the operating rate still encodes at its
+            // own pace; one that refuses the sRGB tag gets 709's.
+            val attempts = listOf(true to true, false to true, true to false, false to false)
+            for ((index, attempt) in attempts.withIndex()) {
+                try {
+                    video.configure(videoFormat(attempt.first, attempt.second), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+                    break
+                } catch (e: Exception) {
+                    if (index == attempts.lastIndex) throw e
+                    video.reset()
+                }
             }
             val audioFormat = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, SAMPLE_RATE, 1).apply {
                 setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
@@ -328,5 +337,10 @@ class Mp4Writer(private val resources: Resources) : VideoWriter {
         const val BANDS = 4
         /** Frames a second the encoder is asked to be able to take. */
         const val OPERATING_RATE = 240
+        /** sRGB's transfer function (H.264 transfer_characteristics 13).
+         * MediaFormat names only LINEAR (1), SDR_VIDEO (3), ST2084 (6) and
+         * HLG (7), but KEY_COLOR_TRANSFER takes the platform's ColorAspects
+         * numbering, in which 2 is kColorTransferSRGB. */
+        const val COLOR_TRANSFER_SRGB = 2
     }
 }
