@@ -45,7 +45,10 @@ final class ExportLengthTests: XCTestCase {
         options.loopCount = 2
         XCTAssertEqual(ExportLength.seconds(song: song, options: options),
                        song.arrangementDuration * 2 + WavExport.tailSeconds(for: song),
-                       accuracy: 0.0001)
+                       accuracy: 0.01)
+        // Exactly the renderer's length, which counts whole samples a step.
+        XCTAssertEqual(ExportLength.seconds(song: song, options: options),
+                       VideoTimeline(song: song, options: options).seconds)
     }
 
     func testASeamlessWavHasNoTail() {
@@ -67,5 +70,72 @@ final class ExportLengthTests: XCTestCase {
 
     func testAVideoOverTheCapSaysItIsTooLong() {
         XCTAssertEqual(ExportLength.warning(format: .video, seconds: 601), "Too long for a video — 10:00 max.")
+    }
+}
+
+/// The sheet's Export button and the renderer agree on which videos are over
+/// the cap. The sheet once worked the length out from the exact step length
+/// while the renderer counts whole samples per step, so a song a hair under
+/// ten minutes on the sheet could be refused after the tap.
+final class ExportCapAgreementTests: XCTestCase {
+
+    /// `steps` steps in one pass at `tempo`: whole 64-step patterns, then one
+    /// shorter pattern for the rest. One track, no notes, so the tail is 1 s.
+    private func song(tempo: Double, steps: Int) -> Song {
+        var song = TestSongs.empty(name: "Cap", tempo: tempo, length: 64)
+        let whole = steps / 64
+        let rest = steps % 64
+        song.arrangement = []
+        var left = whole
+        while left > 0 {
+            let repeats = min(left, SongSection.maxRepeats)
+            song.arrangement.append(SongSection(patternID: song.patterns[0].id, repeats: repeats))
+            left -= repeats
+        }
+        if rest > 0 {
+            let tail = Pattern(name: "B", length: rest, trackCount: song.tracks.count)
+            song.patterns.append(tail)
+            song.arrangement.append(SongSection(patternID: tail.id))
+        }
+        return song
+    }
+
+    private func videoOptions() -> ExportOptions {
+        var options = ExportOptions()
+        options.format = .video
+        return options
+    }
+
+    private func sheetBlocks(_ song: Song) -> Bool {
+        ExportControls.blocksExport(format: .video,
+                                    seconds: ExportLength.seconds(song: song, options: videoOptions()))
+    }
+
+    private func rendererRefuses(_ song: Song) -> Bool {
+        VideoTimeline(song: song, options: videoOptions()).seconds > VideoExport.maxSeconds
+    }
+
+    /// The case the review found: 599.985 s by the exact step length, 600.023 s
+    /// by whole samples.
+    func testA133BpmSongJustOverTheCapIsBlockedOnTheSheet() {
+        let song = song(tempo: 133, steps: 5311)
+        XCTAssertEqual(song.arrangementSteps, 5311)
+        XCTAssertTrue(rendererRefuses(song), "the renderer refuses this one")
+        XCTAssertTrue(sheetBlocks(song), "so the sheet must not offer Export")
+    }
+
+    func testTheSheetAndTheRendererAgreeNearTheCap() {
+        var disagreements: [String] = []
+        for tempo in stride(from: 60.0, through: 200.0, by: 1.0) {
+            // Steps that put one pass plus the 1 s tail near 600 s.
+            let center = Int((599 * tempo * Double(Chip.stepsPerBeat) / 60).rounded())
+            for steps in (center - 3)...(center + 3) {
+                let song = song(tempo: tempo, steps: steps)
+                if sheetBlocks(song) != rendererRefuses(song) {
+                    disagreements.append("\(tempo) BPM, \(steps) steps")
+                }
+            }
+        }
+        XCTAssertEqual(disagreements, [])
     }
 }

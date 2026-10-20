@@ -105,7 +105,13 @@ enum ExportLength {
 
     /// Rough length of the file, so the repeat count means something. Reads
     /// the effective ending, so a video's length includes its tail.
+    ///
+    /// A video's is exact: it comes from the same `VideoTimeline` (normalized
+    /// song, whole samples per step, truncated tail) that `VideoExport`
+    /// checks against the cap, so the Export button is never offered for a
+    /// video the renderer would then refuse as too long.
     static func seconds(song: Song, options: ExportOptions) -> Double {
+        if options.format == .video { return VideoTimeline(song: song, options: options).seconds }
         var seconds = song.arrangementDuration * Double(options.loopCount)
         if options.effectiveTailMode == .ringOut { seconds += WavExport.tailSeconds(for: song) }
         return seconds
