@@ -352,11 +352,13 @@ struct ContentView: View {
         // `ChipLayout.measurementIgnoresSafeArea`.
         .ignoresSafeArea(ChipLayout.measurementIgnoresSafeArea)
         // Outside the keyboard-ignoring region, so this one still sees the
-        // keyboard: where its top edge is, for the docked editor's column.
+        // keyboard: its frame ends at the keyboard's top edge (or at the
+        // bottom of the safe area when there is none), which is what the
+        // docked editor's column has to stay above.
         .background {
             Color.clear
                 .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.frame(in: .global).maxY - proxy.safeAreaInsets.bottom
+                    proxy.frame(in: .global).maxY
                 } action: { keyboardTop = $0 }
         }
         .background(Theme.background.ignoresSafeArea())

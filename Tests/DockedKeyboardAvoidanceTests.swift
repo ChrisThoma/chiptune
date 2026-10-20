@@ -41,10 +41,13 @@ final class DockedKeyboardAvoidanceTests: XCTestCase {
         XCTAssertEqual(avoidance, .none)
     }
 
-    func testInsetNeverExceedsTheColumn() {
+    func testInsetAlwaysLeavesTheEditorItsMinimum() {
+        // Padding the column past its own height made it grow, which moved
+        // its bottom further under the keyboard: a layout loop on device.
         let avoidance = DockedKeyboardAvoidance.resolve(
             nameEditing: true, column: column, keyboardTop: 0, keysHeight: 300)
-        XCTAssertEqual(avoidance.bottomInset, column.height)
+        XCTAssertEqual(avoidance.bottomInset,
+                       column.height - DockedKeyboardAvoidance.minimumEditorHeight)
         XCTAssertTrue(avoidance.hidesKeys)
     }
 }

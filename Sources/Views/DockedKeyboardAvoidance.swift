@@ -31,7 +31,11 @@ struct DockedKeyboardAvoidance: Equatable {
     static func resolve(nameEditing: Bool, column: CGRect,
                         keyboardTop: CGFloat, keysHeight: CGFloat) -> DockedKeyboardAvoidance {
         guard nameEditing else { return .none }
-        let covered = min(max(0, column.maxY - keyboardTop), column.height)
+        // Never pad the column past what leaves the editor its minimum: a
+        // column padded taller than it is grows its container, which moves
+        // its bottom further under the keyboard and asks for more padding.
+        let covered = min(max(0, column.maxY - keyboardTop),
+                          max(0, column.height - minimumEditorHeight))
         guard covered > 0 else { return .none }
         let left = column.height - covered
         return DockedKeyboardAvoidance(
