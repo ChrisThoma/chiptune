@@ -297,6 +297,99 @@ final class VideoExportTests: XCTestCase {
                             UIColor(Theme.color(for: .pulse2))), "pulse 2 never plays")
     }
 
+    // MARK: Sync
+
+    /// The decoded soundtrack as mono floats.
+    private func decodedAudio(_ url: URL) async throws -> [Float] {
+        let asset = AVURLAsset(url: url)
+        guard let track = try await asset.loadTracks(withMediaType: .audio).first else {
+            XCTFail("no audio track")
+            return []
+        }
+        let reader = try AVAssetReader(asset: asset)
+        let output = AVAssetReaderTrackOutput(track: track, outputSettings: [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVLinearPCMBitDepthKey: 32,
+            AVLinearPCMIsFloatKey: true,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false,
+            AVNumberOfChannelsKey: 1,
+            AVSampleRateKey: WavExport.sampleRate,
+        ])
+        reader.add(output)
+        XCTAssertTrue(reader.startReading())
+        var samples: [Float] = []
+        while let buffer = output.copyNextSampleBuffer() {
+            guard let block = CMSampleBufferGetDataBuffer(buffer) else { continue }
+            let length = CMBlockBufferGetDataLength(block)
+            var chunk = [Float](repeating: 0, count: length / MemoryLayout<Float>.size)
+            chunk.withUnsafeMutableBytes { raw in
+                _ = CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: length, destination: raw.baseAddress!)
+            }
+            samples += chunk
+        }
+        return samples
+    }
+
+    /// When, in the file, the first frame whose centre pixel is light shows.
+    private func firstLightFrameTime(_ url: URL) async throws -> Double? {
+        let asset = AVURLAsset(url: url)
+        guard let track = try await asset.loadTracks(withMediaType: .video).first else { return nil }
+        let reader = try AVAssetReader(asset: asset)
+        let output = AVAssetReaderTrackOutput(track: track, outputSettings: [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+        ])
+        reader.add(output)
+        XCTAssertTrue(reader.startReading())
+        while let sample = output.copyNextSampleBuffer() {
+            guard let pixels = CMSampleBufferGetImageBuffer(sample) else { continue }
+            CVPixelBufferLockBaseAddress(pixels, .readOnly)
+            defer { CVPixelBufferUnlockBaseAddress(pixels, .readOnly) }
+            guard let base = CVPixelBufferGetBaseAddress(pixels) else { continue }
+            let row = CVPixelBufferGetHeight(pixels) / 2
+            let column = CVPixelBufferGetWidth(pixels) / 2
+            let green = base.load(fromByteOffset: row * CVPixelBufferGetBytesPerRow(pixels) + column * 4 + 1,
+                                  as: UInt8.self)
+            if green > 128 { return CMSampleBufferGetPresentationTimeStamp(sample).seconds }
+        }
+        return nil
+    }
+
+    /// Past frame 0 too, the picture keeps time with the sound. One loud
+    /// note on step 24 of 32: the frames are drawn dark until the timeline
+    /// says step 24 is showing, then light, and in the finished file the
+    /// first light frame lands within a frame of the note's onset in the
+    /// decoded soundtrack.
+    func testALateNoteSoundsWithinAFrameOfTheFrameShowingIt() async throws {
+        var song = TestSongs.empty(name: "Sync \(UUID().uuidString.prefix(6))", tempo: 120, length: 32)
+        song.tracks[0].instrument.volume = 1
+        song.patterns[0].rows[0][24] = 69
+        let options = videoOptions()
+        let timeline = VideoTimeline(song: song, options: options)
+        let size = VideoLayout.size
+        let draw: (Int, CGContext) -> Void = { frame, context in
+            let showing = (timeline.position(frame: frame)?.step ?? 0) >= 24
+            context.setFillColor(gray: showing ? 1 : 0, alpha: 1)
+            context.fill(CGRect(origin: .zero, size: size))
+        }
+        let result = VideoExport.render(ExportRequest(song: song, options: options),
+                                        hooks: VideoExport.Hooks(draw: draw))
+        guard case .success(let url) = result else { return XCTFail("export failed: \(result)") }
+
+        let audio = try await decodedAudio(url)
+        let peak = audio.map(abs).max() ?? 0
+        XCTAssertGreaterThan(peak, 0.05, "the note should be loud")
+        guard let onset = audio.firstIndex(where: { abs($0) > peak * 0.3 }) else {
+            return XCTFail("no onset found")
+        }
+        let onsetTime = Double(onset) / WavExport.sampleRate
+        guard let frameTime = try await firstLightFrameTime(url) else {
+            return XCTFail("no frame shows step 24")
+        }
+        XCTAssertEqual(frameTime, onsetTime, accuracy: 1.0 / Double(VideoTimeline.fps),
+                       "step 24 shows at \(frameTime) s, its note sounds at \(onsetTime) s")
+    }
+
     // MARK: Too long
 
     /// Longer than TikTok takes. Found from the timeline before anything is
