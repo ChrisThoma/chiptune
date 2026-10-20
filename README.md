@@ -4,6 +4,9 @@ A step sequencer for iOS that writes NES-style chiptune music. Every sound is
 synthesized as you play it: four channels modeled on the NES, no samples, no
 audio files anywhere in the app.
 
+Get it on the [App Store](https://apps.apple.com/app/apple-store/id6794059658?pt=129044888&ct=github&mt=8)
+for iPhone and iPad. More on the [project page](https://individuation.dev/projects/chiptune/).
+
 <p>
   <img src="docs/screenshots/1-grid.png" width="24%" alt="Pattern grid">
   <img src="docs/screenshots/2-arrangement.png" width="24%" alt="Arrangement">
