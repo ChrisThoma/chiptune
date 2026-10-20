@@ -164,7 +164,7 @@ class VideoFrameDrawer(
     private fun drawColumnHeaders() {
         for (index in song.tracks.indices) {
             val track = song.tracks[index]
-            val cell = layout.cellRect(index, layout.columnHeaderY)
+            val cell = layout.columnHeaderRect(index)
             val color = if (track.muted) DIM else channel(index)
             text(song.label(index), layout.columnHeaderFontSize, bold, color, cell, Paint.Align.CENTER)
         }
@@ -327,7 +327,7 @@ class VideoFrameDrawer(
             fill.color = PANEL_HIGH.argb
             canvas.drawRoundRect(bar.toRectF(), radius, radius, fill)
             // Below the bar, so no level ever reaches it.
-            val label = FrameRect(bar.midX - 90, layout.coverBarLabelY - 20, 180.0, 40.0)
+            val label = layout.coverBarLabelRect(index)
             text(song.label(index), layout.coverLabelFontSize, bold,
                 if (silent[index]) DIM else channel(index), label, Paint.Align.CENTER)
         }

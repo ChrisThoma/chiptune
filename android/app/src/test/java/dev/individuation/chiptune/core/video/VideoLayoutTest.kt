@@ -4,6 +4,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.awt.Font
+import java.awt.font.FontRenderContext
+import java.io.File
 
 /** Port of `VideoLayoutTests.swift`: frame geometry for both video styles.
  * Reels, TikTok and Shorts lay their own buttons and captions over the top
@@ -263,6 +266,67 @@ class VideoLayoutTest {
         assertEquals(FrameRect(774.0, 752.0, 50.0, 220.0), VideoLayout(8).coverBarRect(7))
     }
 
+    // MARK: Track names
+
+    /** Width of [text] as the drawer draws it: JetBrains Mono Bold, measured
+     * with the JVM's own font engine from the app's font file. */
+    private fun width(text: String, size: Double): Double {
+        val font = BOLD.deriveFont(size.toFloat())
+        return font.getStringBounds(text, FontRenderContext(null, true, true)).width
+    }
+
+    /** Track names side by side: each within its own slot, none touching the
+     * next, a default name ("PU1 A") whole at the size drawn, and more space
+     * between two names than the space inside one, so "PU1 A PU2 A" reads as
+     * two names rather than one run. */
+    private fun assertNamesStaySeparate(rects: List<FrameRect>, centres: List<Double>, size: Double, what: String) {
+        val name = width("PU1 A", size)
+        val space = width(" ", size)
+        rects.forEachIndexed { index, rect ->
+            assertEquals("$what / $index centred", centres[index], rect.midX, 0.5)
+            assertTrue("$what / $index truncates a default name", name <= rect.width)
+            if (index > 0) {
+                assertTrue("$what / $index overlaps", rects[index - 1].maxX <= rect.minX)
+                val textGap = (centres[index] - name / 2) - (centres[index - 1] + name / 2)
+                assertTrue("$what / $index runs into the one before", textGap > 1.5 * space)
+            }
+        }
+    }
+
+    @Test fun cartridgeTrackNamesStaySeparateForOneToEightTracks() {
+        for (count in 1..8) {
+            val layout = VideoLayout(count)
+            val rects = (0 until count).map { layout.coverBarLabelRect(it) }
+            val centres = (0 until count).map { layout.coverBarRect(it).midX }
+            assertNamesStaySeparate(rects, centres, layout.coverLabelFontSize, "cartridge $count")
+            for (rect in rects) assertTrue("$count", layout.labelRect.contains(rect))
+        }
+    }
+
+    @Test fun gridColumnNamesStaySeparateForOneToEightTracks() {
+        for (count in 1..8) {
+            val layout = VideoLayout(count)
+            val rects = (0 until count).map { layout.columnHeaderRect(it) }
+            val centres = (0 until count).map { layout.cellRect(it, 900.0).midX }
+            assertNamesStaySeparate(rects, centres, layout.columnHeaderFontSize, "grid $count")
+            for (rect in rects) assertTrue("$count", VideoLayout.safeRect.contains(rect))
+        }
+    }
+
+    /** Few tracks keep the full-size names; only crowded rows shrink them. */
+    @Test fun namesOnlyShrinkWhenCrowded() {
+        assertEquals(26.0, VideoLayout(4).coverLabelFontSize, 0.0)
+        assertEquals(26.0, VideoLayout(4).columnHeaderFontSize, 0.0)
+        assertTrue(VideoLayout(8).coverLabelFontSize < 26)
+        assertTrue(VideoLayout(8).columnHeaderFontSize < 26)
+    }
+
+    /** iOS's sizes: 18px on an eight-track cartridge, 23px over eight columns. */
+    @Test fun crowdedNameSizesMatchIos() {
+        assertEquals(18.0, VideoLayout(8).coverLabelFontSize, 0.0)
+        assertEquals(23.0, VideoLayout(8).columnHeaderFontSize, 0.0)
+    }
+
     // MARK: Tag
 
     @Test fun theTagIsInsideTheFrameAndClearOfTheBottomOverlays() {
@@ -291,5 +355,8 @@ class VideoLayoutTest {
         /** TikTok's caption, account name and sound line can stack up to
          * about 480px from the bottom of a 1920px frame on a long caption. */
         const val CAPTION_REACH = 480.0
+
+        /** The drawer's bold face; unit tests run from the module directory. */
+        val BOLD: Font = Font.createFont(Font.TRUETYPE_FONT, File("src/main/res/font/jetbrains_mono_bold.ttf"))
     }
 }

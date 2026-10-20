@@ -54,7 +54,16 @@ class VideoLayout(trackCount: Int) {
     val columnHeaderHeight = 52.0
     /** Centre line of the track names above the columns. */
     val columnHeaderY: Double get() = headerRect.maxY + 16 + columnHeaderHeight / 2
-    val columnHeaderFontSize = 26.0
+    /** Full size, or smaller when eight columns crowd the names together. */
+    val columnHeaderFontSize: Double get() = nameFontSize(columnWidth + gap)
+
+    /** Where a track's name is drawn above its column: no wider than the
+     * column, so the drawer truncates a long name rather than letting it run
+     * into the next. */
+    fun columnHeaderRect(track: Int): FrameRect {
+        val cell = cellRect(track, columnHeaderY)
+        return FrameRect(cell.minX, columnHeaderY - columnHeaderHeight / 2, cell.width, columnHeaderHeight)
+    }
 
     /** Where rows are drawn; they are clipped to it as they scroll. */
     val gridRect: FrameRect
@@ -186,7 +195,7 @@ class VideoLayout(trackCount: Int) {
     val coverPadding = 40.0
     val coverTitleFontSize = 72.0
     val coverMetaFontSize = 34.0
-    val coverLabelFontSize = 26.0
+    val coverLabelFontSize: Double get() = nameFontSize(coverBarWidth + coverBarGap)
 
     /** Up to two lines of title. */
     val coverTitleRect: FrameRect
@@ -226,6 +235,15 @@ class VideoLayout(trackCount: Int) {
     /** Track names sit centred under their bars. */
     val coverBarLabelY: Double get() = coverBarsBottom + 40
 
+    /** Where a track's name is drawn under its bar: no wider than the bar's
+     * share of the row, less a gap, so names never run into each other; the
+     * drawer truncates a longer one. A lone track has the row to itself. */
+    fun coverBarLabelRect(track: Int): FrameRect {
+        val bar = coverBarRect(track)
+        val width = if (this.trackCount == 1) labelRect.width - 2 * coverPadding else coverBarWidth + coverBarGap - 8
+        return FrameRect(bar.midX - width / 2, coverBarLabelY - 20, width, 40.0)
+    }
+
     companion object {
         const val WIDTH = 1080
         const val HEIGHT = 1920
@@ -240,6 +258,16 @@ class VideoLayout(trackCount: Int) {
         const val SIDE_MARGIN = 120.0
         /** iOS `Theme.cellRadius` and Android `ChipRadii.cell`. */
         const val CELL_RADIUS = 5.0
+
+        /** Track names are drawn this large unless their slots are narrow. */
+        const val FULL_NAME_FONT_SIZE = 26.0
+
+        /** The largest size, up to full, at which a default name like "PU1 A"
+         * leaves more room before the next name than the space inside it, so
+         * a row of names doesn't read as one run. iOS's rule, sized for SF
+         * Mono's advance of about 0.62 of its size: five characters plus one
+         * and a half spaces' gap. JetBrains Mono's 0.6 fits it too. */
+        fun nameFontSize(pitch: Double): Double = minOf(FULL_NAME_FONT_SIZE, floor(pitch / 4.1))
         /** iOS `Theme.panelRadius` and Android `ChipRadii.panel`. */
         const val PANEL_RADIUS = 8.0
 
