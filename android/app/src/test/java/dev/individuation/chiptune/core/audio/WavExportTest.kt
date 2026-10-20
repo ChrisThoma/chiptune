@@ -211,6 +211,47 @@ class WavExportTest {
         assertEquals(setOf("Dest.wav"), userWav.parentFile!!.list()!!.toSet())
     }
 
+    // MARK: Scratch (port-specific: Android kills background processes freely)
+
+    /** A render killed mid-way never reaches its `finally`, so its raw float
+     * stream (hundreds of MB for a long song) would sit in the cache for
+     * good. The raw lives in its own folder, which the next render clears,
+     * along with any `.raw` an older build left at the root. */
+    @Test fun aRawLeftByAKilledRenderIsSweptByTheNext() {
+        val stale = File(temp.root, "wav-scratch/DEAD.raw").apply { parentFile!!.mkdirs(); writeBytes(ByteArray(64)) }
+        val legacy = File(temp.root, "OLD.raw").apply { writeBytes(ByteArray(64)) }
+        var rootFilesMidRender: List<String>? = null
+        var scratchMidRender: List<String>? = null
+        val song = TestSongs.empty(name = "Swept", tempo = 240.0, length = 4).setNote(0, 0, 60)
+        val result = WavExport.render(
+            ExportRequest(song, progress = {
+                if (rootFilesMidRender == null) {
+                    rootFilesMidRender = temp.root.listFiles()!!.filter { it.isFile }.map { it.name }
+                    scratchMidRender = File(temp.root, "wav-scratch").list()?.toList()
+                }
+            }),
+            temp.root,
+        )
+        assertTrue("expected Success, got $result", result is ExportResult.Success)
+        assertEquals("the raw stream must not live at the root", emptyList<String>(), rootFilesMidRender)
+        assertTrue("the raw stream lives in wav-scratch: $scratchMidRender",
+            scratchMidRender.orEmpty().singleOrNull()?.endsWith(".raw") == true)
+        assertFalse("a killed render's raw must be swept", stale.exists())
+        assertFalse("an older build's raw at the root must be swept", legacy.exists())
+        assertEquals(emptyList<String>(), File(temp.root, "wav-scratch").list()?.toList() ?: emptyList<String>())
+    }
+
+    /** The video's soundtrack is written by this renderer into the video's
+     * own scratch folder; the WAV sweep must leave that folder alone. */
+    @Test fun theSweepLeavesTheVideoScratchAlone() {
+        val other = File(temp.root, "video-scratch/LIVE.wav").apply { parentFile!!.mkdirs(); writeBytes(ByteArray(8)) }
+        val destination = File(temp.root, "video-scratch/dest.wav")
+        val song = TestSongs.empty(name = "Both", tempo = 240.0, length = 4).setNote(0, 0, 60)
+        assertEquals(ExportResult.Success(destination), WavExport.render(ExportRequest(song), temp.root, destination))
+        assertTrue(other.exists())
+        assertTrue(destination.exists())
+    }
+
     // MARK: Failure (port-specific: the root is injectable, so it can be made unusable)
 
     @Test fun anUnwritableRootFailsRatherThanThrowing() {

@@ -13,6 +13,7 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel
+import java.nio.file.Files
 import java.util.UUID
 
 /** How the exported file should be shaped. Port of Swift's `ExportOptions`. */
@@ -160,7 +161,10 @@ object ExportFiles {
  * Port of `Sources/Audio/WavExport.swift`.
  *
  * Every output file lands at `<directory>/<SONG-UUID>/<safeName>.wav`, and the
- * raw float scratch stream at `<directory>/<UUID>.raw`. The directory is
+ * raw float scratch stream at `<directory>/[SCRATCH_DIRECTORY]/<UUID>.raw`,
+ * which each render clears first: Android kills a backgrounded process
+ * without running its `finally`, and a long song's raw stream is hundreds of
+ * MB the cache would otherwise keep for good. The directory is
  * injected (tests pass a temp folder; the app passes `cacheDir`) where Swift
  * uses `FileManager.temporaryDirectory`.
  *
@@ -175,6 +179,11 @@ object WavExport {
     private const val CHUNK = 4096
     /** Floats per read when streaming the raw file into the WAV (Swift's `1 << 16`). */
     private const val READ_CHUNK = 1 shl 16
+
+    /** Holds only the raw stream. Kept apart from the video's
+     * `video-scratch` (where the video's soundtrack is this render's
+     * destination), so neither export's sweep reaches the other's files. */
+    const val SCRATCH_DIRECTORY = "wav-scratch"
 
     /** How long the last notes are given to decay past the end: 1.5 x the
      * longest audible decay, floored at 1 s and capped at 6 s. */
@@ -224,10 +233,20 @@ object WavExport {
             request.progress(fraction)
         }
 
-        val rawFile = File(directory, UUID.randomUUID().toString().uppercase() + ".raw")
+        val scratchDir = File(directory, SCRATCH_DIRECTORY)
+        // Only one export runs at a time (Studio refuses a second), so any
+        // raw still here belongs to a render that was killed. Builds before
+        // the folder existed wrote theirs at the root, which holds nothing
+        // else of that extension.
+        scratchDir.deleteRecursively()
+        directory.listFiles { f -> f.isFile && f.extension == "raw" }?.forEach { it.delete() }
+        val rawFile = File(scratchDir, UUID.randomUUID().toString().uppercase() + ".raw")
         val raw: FileChannel
         try {
-            directory.mkdirs()
+            // Not mkdirs(): its bare false would leave the open below to fail
+            // as a missing file, and the alert would lose that the folder
+            // was read-only.
+            Files.createDirectories(scratchDir.toPath())
             raw = FileOutputStream(rawFile).channel
         } catch (e: IOException) {
             return ExportResult.Failed(e)
