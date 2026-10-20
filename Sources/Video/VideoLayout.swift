@@ -124,32 +124,51 @@ struct VideoLayout {
         return CGRect(x: x, y: centerY - cellHeight / 2, width: columnWidth, height: cellHeight)
     }
 
+    /// A whole row's cells, gutter to last column.
+    func rowRect(centerY: CGFloat) -> CGRect {
+        CGRect(x: gridOriginX, y: centerY - cellHeight / 2, width: gridContentWidth, height: cellHeight)
+    }
+
     /// The highlight behind the playing row, spanning gutter and columns.
     var playheadRowRect: CGRect {
         CGRect(x: gridOriginX - 12, y: playheadY - rowPitch / 2,
                width: gridContentWidth + 24, height: rowPitch)
     }
 
-    /// Where `step`'s row is centred when the song is `position` steps into
-    /// the pattern (fraction included). At `position == step` that is the
-    /// playhead row, so a note reaches it on the frame its sound starts.
+    /// Where `step`'s row is centred when the grid shows `position` (steps
+    /// since the start of the body, fraction included) on the playhead row.
     func rowCenterY(step: Int, position: Double) -> CGFloat {
         playheadY + CGFloat(Double(step) - position) * rowPitch
     }
 
-    /// The steps of a `patternLength`-step pattern with any part of their row
-    /// inside `gridRect` at `position`. Only the current pattern is drawn, so
-    /// the window stops at its first and last steps rather than showing the
-    /// neighbours.
-    func visibleSteps(position: Double, patternLength: Int) -> ClosedRange<Int> {
+    /// The steps, counted across the whole body, with any part of their row
+    /// inside `gridRect` at `position`. The window stops at the song's first
+    /// and last steps: nothing is drawn before the start or past the end.
+    func visibleSteps(position: Double, stepCount: Int) -> ClosedRange<Int> {
         let reach = Double((gridRect.height / 2 + cellHeight / 2) / rowPitch)
         // Strictly inside: a row whose edge only meets the grid's edge shows
         // nothing.
         let lower = Int((position - reach).rounded(.down)) + 1
         let upper = Int((position + reach).rounded(.up)) - 1
-        let last = max(patternLength - 1, 0)
+        let last = max(stepCount - 1, 0)
         let lo = min(max(lower, 0), last)
         return lo...max(min(upper, last), lo)
+    }
+
+    /// How much of a step the sounding row holds still on the playhead
+    /// before the grid starts moving on to the next.
+    static let scrollHold = 0.7
+
+    /// Where the grid is, in steps, `elapsed` steps into the body: held on
+    /// the sounding step for most of it, then eased to the next over the
+    /// step's last 30%, so the scroll is continuous at slow tempos but the
+    /// sounding row is never half a row off the playhead mid-step. The last
+    /// step holds, since nothing follows it.
+    static func scrollPosition(elapsed: Double, lastStep: Int) -> Double {
+        let step = min(Int(max(elapsed, 0)), lastStep)
+        guard step < lastStep else { return Double(step) }
+        let into = min(max((elapsed - Double(step) - scrollHold) / (1 - scrollHold), 0), 1)
+        return Double(step) + into * into * (3 - 2 * into)
     }
 
     // MARK: Cartridge (the Cover style)
@@ -264,5 +283,58 @@ struct VideoLayout {
         let bar = coverBarRect(track: track)
         let width = trackCount == 1 ? labelRect.width - 2 * coverPadding : coverBarWidth + coverBarGap - 8
         return CGRect(x: bar.midX - width / 2, y: coverBarLabelY - 20, width: width, height: 40)
+    }
+}
+
+/// What the Grid style draws on one frame: which rows, where, and where the
+/// playing band is. Pure geometry from the timeline, so the scroll can be
+/// tested frame by frame without drawing.
+struct GridFrame: Equatable {
+    struct Row: Equatable {
+        /// Steps since the start of the body, across chain slots and passes.
+        let globalStep: Int
+        /// Index into `song.patterns`.
+        let pattern: Int
+        /// Step inside that pattern: the row's own number.
+        let step: Int
+        let centerY: CGFloat
+    }
+
+    /// The step that is sounding: the header names its pattern and step.
+    let playing: VideoTimeline.Position
+    let soundingStep: Int
+    let rows: [Row]
+    /// The highlight behind the sounding row.
+    let band: CGRect
+    /// 1 through the body, falling to 0 over the ring-out.
+    let bandLight: Double
+
+    init?(layout: VideoLayout, timeline: VideoTimeline, frame: Int) {
+        // Rows are laid out by step across the whole body, so the steps of
+        // the next chain slot, or of the next pass after the loop wrap, come
+        // up under the current ones and the scroll never jumps back. In the
+        // ring-out nothing new plays, so the grid rests on the last step and
+        // the band fades with the sound.
+        let total = timeline.stepsPerPass * timeline.loopCount
+        let elapsed = timeline.elapsedSteps(frame: frame)
+        let sounding = min(Int(max(elapsed, 0)), total - 1)
+        guard let at = timeline.position(globalStep: sounding) else { return nil }
+        let position = VideoLayout.scrollPosition(elapsed: elapsed, lastStep: total - 1)
+
+        playing = at
+        soundingStep = sounding
+        rows = layout.visibleSteps(position: position, stepCount: total).compactMap { step in
+            timeline.position(globalStep: step).map {
+                Row(globalStep: step, pattern: $0.pattern, step: $0.step,
+                    centerY: layout.rowCenterY(step: step, position: position))
+            }
+        }
+        // While the grid moves on, the band stretches up to keep the
+        // sounding row inside it until its step ends.
+        let lift = layout.rowCenterY(step: sounding, position: position) - layout.playheadY
+        band = layout.playheadRowRect.union(layout.playheadRowRect.offsetBy(dx: 0, dy: lift))
+        bandLight = timeline.position(frame: frame) == nil
+            ? max(0, 1 - Double(timeline.sample(frame: frame) - timeline.bodySamples) / Double(max(timeline.tailSamples, 1)))
+            : 1
     }
 }

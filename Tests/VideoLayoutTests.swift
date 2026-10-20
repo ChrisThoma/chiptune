@@ -76,11 +76,11 @@ final class VideoLayoutTests: XCTestCase {
         XCTAssertEqual(VideoLayout(trackCount: 4).playheadY, grid.midY, accuracy: 0.5)
     }
 
-    func testTheVisibleWindowClampsAtThePatternsEnds() {
+    func testTheVisibleWindowClampsAtTheSongsEnds() {
         let layout = VideoLayout(trackCount: 4)
-        XCTAssertEqual(layout.visibleSteps(position: 0, patternLength: 16).lowerBound, 0)
-        XCTAssertEqual(layout.visibleSteps(position: 15, patternLength: 16).upperBound, 15)
-        let middle = layout.visibleSteps(position: 32, patternLength: 64)
+        XCTAssertEqual(layout.visibleSteps(position: 0, stepCount: 16).lowerBound, 0)
+        XCTAssertEqual(layout.visibleSteps(position: 15, stepCount: 16).upperBound, 15)
+        let middle = layout.visibleSteps(position: 32, stepCount: 64)
         XCTAssertGreaterThan(middle.lowerBound, 0)
         XCTAssertLessThan(middle.upperBound, 63)
         XCTAssertTrue(middle.contains(32))
@@ -90,7 +90,7 @@ final class VideoLayoutTests: XCTestCase {
     /// just outside it don't, so nothing visible is skipped.
     func testTheWindowCoversTheGridAreaAndNoMore() {
         let layout = VideoLayout(trackCount: 4)
-        let window = layout.visibleSteps(position: 32, patternLength: 64)
+        let window = layout.visibleSteps(position: 32, stepCount: 64)
         let grid = layout.gridRect
         for step in [window.lowerBound, window.upperBound] {
             let y = layout.rowCenterY(step: step, position: 32)
@@ -110,7 +110,7 @@ final class VideoLayoutTests: XCTestCase {
         let layout = VideoLayout(trackCount: 4)
         let grid = layout.gridRect
         for position in [32.25, 32.5, 32.95] {
-            let window = layout.visibleSteps(position: position, patternLength: 64)
+            let window = layout.visibleSteps(position: position, stepCount: 64)
             for step in [window.lowerBound, window.upperBound] {
                 let y = layout.rowCenterY(step: step, position: position)
                 XCTAssertLessThan(y - layout.cellHeight / 2, grid.maxY, "\(position) / \(step)")
@@ -128,6 +128,133 @@ final class VideoLayoutTests: XCTestCase {
         XCTAssertTrue(safe.contains(layout.headerRect))
         XCTAssertLessThanOrEqual(layout.headerRect.maxY, layout.columnHeaderY - layout.columnHeaderHeight / 2)
         XCTAssertLessThanOrEqual(layout.columnHeaderY + layout.columnHeaderHeight / 2, layout.gridRect.minY)
+    }
+
+    // MARK: Grid scroll
+
+    private func timeline(_ song: Song, loops: Int = 1) -> VideoTimeline {
+        var options = ExportOptions()
+        options.format = .video
+        options.loopCount = loops
+        return VideoTimeline(song: song, options: options)
+    }
+
+    private func bodyFrames(_ timeline: VideoTimeline) -> Range<Int> {
+        0..<(timeline.bodySamples + VideoTimeline.samplesPerFrame - 1) / VideoTimeline.samplesPerFrame
+    }
+
+    /// A 4-step pattern into a 16-step one, played twice: two pattern
+    /// changes and a loop wrap per pass.
+    private func shortThenLong(tempo: Double = 150) -> VideoTimeline {
+        timeline(TestSongs.twoPatterns(lengths: (4, 16), repeats: (1, 1), tempo: tempo), loops: 2)
+    }
+
+    /// The grid scrolls as one piece across pattern changes and the loop
+    /// wrap: between two frames every row that is in both moves by the same
+    /// amount, up and never by more than a row, and the rows coming up next
+    /// are already there, from whichever pattern they belong to.
+    func testRowsScrollContinuouslyAcrossPatternChangesAndTheLoopWrap() {
+        let layout = VideoLayout(trackCount: 1)
+        let timeline = shortThenLong()
+        let total = timeline.stepsPerPass * timeline.loopCount
+        var previous: GridFrame?
+        for frame in bodyFrames(timeline) {
+            guard let grid = GridFrame(layout: layout, timeline: timeline, frame: frame) else {
+                return XCTFail("frame \(frame) has no grid")
+            }
+            let steps = grid.rows.map(\.globalStep)
+            XCTAssertEqual(steps, Array(stride(from: steps.first ?? 0, through: steps.last ?? -1, by: 1)),
+                           "frame \(frame) skips a row")
+            for ahead in 1...3 where grid.soundingStep + ahead < total {
+                XCTAssertTrue(steps.contains(grid.soundingStep + ahead), "frame \(frame) is missing the row \(ahead) ahead")
+            }
+            if grid.soundingStep > 0 {
+                XCTAssertTrue(steps.contains(grid.soundingStep - 1), "frame \(frame) is missing the row behind")
+            }
+            for row in grid.rows {
+                let at = timeline.position(globalStep: row.globalStep)
+                XCTAssertEqual(row.pattern, at?.pattern, "frame \(frame) / \(row.globalStep)")
+                XCTAssertEqual(row.step, at?.step, "frame \(frame) / \(row.globalStep) is numbered by its own pattern")
+            }
+            XCTAssertEqual(grid.playing, timeline.position(frame: frame), "frame \(frame) header")
+            if let previous {
+                let before = Dictionary(uniqueKeysWithValues: previous.rows.map { ($0.globalStep, $0.centerY) })
+                let moves = grid.rows.compactMap { row in before[row.globalStep].map { row.centerY - $0 } }
+                XCTAssertFalse(moves.isEmpty, "frame \(frame) shares no row with the frame before")
+                if let first = moves.first {
+                    for move in moves { XCTAssertEqual(move, first, accuracy: 0.001, "frame \(frame) tears") }
+                    XCTAssertLessThanOrEqual(first, 0.001, "frame \(frame) scrolls back down")
+                    XCTAssertGreaterThanOrEqual(first, -layout.rowPitch - 0.001, "frame \(frame) jumps more than a row")
+                }
+            }
+            previous = grid
+        }
+    }
+
+    /// Nothing is drawn before the song's first step or past its last.
+    func testRowsStopAtTheSongsEnds() {
+        let layout = VideoLayout(trackCount: 1)
+        let timeline = shortThenLong()
+        let total = timeline.stepsPerPass * timeline.loopCount
+        for frame in 0..<timeline.totalFrames {
+            for row in GridFrame(layout: layout, timeline: timeline, frame: frame)?.rows ?? [] {
+                XCTAssertTrue((0..<total).contains(row.globalStep), "frame \(frame) / \(row.globalStep)")
+            }
+        }
+    }
+
+    /// The row whose sound is playing stays inside the highlighted band on
+    /// every frame of its step, at slow, middling, fast and uneven tempos.
+    func testTheSoundingRowStaysInsideTheBandForItsWholeStep() {
+        for count in [1, 8] {
+            let layout = VideoLayout(trackCount: count)
+            for tempo in [40.0, 60, 97, 137, 150, 300] {
+                let timeline = shortThenLong(tempo: tempo)
+                for frame in bodyFrames(timeline) {
+                    guard let grid = GridFrame(layout: layout, timeline: timeline, frame: frame),
+                          let row = grid.rows.first(where: { $0.globalStep == grid.soundingStep }) else {
+                        XCTFail("\(tempo) BPM frame \(frame) doesn't draw its sounding row"); continue
+                    }
+                    XCTAssertEqual(grid.soundingStep, timeline.sample(frame: frame) / timeline.samplesPerStep)
+                    let rect = layout.rowRect(centerY: row.centerY)
+                    XCTAssertTrue(grid.band.contains(rect), "\(count) tracks, \(tempo) BPM frame \(frame): \(rect) outside \(grid.band)")
+                    XCTAssertLessThanOrEqual(grid.band.height, 2 * layout.rowPitch + 0.001, "\(tempo) BPM frame \(frame)")
+                }
+            }
+        }
+    }
+
+    /// For most of its step the sounding row sits still on the playhead, with
+    /// the band its own size; the grid only moves on in the step's last part.
+    func testTheSoundingRowHoldsOnThePlayheadForMostOfItsStep() {
+        let layout = VideoLayout(trackCount: 4)
+        let timeline = shortThenLong(tempo: 60)
+        for frame in bodyFrames(timeline) {
+            let into = Double(timeline.sample(frame: frame) % timeline.samplesPerStep) / Double(timeline.samplesPerStep)
+            guard into < 0.65, let grid = GridFrame(layout: layout, timeline: timeline, frame: frame),
+                  let row = grid.rows.first(where: { $0.globalStep == grid.soundingStep }) else { continue }
+            XCTAssertEqual(row.centerY, layout.playheadY, accuracy: 0.001, "frame \(frame)")
+            XCTAssertEqual(grid.band, layout.playheadRowRect, "frame \(frame)")
+        }
+    }
+
+    /// In the ring-out the grid rests on the last step and the band fades.
+    func testTheGridRestsOnTheLastStepInTheTail() {
+        let layout = VideoLayout(trackCount: 4)
+        let timeline = shortThenLong()
+        let last = timeline.stepsPerPass * timeline.loopCount - 1
+        var light = 1.0
+        for frame in bodyFrames(timeline).upperBound..<timeline.totalFrames {
+            guard let grid = GridFrame(layout: layout, timeline: timeline, frame: frame) else {
+                return XCTFail("frame \(frame)")
+            }
+            XCTAssertEqual(grid.soundingStep, last)
+            XCTAssertEqual(grid.rows.first(where: { $0.globalStep == last })?.centerY, layout.playheadY)
+            XCTAssertEqual(grid.band, layout.playheadRowRect)
+            XCTAssertLessThanOrEqual(grid.bandLight, light)
+            light = grid.bandLight
+        }
+        XCTAssertLessThan(light, 0.1)
     }
 
     // MARK: Cartridge

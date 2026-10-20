@@ -5,8 +5,9 @@ import UIKit
 /// colours and SF Mono. Sizes are fixed pixels from `VideoLayout`, not
 /// Dynamic Type: the frame is a picture of the song, the same on every phone.
 ///
-/// Grid: the current pattern scrolls up past a fixed playing row, as the
-/// header video on the product page does. The row that is sounding is at
+/// Grid: the song's steps, across patterns and passes, scroll up past a
+/// fixed playing row (`GridFrame`), as the header video on the product page
+/// does. The row that is sounding is at
 /// full colour; rows away from it dim into the background, so the eye stays
 /// on the beat. Cover (shown as "Cartridge"): a grey game cartridge whose
 /// label carries the title, tempo and length, a bar per track that flashes
@@ -54,32 +55,21 @@ final class VideoFrameRenderer {
     // MARK: Grid
 
     private func drawGrid(frame: Int, in context: CGContext) {
-        // In the ring-out nothing new plays, so the grid rests on the last
-        // step and the playing row's highlight fades with the sound.
-        let lastStep = timeline.stepsPerPass * timeline.loopCount - 1
-        let elapsed = timeline.elapsedSteps(frame: frame)
-        let inTail = timeline.position(frame: frame) == nil
-        let globalStep = min(Int(elapsed), lastStep)
-        guard let at = timeline.position(globalStep: globalStep),
-              let pattern = song.patterns[safe: at.pattern] else { return }
-        let fraction = inTail ? 0 : elapsed - Double(globalStep)
-        let position = Double(at.step) + fraction
-        let tailFade = inTail
-            ? max(0, 1 - Double(timeline.sample(frame: frame) - timeline.bodySamples) / Double(max(timeline.tailSamples, 1)))
-            : 1
+        guard let grid = GridFrame(layout: layout, timeline: timeline, frame: frame),
+              let playing = song.patterns[safe: grid.playing.pattern] else { return }
 
-        drawGridHeader(pattern: pattern, step: at.step)
+        drawGridHeader(pattern: playing, step: grid.playing.step)
         drawColumnHeaders()
 
         context.saveGState()
         context.clip(to: layout.gridRect)
-        let band = UIBezierPath(roundedRect: layout.playheadRowRect, cornerRadius: layout.cellRadius + 4)
-        Palette.text.withAlpha(0.10 * CGFloat(tailFade)).uiColor.setFill()
+        let band = UIBezierPath(roundedRect: grid.band, cornerRadius: layout.cellRadius + 4)
+        Palette.text.withAlpha(0.10 * CGFloat(grid.bandLight)).uiColor.setFill()
         band.fill()
 
-        for step in layout.visibleSteps(position: position, patternLength: pattern.length) {
-            let y = layout.rowCenterY(step: step, position: position)
-            drawRow(pattern: pattern, step: step, centerY: y, light: rowLight(y: y))
+        for row in grid.rows {
+            guard let pattern = song.patterns[safe: row.pattern] else { continue }
+            drawRow(pattern: pattern, step: row.step, centerY: row.centerY, light: rowLight(y: row.centerY))
         }
         context.restoreGState()
     }
