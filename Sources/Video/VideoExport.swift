@@ -32,6 +32,9 @@ enum VideoExport {
 
     /// Test seams into the middle of a render. The app never passes any.
     struct Hooks {
+        /// Draws frame `f` in place of `VideoFrameRenderer`, for a test that
+        /// needs a picture it knows exactly.
+        var draw: ((Int, CGContext) -> Void)?
         /// Runs once the writer has finished the file, before it is moved
         /// over the song's previous video.
         var finishedWriting: () -> Void = {}
@@ -77,7 +80,8 @@ enum VideoExport {
         guard case .success = audio else { return audio }
 
         let renderer = VideoFrameRenderer(song: song, options: options, timeline: timeline)
-        let encoded = encode(timeline: timeline, renderer: renderer, soundtrack: soundtrack,
+        let draw = hooks.draw ?? { renderer.draw(frame: $0, in: $1) }
+        let encoded = encode(timeline: timeline, draw: draw, soundtrack: soundtrack,
                              to: partial, request: request)
         guard case .success = encoded else { return encoded }
         hooks.finishedWriting()
@@ -104,10 +108,45 @@ enum VideoExport {
     private static let width = Int(VideoLayout.size.width)
     private static let height = Int(VideoLayout.size.height)
 
+    /// H.264 at 8 Mbit/s, tagged explicitly so players don't guess at the
+    /// Theme colours.
+    ///
+    /// The frames are drawn in sRGB, so the stream says sRGB's transfer
+    /// function. Tagged BT.709 (as it was), an Apple player decoded the
+    /// sRGB-encoded values with 709's curve and showed every mid-grey
+    /// lighter: the cartridge's #BDBAB3 plastic came back as #C5C2BC. A
+    /// player that ignores the tag shows the values as drawn either way.
+    /// The primaries and matrix stay 709, which sRGB shares. A system whose
+    /// writer won't take the sRGB tag gets the 709 one rather than no video.
+    private static func videoSettings(for writer: AVAssetWriter) -> [String: Any] {
+        func settings(transfer: String) -> [String: Any] {
+            [
+                AVVideoCodecKey: AVVideoCodecType.h264,
+                AVVideoWidthKey: width,
+                AVVideoHeightKey: height,
+                AVVideoColorPropertiesKey: [
+                    AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_709_2,
+                    AVVideoTransferFunctionKey: transfer,
+                    AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_709_2,
+                ],
+                AVVideoCompressionPropertiesKey: [
+                    AVVideoAverageBitRateKey: 8_000_000,
+                    AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
+                    AVVideoExpectedSourceFrameRateKey: VideoTimeline.fps,
+                    AVVideoMaxKeyFrameIntervalKey: VideoTimeline.fps * 2,
+                ],
+            ]
+        }
+        let srgb = settings(transfer: kCVImageBufferTransferFunction_sRGB as String)
+        return writer.canApply(outputSettings: srgb, forMediaType: .video)
+            ? srgb
+            : settings(transfer: AVVideoTransferFunction_ITU_R_709_2)
+    }
+
     /// Writes every frame and the soundtrack into `url`. The two inputs are
     /// fed from one loop, each whenever the writer is ready for it, so the
     /// writer's interleaving never waits on a stream that isn't being fed.
-    private static func encode(timeline: VideoTimeline, renderer: VideoFrameRenderer,
+    private static func encode(timeline: VideoTimeline, draw: (Int, CGContext) -> Void,
                                soundtrack: URL, to url: URL, request: ExportRequest) -> ExportResult {
         let writer: AVAssetWriter
         let reader: AVAssetReader
@@ -118,23 +157,7 @@ enum VideoExport {
             return .failed(error)
         }
 
-        let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: [
-            AVVideoCodecKey: AVVideoCodecType.h264,
-            AVVideoWidthKey: width,
-            AVVideoHeightKey: height,
-            // Tagged explicitly so players don't guess at the Theme colours.
-            AVVideoColorPropertiesKey: [
-                AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_709_2,
-                AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_709_2,
-                AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_709_2,
-            ],
-            AVVideoCompressionPropertiesKey: [
-                AVVideoAverageBitRateKey: 8_000_000,
-                AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
-                AVVideoExpectedSourceFrameRateKey: VideoTimeline.fps,
-                AVVideoMaxKeyFrameIntervalKey: VideoTimeline.fps * 2,
-            ],
-        ])
+        let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings(for: writer))
         videoInput.expectsMediaDataInRealTime = false
         let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: videoInput, sourcePixelBufferAttributes: [
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
@@ -196,7 +219,7 @@ enum VideoExport {
                 }
                 var moved = false
                 if frame < totalFrames, videoInput.isReadyForMoreMediaData {
-                    guard let buffer = drawFrame(frame, renderer: renderer, pool: adaptor.pixelBufferPool),
+                    guard let buffer = drawFrame(frame, draw: draw, pool: adaptor.pixelBufferPool),
                           adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(frame),
                                                                               timescale: CMTimeScale(VideoTimeline.fps))) else {
                         let error = writer.error ?? CocoaError(.fileWriteUnknown)
@@ -270,7 +293,7 @@ enum VideoExport {
         return track
     }
 
-    private static func drawFrame(_ frame: Int, renderer: VideoFrameRenderer,
+    private static func drawFrame(_ frame: Int, draw: (Int, CGContext) -> Void,
                                   pool: CVPixelBufferPool?) -> CVPixelBuffer? {
         guard let pool else { return nil }
         var made: CVPixelBuffer?
@@ -288,7 +311,7 @@ enum VideoExport {
         // UIKit's orientation: y runs down from the top, as VideoLayout's does.
         context.translateBy(x: 0, y: CGFloat(height))
         context.scaleBy(x: 1, y: -1)
-        renderer.draw(frame: frame, in: context)
+        draw(frame, context)
         return buffer
     }
 }

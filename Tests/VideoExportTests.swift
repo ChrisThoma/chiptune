@@ -224,6 +224,49 @@ final class VideoExportTests: XCTestCase {
         return abs(got.r - Int(r * 255)) + abs(got.g - Int(g * 255)) + abs(got.b - Int(b * 255)) > 120
     }
 
+    /// RGB at a point, matched into sRGB: what an Apple player shows on an
+    /// sRGB screen, whatever colour space the decoded frame says it is in.
+    private func srgbPixel(_ image: CGImage, _ point: CGPoint) -> [Int] {
+        var bytes = [UInt8](repeating: 0, count: 4)
+        let context = CGContext(data: &bytes, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+        context.draw(image, in: CGRect(x: -point.x, y: point.y - CGFloat(image.height) + 1,
+                                       width: CGFloat(image.width), height: CGFloat(image.height)))
+        return [Int(bytes[0]), Int(bytes[1]), Int(bytes[2])]
+    }
+
+    /// The frames are drawn in sRGB; the file must carry them so a player
+    /// shows the same colours back. The cartridge's mid-grey plastic is
+    /// where a transfer-function mismatch shows most, so it is one of the
+    /// bands, with a darker and a lighter grey either side.
+    func testColoursDrawnInSrgbDecodeToTheSameValues() async throws {
+        let bands: [[Int]] = [[0x40, 0x40, 0x40], [0x80, 0x80, 0x80], [0xBD, 0xBA, 0xB3], [0xE0, 0xE0, 0xE0]]
+        let size = VideoLayout.size
+        let bandHeight = size.height / CGFloat(bands.count)
+        let space = CGColorSpace(name: CGColorSpace.sRGB)!
+        let draw: (Int, CGContext) -> Void = { _, context in
+            for (i, rgb) in bands.enumerated() {
+                let color = CGColor(colorSpace: space,
+                                    components: rgb.map { CGFloat($0) / 255 } + [1])!
+                context.setFillColor(color)
+                context.fill(CGRect(x: 0, y: CGFloat(i) * bandHeight, width: size.width, height: bandHeight))
+            }
+        }
+        let result = VideoExport.render(ExportRequest(song: song(), options: videoOptions()),
+                                        hooks: VideoExport.Hooks(draw: draw))
+        guard case .success(let url) = result else { return XCTFail("export failed: \(result)") }
+        let image = try await firstFrame(url)
+        var off: [String] = []
+        for (i, want) in bands.enumerated() {
+            let got = srgbPixel(image, CGPoint(x: size.width / 2, y: (CGFloat(i) + 0.5) * bandHeight))
+            if zip(got, want).contains(where: { abs($0 - $1) > 3 }) {
+                off.append("drew \(want), decoded \(got)")
+            }
+        }
+        XCTAssertEqual(off, [])
+    }
+
     /// On the first frame the playing row is step 0, where pulse 1 has a
     /// note: its cell is filled with the pulse 1 colour, and pulse 2's empty
     /// cell beside it is not.
