@@ -87,6 +87,29 @@ enum WriteFailureMessage {
     }
 }
 
+extension WriteFailureMessage {
+    /// "Couldn't export “Name”. <reason>", knowing whether the app left the
+    /// screen while it rendered. A video is encoded on the GPU's media
+    /// engine, which iOS takes away from an app in the background, so a
+    /// video whose writer was interrupted, or that failed for no named reason
+    /// after the app left the screen, says to stay in the app: trying again
+    /// the same way would fail the same way. A named cause (permission,
+    /// space) is still named. A WAV renders on the CPU and isn't affected.
+    static func export(name: String, error: Error, format: ExportOptions.Format,
+                       leftForeground: Bool) -> String {
+        let ns = error as NSError
+        if format == .video, cause(of: ns) == .other, leftForeground || wasInterrupted(ns) {
+            return "Couldn't export \(shown(name)). Keep Chiptune open while the video renders."
+        }
+        return export(name: name, error: error, file: format.fileNoun)
+    }
+
+    static func wasInterrupted(_ ns: NSError) -> Bool {
+        if ns.domain == AVFoundationErrorDomain, ns.code == AVError.operationInterrupted.rawValue { return true }
+        return (ns.userInfo[NSUnderlyingErrorKey] as? NSError).map(wasInterrupted) ?? false
+    }
+}
+
 /// The "Share failed" alert's words when a song file can't be prepared.
 enum ShareFailureMessage {
     static func songFile(name: String, error: Error) -> String {

@@ -114,14 +114,20 @@ final class Studio {
     @ObservationIgnored private var autosaveTimer: Timer?
     @ObservationIgnored private var sessionObserver: AudioSessionObserver?
     @ObservationIgnored private var exportCancel: CancelToken?
+    /// Holds the screen awake and asks iOS for background time while a video
+    /// renders (see `SystemExportKeepAlive`). Injectable so a test can see it
+    /// begun and ended on every way a render finishes.
+    @ObservationIgnored var keepAlive: ExportKeepAlive
 
     init(store: SongStore = .shared,
          autosaveEnabled: Bool = true,
          // Wrapped in a closure rather than passed as `Export.render`: a
          // bare static-method reference isn't itself `@Sendable`, and the
          // implicit conversion is a warning.
-         renderer: @escaping @Sendable (ExportRequest) -> ExportResult = { Export.render($0) }) {
+         renderer: @escaping @Sendable (ExportRequest) -> ExportResult = { Export.render($0) },
+         keepAlive: ExportKeepAlive = SystemExportKeepAlive()) {
         self.store = store
+        self.keepAlive = keepAlive
         self.autosaveEnabled = autosaveEnabled
         self.renderer = renderer
         // Reopen whatever was last on screen. Losing an unsaved loop to a
@@ -1437,6 +1443,12 @@ final class Studio {
         exportURL = nil
         exportError = nil
         exportProgress = 0
+        // Only a video needs it: its frames are encoded on hardware that iOS
+        // takes away in the background. Ended in `finish`, however the
+        // render ends, and held here rather than through `self` so it is let
+        // go even if the studio has gone.
+        let keepAlive = options.format == .video ? keepAlive : nil
+        keepAlive?.begin()
 
         let token = CancelToken()
         exportCancel = token
@@ -1463,6 +1475,7 @@ final class Studio {
             }
         }
         let finish: @MainActor @Sendable (ExportResult) -> Void = { [weak self] result in
+            let leftForeground = keepAlive?.end() ?? false
             guard let self else { return }
             self.isExporting = false
             self.exportProgress = 0
@@ -1479,7 +1492,7 @@ final class Studio {
             case .failed(let error):
                 self.exportError = WriteFailureMessage.export(
                     name: song.name, error: error,
-                    file: options.format.fileNoun)
+                    format: options.format, leftForeground: leftForeground)
             }
             self.completedExportAttempt = attempt
         }
