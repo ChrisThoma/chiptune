@@ -2,7 +2,7 @@
 
 Bundle ID: `dev.individuation.chiptune`
 Scheme: `Chiptune` | Project: `Chiptune.xcodeproj` | Deployment target: iOS 17.0
-Target: iPhone (SE-class and large). iPad behavior is out of scope for this hunt. This is a fresh hunt for the iPhone target: all journey and condition coverage starts reset. iPad-only facts from a prior hunt are retained below only where they describe app behavior relevant to iPhone (shared model/state/limits); iPad-specific layout/coverage rows are removed or superseded.
+Target: iPad (two sizes: iPad mini and 13-inch iPad Pro). iPhone behavior is out of scope for this map. iPhone-only facts are kept below only where they describe shared model, state or limits.
 
 Chiptune is an offline NES-style step sequencer. Its model is Song -> Patterns -> Tracks -> Steps, with a separate arrangement controlling full-song playback.
 
@@ -12,10 +12,10 @@ Reuse these; never duplicate them.
 
 | Slot | Name | UDID | Runtime/device |
 |---|---|---|---|
-| SIM-A | BugHunt-Chiptune-iPhone-A | `DEE64415-DCDF-4C29-9252-D20243BDE2C6` | iOS 26.5, iPhone SE (3rd generation) |
-| SIM-B | BugHunt-Chiptune-iPhone-B | `DD767673-47C3-41C9-9ED6-8C4BC1B04B37` | iOS 26.5, iPhone 16 Pro Max |
+| SIM-A | BugHunt-Chiptune-iPad-A | `364E182C-E581-4112-A332-5AFA806DD2F3` | iOS 26.5, iPad mini (A17 Pro), 744x1133 pt portrait |
+| SIM-B | BugHunt-Chiptune-iPad-B | `64697D11-B8FB-46BE-9BCF-BCCC33A6F4B7` | iOS 27.0, iPad Pro 13-inch (M5), 1032x1376 pt portrait |
 
-iPad simulators from a prior hunt (`BugHunt-Chiptune-iPad-A` / `-B`) remain registered but are out of scope for this target; do not drive them.
+iPhone simulators (`BugHunt-Chiptune-iPhone-A` / `-B`) belong to the iPhone target; do not drive them.
 
 Deployment target is iOS 17.0 but the only installed runtimes are iOS 26.5 and 27.0, so minimum-OS behavior is `unsupported` on this machine: a fix that relies on an iOS 18+ API cannot be checked for iOS 17 users here.
 
@@ -27,7 +27,9 @@ xcrun simctl ui <UDID> content_size          # prints large
 xcrun simctl spawn <UDID> defaults read -g AppleLocale   # en_US; a "does not exist" error means the default en_US was never overridden
 ```
 
-Repository notes report an iOS 26 Simulator dimming artifact on 13-inch iPad sheets; not applicable to this iPhone target.
+Repository notes report an iOS 26 Simulator dimming artifact on 13-inch iPad sheets; treat sheet-dimming oddities on SIM-B as a tooling lead until reproduced on SIM-A.
+
+Orientation on iPad: `xcrun simctl` has no rotate command and this Xcode has no Simulator.app; use the `ios-simulator`/idb server's orientation support if present, otherwise mark landscape `unsupported` for that worker. Split View/Stage Manager is not automatable here.
 
 ## Build, Install, Launch, Reset
 
@@ -55,7 +57,7 @@ Screenshot/test entry arguments require the `YES` value and are alternatives:
 - `-shotLibrary YES`
 - `-shotExport YES`
 
-If several are supplied, enum order wins: arrangement, instrument, library, export. The wide-landscape-iPad inert case for `-shotEditor YES` does not apply on iPhone.
+If several are supplied, enum order wins: arrangement, instrument, library, export. `-shotEditor YES` is inert in wide landscape on iPad, where the instrument editor is docked.
 
 To seed a deterministic five-song library, install without launching, resolve the data container, then run:
 
@@ -89,8 +91,16 @@ The seeded library includes Neon Ascent, Coin Rush, Slow Cartridge, Boss Door, a
 - Pattern bar: select, add, rename, duplicate, clear, delete, and change step count.
 - Grid: tracks as columns and steps as rows; cells place/replace/clear/preview notes; track headers select, mute, and open the sound settings (duplicate, clear, delete); long-press enters reorder mode (drag or arrows, Done/tap grid exits).
 - Keyboard: octave, selected note/track, OFF, and one-octave piano controls.
-- Modal/system surfaces: SongListView, ArrangementView, InstrumentEditor, ExportSheet (WAV / MIDI), export ShareSheet, song-file ShareSheet, file importer, alerts, confirmation dialogs, support Link, and StoreKit review request.
-- InstrumentEditor is always a sheet on iPhone (compact layout); the popover (regular portrait iPad) and docked (wide landscape iPad) variants do not apply to this target.
+- Modal/system surfaces: SongListView, ArrangementView, InstrumentEditor, ExportSheet (Format WAV / MIDI / Video; Video adds a Style picker with Cartridge and Grid styles and social-platform framing for IG, TikTok and YouTube), export ShareSheet (Save Video to Photos needs Photos add permission), song-file ShareSheet, file importer, alerts, confirmation dialogs, support Link, and StoreKit review request.
+- InstrumentEditor is a popover in regular-width portrait iPad and docked beside the grid in wide landscape iPad; it falls back to a sheet at compact width (narrow Split View).
+- On iPad the first tap on a track header selects the track and a second tap opens its instrument editor; the portrait popover is anchored by its arrow to that header and scrolls internally below Channel.
+- On iPad, Songs, export share and song-file share are `.sheet`s (form sheets; the share sheets host `UIActivityViewController` with no popover anchor). Arrangement is a popover anchored to the transport's ARR control, Export a popover off the ••• menu, keyboard help a popover; all three adapt to sheets at compact width. PatternBar rename is a sheet.
+- Layout resolves from horizontal size class plus window size (never device idiom): `.pad` metrics at regular width, `.phone` at compact; falls back to a stacked, scrolled layout when the height left after the fixed editor chrome holds fewer than 4 grid rows. The instrument editor is docked exactly when the side keyboard layout is used, a popover at regular width otherwise, a sheet at compact width; the docked editor owns its own Clear track and Delete track alerts.
+- Songs rows: newest first with a green OPEN badge on the current song; a row's context menu (Rename, Duplicate, Share song file, Delete) opens with a long press (a 1.2 s idb press works); opening a song closes Songs.
+- ARR popover: Edit / Arrangement / Done header; Add section and each row's pattern picker are Pattern A/B/C menus; footer "<n> patterns · <steps> steps · <m:ss> at <BPM> BPM"; a green speaker marks the sounding section; a tap outside it (including on the transport) only dismisses it.
+- In 13-inch portrait the grid is a fixed viewport (about y 300 to 1111 pt) above a fixed piano dock; a 16-step pattern shows steps 00 to 14 and scrolls one row for step 15 (by design; checked by measurement).
+- Song menu (•••): New song, Import song…, Duplicate song, Export…, Share song file, Clear pattern, Contact support. Import song… opens the Files picker. A re-imported file whose song ID already exists becomes a new song named "<name> (imported)".
+- Presenter bookkeeping: `anyPresented` covers Songs, Arrangement, Export, Share, keyboard help, song-bound presenters and a pending share URL; `SongBoundPresenters` surfaces are pattern rename/clear/delete, tempo alert and track sound.
 - The app accepts `.chipsong` files through document activation and `onOpenURL`; it has no custom URL scheme or universal-link route.
 
 ## State, Data, And Limits
@@ -133,7 +143,7 @@ J8 | share and import an editable song | song menu/library Share; Songs -> Add -
 states/branches: share success/failure/cancel; picker cancel; malformed JSON; ID collision; legacy migration; out-of-range normalization; launch-time URL
 
 J9 | export and share a WAV or MIDI file | song menu -> Export… | song with audible arrangement | render progress is truthful; cancel/retry works; completed WAV has selected repeat/ending; MIDI hides Repeats/Ending and shares a `.mid` that matches the `midi-*.mid` golden rules; share appears once
-states/branches: repeats 1/16; seamless/ring-out; progress; cancel; retry; double submit; write failure; oversized RIFF; share cancel/complete/failure; each opening starts at WAV/1x/Seamless loop, but a canceled share reopens with the choices kept
+states/branches: repeats 1/16; seamless/ring-out; progress; cancel; retry; double submit; write failure; oversized RIFF; share cancel/complete/failure; each opening starts at WAV/1x/Seamless loop, but a canceled share keeps the choices; at compact width the Export sheet reopens by itself, at regular-width iPad it stays closed until reopened
 
 J10 | recover edits across undo, autosave, and lifecycle changes | mutate tempo/title/cells/patterns/tracks/arrangement -> undo/relaunch | sentinel edits in one song and at least two songs | unrelated operations undo separately; redo invalidates correctly; autosave preserves the active song without crossing song boundaries
 states/branches: coalesced same-kind edits; unrelated rapid edits; title run; background before debounce; save failure; open/new/delete resets history; 50-entry limit
@@ -142,14 +152,21 @@ J11 | reorder tracks by drag | track header long-press (about 0.9 s) -> reorder 
 states/branches: enter by long-press; drag one slot left/right; drag to first/last position; drag and release in place; arrows at first/last (stopped control explains itself); drag a muted or selected track; reorder while playing; Done vs tap-grid exit; hardware Return/Escape intentionally do nothing; 1-track no-op; 8-track song; undo/redo after reorder; relaunch persistence
 notes: iOS drag needs a slow `idb ui swipe` with a 0.5 s or longer duration, since `ui_swipe` may do nothing; enter reorder mode with a long-press of 0.9 s (`idb ui tap --duration`); a released drag outside the header strip must not lose the track; the held notes of a ringing track must not hang after a move (moveTrack releases voices)
 
+J12 | export a song as a video for social posting | song menu -> Export… -> Format: Video -> Style (Cartridge or Grid) and other video options -> Export -> share sheet (Save Video, AirDrop, apps) | song with audible arrangement; long or line-broken song name for title layout; Photos add permission granted or denied | progress is truthful; cancel/retry works; the video shows the chosen style with the song's title, tracks and notes in time with the soundtrack; length follows the arrangement and repeat choice; the file is shareable and Save Video lands in Photos or explains a denied permission
+states/branches: each Style; Repeats/Ending as offered for Video; progress; cancel mid-render; cancel while the file finishes; retry; double submit; background mid-render (the app says to stay in the app); write failure (read-only store or disk full); too-long arrangement refused up front; share cancel/complete; Photos denied; muted tracks dimmed; pattern changes scroll the Grid style; long caption keeps content above it
+notes: Video always rings out, so the Ending choice is hidden for Video; Style resets to Grid on each opening of the sheet; the video cap is 600 s and an over-cap song disables Export with the footer "Too long for a video — 10:00 max." (no alert); a Reels/Shorts note appears above 180 s; a song switch or import mid-render closes the sheet and cancels silently. Cartridge style draws tempo, a total length, an elapsed clock and a progress bar; Grid style draws the title on one line and "PAT · STEP nn · BPM". Exports write only to tmp, so an unwritable Songs store does not affect them; an unwritable tmp fails at once with "Export failed — Couldn't export "<song>". The app doesn't have permission to write the video." and the Export sheet stays open. After Save Video the app returns to the editor with no confirmation; the asset appears in the simulator's `data/Media/DCIM/100APPLE/`. Scratch lives in `tmp/video-scratch` (soundtrack WAV plus the mp4 being written, swept only by the next video export) and `tmp/wav-scratch`; the finished file is `tmp/<songUUID>/<safeName>.mp4`.
+notes: the Video format shows "A 9:16 video for sharing to IG, TikTok, YouTube, etc.", a Repeats stepper 1x-16x with "The whole arrangement, N times, <length>" (video length includes the ring-out tail, so it exceeds the WAV seamless length), and Style Grid/Cartridge with a one-line description each; Export shows an in-sheet "Exporting… N%" bar with settings dimmed and a red Cancel export; output is 1080x1920 h264 30 fps plus AAC; after a share finishes the sheet resets to WAV. With Photos add permission unset or denied, iOS omits Save Video from the share sheet. `xcrun simctl privacy ... revoke photos-add` terminates the running app (iOS behavior).
+notes: pull the finished file with `find "$(xcrun simctl get_app_container <UDID> dev.individuation.chiptune data)" -name '*.mp4' -o -name '*.mov'` and inspect it off-simulator with `ffprobe` (duration, size, streams) and `ffmpeg -ss <t> -frames:v 1` stills; Photos permission is `xcrun simctl privacy <UDID> grant|revoke photos-add dev.individuation.chiptune`
+
 ## Condition Matrix
 
 Conditions are recorded in each journey's `tested` field after use. They are not JIDs and never substitute for core journey coverage.
 
 | Condition | Stage |
 |---|---|
-| iPhone SE (3rd gen) and iPhone 16 Pro Max, both iOS 26.5 (no iOS 17 runtime installed) | representative target coverage across core journeys |
-| portrait only (iPhone has no landscape/split/docked layout per app contract) | representative iPhone branches |
+| iPad mini (iOS 26.5) and iPad Pro 13-inch (iOS 27.0) (no iOS 17 runtime installed) | representative target coverage across core journeys |
+| iPad portrait vs landscape (docked instrument editor) | representative iPad branches where rotation is automatable |
+| iPad Split View / Stage Manager narrow widths | changed-environment escalation; not automatable here |
 | status-bar extremes (top safe area) | applicable Track B layout branch |
 | forced dark appearance | representative Track B states |
 | realistic long names and maximum app-valid data | core journey depth |
@@ -191,9 +208,10 @@ The unit-test host intentionally suppresses creation of the real app `Studio`, s
 - First `simctl launch` on a freshly booted sim can hang indefinitely (seen on SIM-B); shutdown and reboot fixes it. macOS has no `timeout` binary, so background the call. Screenshot-verify the frontmost app after launch.
 - Earlier workers leave imported test songs and edited starter songs behind. Start each finder from the clean-state reset above (starter song) or from the seeded five-song library, and say which in the prompt; never rely on a leftover song as a fixture.
 - Act and look in one shell call: `idb ui tap --udid <UDID> <x> <y>; sleep 1; xcrun simctl io <UDID> screenshot <orig>.png; sips -Z 750 <orig>.png --out <view>.png`. The MCP screenshot tool only writes a file, so separate tap, screenshot, downscale and view calls cost four tool calls per interaction.
-- `ui_swipe` may do nothing for drags; use a slow `idb ui swipe --duration 0.5` or longer. Wait about 2 s after a sheet or share-sheet dismissal before the next tap, or the tap is dropped.
-- Tap coordinates are per device. Never reuse SE coordinates on the Pro Max or the reverse; locate the control on the assigned sim.
+- `ui_swipe` may do nothing for drags; use a slow `idb ui swipe --duration 0.5` or longer. Wait about 2 s after a sheet dismissal before the next tap. Closing the export share sheet with its X re-raises the Export panel at compact width; at regular width it stays closed. On a build where the Export popover comes back, a tap outside it only dismisses it: look for the popover in the screenshot before calling a tap swallowed, and take the screenshot after a 1-2 s wait (idb tap calls can take several seconds to return).
+- Tap coordinates are per device. Never reuse coordinates from another simulator (iPad mini, 13-inch iPad Pro, or any iPhone); locate the control on the assigned sim.
 - Pass `ui_find_element` search terms as a JSON array of quoted strings; a bare word fails validation.
+- Landscape on this machine: no rotate command exists, so build a scratch landscape-only variant from `git archive <commit>` (in its Info.plist set `UISupportedInterfaceOrientations~ipad` to the two landscape values and `UIRequiresFullScreen` YES) into its own `build/` folder; screenshots of it come out sideways and must be rotated back with `sips -r`. In that landscape-only build on the iPad mini, idb taps are not in accessibility-frame space: convert a frame point (x, y) to an input point (x/1.523, (y+484)/1.523) and check with describe-point.
 - `xcrun simctl terminate` exits 1 when the app is not running and breaks a `&&` chain; follow it with `;`.
 - The harness blocks a leading `sleep N; cmd` longer than a couple of seconds; keep waits short and inside the act-and-look call.
 - Typing into the song title field can trigger autocorrect ("Zq" became "Zach"); use sentinel names that are real words or check the committed text.
@@ -205,4 +223,4 @@ The unit-test host intentionally suppresses creation of the real app `Studio`, s
 - A real RTL layout needs `-NSForceRightToLeftWritingDirection YES`; `-AppleLanguages "(ar)" -AppleLocale ar_SA` alone leaves the app LTR (no Arabic localization), so RTL is unsupported for real users.
 - The accessibility walker renders a Stepper as two Buttons, reports a dimmed bound button as enabled, and shows Volume and Decay slider values as null; ui_find_element on the visible label is the cross-check. The pattern chip menu opens with `idb ui tap --duration 1.0` on a chip and its actions are also exposed as accessibility custom actions.
 - A verification build must come from `git archive <commit>` into a scratch directory under `build/`, then `xcodegen generate` and `xcodebuild` with its own `-derivedDataPath`; a build from the working tree can include another agent's uncommitted edits.
-- A simulator whose preferences daemon has wedged logs `Couldn't write values … Path not accessible` and floods `Couldn't read values … com.apple.assistant.support … Unable to determine access`; focusing any text field then pins the app at 70-90% CPU in `UIDictationController` and the accessibility tree comes back empty. It is a simulator fault (it reproduces on older builds). `xcrun simctl shutdown` then `boot` clears it; SIM-B also has dictation off (`defaults write com.apple.assistant.support "Dictation Enabled" -bool false`).
+- A simulator whose preferences daemon has wedged logs `Couldn't write values … Path not accessible` and floods `Couldn't read values … com.apple.assistant.support … Unable to determine access`; focusing any text field then pins the app at 70-90% CPU in `UIDictationController` and the accessibility tree comes back empty. It is a simulator fault (it reproduces on older builds). `xcrun simctl shutdown` then `boot` clears it. Turning dictation off on a simulator (`xcrun simctl spawn <UDID> defaults write com.apple.assistant.support "Dictation Enabled" -bool false`) avoids it.

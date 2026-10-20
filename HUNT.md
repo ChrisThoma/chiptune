@@ -92,3 +92,32 @@ Not re-mined: the sections above still stamp 178608b. Issue references read `rou
 - Verifier conditions that mattered: judge SONG playback edits over at least 6 s with frame sequences or a short recording bracketed by `date` stamps, a verifier tap that lands inside a 0.86 s section is luck (use a longer section in the fixture); read the accessibility tree twice and after reorder, add, delete and Undo for label fixes; a verifier started while a fixer still runs on the same simulator contaminates both (round-5 #4: the fixer reported another process reinstalled the app mid-run), so wait for the fixer's report before starting its verifier; use a clean-commit build for every verifier and name builds neutrally.
 - Prompt-writing causes of false candidates: expected basis that came from the orchestrator's own wording or from a forced flag (RTL), a source lead stated as a defect before it was run (Seamless export, mute after undo), and finder severity guesses that ignored the S4 cap.
 - Process notes: finders that exceeded 60 tool calls: the J6 finder (69) and the J7 finder (67); both were narrowed afterwards. The ledger turn header was bumped by hand each cycle; the round ran as a user-directed extension after the round-4 turn cap, with round-4 #13 fixed and verified first. Both S4 slots were used by #2 and #3 early, so later S4 findings (Volume readout truncation, missing selected state on the track header, tempo alert field label, the Save failed alert wording, a Debug-build ARR memory growth) were recorded only.
+
+## Round-6 additions (iPad hunt, 2026-10-20; ledger ISSUES.md kept local; fixes 2883b80 0569362 c049378 667f7bf, plus 8d82445 not counted)
+Not re-mined: the sections above still stamp 178608b. Issue references read `round-6 #N`. Target iPad: BugHunt-Chiptune-iPad-A (iPad mini, iOS 26.5) and -B (13-inch iPad Pro, iOS 27.0).
+round-6 verified: S1 0, S2 0, S3 2, S4 2
+
+### Everyone (forward)
+- Rejected as not-a-bug this round: a long title truncated in the exported video (Grid draws one line, Cartridge two; the empty lower quarter is the caption-safe area; round-6 #3, product question); video length about 1 s longer than WAV (Video always rings out; round-6 #5); a 16-step pattern in 13-inch portrait showing steps 00 to 14 (fixed grid viewport above a fixed piano dock, scrolls one row; round-6 #6); the Export sheet carrying no cap warning for a song past 128 plays (the ARR banner is the mitigation); last-track Delete dimmed with no text (as round-4 #6).
+- Tooling false-positive class that cost a fixer: "first tap after closing the share sheet is swallowed" (round-6 #4) was the Export popover deliberately re-raised after a canceled share; the tap dismissed it. Look for a popover in the screenshot, taken 1-2 s after the tap, before calling a tap swallowed. idb tap calls can take several seconds to return on the 13-inch sim.
+- Landscape needs a scratch landscape-only build (APPMAP caveat); on the iPad mini that build's idb input points are (x/1.523, (y+484)/1.523) from frame points.
+- `xcrun simctl privacy ... photos-add` grant or revoke kills the running app; set it before launch.
+
+### Track A (forward)
+- Yield by family: presenter-on-song-change gave 2 (round-6 #1 docked instrument editor alerts not song-bound; round-6 #8 share sheets not closed on import); hardware keys gave 1 with a wide root (round-6 #7: UIKit named keys such as UIKeyInputEscape were read by their first letter U, so Escape, Home, PageUp and F-keys wrote A#). Video export was driven end to end on both sizes (styles, repeats, cancel, retry, background, tmp write failure, Photos) and gave only round-6 #2.
+- Open leads: the docked Name field in landscape is covered by the software keyboard when no hardware keyboard is attached (1 sighting, unconfirmed); a write failure partway through a long video render; title-run undo coalescing and the 50-entry undo limit on iPad; ARR tap during SONG playback opened 1 of 3 early.
+
+### Track B (forward)
+- 13-inch and iPad mini at default text size, pseudo-localization and status-bar extremes were dry apart from S4 notes (ARR title truncates to "Arra…" under doubled strings; the Video Export popover keeps the WAV height; the instrument popover is about 410 pt tall on the 13-inch; the Clear alert does not name the track while Delete does).
+
+### Track C (forward)
+- Leads that became confirmed defects: the docked editor alerts missing from SongBoundPresenters (round-6 #1, same family as round-4 #8) and the video clock truncation versus Format.clock rounding (round-6 #2). The video pipeline audit otherwise found length, sync, cancel, scratch cleanup and error paths consistent with WavExport. Unchased: Grid video fades notes only for muted tracks while headers dim for volume-0 tracks too; video scratch is only swept by the next video export; Android video clock not checked against the iOS fix.
+
+### Fixers (forward)
+- New pure types or fields: `SongBoundPresenters.Surface.trackClear/.trackDelete`, `VideoClock` (Sources/Video), `PresentedSurfaces.exportShare/.songFileShare`, `ExportFlow.reopensExportAfterShare(panelIsPopover:)`, the single-character guard in `KeyAction.forKey`. Suite after the fixes: 955 tests, 2 skipped.
+- Tar pit: round-6 #4 reached a fixer on a misread confirm; the fixer's frame-by-frame look at the evidence video found the intended popover reopen. 8d82445 changes that intended behavior at regular width and is a product question, not a counted fix.
+
+### Orchestrator only
+- Verifier conditions that mattered: landscape fixes need the scratch landscape build copied to a neutral path; video label fixes need ffprobe plus stills at a mid point and the last frame (the elapsed clock read 0:14 on the frame 0.05 s before the end of a 14.98 s file); share-sheet fixes need both a video and a WAV share plus the canceled-share invariant.
+- Prompt-writing cause of a false candidate: the confirm prompt for round-6 #4 asked whether input was swallowed instead of asking what was on screen after the dismissal. Ask for the screen state first.
+- Process notes: finders that exceeded caps: the first J12 finder (67 tool calls) and the J4 finder (61); both were narrowed. Fixers run on Opus from round-6 #8 on, at Chris's request. The when-to-hunt check could not use rounds 4 and 5 (no verified-severity lines); this round's verified fixes were all S3/S4, so shipping beats another iPad round.
