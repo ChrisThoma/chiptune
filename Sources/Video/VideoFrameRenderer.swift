@@ -89,7 +89,7 @@ final class VideoFrameRenderer {
 
     private func drawGridHeader(pattern: Pattern, step: Int) {
         let header = layout.headerRect
-        Self.text(song.name, size: layout.titleFontSize, weight: .bold, color: Palette.text,
+        Self.text(Self.drawnName(song.name), size: layout.titleFontSize, weight: .bold, color: Palette.text,
                   in: CGRect(x: header.minX, y: header.minY, width: header.width, height: 72))
         let readout = "\(pattern.name)  ·  STEP \(String(format: "%02d", step))  ·  \(Int(song.tempo)) BPM"
         Self.text(readout, size: layout.subtitleFontSize, weight: .semibold, color: Palette.dim,
@@ -263,12 +263,15 @@ final class VideoFrameRenderer {
         drawCartridge(in: context)
 
         let titleRect = layout.coverTitleRect
-        Self.text(song.name, size: layout.coverTitleFontSize, weight: .bold, color: Palette.text,
+        let title = Self.drawnName(song.name)
+        Self.text(title, size: layout.coverTitleFontSize, weight: .bold, color: Palette.text,
                   in: titleRect, lines: 2)
         // The tempo line sits under the title as drawn, so a one-line title
-        // doesn't leave a gap where a second line would go.
+        // doesn't leave a gap where a second line would go. Measuring the
+        // unbroken width is only right because `drawnName` leaves no line
+        // breaks to start a second line on their own.
         let titleFont = UIFont.monospacedSystemFont(ofSize: layout.coverTitleFontSize, weight: .bold)
-        let titleWidth = (song.name as NSString).size(withAttributes: [.font: titleFont]).width
+        let titleWidth = (title as NSString).size(withAttributes: [.font: titleFont]).width
         let titleLines: CGFloat = titleWidth > titleRect.width ? 2 : 1
         var meta = layout.coverMetaRect
         meta.origin.y = min(meta.minY, titleRect.minY + titleLines * titleFont.lineHeight + 8)
@@ -336,6 +339,20 @@ final class VideoFrameRenderer {
     }
 
     // MARK: Text
+
+    /// The song's name on one line, its line breaks drawn as spaces. Typing
+    /// can't put a break in a name, but an imported .chipsong keeps whatever
+    /// its name held and `Song.normalize` trims only the ends. Drawn as is,
+    /// the Cartridge put its tempo line under the first line of a short
+    /// broken title, over the second, and the Grid's one-line header showed
+    /// only what came before the break. The app's song list shows names on
+    /// one line too.
+    static func drawnName(_ name: String) -> String {
+        name.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
 
     /// SF Mono, vertically centred in `rect` for a single line, truncated
     /// rather than spilling out of it.
