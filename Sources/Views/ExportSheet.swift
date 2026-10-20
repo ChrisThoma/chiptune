@@ -278,8 +278,11 @@ struct ExportSheet: View {
         } header: {
             // The menu row at accessibility sizes carries its own "Style"
             // label, as Format's does, so the header would say it twice.
+            // VoiceOver hears "Style" from the picker's own label, so the
+            // header is for the eye only.
             if !dynamicTypeSize.isAccessibilitySize {
                 Text("Style")
+                    .accessibilityHidden(true)
             }
         }
     }
@@ -348,6 +351,9 @@ struct ExportSheet: View {
                     // Like the repeats: the render keeps the format it started
                     // with, so a mid-render switch would only mislabel the file.
                     .disabled(settingsLocked)
+                    // Dimmed like Repeats and Style: a disabled segmented
+                    // control barely looks it.
+                    .opacity(settingsLocked ? 0.4 : 1)
                 } footer: {
                     if let text = ExportFormatFooter.text(for: format) {
                         Text(text)
