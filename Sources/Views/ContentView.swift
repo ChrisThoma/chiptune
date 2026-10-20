@@ -721,9 +721,10 @@ struct ContentView: View {
                 }
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-                // Only the unfolded height counts, or folding would read as
-                // a piano with no height and unfold it again at once.
-                if height > 0, !avoidance.hidesKeys { dockedKeysHeight = height }
+                // Read only while no rename is under way. Folding the piano
+                // changes this height, and feeding that back into the
+                // decision that folded it made the layout oscillate forever.
+                if height > 0, !dockedNameEditing { dockedKeysHeight = height }
             }
             .frame(height: avoidance.hidesKeys ? 0 : nil, alignment: .top)
             .clipped()
