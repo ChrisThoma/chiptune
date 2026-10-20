@@ -181,24 +181,24 @@ final class WavExportTests: XCTestCase {
 
     // MARK: Pruning
 
-    func testRenamingASongReplacesItsOldExportRatherThanAccumulating() throws {
+    func testRenamingASongReplacesItsOldExportRatherThanAccumulating() async throws {
         var song = TestSongs.empty(name: "One", tempo: 240)
         song.tracks[0].instrument.sustain = true
         song.patterns[0].rows[0][0] = 60
 
         // Through the dispatcher, which is where the app's exports prune.
-        func export() throws -> URL {
-            guard case .success(let url) = Export.render(ExportRequest(song: song)) else {
+        func export() async throws -> URL {
+            guard case .success(let url) = await Export.render(ExportRequest(song: song)) else {
                 XCTFail("the export failed")
                 throw CocoaError(.fileWriteUnknown)
             }
             return url
         }
-        let firstURL = try export()
+        let firstURL = try await export()
         XCTAssertTrue(FileManager.default.fileExists(atPath: firstURL.path))
 
         song.name = "Two"
-        let secondURL = try export()
+        let secondURL = try await export()
 
         let dir = firstURL.deletingLastPathComponent()
         let contents = try FileManager.default.contentsOfDirectory(atPath: dir.path)
@@ -288,7 +288,7 @@ final class WavExportTests: XCTestCase {
     /// The video's soundtrack is rendered into the video's own scratch
     /// folder; sweeping the WAV's must not take it, and a killed render's raw
     /// file still goes.
-    func testAVideoExportSweepsARawFileLeftByAKilledRender() throws {
+    func testAVideoExportSweepsARawFileLeftByAKilledRender() async throws {
         let fm = FileManager.default
         try fm.createDirectory(at: WavExport.scratchDirectory, withIntermediateDirectories: true)
         let stale = WavExport.scratchDirectory.appendingPathComponent(UUID().uuidString + ".raw")
@@ -296,7 +296,7 @@ final class WavExportTests: XCTestCase {
 
         var options = ExportOptions()
         options.format = .video
-        let result = VideoExport.render(ExportRequest(song: shortSong(), options: options))
+        let result = await VideoExport.render(ExportRequest(song: shortSong(), options: options))
         guard case .success = result else { return XCTFail("video export did not succeed: \(result)") }
 
         XCTAssertFalse(fm.fileExists(atPath: stale.path), "the killed render's raw file is still there")

@@ -40,7 +40,13 @@ enum VideoExport {
         var finishedWriting: () -> Void = {}
     }
 
-    static func render(_ request: ExportRequest, hooks: Hooks = Hooks()) -> ExportResult {
+    /// Async only where AVFoundation is waited on: loading the soundtrack's
+    /// track and finishing the file. Those used to block on a semaphore, and
+    /// AVFoundation calls its completion handlers back at default QoS, below
+    /// the user-initiated render waiting on them: a priority inversion the
+    /// waiting thread could do nothing about. Awaited, nothing is parked.
+    /// The rest of the render is the same synchronous loop.
+    static func render(_ request: ExportRequest, hooks: Hooks = Hooks()) async -> ExportResult {
         var song = request.song
         song.normalize()
         var options = request.options.clamped
@@ -81,8 +87,8 @@ enum VideoExport {
 
         let renderer = VideoFrameRenderer(song: song, options: options, timeline: timeline)
         let draw = hooks.draw ?? { renderer.draw(frame: $0, in: $1) }
-        let encoded = encode(timeline: timeline, draw: draw, soundtrack: soundtrack,
-                             to: partial, request: request)
+        let encoded = await encode(timeline: timeline, draw: draw, soundtrack: soundtrack,
+                                   to: partial, request: request)
         guard case .success = encoded else { return encoded }
         hooks.finishedWriting()
         // Finishing the file takes a moment, and a cancel tapped during it
@@ -147,7 +153,7 @@ enum VideoExport {
     /// fed from one loop, each whenever the writer is ready for it, so the
     /// writer's interleaving never waits on a stream that isn't being fed.
     private static func encode(timeline: VideoTimeline, draw: (Int, CGContext) -> Void,
-                               soundtrack: URL, to url: URL, request: ExportRequest) -> ExportResult {
+                               soundtrack: URL, to url: URL, request: ExportRequest) async -> ExportResult {
         let writer: AVAssetWriter
         let reader: AVAssetReader
         do {
@@ -174,7 +180,7 @@ enum VideoExport {
         ])
         audioInput.expectsMediaDataInRealTime = false
 
-        guard let audioTrack = firstAudioTrack(of: reader.asset) else {
+        guard let audioTrack = try? await reader.asset.loadTracks(withMediaType: .audio).first else {
             return .failed(CocoaError(.fileReadCorruptFile))
         }
         let audioOutput = AVAssetReaderTrackOutput(track: audioTrack, outputSettings: [
@@ -271,26 +277,11 @@ enum VideoExport {
         // long as its soundtrack rather than rounded up to a whole frame.
         writer.endSession(atSourceTime: CMTime(value: CMTimeValue(timeline.totalSamples),
                                                timescale: CMTimeScale(WavExport.sampleRate)))
-        let done = DispatchSemaphore(value: 0)
-        writer.finishWriting { done.signal() }
-        done.wait()
+        await writer.finishWriting()
         guard writer.status == .completed else {
             return .failed(writer.error ?? CocoaError(.fileWriteUnknown))
         }
         return .success(url)
-    }
-
-    /// The render runs synchronously on its own thread, so this waits on the
-    /// completion-handler form rather than hopping into async code.
-    private static func firstAudioTrack(of asset: AVAsset) -> AVAssetTrack? {
-        let loaded = DispatchSemaphore(value: 0)
-        nonisolated(unsafe) var track: AVAssetTrack?
-        asset.loadTracks(withMediaType: .audio) { tracks, _ in
-            track = tracks?.first
-            loaded.signal()
-        }
-        loaded.wait()
-        return track
     }
 
     private static func drawFrame(_ frame: Int, draw: (Int, CGContext) -> Void,

@@ -29,13 +29,13 @@ final class VideoExportTests: XCTestCase {
 
     private func export(_ song: Song, _ options: ExportOptions,
                         progress: @escaping @Sendable (Double) -> Void = { _ in },
-                        isCanceled: @escaping @Sendable () -> Bool = { false }) -> ExportResult {
-        VideoExport.render(ExportRequest(song: song, options: options,
-                                         progress: progress, isCanceled: isCanceled))
+                        isCanceled: @escaping @Sendable () -> Bool = { false }) async -> ExportResult {
+        await VideoExport.render(ExportRequest(song: song, options: options,
+                                               progress: progress, isCanceled: isCanceled))
     }
 
-    private func exported(_ song: Song, _ options: ExportOptions) throws -> URL {
-        let result = export(song, options)
+    private func exported(_ song: Song, _ options: ExportOptions) async throws -> URL {
+        let result = await export(song, options)
         guard case .success(let url) = result else {
             XCTFail("video export did not succeed: \(result)")
             throw CocoaError(.fileWriteUnknown)
@@ -49,16 +49,16 @@ final class VideoExportTests: XCTestCase {
 
     // MARK: The file
 
-    func testAVideoIsWrittenWhereTheSongsExportsGo() throws {
+    func testAVideoIsWrittenWhereTheSongsExportsGo() async throws {
         let song = song()
-        let url = try exported(song, videoOptions())
+        let url = try await exported(song, videoOptions())
         XCTAssertEqual(url, ExportFiles.url(for: song, format: .video))
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
     }
 
-    func testTheExportSheetsRendererRoutesVideoHere() throws {
+    func testTheExportSheetsRendererRoutesVideoHere() async throws {
         let song = song()
-        guard case .success(let url) = Export.render(ExportRequest(song: song, options: videoOptions())) else {
+        guard case .success(let url) = await Export.render(ExportRequest(song: song, options: videoOptions())) else {
             return XCTFail("a video export through Export should succeed")
         }
         XCTAssertEqual(url.pathExtension, "mp4")
@@ -66,7 +66,7 @@ final class VideoExportTests: XCTestCase {
 
     func testTheFileHasOnePortraitH264TrackAndOneAacTrack() async throws {
         for style in ExportOptions.VideoStyle.allCases {
-            let url = try exported(song(), videoOptions(style: style))
+            let url = try await exported(song(), videoOptions(style: style))
             let asset = AVURLAsset(url: url)
             let video = try await asset.loadTracks(withMediaType: .video)
             let audio = try await asset.loadTracks(withMediaType: .audio)
@@ -89,7 +89,7 @@ final class VideoExportTests: XCTestCase {
     func testTheVideoIsAsLongAsItsSoundtrack() async throws {
         let song = song()
         let options = videoOptions(loops: 2)
-        let url = try exported(song, options)
+        let url = try await exported(song, options)
         let expected = Double(VideoTimeline(song: song, options: options).totalSamples) / 44100
         let asset = AVURLAsset(url: url)
         let duration = try await asset.load(.duration).seconds
@@ -100,9 +100,9 @@ final class VideoExportTests: XCTestCase {
         XCTAssertEqual(range.duration.seconds, expected, accuracy: 1.0 / 30)
     }
 
-    func testProgressRisesToOne() throws {
+    func testProgressRisesToOne() async throws {
         let seen = Recorder()
-        guard case .success = export(song(), videoOptions(), progress: { seen.append($0) }) else {
+        guard case .success = await export(song(), videoOptions(), progress: { seen.append($0) }) else {
             return XCTFail("export failed")
         }
         let values = seen.values
@@ -117,10 +117,10 @@ final class VideoExportTests: XCTestCase {
 
     // MARK: Cleaning up
 
-    func testCancelingMidRenderLeavesNoVideoAndNoScratch() {
+    func testCancelingMidRenderLeavesNoVideoAndNoScratch() async {
         let song = song()
         let seen = Recorder()
-        let result = export(song, videoOptions(loops: 4),
+        let result = await export(song, videoOptions(loops: 4),
                             progress: { seen.append($0) },
                             isCanceled: { (seen.values.last ?? 0) > 0.5 })
         guard case .canceled = result else { return XCTFail("expected a cancel, got \(result)") }
@@ -131,12 +131,12 @@ final class VideoExportTests: XCTestCase {
     /// Cancel tapped while the writer is finishing the file — after the last
     /// frame, before the move — is still a cancel: the old video stays and
     /// nothing is handed to the share sheet.
-    func testACancelDuringFinishWritingKeepsThePreviousVideo() throws {
+    func testACancelDuringFinishWritingKeepsThePreviousVideo() async throws {
         let song = song()
-        let first = try exported(song, videoOptions())
+        let first = try await exported(song, videoOptions())
         let before = try Data(contentsOf: first)
         let finished = Flag()
-        let result = VideoExport.render(
+        let result = await VideoExport.render(
             ExportRequest(song: song, options: videoOptions(loops: 2),
                           isCanceled: { finished.isSet }),
             hooks: VideoExport.Hooks(finishedWriting: { finished.set() }))
@@ -149,41 +149,41 @@ final class VideoExportTests: XCTestCase {
     /// A crash or a kill mid-render skips the cleanup, so the next export
     /// clears whatever the last one left. Only one export runs at a time
     /// (`Studio.export` refuses a second), so nothing in there is live.
-    func testAnExportSweepsScratchLeftByAKilledOne() throws {
+    func testAnExportSweepsScratchLeftByAKilledOne() async throws {
         let fm = FileManager.default
         try fm.createDirectory(at: VideoExport.scratchDirectory, withIntermediateDirectories: true)
         let stale = VideoExport.scratchDirectory.appendingPathComponent("killed.mp4")
         try Data(repeating: 1, count: 1024).write(to: stale)
-        _ = try exported(song(), videoOptions())
+        _ = try await exported(song(), videoOptions())
         XCTAssertFalse(fm.fileExists(atPath: stale.path), "the killed export's partial file is still there")
         XCTAssertEqual(scratchFiles(), [])
     }
 
-    func testASuccessLeavesNoScratch() throws {
-        _ = try exported(song(), videoOptions())
+    func testASuccessLeavesNoScratch() async throws {
+        _ = try await exported(song(), videoOptions())
         XCTAssertEqual(scratchFiles(), [])
     }
 
-    func testAFailedWriteLeavesNoScratchAndReportsTheError() throws {
+    func testAFailedWriteLeavesNoScratchAndReportsTheError() async throws {
         let song = song()
         let dir = ExportFiles.url(for: song, format: .video).deletingLastPathComponent()
         let fm = FileManager.default
         try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: dir.path)
         defer { try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dir.path) }
-        let result = export(song, videoOptions())
+        let result = await export(song, videoOptions())
         guard case .failed = result else { return XCTFail("expected a failure, got \(result)") }
         XCTAssertEqual(scratchFiles(), [])
         XCTAssertEqual(try fm.contentsOfDirectory(atPath: dir.path), [])
     }
 
     /// The soundtrack goes to a scratch file, never to the song's WAV export.
-    func testTheUsersWavOfTheSameSongIsUntouched() throws {
+    func testTheUsersWavOfTheSameSongIsUntouched() async throws {
         let song = song()
         guard case .success(let wav) = WavExport.render(ExportRequest(song: song)) else {
             return XCTFail("WAV export failed")
         }
         let before = try Data(contentsOf: wav)
-        _ = try exported(song, videoOptions(loops: 3))
+        _ = try await exported(song, videoOptions(loops: 3))
         XCTAssertEqual(try Data(contentsOf: wav), before)
     }
 
@@ -253,7 +253,7 @@ final class VideoExportTests: XCTestCase {
                 context.fill(CGRect(x: 0, y: CGFloat(i) * bandHeight, width: size.width, height: bandHeight))
             }
         }
-        let result = VideoExport.render(ExportRequest(song: song(), options: videoOptions()),
+        let result = await VideoExport.render(ExportRequest(song: song(), options: videoOptions()),
                                         hooks: VideoExport.Hooks(draw: draw))
         guard case .success(let url) = result else { return XCTFail("export failed: \(result)") }
         let image = try await firstFrame(url)
@@ -272,7 +272,7 @@ final class VideoExportTests: XCTestCase {
     /// cell beside it is not.
     func testTheGridsFirstFrameLightsTheFirstStepInItsChannelColour() async throws {
         let song = song()
-        let image = try await firstFrame(try exported(song, videoOptions(style: .grid)))
+        let image = try await firstFrame(try await exported(song, videoOptions(style: .grid)))
         XCTAssertEqual(image.width, 1080)
         let layout = VideoLayout(trackCount: song.tracks.count)
         let red = UIColor(Theme.color(for: .pulse1))
@@ -287,7 +287,7 @@ final class VideoExportTests: XCTestCase {
     /// colour on the first frame; one with nothing to play is not.
     func testTheCoversFirstFrameLightsTheBarOfATrackThatPlays() async throws {
         let song = song()
-        let image = try await firstFrame(try exported(song, videoOptions(style: .cover)))
+        let image = try await firstFrame(try await exported(song, videoOptions(style: .cover)))
         let layout = VideoLayout(trackCount: song.tracks.count)
         let bar = layout.coverBarRect(track: 0)
         assertColor(pixel(image, CGPoint(x: bar.midX, y: bar.maxY - 20)),
@@ -372,7 +372,7 @@ final class VideoExportTests: XCTestCase {
             context.setFillColor(gray: showing ? 1 : 0, alpha: 1)
             context.fill(CGRect(origin: .zero, size: size))
         }
-        let result = VideoExport.render(ExportRequest(song: song, options: options),
+        let result = await VideoExport.render(ExportRequest(song: song, options: options),
                                         hooks: VideoExport.Hooks(draw: draw))
         guard case .success(let url) = result else { return XCTFail("export failed: \(result)") }
 
@@ -410,14 +410,14 @@ final class VideoExportTests: XCTestCase {
 
     /// Longer than TikTok takes. Found from the timeline before anything is
     /// rendered, rather than after minutes of drawing frames.
-    func testAVideoOverTenMinutesIsRejectedBeforeRendering() {
+    func testAVideoOverTenMinutesIsRejectedBeforeRendering() async {
         // 40 BPM, 64 steps twice: 48 s a pass, 16 passes: 12:48.
         var song = TestSongs.empty(name: "Long", tempo: 40, length: 64)
         song.patterns[0].rows[0][0] = 60
         song.arrangement[0].repeats = 2
         let polled = CallCounter()
         let progressed = CallCounter()
-        let result = VideoExport.render(ExportRequest(
+        let result = await VideoExport.render(ExportRequest(
             song: song,
             options: videoOptions(loops: 16),
             progress: { _ in progressed.bump() },

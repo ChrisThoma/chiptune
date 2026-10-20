@@ -100,8 +100,10 @@ final class Studio {
     @ObservationIgnored var store: SongStore
     /// The offline renderer, WAV or MIDI by the options' format. Injectable so
     /// a test can make export fail, stall, or report whatever progress it likes without needing a way to
-    /// make the real renderer do those things.
-    @ObservationIgnored var renderer: @Sendable (ExportRequest) -> ExportResult
+    /// make the real renderer do those things. Async because the video's
+    /// awaits AVFoundation (see `VideoExport.render`); a test's plain closure
+    /// still fits.
+    @ObservationIgnored var renderer: @Sendable (ExportRequest) async -> ExportResult
     /// Seconds of quiet after the last edit before autosave fires. Tests turn
     /// autosave off entirely: a live timer makes editing tests order-dependent.
     @ObservationIgnored var autosaveInterval: TimeInterval = 1.5
@@ -124,7 +126,7 @@ final class Studio {
          // Wrapped in a closure rather than passed as `Export.render`: a
          // bare static-method reference isn't itself `@Sendable`, and the
          // implicit conversion is a warning.
-         renderer: @escaping @Sendable (ExportRequest) -> ExportResult = { Export.render($0) },
+         renderer: @escaping @Sendable (ExportRequest) async -> ExportResult = { await Export.render($0) },
          keepAlive: ExportKeepAlive = SystemExportKeepAlive()) {
         self.store = store
         self.keepAlive = keepAlive
@@ -1498,7 +1500,7 @@ final class Studio {
         }
 
         Task.detached(priority: .userInitiated) {
-            let result = renderer(ExportRequest(
+            let result = await renderer(ExportRequest(
                 song: song,
                 options: options,
                 progress: progress,

@@ -127,12 +127,12 @@ struct ExportRequest: Sendable {
 /// knowing either format. Clears the song's stale exports once the new file
 /// is written, so neither writer has to.
 enum Export {
-    static func render(_ request: ExportRequest) -> ExportResult {
+    static func render(_ request: ExportRequest) async -> ExportResult {
         let result: ExportResult
         switch request.options.format {
         case .wav: result = WavExport.render(request)
         case .midi: result = MidiExport.render(request)
-        case .video: result = VideoExport.render(request)
+        case .video: result = await VideoExport.render(request)
         }
         if case .success(let url) = result {
             ExportFiles.pruneStale(keeping: url)

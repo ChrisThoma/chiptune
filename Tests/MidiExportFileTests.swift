@@ -132,57 +132,57 @@ final class MidiExportFileTests: XCTestCase {
     // MARK: Pruning
 
     /// Through the dispatcher, which is where the app's exports prune.
-    private func export(_ song: Song, as format: ExportOptions.Format) throws -> URL {
+    private func export(_ song: Song, as format: ExportOptions.Format) async throws -> URL {
         var options = ExportOptions()
         options.format = format
-        guard case .success(let url) = Export.render(ExportRequest(song: song, options: options)) else {
+        guard case .success(let url) = await Export.render(ExportRequest(song: song, options: options)) else {
             XCTFail("the \(format) export failed")
             throw CocoaError(.fileWriteUnknown)
         }
         return url
     }
 
-    func testAMidiExportClearsARenamedSongsOldExportsAndNothingElse() throws {
+    func testAMidiExportClearsARenamedSongsOldExportsAndNothingElse() async throws {
         var song = TestSongs.empty(name: "One", tempo: 240)
         song.patterns[0].rows[0][0] = 60
-        let dir = try export(song, as: .midi).deletingLastPathComponent()
-        _ = try export(song, as: .wav)
+        let dir = try await export(song, as: .midi).deletingLastPathComponent()
+        _ = try await export(song, as: .wav)
         try Data([0]).write(to: dir.appendingPathComponent("keep.txt"))
 
         song.name = "Two"
-        _ = try export(song, as: .midi)
+        _ = try await export(song, as: .midi)
         XCTAssertEqual(try fileNames(in: dir), ["Two.mid", "keep.txt"])
     }
 
-    func testAWavExportClearsARenamedSongsOldExports() throws {
+    func testAWavExportClearsARenamedSongsOldExports() async throws {
         var song = TestSongs.empty(name: "One", tempo: 240)
         song.patterns[0].rows[0][0] = 60
-        let dir = try export(song, as: .wav).deletingLastPathComponent()
-        _ = try export(song, as: .midi)
+        let dir = try await export(song, as: .wav).deletingLastPathComponent()
+        _ = try await export(song, as: .midi)
 
         song.name = "Two"
-        _ = try export(song, as: .wav)
+        _ = try await export(song, as: .wav)
         XCTAssertEqual(try fileNames(in: dir), ["Two.wav"])
     }
 
     /// The old name's file of the other format is as stale as its own: a
     /// rename leaves nothing under the old name.
-    func testARenameClearsTheOldNamesFileOfTheOtherFormat() throws {
+    func testARenameClearsTheOldNamesFileOfTheOtherFormat() async throws {
         var song = TestSongs.empty(name: "Old", tempo: 240)
         song.patterns[0].rows[0][0] = 60
-        let dir = try export(song, as: .midi).deletingLastPathComponent()
+        let dir = try await export(song, as: .midi).deletingLastPathComponent()
         try Data([0]).write(to: dir.appendingPathComponent("keep.txt"))
 
         song.name = "New"
-        _ = try export(song, as: .wav)
+        _ = try await export(song, as: .wav)
         XCTAssertEqual(try fileNames(in: dir), ["New.wav", "keep.txt"])
     }
 
     /// The current name's file of the other format is the song's, not stale.
-    func testARenameKeepsTheNewNamesFileOfTheOtherFormat() throws {
+    func testARenameKeepsTheNewNamesFileOfTheOtherFormat() async throws {
         var song = TestSongs.empty(name: "Old", tempo: 240)
         song.patterns[0].rows[0][0] = 60
-        let dir = try export(song, as: .midi).deletingLastPathComponent()
+        let dir = try await export(song, as: .midi).deletingLastPathComponent()
         try Data([0]).write(to: dir.appendingPathComponent("keep.txt"))
 
         song.name = "New"
@@ -190,19 +190,19 @@ final class MidiExportFileTests: XCTestCase {
         // still there beside it.
         _ = try render(song)
         XCTAssertEqual(try fileNames(in: dir), ["Old.mid", "New.mid", "keep.txt"])
-        _ = try export(song, as: .wav)
+        _ = try await export(song, as: .wav)
         XCTAssertEqual(try fileNames(in: dir), ["New.wav", "New.mid", "keep.txt"])
     }
 
     /// Switching formats is not a stale export: the song's WAV and its MIDI
     /// file are both wanted.
-    func testEachFormatLeavesTheOthersFileAlone() throws {
+    func testEachFormatLeavesTheOthersFileAlone() async throws {
         var song = TestSongs.empty(name: "Both", tempo: 240)
         song.patterns[0].rows[0][0] = 60
-        let wav = try export(song, as: .wav)
-        let mid = try export(song, as: .midi)
+        let wav = try await export(song, as: .wav)
+        let mid = try await export(song, as: .midi)
         XCTAssertEqual(try fileNames(in: wav.deletingLastPathComponent()), ["Both.wav", "Both.mid"])
-        _ = try export(song, as: .wav)
+        _ = try await export(song, as: .wav)
         XCTAssertTrue(FileManager.default.fileExists(atPath: mid.path))
     }
 
@@ -259,15 +259,15 @@ final class MidiExportFileTests: XCTestCase {
 
     /// The dispatcher prunes only after a success, so a canceled export
     /// costs no older file.
-    func testACanceledExportPrunesNothing() throws {
+    func testACanceledExportPrunesNothing() async throws {
         var song = TestSongs.empty(name: "Old", tempo: 240)
         song.patterns[0].rows[0][0] = 60
-        let old = try export(song, as: .midi)
+        let old = try await export(song, as: .midi)
 
         song.name = "New"
         var options = ExportOptions()
         options.format = .midi
-        let result = Export.render(ExportRequest(song: song, options: options, isCanceled: { true }))
+        let result = await Export.render(ExportRequest(song: song, options: options, isCanceled: { true }))
         guard case .canceled = result else { return XCTFail("expected a cancel, got \(result)") }
         XCTAssertEqual(try fileNames(in: old.deletingLastPathComponent()), ["Old.mid"])
     }

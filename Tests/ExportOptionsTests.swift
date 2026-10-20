@@ -536,17 +536,17 @@ final class ExportFormatTests: XCTestCase {
         XCTAssertNil(ExportOptions.Format(fileExtension: ""))
     }
 
-    func testWavFormatRendersAWavFile() throws {
-        guard case .success(let url) = Export.render(ExportRequest(song: song())) else {
+    func testWavFormatRendersAWavFile() async throws {
+        guard case .success(let url) = await Export.render(ExportRequest(song: song())) else {
             return XCTFail("a default export should succeed")
         }
         XCTAssertEqual(url.pathExtension, "wav")
     }
 
-    func testMidiFormatRendersAMidFile() throws {
+    func testMidiFormatRendersAMidFile() async throws {
         var options = ExportOptions()
         options.format = .midi
-        guard case .success(let url) = Export.render(ExportRequest(song: song(), options: options)) else {
+        guard case .success(let url) = await Export.render(ExportRequest(song: song(), options: options)) else {
             return XCTFail("a MIDI export should succeed")
         }
         XCTAssertEqual(url.pathExtension, "mid")
@@ -555,14 +555,14 @@ final class ExportFormatTests: XCTestCase {
 
     /// The WAV size limit is a RIFF constraint; a MIDI file of the longest
     /// arrangement and the most repeats is still a few kilobytes.
-    func testMidiNeverReportsTooLong() {
+    func testMidiNeverReportsTooLong() async {
         var song = song()
         song.tempo = 30
         var options = ExportOptions()
         options.format = .midi
         options.loopCount = ExportOptions.maxLoopCount
         options.tailMode = .ringOut
-        if case .tooLong = Export.render(ExportRequest(song: song, options: options)) {
+        if case .tooLong = await Export.render(ExportRequest(song: song, options: options)) {
             XCTFail("MIDI has no WAV size limit")
         }
     }
