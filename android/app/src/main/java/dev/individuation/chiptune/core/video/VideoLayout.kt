@@ -231,8 +231,10 @@ class VideoLayout(trackCount: Int) {
         const val HEIGHT = 1920
         /** Kept clear at the top: 12.5% of the height. */
         const val TOP_BAND = 240.0
-        /** Kept clear at the bottom: about 21%, where the caption sits. */
-        const val BOTTOM_BAND = 400.0
+        /** Kept clear at the bottom: a quarter of the height. TikTok's
+         * caption, account name and sound line reach about 480px up on a
+         * long caption. */
+        const val BOTTOM_BAND = 480.0
         /** Wide enough on the right to clear TikTok's button column; the same
          * on the left so the content stays centred. */
         const val SIDE_MARGIN = 120.0

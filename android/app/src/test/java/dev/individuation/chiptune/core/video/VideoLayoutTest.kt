@@ -22,7 +22,16 @@ class VideoLayoutTest {
         val safe = VideoLayout.safeRect
         assertTrue(frame.contains(safe))
         assertTrue(safe.minY >= 1920 * 0.12)
-        assertTrue(safe.maxY <= 1920 * 0.80)
+        assertTrue(safe.maxY <= 1920 - CAPTION_REACH)
+    }
+
+    @Test fun theBottomBandClearsALongTikTokCaption() {
+        assertTrue(VideoLayout.BOTTOM_BAND >= CAPTION_REACH)
+        for (count in listOf(1, 4, 8)) {
+            val layout = VideoLayout(count)
+            listOf("tag" to VideoLayout.tagRect, "grid" to layout.gridRect, "cartridge" to layout.cartridgeRect)
+                .forEach { (name, rect) -> assertTrue("$count / $name", rect.maxY <= 1920 - CAPTION_REACH) }
+        }
     }
 
     // MARK: Grid
@@ -129,11 +138,11 @@ class VideoLayoutTest {
 
     /** The same numbers as iOS, so the two platforms' frames line up. */
     @Test fun theGeometryMatchesIos() {
-        assertEquals(FrameRect(120.0, 240.0, 840.0, 1280.0), VideoLayout.safeRect)
-        assertEquals(FrameRect(120.0, 1480.0, 420.0, 40.0), VideoLayout.tagRect)
+        assertEquals(FrameRect(120.0, 240.0, 840.0, 1200.0), VideoLayout.safeRect)
+        assertEquals(FrameRect(120.0, 1400.0, 420.0, 40.0), VideoLayout.tagRect)
         val layout = VideoLayout(4)
-        assertEquals(FrameRect(120.0, 470.0, 840.0, 986.0), layout.gridRect)
-        assertEquals(963.0, layout.playheadY, 0.0)
+        assertEquals(FrameRect(120.0, 470.0, 840.0, 906.0), layout.gridRect)
+        assertEquals(923.0, layout.playheadY, 0.0)
         assertEquals(180.0, layout.columnWidth, 0.0)
         assertEquals(85.0, VideoLayout(8).columnWidth, 0.0)
         assertEquals(25.0, VideoLayout(8).cellFontSize, 0.0)
@@ -240,18 +249,18 @@ class VideoLayoutTest {
      * the same cartridge. */
     @Test fun theCartridgeGeometryMatchesIos() {
         val layout = VideoLayout(4)
-        assertEquals(FrameRect(150.0, 252.0, 780.0, 1180.0), layout.cartridgeRect)
+        assertEquals(FrameRect(150.0, 252.0, 780.0, 1100.0), layout.cartridgeRect)
         assertEquals(96.0, layout.cartridgeNotch, 0.0)
         assertEquals(28.0, layout.cartridgeCornerRadius, 0.0)
         assertEquals(5, layout.gripRidgeRects.size)
         assertEquals(FrameRect(214.0, 286.0, 580.0, 8.0), layout.gripRidgeRects.firstOrNull())
-        assertEquals(FrameRect(202.0, 402.0, 676.0, 854.0), layout.labelRecessRect)
-        assertEquals(FrameRect(216.0, 416.0, 648.0, 826.0), layout.labelRect)
-        assertEquals(FrameRect(508.0, 1316.0, 64.0, 56.0), layout.triangleRect)
+        assertEquals(FrameRect(202.0, 402.0, 676.0, 774.0), layout.labelRecessRect)
+        assertEquals(FrameRect(216.0, 416.0, 648.0, 746.0), layout.labelRect)
+        assertEquals(FrameRect(508.0, 1236.0, 64.0, 56.0), layout.triangleRect)
         assertEquals(FrameRect(256.0, 456.0, 568.0, 190.0), layout.coverTitleRect)
-        assertEquals(FrameRect(256.0, 1142.0, 568.0, 14.0), layout.coverProgressRect)
-        assertEquals(FrameRect(256.0, 752.0, 124.0, 300.0), layout.coverBarRect(0))
-        assertEquals(FrameRect(774.0, 752.0, 50.0, 300.0), VideoLayout(8).coverBarRect(7))
+        assertEquals(FrameRect(256.0, 1062.0, 568.0, 14.0), layout.coverProgressRect)
+        assertEquals(FrameRect(256.0, 752.0, 124.0, 220.0), layout.coverBarRect(0))
+        assertEquals(FrameRect(774.0, 752.0, 50.0, 220.0), VideoLayout(8).coverBarRect(7))
     }
 
     // MARK: Tag
@@ -259,7 +268,7 @@ class VideoLayoutTest {
     @Test fun theTagIsInsideTheFrameAndClearOfTheBottomOverlays() {
         val tag = VideoLayout.tagRect
         assertTrue(frame.contains(tag))
-        assertTrue(tag.maxY <= 1920 * 0.80)
+        assertTrue(tag.maxY <= 1920 - CAPTION_REACH)
         assertTrue(tag.minY >= 1920 * 0.12)
         assertTrue(tag.minX >= VideoLayout.safeRect.minX)
         assertTrue(tag.maxY <= VideoLayout.HEIGHT - VideoLayout.BOTTOM_BAND)
@@ -276,5 +285,11 @@ class VideoLayoutTest {
         val layout = VideoLayout(8)
         assertFalse(VideoLayout.tagRect.intersects(layout.gridRect))
         assertFalse(VideoLayout.tagRect.intersects(layout.cartridgeRect))
+    }
+
+    private companion object {
+        /** TikTok's caption, account name and sound line can stack up to
+         * about 480px from the bottom of a 1920px frame on a long caption. */
+        const val CAPTION_REACH = 480.0
     }
 }
