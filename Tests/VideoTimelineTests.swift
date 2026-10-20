@@ -53,19 +53,36 @@ final class VideoTimelineTests: XCTestCase {
         XCTAssertEqual(timeline.position(frame: onePass), .init(chainSlot: 0, pattern: 0, step: 0))
     }
 
+    /// Worked by hand: four steps of 4410 is a 17640-sample body. The one
+    /// noted track decays over 1.7s, so the tail is 1.5 × 1.7 = 2.55s, and
+    /// 44100 × 2.55 comes to 112454.99… in doubles, truncated to 112454.
+    /// 130094 samples is 88 frames of 1470 and 734 over: 89 frames.
     func testTailFramesShowNoStepAndTheFrameCountCoversTheAudio() {
-        let song = evenSong()
+        var song = evenSong()
+        song.tracks[0].instrument.decay = 1.7
         let timeline = VideoTimeline(song: song, options: videoOptions())
-        let body = 4 * 4410
-        let tail = Int(44100 * WavExport.tailSeconds(for: song))
-        XCTAssertEqual(timeline.bodySamples, body)
-        XCTAssertEqual(timeline.tailSamples, tail)
-        XCTAssertEqual(timeline.totalSamples, body + tail)
-        XCTAssertEqual(timeline.totalFrames,
-                       Int((Double(body + tail) / 44100 * 30).rounded(.up)))
-        XCTAssertNotNil(timeline.position(frame: body / 1470 - 1))
-        XCTAssertNil(timeline.position(frame: body / 1470))
-        XCTAssertNil(timeline.position(frame: timeline.totalFrames - 1))
+        XCTAssertEqual(timeline.bodySamples, 17640)
+        XCTAssertEqual(timeline.tailSamples, 112454)
+        XCTAssertEqual(timeline.totalSamples, 130094)
+        XCTAssertEqual(timeline.totalFrames, 89)
+        XCTAssertNotNil(timeline.position(frame: 11))
+        XCTAssertNil(timeline.position(frame: 12))
+        XCTAssertNil(timeline.position(frame: 88))
+    }
+
+    /// The tail follows the longest decay that can be heard: a muted track's
+    /// longer decay doesn't count, and neither does a sustaining one's.
+    /// Track 0 decays over 0.9s: 1.35s of tail, 59535 samples.
+    func testTheTailIgnoresMutedAndSustainingTracks() {
+        var song = evenSong()
+        song.tracks[0].instrument.decay = 0.9
+        song.tracks[1].instrument.decay = 3.0
+        song.tracks[1].muted = true
+        song.patterns[0].rows[1][0] = 64
+        song.tracks[2].instrument.decay = 2.5
+        song.tracks[2].instrument.sustain = true
+        song.patterns[0].rows[2][1] = 40
+        XCTAssertEqual(VideoTimeline(song: song, options: videoOptions()).tailSamples, 59535)
     }
 
     /// The timeline's length is the soundtrack's length, so the video ends

@@ -71,8 +71,17 @@ final class VideoExportOptionsTests: XCTestCase {
     /// The WAV under a video carries the ring-out, so the picture has a tail
     /// to end on: a video request renders body plus tail even with Seamless
     /// loop still selected from an earlier WAV export.
+    ///
+    /// Worked by hand: 240 BPM is 2756.25 samples a step, rounded to 2756,
+    /// so four steps are 11024. The noted track decays over 1.7s (the muted
+    /// one's 3s doesn't ring), so the tail is 2.55s: 112454 samples,
+    /// truncated. 123478 in all.
     func testAVideoRequestRendersItsAudioWithTheTail() throws {
-        let song = song()
+        var song = song()
+        song.tracks[0].instrument.decay = 1.7
+        song.tracks[1].instrument.decay = 3.0
+        song.tracks[1].muted = true
+        song.patterns[0].rows[1][0] = 64
         var options = ExportOptions()
         options.format = .video
         options.tailMode = .seamlessLoop
@@ -82,11 +91,8 @@ final class VideoExportOptionsTests: XCTestCase {
         guard case .success = WavExport.render(ExportRequest(song: song, options: options), to: scratch) else {
             return XCTFail("render failed")
         }
-        let perStep = Chip.samplesPerStep(tempo: song.tempo, sampleRate: WavExport.sampleRate)
-        let body = perStep * song.arrangementSteps
-        let tail = Int(WavExport.sampleRate * WavExport.tailSeconds(for: song))
         let bytes = try Data(contentsOf: scratch).count
-        XCTAssertEqual((bytes - 44) / 2, body + tail)
+        XCTAssertEqual((bytes - 44) / 2, 123478)
     }
 
     // MARK: Destination
