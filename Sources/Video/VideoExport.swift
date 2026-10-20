@@ -185,55 +185,63 @@ enum VideoExport {
         var audioDone = false
         var reported = audioShare
         while frame < totalFrames || !audioDone {
-            if request.isCanceled() {
-                abandon()
-                return .canceled
-            }
-            var moved = false
-            if frame < totalFrames, videoInput.isReadyForMoreMediaData {
-                guard let buffer = drawFrame(frame, renderer: renderer, pool: adaptor.pixelBufferPool),
-                      adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(frame),
-                                                                          timescale: CMTimeScale(VideoTimeline.fps))) else {
-                    let error = writer.error ?? CocoaError(.fileWriteUnknown)
+            // Each pass drains its own autoreleased objects — the pixel
+            // buffer, the audio sample buffer, whatever AVFoundation hands
+            // back — rather than letting a ten-minute render pile them up
+            // until the loop ends. nil carries on; a result ends the render.
+            let outcome: ExportResult? = autoreleasepool {
+                if request.isCanceled() {
                     abandon()
-                    return .failed(error)
+                    return .canceled
                 }
-                frame += 1
-                if frame == totalFrames { videoInput.markAsFinished() }
-                moved = true
-                // At most a hundred hops to the main actor, as the WAV
-                // render does.
-                let fraction = audioShare + (1 - audioShare) * Double(frame) / Double(totalFrames)
-                if fraction - reported >= 0.01, fraction < 1 {
-                    reported = fraction
-                    request.progress(fraction)
-                }
-            }
-            if !audioDone, audioInput.isReadyForMoreMediaData {
-                if let sample = audioOutput.copyNextSampleBuffer() {
-                    guard audioInput.append(sample) else {
+                var moved = false
+                if frame < totalFrames, videoInput.isReadyForMoreMediaData {
+                    guard let buffer = drawFrame(frame, renderer: renderer, pool: adaptor.pixelBufferPool),
+                          adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(frame),
+                                                                              timescale: CMTimeScale(VideoTimeline.fps))) else {
                         let error = writer.error ?? CocoaError(.fileWriteUnknown)
                         abandon()
                         return .failed(error)
                     }
-                } else {
-                    if reader.status == .failed {
-                        let error = reader.error ?? CocoaError(.fileReadUnknown)
-                        abandon()
-                        return .failed(error)
+                    frame += 1
+                    if frame == totalFrames { videoInput.markAsFinished() }
+                    moved = true
+                    // At most a hundred hops to the main actor, as the WAV
+                    // render does.
+                    let fraction = audioShare + (1 - audioShare) * Double(frame) / Double(totalFrames)
+                    if fraction - reported >= 0.01, fraction < 1 {
+                        reported = fraction
+                        request.progress(fraction)
                     }
-                    audioInput.markAsFinished()
-                    audioDone = true
                 }
-                moved = true
+                if !audioDone, audioInput.isReadyForMoreMediaData {
+                    if let sample = audioOutput.copyNextSampleBuffer() {
+                        guard audioInput.append(sample) else {
+                            let error = writer.error ?? CocoaError(.fileWriteUnknown)
+                            abandon()
+                            return .failed(error)
+                        }
+                    } else {
+                        if reader.status == .failed {
+                            let error = reader.error ?? CocoaError(.fileReadUnknown)
+                            abandon()
+                            return .failed(error)
+                        }
+                        audioInput.markAsFinished()
+                        audioDone = true
+                    }
+                    moved = true
+                }
+                if writer.status == .failed {
+                    let error = writer.error ?? CocoaError(.fileWriteUnknown)
+                    abandon()
+                    return .failed(error)
+                }
+                // Neither input wants anything yet: the encoders are busy.
+                if !moved { usleep(1000) }
+                return nil
             }
-            if writer.status == .failed {
-                let error = writer.error ?? CocoaError(.fileWriteUnknown)
-                abandon()
-                return .failed(error)
-            }
-            // Neither input wants anything yet: the encoders are busy.
-            if !moved { usleep(1000) }
+            if let outcome { return outcome }
         }
 
         // The last frame stays up to the end of the audio, so the file is as
@@ -280,9 +288,7 @@ enum VideoExport {
         // UIKit's orientation: y runs down from the top, as VideoLayout's does.
         context.translateBy(x: 0, y: CGFloat(height))
         context.scaleBy(x: 1, y: -1)
-        autoreleasepool {
-            renderer.draw(frame: frame, in: context)
-        }
+        renderer.draw(frame: frame, in: context)
         return buffer
     }
 }
