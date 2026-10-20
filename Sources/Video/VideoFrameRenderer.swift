@@ -8,8 +8,9 @@ import UIKit
 /// Grid: the current pattern scrolls up past a fixed playing row, as the
 /// header video on the product page does. The row that is sounding is at
 /// full colour; rows away from it dim into the background, so the eye stays
-/// on the beat. Cover: a card with the title, tempo and length, a bar per
-/// track that flashes on each note (`ChannelPulse`), and a progress bar.
+/// on the beat. Cover (shown as "Cartridge"): a grey game cartridge whose
+/// label carries the title, tempo and length, a bar per track that flashes
+/// on each note (`ChannelPulse`), and a progress bar.
 /// Both carry the "Made with Chiptune" tag.
 final class VideoFrameRenderer {
     private let song: Song
@@ -160,21 +161,130 @@ final class VideoFrameRenderer {
         }
     }
 
-    // MARK: Cover
+    // MARK: Cartridge (the Cover style)
+
+    /// Grey plastic, lit from the top left: flat fills only, since H.264
+    /// bands gradients.
+    private enum Plastic {
+        static let body = RGBA(r: 0xBD / 255, g: 0xBA / 255, b: 0xB3 / 255)
+        static let highlight = RGBA(r: 0xDA / 255, g: 0xD7 / 255, b: 0xD0 / 255)
+        static let shade = RGBA(r: 0x8E / 255, g: 0x8B / 255, b: 0x84 / 255)
+        static let groove = RGBA(r: 0x9E / 255, g: 0x9B / 255, b: 0x94 / 255)
+        static let bevel = RGBA(r: 0xA8 / 255, g: 0xA5 / 255, b: 0x9E / 255)
+        static let recessDark = RGBA(r: 0x7C / 255, g: 0x79 / 255, b: 0x73 / 255)
+    }
+    /// How far the lit and shaded edges reach in from the outline.
+    private static let edge: CGFloat = 7
+
+    /// The body with its notch, the grip ridges, the sunken label and the
+    /// moulded arrow. The song's own content is drawn on the label after.
+    private func drawCartridge(in context: CGContext) {
+        let cart = layout.cartridgeRect
+        let body = Self.cartridgePath(cart, notch: layout.cartridgeNotch, radius: layout.cartridgeCornerRadius)
+
+        // A soft shadow under the whole body.
+        context.saveGState()
+        context.setShadow(offset: CGSize(width: 0, height: 26), blur: 60,
+                          color: UIColor.black.withAlphaComponent(0.7).cgColor)
+        Plastic.shade.uiColor.setFill()
+        body.fill()
+        context.restoreGState()
+
+        // Edges: lit top and left, shaded bottom and right, then the face.
+        context.saveGState()
+        body.addClip()
+        Plastic.highlight.uiColor.setFill()
+        body.fill()
+        Plastic.shade.uiColor.setFill()
+        Self.cartridgePath(cart.offsetBy(dx: Self.edge, dy: Self.edge), notch: layout.cartridgeNotch,
+                           radius: layout.cartridgeCornerRadius).fill()
+        Plastic.body.uiColor.setFill()
+        Self.cartridgePath(cart.insetBy(dx: Self.edge, dy: Self.edge), notch: layout.cartridgeNotch - 3,
+                           radius: layout.cartridgeCornerRadius - Self.edge).fill()
+        context.restoreGState()
+
+        // Grip ridges: a groove with a lit lip under it.
+        for ridge in layout.gripRidgeRects {
+            Plastic.groove.uiColor.setFill()
+            UIBezierPath(roundedRect: ridge, cornerRadius: ridge.height / 2).fill()
+            Plastic.highlight.uiColor.setFill()
+            UIBezierPath(roundedRect: CGRect(x: ridge.minX, y: ridge.maxY, width: ridge.width, height: 3),
+                         cornerRadius: 1.5).fill()
+        }
+
+        // The recess: shaded on its top and left, where the rim overhangs,
+        // lit on its bottom and right.
+        let recess = layout.labelRecessRect
+        let recessRadius: CGFloat = 22
+        let recessPath = UIBezierPath(roundedRect: recess, cornerRadius: recessRadius)
+        context.saveGState()
+        recessPath.addClip()
+        Plastic.highlight.uiColor.setFill()
+        recessPath.fill()
+        Plastic.recessDark.uiColor.setFill()
+        UIBezierPath(roundedRect: recess.offsetBy(dx: -5, dy: -5), cornerRadius: recessRadius).fill()
+        Plastic.bevel.uiColor.setFill()
+        UIBezierPath(roundedRect: recess.insetBy(dx: 5, dy: 5), cornerRadius: recessRadius - 5).fill()
+        context.restoreGState()
+
+        // The label itself, on the app's own background.
+        Palette.background.uiColor.setFill()
+        UIBezierPath(roundedRect: layout.labelRect, cornerRadius: 12).fill()
+
+        // The arrow moulded under the label: a slightly sunken triangle with
+        // a lit lower edge.
+        let tri = layout.triangleRect
+        Plastic.highlight.uiColor.setFill()
+        Self.triangle(tri.offsetBy(dx: 0, dy: 3)).fill()
+        Plastic.groove.uiColor.setFill()
+        Self.triangle(tri).fill()
+    }
+
+    /// A cartridge outline in `rect`: the top-right corner cut by a diagonal
+    /// `notch` long on each leg, the other three rounded by `radius`.
+    private static func cartridgePath(_ rect: CGRect, notch: CGFloat, radius: CGFloat) -> UIBezierPath {
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY + radius))
+        path.addArc(withCenter: CGPoint(x: rect.minX + radius, y: rect.minY + radius), radius: radius,
+                    startAngle: .pi, endAngle: .pi * 1.5, clockwise: true)
+        path.addLine(to: CGPoint(x: rect.maxX - notch, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + notch))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - radius))
+        path.addArc(withCenter: CGPoint(x: rect.maxX - radius, y: rect.maxY - radius), radius: radius,
+                    startAngle: 0, endAngle: .pi / 2, clockwise: true)
+        path.addLine(to: CGPoint(x: rect.minX + radius, y: rect.maxY))
+        path.addArc(withCenter: CGPoint(x: rect.minX + radius, y: rect.maxY - radius), radius: radius,
+                    startAngle: .pi / 2, endAngle: .pi, clockwise: true)
+        path.close()
+        return path
+    }
+
+    /// An upward-pointing triangle filling `rect`.
+    private static func triangle(_ rect: CGRect) -> UIBezierPath {
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.close()
+        return path
+    }
 
     private func drawCover(frame: Int, in context: CGContext) {
-        let card = UIBezierPath(roundedRect: layout.coverCardRect, cornerRadius: Theme.panelRadius * 3)
-        Palette.panel.uiColor.setFill()
-        card.fill()
-        Palette.grid.uiColor.setStroke()
-        card.lineWidth = 2
-        card.stroke()
+        drawCartridge(in: context)
 
+        let titleRect = layout.coverTitleRect
         Self.text(song.name, size: layout.coverTitleFontSize, weight: .bold, color: Palette.text,
-                  in: layout.coverTitleRect, lines: 2)
+                  in: titleRect, lines: 2)
+        // The tempo line sits under the title as drawn, so a one-line title
+        // doesn't leave a gap where a second line would go.
+        let titleFont = UIFont.monospacedSystemFont(ofSize: layout.coverTitleFontSize, weight: .bold)
+        let titleWidth = (song.name as NSString).size(withAttributes: [.font: titleFont]).width
+        let titleLines: CGFloat = titleWidth > titleRect.width ? 2 : 1
+        var meta = layout.coverMetaRect
+        meta.origin.y = min(meta.minY, titleRect.minY + titleLines * titleFont.lineHeight + 8)
         let length = Self.clock(timeline.seconds)
         Self.text("\(Int(song.tempo)) BPM  ·  \(length)", size: layout.coverMetaFontSize, weight: .semibold,
-                  color: Palette.dim, in: layout.coverMetaRect)
+                  color: Palette.dim, in: meta)
 
         let levels = pulse.levels(frame: frame)
         for index in song.tracks.indices {

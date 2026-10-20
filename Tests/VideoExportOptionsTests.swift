@@ -45,7 +45,7 @@ final class VideoExportOptionsTests: XCTestCase {
     func testEachStyleHasALabel() {
         XCTAssertEqual(ExportOptions.VideoStyle.allCases, [.grid, .cover])
         XCTAssertEqual(ExportOptions.VideoStyle.grid.label, "Grid")
-        XCTAssertEqual(ExportOptions.VideoStyle.cover.label, "Cover")
+        XCTAssertEqual(ExportOptions.VideoStyle.cover.label, "Cartridge")
     }
 
     // MARK: Ending

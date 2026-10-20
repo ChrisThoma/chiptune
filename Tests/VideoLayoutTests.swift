@@ -115,24 +115,118 @@ final class VideoLayoutTests: XCTestCase {
         XCTAssertLessThanOrEqual(layout.columnHeaderY + layout.columnHeaderHeight / 2, layout.gridRect.minY)
     }
 
-    // MARK: Cover
+    // MARK: Cartridge
 
-    func testCoverBarsSitSideBySideInsideTheCard() {
+    /// A tall cartridge, centred, with room left round it for its shadow.
+    func testTheCartridgeSitsInsideTheSafeArea() {
+        for count in [1, 4, 8] {
+            let cart = VideoLayout(trackCount: count).cartridgeRect
+            XCTAssertTrue(VideoLayout.safeRect.contains(cart), "\(count)")
+            XCTAssertGreaterThan(cart.height, cart.width, "\(count)")
+            XCTAssertEqual(cart.midX, VideoLayout.safeRect.midX, accuracy: 0.5)
+        }
+    }
+
+    /// The outline runs clockwise from the top-left corner; its second and
+    /// third points are the ends of the diagonal cut off the top-right
+    /// corner, which stays above the label.
+    func testTheNotchIsCutFromTheTopRightCorner() {
+        let layout = VideoLayout(trackCount: 4)
+        let cart = layout.cartridgeRect
+        let outline = layout.cartridgeOutline
+        XCTAssertEqual(outline.count, 5)
+        XCTAssertEqual(outline[0], CGPoint(x: cart.minX, y: cart.minY))
+        XCTAssertEqual(outline[1], CGPoint(x: cart.maxX - layout.cartridgeNotch, y: cart.minY))
+        XCTAssertEqual(outline[2], CGPoint(x: cart.maxX, y: cart.minY + layout.cartridgeNotch))
+        XCTAssertEqual(outline[3], CGPoint(x: cart.maxX, y: cart.maxY))
+        XCTAssertEqual(outline[4], CGPoint(x: cart.minX, y: cart.maxY))
+        XCTAssertGreaterThan(layout.cartridgeNotch, layout.cartridgeCornerRadius)
+        XCTAssertGreaterThan(outline[1].x, cart.midX)
+        XCTAssertLessThan(outline[2].y, layout.labelRecessRect.minY)
+    }
+
+    /// Grip ridges stack across the band above the label, inside the body
+    /// and clear of the notch's diagonal.
+    func testGripRidgesRunAcrossTheTopBand() {
+        let layout = VideoLayout(trackCount: 4)
+        let cart = layout.cartridgeRect
+        let ridges = layout.gripRidgeRects
+        XCTAssertGreaterThanOrEqual(ridges.count, 4)
+        var previous: CGRect?
+        for (index, ridge) in ridges.enumerated() {
+            XCTAssertTrue(cart.contains(ridge), "\(index)")
+            XCTAssertGreaterThan(ridge.minY, cart.minY, "\(index)")
+            XCTAssertLessThan(ridge.maxY, layout.labelRecessRect.minY, "\(index)")
+            XCTAssertGreaterThan(ridge.width, cart.width / 2, "\(index)")
+            // The top-right corner is inside the body, not in the cut.
+            XCTAssertLessThanOrEqual(ridge.maxX - (cart.maxX - layout.cartridgeNotch), ridge.minY - cart.minY, "\(index)")
+            if let previous { XCTAssertLessThan(previous.maxY, ridge.minY, "\(index)") }
+            previous = ridge
+        }
+    }
+
+    /// The label sits in a recess that takes most of the body, with a bevel
+    /// of plastic all round it.
+    func testTheLabelIsInsetInsideTheBody() {
+        let layout = VideoLayout(trackCount: 4)
+        let cart = layout.cartridgeRect
+        let recess = layout.labelRecessRect
+        let label = layout.labelRect
+        XCTAssertTrue(cart.insetBy(dx: 24, dy: 24).contains(recess))
+        XCTAssertTrue(recess.insetBy(dx: 8, dy: 8).contains(label))
+        XCTAssertGreaterThan(label.width * label.height, cart.width * cart.height / 2)
+    }
+
+    func testTheTitleBarsAndProgressSitInsideTheLabel() {
         for count in [1, 4, 8] {
             let layout = VideoLayout(trackCount: count)
-            XCTAssertTrue(VideoLayout.safeRect.contains(layout.coverCardRect))
+            let label = layout.labelRect
+            for (name, rect) in [("title", layout.coverTitleRect), ("meta", layout.coverMetaRect),
+                                 ("progress", layout.coverProgressRect), ("times", layout.coverTimeRect)] {
+                XCTAssertTrue(label.contains(rect), "\(count) / \(name)")
+            }
             var previous: CGRect?
             for track in 0..<count {
                 let bar = layout.coverBarRect(track: track)
-                XCTAssertTrue(layout.coverCardRect.contains(bar), "\(count) / \(track)")
+                XCTAssertTrue(label.contains(bar), "\(count) / \(track)")
                 XCTAssertGreaterThan(bar.height, 200)
+                XCTAssertGreaterThanOrEqual(bar.width, 40)
                 if let previous { XCTAssertLessThan(previous.maxX, bar.minX) }
                 previous = bar
             }
-            XCTAssertTrue(layout.coverCardRect.contains(layout.coverProgressRect))
-            XCTAssertLessThan(layout.coverTitleRect.maxY, layout.coverBarRect(track: 0).minY)
-            XCTAssertLessThan(layout.coverBarRect(track: 0).maxY, layout.coverProgressRect.minY)
+            XCTAssertLessThan(layout.coverMetaRect.maxY, layout.coverBarRect(track: 0).minY)
+            XCTAssertLessThan(layout.coverBarRect(track: 0).maxY, layout.coverBarLabelY - 20)
+            XCTAssertLessThan(layout.coverBarLabelY + 20, layout.coverProgressRect.minY)
         }
+    }
+
+    /// The moulded arrow sits in the plastic under the label.
+    func testTheTriangleSitsBetweenTheLabelAndTheBodysBottom() {
+        let layout = VideoLayout(trackCount: 4)
+        let triangle = layout.triangleRect
+        XCTAssertGreaterThan(triangle.minY, layout.labelRecessRect.maxY)
+        XCTAssertLessThan(triangle.maxY, layout.cartridgeRect.maxY)
+        XCTAssertEqual(triangle.midX, layout.cartridgeRect.midX, accuracy: 0.5)
+        XCTAssertGreaterThan(triangle.width, 0)
+        XCTAssertGreaterThan(triangle.height, 0)
+    }
+
+    /// The numbers Android's VideoLayoutTest pins too, so both platforms
+    /// draw the same cartridge.
+    func testTheCartridgeGeometryIsPinned() {
+        let layout = VideoLayout(trackCount: 4)
+        XCTAssertEqual(layout.cartridgeRect, CGRect(x: 150, y: 252, width: 780, height: 1180))
+        XCTAssertEqual(layout.cartridgeNotch, 96)
+        XCTAssertEqual(layout.cartridgeCornerRadius, 28)
+        XCTAssertEqual(layout.gripRidgeRects.count, 5)
+        XCTAssertEqual(layout.gripRidgeRects.first, CGRect(x: 214, y: 286, width: 580, height: 8))
+        XCTAssertEqual(layout.labelRecessRect, CGRect(x: 202, y: 402, width: 676, height: 854))
+        XCTAssertEqual(layout.labelRect, CGRect(x: 216, y: 416, width: 648, height: 826))
+        XCTAssertEqual(layout.triangleRect, CGRect(x: 508, y: 1316, width: 64, height: 56))
+        XCTAssertEqual(layout.coverTitleRect, CGRect(x: 256, y: 456, width: 568, height: 190))
+        XCTAssertEqual(layout.coverProgressRect, CGRect(x: 256, y: 1142, width: 568, height: 14))
+        XCTAssertEqual(layout.coverBarRect(track: 0), CGRect(x: 256, y: 752, width: 124, height: 300))
+        XCTAssertEqual(VideoLayout(trackCount: 8).coverBarRect(track: 7), CGRect(x: 774, y: 752, width: 50, height: 300))
     }
 
     // MARK: Tag
@@ -143,11 +237,19 @@ final class VideoLayoutTests: XCTestCase {
         XCTAssertLessThanOrEqual(tag.maxY, 1920 * 0.80)
         XCTAssertGreaterThanOrEqual(tag.minY, 1920 * 0.12)
         XCTAssertGreaterThanOrEqual(tag.minX, VideoLayout.safeRect.minX)
+        XCTAssertLessThanOrEqual(tag.maxY, VideoLayout.size.height - VideoLayout.bottomBand)
+    }
+
+    /// "Made with Chiptune" sits under the cartridge, not on it.
+    func testTheTagSitsBelowTheCartridge() {
+        for count in [1, 4, 8] {
+            XCTAssertGreaterThan(VideoLayout.tagRect.minY, VideoLayout(trackCount: count).cartridgeRect.maxY)
+        }
     }
 
     func testTheTagOverlapsNeitherStylesContent() {
         let layout = VideoLayout(trackCount: 8)
         XCTAssertFalse(VideoLayout.tagRect.intersects(layout.gridRect))
-        XCTAssertFalse(VideoLayout.tagRect.intersects(layout.coverCardRect))
+        XCTAssertFalse(VideoLayout.tagRect.intersects(layout.cartridgeRect))
     }
 }

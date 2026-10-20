@@ -62,13 +62,14 @@ struct ExportOptions: Equatable, Sendable {
     enum VideoStyle: Equatable, Sendable, CaseIterable {
         /// The pattern grid scrolling past a fixed playing row, as in the app.
         case grid
-        /// A title card with a bar per track that pulses on each note.
+        /// A game cartridge whose label carries the title and a bar per
+        /// track that pulses on each note. Shown as "Cartridge".
         case cover
 
         var label: String {
             switch self {
             case .grid: return "Grid"
-            case .cover: return "Cover"
+            case .cover: return "Cartridge"
             }
         }
     }

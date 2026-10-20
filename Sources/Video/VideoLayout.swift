@@ -130,23 +130,72 @@ struct VideoLayout {
         return lo...max(min(upper, last), lo)
     }
 
-    // MARK: Cover
+    // MARK: Cartridge (the Cover style)
 
-    /// The cartridge-style card everything in the Cover style sits on.
-    var coverCardRect: CGRect {
-        CGRect(x: Self.safeRect.minX, y: Self.safeRect.minY,
-               width: Self.safeRect.width, height: Self.contentBottom - Self.safeRect.minY)
+    /// The cartridge's body: a tall slab of grey plastic, centred, a little
+    /// inside the safe area so its shadow has room.
+    var cartridgeRect: CGRect {
+        let width: CGFloat = 780
+        let top = Self.safeRect.minY + 12
+        return CGRect(x: Self.safeRect.midX - width / 2, y: top,
+                      width: width, height: Self.contentBottom - 24 - top)
     }
-    let coverPadding: CGFloat = 48
-    let coverTitleFontSize: CGFloat = 76
-    let coverMetaFontSize: CGFloat = 36
+    /// The legs of the diagonal cut off the top-right corner.
+    let cartridgeNotch: CGFloat = 96
+    /// The other three corners are rounded this much.
+    let cartridgeCornerRadius: CGFloat = 28
+
+    /// The body's corners, clockwise from the top left, with the notch's two
+    /// ends in place of the top-right corner. The renderer rounds the three
+    /// square corners by `cartridgeCornerRadius`.
+    var cartridgeOutline: [CGPoint] {
+        let cart = cartridgeRect
+        return [
+            CGPoint(x: cart.minX, y: cart.minY),
+            CGPoint(x: cart.maxX - cartridgeNotch, y: cart.minY),
+            CGPoint(x: cart.maxX, y: cart.minY + cartridgeNotch),
+            CGPoint(x: cart.maxX, y: cart.maxY),
+            CGPoint(x: cart.minX, y: cart.maxY),
+        ]
+    }
+
+    /// Grip ridges moulded across the top band, stopping short of the notch.
+    var gripRidgeRects: [CGRect] {
+        let cart = cartridgeRect
+        let left = cart.minX + 64
+        let right = cart.maxX - cartridgeNotch - 40
+        return (0..<5).map { index in
+            CGRect(x: left, y: cart.minY + 34 + CGFloat(index) * 22, width: right - left, height: 8)
+        }
+    }
+
+    /// The sunken area the label is stuck into. Its rim is the bevel.
+    var labelRecessRect: CGRect {
+        let cart = cartridgeRect
+        return CGRect(x: cart.minX + 52, y: cart.minY + 150,
+                      width: cart.width - 104, height: cart.height - 150 - 176)
+    }
+
+    /// The label: the app's dark background, carrying the song.
+    var labelRect: CGRect { labelRecessRect.insetBy(dx: 14, dy: 14) }
+
+    /// The bounding box of the arrow moulded under the label, pointing up.
+    var triangleRect: CGRect {
+        let cart = cartridgeRect
+        let width: CGFloat = 64, height: CGFloat = 56
+        let centerY = (labelRecessRect.maxY + cart.maxY) / 2
+        return CGRect(x: cart.midX - width / 2, y: centerY - height / 2, width: width, height: height)
+    }
+
+    let coverPadding: CGFloat = 40
+    let coverTitleFontSize: CGFloat = 72
+    let coverMetaFontSize: CGFloat = 34
     let coverLabelFontSize: CGFloat = 26
 
     /// Up to two lines of title.
     var coverTitleRect: CGRect {
-        let card = coverCardRect
-        return CGRect(x: card.minX + coverPadding, y: card.minY + 56,
-                      width: card.width - 2 * coverPadding, height: 190)
+        CGRect(x: labelRect.minX + coverPadding, y: labelRect.minY + coverPadding,
+               width: labelRect.width - 2 * coverPadding, height: 190)
     }
 
     /// Tempo and length.
@@ -156,9 +205,8 @@ struct VideoLayout {
     }
 
     var coverProgressRect: CGRect {
-        let card = coverCardRect
-        return CGRect(x: card.minX + coverPadding, y: card.maxY - 110,
-                      width: card.width - 2 * coverPadding, height: 14)
+        CGRect(x: labelRect.minX + coverPadding, y: labelRect.maxY - 100,
+               width: labelRect.width - 2 * coverPadding, height: 14)
     }
 
     /// Elapsed and total time, under the progress bar.
@@ -168,11 +216,11 @@ struct VideoLayout {
     }
 
     private var coverBarGap: CGFloat { 24 }
-    private var coverBarsTop: CGFloat { coverMetaRect.maxY + 60 }
+    private var coverBarsTop: CGFloat { coverMetaRect.maxY + 50 }
     /// Room under the bars for each track's name.
-    private var coverBarsBottom: CGFloat { coverProgressRect.minY - 100 }
+    private var coverBarsBottom: CGFloat { coverProgressRect.minY - 90 }
     private var coverBarWidth: CGFloat {
-        let available = coverCardRect.width - 2 * coverPadding - coverBarGap * CGFloat(trackCount - 1)
+        let available = labelRect.width - 2 * coverPadding - coverBarGap * CGFloat(trackCount - 1)
         return min(140, (available / CGFloat(trackCount)).rounded(.down))
     }
 
@@ -180,7 +228,7 @@ struct VideoLayout {
     /// bottom by the track's pulse.
     func coverBarRect(track: Int) -> CGRect {
         let total = CGFloat(trackCount) * coverBarWidth + CGFloat(trackCount - 1) * coverBarGap
-        let x = coverCardRect.midX - total / 2 + CGFloat(track) * (coverBarWidth + coverBarGap)
+        let x = labelRect.midX - total / 2 + CGFloat(track) * (coverBarWidth + coverBarGap)
         return CGRect(x: x, y: coverBarsTop, width: coverBarWidth, height: coverBarsBottom - coverBarsTop)
     }
 
