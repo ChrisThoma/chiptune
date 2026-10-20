@@ -110,7 +110,7 @@ final class VideoFrameRenderer {
         for index in song.tracks.indices {
             let track = song.tracks[index]
             let cell = layout.columnHeaderRect(track: index)
-            let color = track.muted ? Palette.dim : Palette.channel(track.kind)
+            let color = Self.dimsName(of: track, in: .grid) ? Palette.dim : Palette.channel(track.kind)
             Self.text(song.label(for: index), size: layout.columnHeaderFontSize, weight: .bold,
                       color: color, in: cell, alignment: .center)
         }
@@ -300,7 +300,7 @@ final class VideoFrameRenderer {
                 Palette.channel(track.kind).uiColor.setFill()
                 UIBezierPath(roundedRect: lit, cornerRadius: radius).fill()
             }
-            let silent = MidiExport.isSilent(track)
+            let silent = Self.dimsName(of: track, in: .cover)
             let labelRect = layout.coverBarLabelRect(track: index)
             Self.text(song.label(for: index), size: layout.coverLabelFontSize, weight: .bold,
                       color: silent ? Palette.dim : Palette.channel(track.kind), in: labelRect, alignment: .center)
@@ -328,6 +328,13 @@ final class VideoFrameRenderer {
     private static func clock(_ seconds: Double) -> String {
         let whole = Int(max(seconds, 0))
         return String(format: "%d:%02d", whole / 60, whole % 60)
+    }
+
+    /// Whether a track's name is drawn dim, as one the soundtrack doesn't
+    /// play: muted, or at a volume the MIDI export calls silent. The same
+    /// rule in both styles, and the one that keeps a Cartridge bar dark.
+    static func dimsName(of track: Track, in style: ExportOptions.VideoStyle) -> Bool {
+        MidiExport.isSilent(track)
     }
 
     // MARK: Tag

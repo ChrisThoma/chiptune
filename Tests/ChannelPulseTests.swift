@@ -90,6 +90,29 @@ final class ChannelPulseTests: XCTestCase {
         XCTAssertEqual(pulse(quiet).levels(frame: 0)[0], 1)
     }
 
+    /// Both styles dim a track's name by the same rule the bars go dark by:
+    /// muted, or a volume the MIDI export would call silent.
+    func testBothStylesDimTheNamesOfTheSameSilentTracks() {
+        var muted = Track(kind: .pulse1)
+        muted.muted = true
+        var zero = Track(kind: .pulse2)
+        zero.instrument.volume = 0
+        var roundsToZero = Track(kind: .triangle)
+        roundsToZero.instrument.volume = 0.003
+        var quiet = Track(kind: .noise)
+        quiet.instrument.volume = 0.01
+        let cases: [(String, Track, Bool)] = [
+            ("muted", muted, true), ("volume 0", zero, true),
+            ("volume 0.003", roundsToZero, true), ("volume 0.01", quiet, false),
+            ("plain", Track(kind: .pulse1), false),
+        ]
+        for style in ExportOptions.VideoStyle.allCases {
+            for (name, track, dim) in cases {
+                XCTAssertEqual(VideoFrameRenderer.dimsName(of: track, in: style), dim, "\(style) / \(name)")
+            }
+        }
+    }
+
     /// The last note of the song keeps fading into the ring-out rather than
     /// switching off where the body ends.
     func testTheLastNoteFadesIntoTheTail() {
