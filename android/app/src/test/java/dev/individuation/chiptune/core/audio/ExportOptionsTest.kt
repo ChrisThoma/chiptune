@@ -155,7 +155,7 @@ class ExportOptionsTest {
     @Test fun eachStyleHasALabel() {
         assertEquals(listOf(ExportOptions.VideoStyle.GRID, ExportOptions.VideoStyle.COVER), ExportOptions.VideoStyle.entries)
         assertEquals("Grid", ExportOptions.VideoStyle.GRID.label)
-        assertEquals("Cover", ExportOptions.VideoStyle.COVER.label)
+        assertEquals("Cartridge", ExportOptions.VideoStyle.COVER.label)
     }
 
     @Test fun videoAlwaysRingsOut() {

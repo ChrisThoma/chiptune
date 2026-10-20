@@ -345,11 +345,11 @@ class ExportCopyTest {
         assertFalse(ExportCopy.hasStyle(ExportOptions.Format.MIDI))
     }
 
-    @Test fun styleSegmentsAreLabelledGridAndCover() {
+    @Test fun styleSegmentsAreLabelledGridAndCartridge() {
         assertEquals("Grid", ExportOptions.VideoStyle.GRID.label)
-        assertEquals("Cover", ExportOptions.VideoStyle.COVER.label)
+        assertEquals("Cartridge", ExportOptions.VideoStyle.COVER.label)
         assertEquals("Style, Grid", ExportCopy.styleSegment(ExportOptions.VideoStyle.GRID))
-        assertEquals("Style, Cover", ExportCopy.styleSegment(ExportOptions.VideoStyle.COVER))
+        assertEquals("Style, Cartridge", ExportCopy.styleSegment(ExportOptions.VideoStyle.COVER))
     }
 
     @Test fun anOverlongVideoBlocksTheExportButton() {

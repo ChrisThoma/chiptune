@@ -52,8 +52,9 @@ data class ExportOptions(
     enum class VideoStyle(val label: String) {
         /** The pattern grid scrolling past a fixed playing row, as in the app. */
         GRID("Grid"),
-        /** A title card with a bar per track that pulses on each note. */
-        COVER("Cover"),
+        /** A game cartridge whose label carries the title and a bar per track
+         * that pulses on each note. Shown as "Cartridge". */
+        COVER("Cartridge"),
     }
 
     enum class TailMode {

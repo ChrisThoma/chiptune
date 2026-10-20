@@ -140,24 +140,118 @@ class VideoLayoutTest {
         assertEquals(5.0 * 58 / 24, layout.cellRadius, 1e-9)
     }
 
-    // MARK: Cover
+    // MARK: Cartridge
 
-    @Test fun coverBarsSitSideBySideInsideTheCard() {
+    /** A tall cartridge, centred, with room left round it for its shadow. */
+    @Test fun theCartridgeSitsInsideTheSafeArea() {
+        for (count in listOf(1, 4, 8)) {
+            val cart = VideoLayout(count).cartridgeRect
+            assertTrue("$count", VideoLayout.safeRect.contains(cart))
+            assertTrue("$count", cart.height > cart.width)
+            assertEquals(VideoLayout.safeRect.midX, cart.midX, 0.5)
+        }
+    }
+
+    /** The outline runs clockwise from the top-left corner; its second and
+     * third points are the ends of the diagonal cut off the top-right
+     * corner, which stays above the label. */
+    @Test fun theNotchIsCutFromTheTopRightCorner() {
+        val layout = VideoLayout(4)
+        val cart = layout.cartridgeRect
+        val outline = layout.cartridgeOutline
+        assertEquals(5, outline.size)
+        assertEquals(FramePoint(cart.minX, cart.minY), outline[0])
+        assertEquals(FramePoint(cart.maxX - layout.cartridgeNotch, cart.minY), outline[1])
+        assertEquals(FramePoint(cart.maxX, cart.minY + layout.cartridgeNotch), outline[2])
+        assertEquals(FramePoint(cart.maxX, cart.maxY), outline[3])
+        assertEquals(FramePoint(cart.minX, cart.maxY), outline[4])
+        assertTrue(layout.cartridgeNotch > layout.cartridgeCornerRadius)
+        assertTrue(outline[1].x > cart.midX)
+        assertTrue(outline[2].y < layout.labelRecessRect.minY)
+    }
+
+    /** Grip ridges stack across the band above the label, inside the body
+     * and clear of the notch's diagonal. */
+    @Test fun gripRidgesRunAcrossTheTopBand() {
+        val layout = VideoLayout(4)
+        val cart = layout.cartridgeRect
+        val ridges = layout.gripRidgeRects
+        assertTrue(ridges.size >= 4)
+        var previous: FrameRect? = null
+        ridges.forEachIndexed { index, ridge ->
+            assertTrue("$index", cart.contains(ridge))
+            assertTrue("$index", ridge.minY > cart.minY)
+            assertTrue("$index", ridge.maxY < layout.labelRecessRect.minY)
+            assertTrue("$index", ridge.width > cart.width / 2)
+            // The top-right corner is inside the body, not in the cut.
+            assertTrue("$index", ridge.maxX - (cart.maxX - layout.cartridgeNotch) <= ridge.minY - cart.minY)
+            previous?.let { assertTrue("$index", it.maxY < ridge.minY) }
+            previous = ridge
+        }
+    }
+
+    /** The label sits in a recess that takes most of the body, with a bevel
+     * of plastic all round it. */
+    @Test fun theLabelIsInsetInsideTheBody() {
+        val layout = VideoLayout(4)
+        val cart = layout.cartridgeRect
+        val recess = layout.labelRecessRect
+        val label = layout.labelRect
+        assertTrue(cart.insetBy(24.0, 24.0).contains(recess))
+        assertTrue(recess.insetBy(8.0, 8.0).contains(label))
+        assertTrue(label.width * label.height > cart.width * cart.height / 2)
+    }
+
+    @Test fun theTitleBarsAndProgressSitInsideTheLabel() {
         for (count in listOf(1, 4, 8)) {
             val layout = VideoLayout(count)
-            assertTrue(VideoLayout.safeRect.contains(layout.coverCardRect))
+            val label = layout.labelRect
+            listOf(
+                "title" to layout.coverTitleRect, "meta" to layout.coverMetaRect,
+                "progress" to layout.coverProgressRect, "times" to layout.coverTimeRect,
+            ).forEach { (name, rect) -> assertTrue("$count / $name", label.contains(rect)) }
             var previous: FrameRect? = null
             for (track in 0 until count) {
                 val bar = layout.coverBarRect(track)
-                assertTrue("$count / $track", layout.coverCardRect.contains(bar))
+                assertTrue("$count / $track", label.contains(bar))
                 assertTrue(bar.height > 200)
+                assertTrue(bar.width >= 40)
                 previous?.let { assertTrue(it.maxX < bar.minX) }
                 previous = bar
             }
-            assertTrue(layout.coverCardRect.contains(layout.coverProgressRect))
-            assertTrue(layout.coverTitleRect.maxY < layout.coverBarRect(0).minY)
-            assertTrue(layout.coverBarRect(0).maxY < layout.coverProgressRect.minY)
+            assertTrue(layout.coverMetaRect.maxY < layout.coverBarRect(0).minY)
+            assertTrue(layout.coverBarRect(0).maxY < layout.coverBarLabelY - 20)
+            assertTrue(layout.coverBarLabelY + 20 < layout.coverProgressRect.minY)
         }
+    }
+
+    /** The moulded arrow sits in the plastic under the label. */
+    @Test fun theTriangleSitsBetweenTheLabelAndTheBodysBottom() {
+        val layout = VideoLayout(4)
+        val triangle = layout.triangleRect
+        assertTrue(triangle.minY > layout.labelRecessRect.maxY)
+        assertTrue(triangle.maxY < layout.cartridgeRect.maxY)
+        assertEquals(layout.cartridgeRect.midX, triangle.midX, 0.5)
+        assertTrue(triangle.width > 0)
+        assertTrue(triangle.height > 0)
+    }
+
+    /** The numbers iOS's VideoLayoutTests pins too, so both platforms draw
+     * the same cartridge. */
+    @Test fun theCartridgeGeometryMatchesIos() {
+        val layout = VideoLayout(4)
+        assertEquals(FrameRect(150.0, 252.0, 780.0, 1180.0), layout.cartridgeRect)
+        assertEquals(96.0, layout.cartridgeNotch, 0.0)
+        assertEquals(28.0, layout.cartridgeCornerRadius, 0.0)
+        assertEquals(5, layout.gripRidgeRects.size)
+        assertEquals(FrameRect(214.0, 286.0, 580.0, 8.0), layout.gripRidgeRects.firstOrNull())
+        assertEquals(FrameRect(202.0, 402.0, 676.0, 854.0), layout.labelRecessRect)
+        assertEquals(FrameRect(216.0, 416.0, 648.0, 826.0), layout.labelRect)
+        assertEquals(FrameRect(508.0, 1316.0, 64.0, 56.0), layout.triangleRect)
+        assertEquals(FrameRect(256.0, 456.0, 568.0, 190.0), layout.coverTitleRect)
+        assertEquals(FrameRect(256.0, 1142.0, 568.0, 14.0), layout.coverProgressRect)
+        assertEquals(FrameRect(256.0, 752.0, 124.0, 300.0), layout.coverBarRect(0))
+        assertEquals(FrameRect(774.0, 752.0, 50.0, 300.0), VideoLayout(8).coverBarRect(7))
     }
 
     // MARK: Tag
@@ -168,11 +262,19 @@ class VideoLayoutTest {
         assertTrue(tag.maxY <= 1920 * 0.80)
         assertTrue(tag.minY >= 1920 * 0.12)
         assertTrue(tag.minX >= VideoLayout.safeRect.minX)
+        assertTrue(tag.maxY <= VideoLayout.HEIGHT - VideoLayout.BOTTOM_BAND)
+    }
+
+    /** "Made with Chiptune" sits under the cartridge, not on it. */
+    @Test fun theTagSitsBelowTheCartridge() {
+        for (count in listOf(1, 4, 8)) {
+            assertTrue(VideoLayout.tagRect.minY > VideoLayout(count).cartridgeRect.maxY)
+        }
     }
 
     @Test fun theTagOverlapsNeitherStylesContent() {
         val layout = VideoLayout(8)
         assertFalse(VideoLayout.tagRect.intersects(layout.gridRect))
-        assertFalse(VideoLayout.tagRect.intersects(layout.coverCardRect))
+        assertFalse(VideoLayout.tagRect.intersects(layout.cartridgeRect))
     }
 }

@@ -4,6 +4,7 @@ import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.text.Layout
@@ -37,9 +38,9 @@ import kotlin.math.abs
  *
  * Grid: the current pattern scrolls up past a fixed playing row. The row that
  * is sounding is at full colour; rows away from it dim into the background,
- * so the eye stays on the beat. Cover: a card with the title, tempo and
- * length, a bar per track that flashes on each note ([ChannelPulse]), and a
- * progress bar. Both carry the "Made with Chiptune" tag.
+ * so the eye stays on the beat. Cover (shown as "Cartridge"): a grey game
+ * cartridge whose label carries the title, tempo and length, a bar per track
+ * that flashes on each note ([ChannelPulse]), and a progress bar. Both carry the "Made with Chiptune" tag.
  *
  * Not unit-tested: it needs android.graphics, which the JVM suite stubs out.
  * Its geometry and timing come from the tested core types.
@@ -191,20 +192,106 @@ class VideoFrameDrawer(
         }
     }
 
-    // MARK: Cover
+    // MARK: Cartridge (the Cover style)
+
+    /** The body with its notch, the grip ridges, the sunken label and the
+     * moulded arrow, in grey plastic lit from the top left. Flat fills only,
+     * since H.264 bands gradients. The song is drawn on the label after. */
+    private fun drawCartridge() {
+        val cart = layout.cartridgeRect
+        val notch = layout.cartridgeNotch
+        val radius = layout.cartridgeCornerRadius
+        val body = cartridgePath(cart, notch, radius)
+
+        // A soft shadow under the whole body.
+        fill.color = PLASTIC_SHADE.argb
+        fill.setShadowLayer(30f, 0f, 26f, android.graphics.Color.argb(178, 0, 0, 0))
+        canvas.drawPath(body, fill)
+        fill.clearShadowLayer()
+
+        // Edges: lit top and left, shaded bottom and right, then the face.
+        canvas.withClip(body) {
+            fill.color = PLASTIC_HIGHLIGHT.argb
+            drawPath(body, fill)
+            fill.color = PLASTIC_SHADE.argb
+            drawPath(cartridgePath(cart.offsetBy(EDGE, EDGE), notch, radius), fill)
+            fill.color = PLASTIC_BODY.argb
+            drawPath(cartridgePath(cart.insetBy(EDGE, EDGE), notch - 3, radius - EDGE), fill)
+        }
+
+        // Grip ridges: a groove with a lit lip under it.
+        for (ridge in layout.gripRidgeRects) {
+            val r = (ridge.height / 2).toFloat()
+            fill.color = PLASTIC_GROOVE.argb
+            canvas.drawRoundRect(ridge.toRectF(), r, r, fill)
+            fill.color = PLASTIC_HIGHLIGHT.argb
+            canvas.drawRoundRect(FrameRect(ridge.minX, ridge.maxY, ridge.width, 3.0).toRectF(), 1.5f, 1.5f, fill)
+        }
+
+        // The recess: shaded on its top and left, where the rim overhangs,
+        // lit on its bottom and right.
+        val recess = layout.labelRecessRect
+        val recessRadius = 22f
+        val recessPath = Path().apply { addRoundRect(recess.toRectF(), recessRadius, recessRadius, Path.Direction.CW) }
+        canvas.withClip(recessPath) {
+            fill.color = PLASTIC_HIGHLIGHT.argb
+            drawRoundRect(recess.toRectF(), recessRadius, recessRadius, fill)
+            fill.color = PLASTIC_RECESS_DARK.argb
+            drawRoundRect(recess.offsetBy(-5.0, -5.0).toRectF(), recessRadius, recessRadius, fill)
+            fill.color = PLASTIC_BEVEL.argb
+            drawRoundRect(recess.insetBy(5.0, 5.0).toRectF(), recessRadius - 5, recessRadius - 5, fill)
+        }
+
+        // The label itself, on the app's own background.
+        fill.color = BACKGROUND.argb
+        canvas.drawRoundRect(layout.labelRect.toRectF(), 12f, 12f, fill)
+
+        // The arrow moulded under the label: a slightly sunken triangle with
+        // a lit lower edge.
+        val tri = layout.triangleRect
+        fill.color = PLASTIC_HIGHLIGHT.argb
+        canvas.drawPath(triangle(tri.offsetBy(0.0, 3.0)), fill)
+        fill.color = PLASTIC_GROOVE.argb
+        canvas.drawPath(triangle(tri), fill)
+    }
+
+    /** A cartridge outline in [r]: the top-right corner cut by a diagonal
+     * [notch] long on each leg, the other three rounded by [radius]. */
+    private fun cartridgePath(r: FrameRect, notch: Double, radius: Double): Path {
+        val d = (radius * 2).toFloat()
+        return Path().apply {
+            moveTo(r.minX.toFloat(), (r.minY + radius).toFloat())
+            arcTo(RectF(r.minX.toFloat(), r.minY.toFloat(), r.minX.toFloat() + d, r.minY.toFloat() + d), 180f, 90f)
+            lineTo((r.maxX - notch).toFloat(), r.minY.toFloat())
+            lineTo(r.maxX.toFloat(), (r.minY + notch).toFloat())
+            lineTo(r.maxX.toFloat(), (r.maxY - radius).toFloat())
+            arcTo(RectF(r.maxX.toFloat() - d, r.maxY.toFloat() - d, r.maxX.toFloat(), r.maxY.toFloat()), 0f, 90f)
+            lineTo((r.minX + radius).toFloat(), r.maxY.toFloat())
+            arcTo(RectF(r.minX.toFloat(), r.maxY.toFloat() - d, r.minX.toFloat() + d, r.maxY.toFloat()), 90f, 90f)
+            close()
+        }
+    }
+
+    /** An upward-pointing triangle filling [r]. */
+    private fun triangle(r: FrameRect): Path = Path().apply {
+        moveTo(r.midX.toFloat(), r.minY.toFloat())
+        lineTo(r.maxX.toFloat(), r.maxY.toFloat())
+        lineTo(r.minX.toFloat(), r.maxY.toFloat())
+        close()
+    }
 
     private fun drawCover(frame: Int) {
-        val card = layout.coverCardRect.toRectF()
-        val cardRadius = (VideoLayout.PANEL_RADIUS * 3).toFloat()
-        fill.color = PANEL.argb
-        canvas.drawRoundRect(card, cardRadius, cardRadius, fill)
-        stroke.color = GRID.argb
-        stroke.strokeWidth = 2f
-        canvas.drawRoundRect(card, cardRadius, cardRadius, stroke)
+        drawCartridge()
 
-        multilineText(song.name, layout.coverTitleFontSize, bold, TEXT, layout.coverTitleRect, maxLines = 2)
+        val titleRect = layout.coverTitleRect
+        val titleHeight = multilineText(song.name, layout.coverTitleFontSize, bold, TEXT, titleRect, maxLines = 2)
+        // The tempo line sits under the title as drawn, so a one-line title
+        // doesn't leave a gap where a second line would go.
+        val meta = layout.coverMetaRect.let {
+            it.copy(y = minOf(it.minY, titleRect.minY + titleHeight + 8))
+        }
         val length = clock(timeline.seconds)
-        text("${song.tempo.toInt()} BPM  ·  $length", layout.coverMetaFontSize, semibold, DIM, layout.coverMetaRect)
+        text("${song.tempo.toInt()} BPM  ·  $length", layout.coverMetaFontSize, semibold, DIM, meta)
 
         val levels = pulse.levels(frame)
         for (index in song.tracks.indices) {
@@ -269,8 +356,8 @@ class VideoFrameDrawer(
     }
 
     /** Word-wrapped from the top of [r], up to [maxLines], the last one
-     * truncated. */
-    private fun multilineText(string: String, size: Double, face: Typeface, color: Rgba, r: FrameRect, maxLines: Int) {
+     * truncated. Returns the height the lines took. */
+    private fun multilineText(string: String, size: Double, face: Typeface, color: Rgba, r: FrameRect, maxLines: Int): Double {
         textPaint.typeface = face
         textPaint.textSize = size.toFloat()
         textPaint.color = color.argb
@@ -286,6 +373,7 @@ class VideoFrameDrawer(
             translate(r.minX.toFloat(), r.minY.toFloat())
             text.draw(this)
         }
+        return text.height.toDouble()
     }
 
     private fun channel(index: Int): Rgba = Rgba(ChipColors.channel(song.tracks[index].kind))
@@ -318,6 +406,18 @@ class VideoFrameDrawer(
         val TEXT = Rgba(ChipColors.text)
         val DIM = Rgba(ChipColors.dim)
         val ON_LIGHT = Rgba(ChipColors.onLight)
+
+        /** The cartridge's grey plastic, the same values as iOS. */
+        val PLASTIC_BODY = rgb(0xBD, 0xBA, 0xB3)
+        val PLASTIC_HIGHLIGHT = rgb(0xDA, 0xD7, 0xD0)
+        val PLASTIC_SHADE = rgb(0x8E, 0x8B, 0x84)
+        val PLASTIC_GROOVE = rgb(0x9E, 0x9B, 0x94)
+        val PLASTIC_BEVEL = rgb(0xA8, 0xA5, 0x9E)
+        val PLASTIC_RECESS_DARK = rgb(0x7C, 0x79, 0x73)
+        /** How far the lit and shaded edges reach in from the outline. */
+        const val EDGE = 7.0
+
+        fun rgb(r: Int, g: Int, b: Int) = Rgba(r / 255.0, g / 255.0, b / 255.0)
 
         /** Whole seconds, "m:ss", so a running clock keeps its shape. */
         fun clock(seconds: Double): String {

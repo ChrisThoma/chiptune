@@ -20,7 +20,15 @@ data class FrameRect(val x: Double, val y: Double, val width: Double, val height
     /** CGRect's `intersects`: a shared edge alone doesn't count. */
     fun intersects(other: FrameRect): Boolean =
         other.minX < maxX && other.maxX > minX && other.minY < maxY && other.maxY > minY
+
+    /** CGRect's `insetBy`: shrunk by [dx] on each side and [dy] top and bottom. */
+    fun insetBy(dx: Double, dy: Double): FrameRect = FrameRect(x + dx, y + dy, width - 2 * dx, height - 2 * dy)
+
+    fun offsetBy(dx: Double, dy: Double): FrameRect = FrameRect(x + dx, y + dy, width, height)
 }
+
+/** A point in video pixels, origin top left. CGPoint's shape. */
+data class FramePoint(val x: Double, val y: Double)
 
 /**
  * Where everything goes in a 1080x1920 video frame, for both styles. Port of
@@ -116,44 +124,94 @@ class VideoLayout(trackCount: Int) {
         return lo..maxOf(minOf(upper, last), lo)
     }
 
-    // MARK: Cover
+    // MARK: Cartridge (the Cover style)
 
-    /** The cartridge-style card everything in the Cover style sits on. */
-    val coverCardRect: FrameRect
-        get() = FrameRect(safeRect.minX, safeRect.minY, safeRect.width, contentBottom - safeRect.minY)
-    val coverPadding = 48.0
-    val coverTitleFontSize = 76.0
-    val coverMetaFontSize = 36.0
+    /** The cartridge's body: a tall slab of grey plastic, centred, a little
+     * inside the safe area so its shadow has room. */
+    val cartridgeRect: FrameRect
+        get() {
+            val width = 780.0
+            val top = safeRect.minY + 12
+            return FrameRect(safeRect.midX - width / 2, top, width, contentBottom - 24 - top)
+        }
+    /** The legs of the diagonal cut off the top-right corner. */
+    val cartridgeNotch = 96.0
+    /** The other three corners are rounded this much. */
+    val cartridgeCornerRadius = 28.0
+
+    /** The body's corners, clockwise from the top left, with the notch's two
+     * ends in place of the top-right corner. The drawer rounds the three
+     * square corners by [cartridgeCornerRadius]. */
+    val cartridgeOutline: List<FramePoint>
+        get() {
+            val cart = cartridgeRect
+            return listOf(
+                FramePoint(cart.minX, cart.minY),
+                FramePoint(cart.maxX - cartridgeNotch, cart.minY),
+                FramePoint(cart.maxX, cart.minY + cartridgeNotch),
+                FramePoint(cart.maxX, cart.maxY),
+                FramePoint(cart.minX, cart.maxY),
+            )
+        }
+
+    /** Grip ridges moulded across the top band, stopping short of the notch. */
+    val gripRidgeRects: List<FrameRect>
+        get() {
+            val cart = cartridgeRect
+            val left = cart.minX + 64
+            val right = cart.maxX - cartridgeNotch - 40
+            return (0 until 5).map { index -> FrameRect(left, cart.minY + 34 + index * 22, right - left, 8.0) }
+        }
+
+    /** The sunken area the label is stuck into. Its rim is the bevel. */
+    val labelRecessRect: FrameRect
+        get() {
+            val cart = cartridgeRect
+            return FrameRect(cart.minX + 52, cart.minY + 150, cart.width - 104, cart.height - 150 - 176)
+        }
+
+    /** The label: the app's dark background, carrying the song. */
+    val labelRect: FrameRect get() = labelRecessRect.insetBy(14.0, 14.0)
+
+    /** The bounding box of the arrow moulded under the label, pointing up. */
+    val triangleRect: FrameRect
+        get() {
+            val cart = cartridgeRect
+            val width = 64.0
+            val height = 56.0
+            val centerY = (labelRecessRect.maxY + cart.maxY) / 2
+            return FrameRect(cart.midX - width / 2, centerY - height / 2, width, height)
+        }
+
+    val coverPadding = 40.0
+    val coverTitleFontSize = 72.0
+    val coverMetaFontSize = 34.0
     val coverLabelFontSize = 26.0
 
     /** Up to two lines of title. */
     val coverTitleRect: FrameRect
-        get() {
-            val card = coverCardRect
-            return FrameRect(card.minX + coverPadding, card.minY + 56, card.width - 2 * coverPadding, 190.0)
-        }
+        get() = FrameRect(labelRect.minX + coverPadding, labelRect.minY + coverPadding,
+            labelRect.width - 2 * coverPadding, 190.0)
 
     /** Tempo and length. */
     val coverMetaRect: FrameRect
         get() = FrameRect(coverTitleRect.minX, coverTitleRect.maxY + 8, coverTitleRect.width, 48.0)
 
     val coverProgressRect: FrameRect
-        get() {
-            val card = coverCardRect
-            return FrameRect(card.minX + coverPadding, card.maxY - 110, card.width - 2 * coverPadding, 14.0)
-        }
+        get() = FrameRect(labelRect.minX + coverPadding, labelRect.maxY - 100,
+            labelRect.width - 2 * coverPadding, 14.0)
 
     /** Elapsed and total time, under the progress bar. */
     val coverTimeRect: FrameRect
         get() = FrameRect(coverProgressRect.minX, coverProgressRect.maxY + 14, coverProgressRect.width, 40.0)
 
     private val coverBarGap = 24.0
-    private val coverBarsTop: Double get() = coverMetaRect.maxY + 60
+    private val coverBarsTop: Double get() = coverMetaRect.maxY + 50
     /** Room under the bars for each track's name. */
-    private val coverBarsBottom: Double get() = coverProgressRect.minY - 100
+    private val coverBarsBottom: Double get() = coverProgressRect.minY - 90
     private val coverBarWidth: Double
         get() {
-            val available = coverCardRect.width - 2 * coverPadding - coverBarGap * (this.trackCount - 1)
+            val available = labelRect.width - 2 * coverPadding - coverBarGap * (this.trackCount - 1)
             return minOf(140.0, floor(available / this.trackCount))
         }
 
@@ -161,7 +219,7 @@ class VideoLayout(trackCount: Int) {
      * by the track's pulse. */
     fun coverBarRect(track: Int): FrameRect {
         val total = this.trackCount * coverBarWidth + (this.trackCount - 1) * coverBarGap
-        val x = coverCardRect.midX - total / 2 + track * (coverBarWidth + coverBarGap)
+        val x = labelRect.midX - total / 2 + track * (coverBarWidth + coverBarGap)
         return FrameRect(x, coverBarsTop, coverBarWidth, coverBarsBottom - coverBarsTop)
     }
 
