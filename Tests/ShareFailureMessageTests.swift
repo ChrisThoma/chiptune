@@ -1,4 +1,5 @@
 import XCTest
+import AVFoundation
 @testable import Chiptune
 
 final class ShareFailureMessageTests: XCTestCase {
@@ -196,5 +197,16 @@ final class ShareSheetFailureMessageTests: XCTestCase {
     func testTheSheetsOwnFailureNamesTheFileAndNothingRaw() {
         XCTAssertEqual(ShareFailureMessage.sheet(file: "song file"), "Couldn't share the song file. Try again.")
         XCTAssertEqual(ShareFailureMessage.sheet(file: "WAV file"), "Couldn't share the WAV file. Try again.")
+    }
+}
+
+/// The video writer reports a full disk in its own domain, not as a Cocoa or
+/// POSIX error.
+final class VideoWriteFailureCauseTests: XCTestCase {
+    func testAVFoundationsDiskFullIsASpaceProblem() {
+        let full = NSError(domain: AVFoundationErrorDomain, code: AVError.diskFull.rawValue)
+        XCTAssertEqual(WriteFailureMessage.cause(of: full), .space)
+        XCTAssertEqual(WriteFailureMessage.export(name: "Clip", error: full, file: "video"),
+                       "Couldn't export “Clip”. There isn't enough free space to write the video. Try again.")
     }
 }

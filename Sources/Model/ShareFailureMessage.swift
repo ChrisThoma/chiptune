@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 
 /// Words for an alert when a song or its file can't be written: Share failed,
@@ -76,7 +77,9 @@ enum WriteFailureMessage {
              (NSPOSIXErrorDomain, Int(EACCES)), (NSPOSIXErrorDomain, Int(EPERM)):
             return .permission
         case (NSCocoaErrorDomain, NSFileWriteOutOfSpaceError),
-             (NSPOSIXErrorDomain, Int(ENOSPC)):
+             (NSPOSIXErrorDomain, Int(ENOSPC)),
+             // The video writer's own word for it.
+             (AVFoundationErrorDomain, AVError.diskFull.rawValue):
             return .space
         default:
             return (ns.userInfo[NSUnderlyingErrorKey] as? NSError).map(cause(of:)) ?? .other
