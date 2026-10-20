@@ -143,6 +143,20 @@ final class HardwareKeyTests: XCTestCase {
         XCTAssertNil(presented(.keyboardPeriod))
     }
 
+    /// UIKit reports the non-printing keys as constant names, not one
+    /// character: Escape arrives as "UIKeyInputEscape". Read as characters,
+    /// the "U" at the front is the note row's U (A sharp), so Escape wrote a
+    /// note and moved the cursor.
+    func testNamedSpecialKeysAreNotReadAsLetters() {
+        XCTAssertNil(action(.keyboardEscape, characters: UIKeyCommand.inputEscape))
+        XCTAssertNil(action(.keyboardHome, characters: UIKeyCommand.inputHome))
+        XCTAssertNil(action(.keyboardPageUp, characters: UIKeyCommand.inputPageUp))
+        XCTAssertNil(action(.keyboardF1, characters: "UIKeyInputF1"))
+        XCTAssertEqual(action(.keyboardReturnOrEnter, characters: "\r"), .typeSelected)
+        XCTAssertNil(action(.keyboardTab, characters: "\t"))
+        XCTAssertEqual(action(.keyboardU, characters: "u"), .type(70))
+    }
+
     /// With nothing presented the editor doesn't claim Escape at all: there's
     /// nothing to close, and the grid has never used the key.
     func testEscapeDoesNothingWithNothingPresented() {

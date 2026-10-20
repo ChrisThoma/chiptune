@@ -81,7 +81,11 @@ enum KeyAction: Equatable {
         default: break
         }
 
-        guard let character = characters.first else { return nil }
+        // One character only. UIKit names the non-printing keys with constant
+        // strings ("UIKeyInputEscape", "UIKeyInputF1", "UIKeyInputHome"), whose
+        // first letter is not what was typed: the "U" of those names is the
+        // note row's U, so Escape used to write A sharp and advance the cursor.
+        guard characters.count == 1, let character = characters.first else { return nil }
         switch Character(character.lowercased()) {
         case NoteKeys.octaveDown: return .octave(-1)
         case NoteKeys.octaveUp: return .octave(1)
