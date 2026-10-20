@@ -120,6 +120,9 @@ object VideoExport {
                 ExportResult.Failed(e)
             }
             if (encoded is ExportResult.Failed) {
+                // What was free when the write failed, not what could be
+                // cleared: a full volume is what made it fail.
+                @Suppress("UsableSpace")
                 return ExportResult.Failed(VideoWriteFailure.explain(encoded.error, scratch.usableSpace))
             }
             if (encoded !is ExportResult.Success) return encoded
