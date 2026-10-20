@@ -144,7 +144,7 @@ class VideoFrameDrawer(
 
     private fun drawGridHeader(pattern: Pattern, step: Int) {
         val header = layout.headerRect
-        text(song.name, layout.titleFontSize, bold, TEXT, FrameRect(header.x, header.y, header.width, 72.0))
+        text(VideoLayout.displayTitle(song.name), layout.titleFontSize, bold, TEXT, FrameRect(header.x, header.y, header.width, 72.0))
         val readout = "${pattern.name}  ·  STEP ${twoDigits(step)}  ·  ${song.tempo.toInt()} BPM"
         text(readout, layout.subtitleFontSize, semibold, DIM, FrameRect(header.x, header.y + 86, header.width, 44.0))
     }
@@ -299,7 +299,7 @@ class VideoFrameDrawer(
         drawCartridge()
 
         val titleRect = layout.coverTitleRect
-        val titleHeight = multilineText(song.name, layout.coverTitleFontSize, bold, TEXT, titleRect, maxLines = 2)
+        val titleHeight = multilineText(VideoLayout.displayTitle(song.name), layout.coverTitleFontSize, bold, TEXT, titleRect, maxLines = 2)
         // The tempo line sits under the title as drawn, so a one-line title
         // doesn't leave a gap where a second line would go.
         val meta = layout.coverMetaRect.let {

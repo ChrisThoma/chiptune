@@ -359,6 +359,19 @@ class VideoLayoutTest {
         }
     }
 
+    /** An imported name keeps any line breaks it was saved with. Drawn as
+     * they are, the Grid header's one line would run "A" and "B" together,
+     * and the Cartridge's two lines would go to the breaks rather than to the
+     * width the tempo line is placed for. Both frames wrap the title by width
+     * alone. */
+    @Test fun aTitlesLineBreaksAreDrawnAsSpaces() {
+        assertEquals("A B", VideoLayout.displayTitle("A\nB"))
+        assertEquals("A B", VideoLayout.displayTitle("A\r\n\nB"))
+        assertEquals("A B C", VideoLayout.displayTitle("A   B\u0085C"))
+        assertEquals("Song", VideoLayout.displayTitle("Song\n"))
+        assertEquals("Two  spaces", VideoLayout.displayTitle("Two  spaces"))
+    }
+
     /** The moulded arrow sits in the plastic under the label. */
     @Test fun theTriangleSitsBetweenTheLabelAndTheBodysBottom() {
         val layout = VideoLayout(4)

@@ -283,6 +283,16 @@ class VideoLayout(trackCount: Int) {
             return step + into * into * (3 - 2 * into)
         }
 
+        /** The song's name as both frames draw it: each line break, with the
+         * spaces around it, becomes one space. A name typed in the app has
+         * none, but an imported one keeps any it was saved with, and the
+         * frames wrap the title by width alone: the Grid header has one line,
+         * and the Cartridge places its tempo line under the lines the title
+         * wrapped to. */
+        fun displayTitle(name: String): String = name.replace(LINE_BREAKS, " ").trim()
+
+        private val LINE_BREAKS = Regex("[ \\t]*[\\n\\r\\u000B\\u000C\\u0085\\u2028\\u2029]+[ \\t]*")
+
         /** Track names are drawn this large unless their slots are narrow. */
         const val FULL_NAME_FONT_SIZE = 26.0
 
