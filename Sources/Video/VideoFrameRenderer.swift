@@ -275,7 +275,7 @@ final class VideoFrameRenderer {
         let titleLines: CGFloat = titleWidth > titleRect.width ? 2 : 1
         var meta = layout.coverMetaRect
         meta.origin.y = min(meta.minY, titleRect.minY + titleLines * titleFont.lineHeight + 8)
-        let length = Self.clock(timeline.seconds)
+        let length = VideoClock.total(timeline.seconds)
         Self.text("\(Int(song.tempo)) BPM  ·  \(length)", size: layout.coverMetaFontSize, weight: .semibold,
                   color: Palette.dim, in: meta)
 
@@ -311,16 +311,10 @@ final class VideoFrameRenderer {
         }
         let times = layout.coverTimeRect
         let elapsed = min(Double(timeline.sample(frame: frame)) / WavExport.sampleRate, timeline.seconds)
-        Self.text(Self.clock(elapsed), size: 28, weight: .semibold, color: Palette.dim, in: times)
+        let elapsedText = VideoClock.elapsed(elapsed, total: timeline.seconds,
+                                             isFinalFrame: frame >= timeline.totalFrames - 1)
+        Self.text(elapsedText, size: 28, weight: .semibold, color: Palette.dim, in: times)
         Self.text(length, size: 28, weight: .semibold, color: Palette.dim, in: times, alignment: .right)
-    }
-
-    /// Whole seconds, "m:ss". `Format.clock` switches to tenths under ten
-    /// seconds, which suits a static readout but makes a running clock change
-    /// shape when it passes 0:10.
-    private static func clock(_ seconds: Double) -> String {
-        let whole = Int(max(seconds, 0))
-        return String(format: "%d:%02d", whole / 60, whole % 60)
     }
 
     /// Whether a track's name is drawn dim, as one the soundtrack doesn't
