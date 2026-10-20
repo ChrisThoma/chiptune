@@ -125,3 +125,50 @@ final class ExportFlowTests: XCTestCase {
         XCTAssertNil(ExportFlow.finishedExport(previousAttempt: 3, completedAttempt: 2, url: url))
     }
 }
+
+/// The share sheet ends with two callbacks UIKit doesn't order: SwiftUI's
+/// `onDismiss` and the activity controller's completion handler. Saving a
+/// first video to Photos puts up the permission prompt, and after Allow the
+/// dismissal arrives first, so deciding on it alone read the share as
+/// canceled: the Export panel came back and the review prompt went uncounted.
+final class ShareSheetEndingTests: XCTestCase {
+
+    func testDismissalBeforeTheCompletionWaitsForIt() {
+        var ending = ShareSheetEnding()
+        XCTAssertNil(ending.sheetDismissed(), "the outcome isn't known yet")
+        XCTAssertEqual(ending.activityFinished(.completed), .completed)
+    }
+
+    func testCompletionBeforeTheDismissalWaitsForIt() {
+        var ending = ShareSheetEnding()
+        XCTAssertNil(ending.activityFinished(.completed), "the sheet is still on screen")
+        XCTAssertEqual(ending.sheetDismissed(), .completed)
+    }
+
+    func testACancelIsDecidedEitherWay() {
+        var first = ShareSheetEnding()
+        XCTAssertNil(first.sheetDismissed())
+        XCTAssertEqual(first.activityFinished(.canceled), .canceled)
+        var second = ShareSheetEnding()
+        XCTAssertNil(second.activityFinished(.failed))
+        XCTAssertEqual(second.sheetDismissed(), .failed)
+    }
+
+    /// One share ends once: a late or repeated callback decides nothing more.
+    func testTheShareIsDecidedOnlyOnce() {
+        var ending = ShareSheetEnding()
+        XCTAssertNil(ending.activityFinished(.completed))
+        XCTAssertEqual(ending.sheetDismissed(), .completed)
+        XCTAssertNil(ending.activityFinished(.canceled))
+        XCTAssertNil(ending.sheetDismissed())
+    }
+
+    /// An activity backed out of (a Mail draft canceled, say) leaves the
+    /// sheet up, and what the user does next is what counts.
+    func testTheLastCompletionBeforeTheDismissalCounts() {
+        var ending = ShareSheetEnding()
+        XCTAssertNil(ending.activityFinished(.canceled))
+        XCTAssertNil(ending.activityFinished(.completed))
+        XCTAssertEqual(ending.sheetDismissed(), .completed)
+    }
+}

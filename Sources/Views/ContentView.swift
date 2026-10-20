@@ -185,6 +185,41 @@ enum ExportFlow {
     }
 }
 
+/// How the export's share sheet ended, once both halves of the news are in.
+///
+/// The sheet reports its end twice, in no fixed order: SwiftUI's `onDismiss`
+/// when it has gone, and `UIActivityViewController`'s completion handler with
+/// what the activity did. After the Photos permission prompt (a first Save
+/// Video, Allow) the dismissal comes first, so deciding on it alone treated
+/// a saved video as a canceled share: the Export panel came back and the
+/// review milestone went uncounted. Each callback hands its half over here,
+/// and whichever arrives second gets the outcome to act on — once.
+struct ShareSheetEnding: Equatable {
+    private var outcome: ReviewPromptPolicy.ShareOutcome?
+    private var dismissed = false
+    private var decided = false
+
+    /// The sheet has gone. The outcome, if the activity already reported it.
+    mutating func sheetDismissed() -> ReviewPromptPolicy.ShareOutcome? {
+        dismissed = true
+        return decide()
+    }
+
+    /// The activity reported. A canceled activity can leave the sheet up for
+    /// another try, so a later report replaces an earlier one until the
+    /// sheet goes. The outcome, if the sheet has already gone.
+    mutating func activityFinished(_ outcome: ReviewPromptPolicy.ShareOutcome) -> ReviewPromptPolicy.ShareOutcome? {
+        if !decided { self.outcome = outcome }
+        return decide()
+    }
+
+    private mutating func decide() -> ReviewPromptPolicy.ShareOutcome? {
+        guard !decided, dismissed, let outcome else { return nil }
+        decided = true
+        return outcome
+    }
+}
+
 /// The border that says a dragged song will land here.
 ///
 /// Nothing but the border: the editor and the library both already say what
@@ -231,12 +266,12 @@ struct ContentView: View {
     /// panel has left the screen — `.popover` has no `onDismiss:`, so the
     /// content's `.onDisappear` is what spends this.
     @State private var shareWhenExportCloses = false
-    /// What the export share sheet's completion handler reported. Reset to
-    /// `.canceled` each time the sheet is (re-)presented, so a handler that
-    /// never fires — the completion callback is documented as "may not be
-    /// called" for some activities — defaults to "not completed" rather than
-    /// stale-carrying the previous share's outcome.
-    @State private var shareOutcome: ReviewPromptPolicy.ShareOutcome = .canceled
+    /// The export share sheet's dismissal and its completion handler, put
+    /// together: whichever lands second decides what happens next. Started
+    /// fresh each time the sheet is (re-)presented, so a previous share's
+    /// outcome never carries over. `UIActivityViewController` calls its
+    /// handler on every way out, a plain close included (as canceled).
+    @State private var shareEnding = ShareSheetEnding()
     /// A `.chipsong` is hovering over the editor, waiting to be dropped.
     @State private var songDropTargeted = false
     @FocusState private var nameFocused: Bool
@@ -320,13 +355,16 @@ struct ContentView: View {
         // the control that opens it — ARR in the transport, the ••• menu — so
         // at regular width it arrives as a popover beside its button with the
         // grid still visible, and adapts back to a sheet on a phone.
-        .sheet(isPresented: $showingShare, onDismiss: requestReviewIfDue) {
+        .sheet(isPresented: $showingShare, onDismiss: {
+            if let outcome = shareEnding.sheetDismissed() { afterShare(outcome) }
+        }) {
             if let url = studio.exportURL {
                 ShareSheet(items: [url], onComplete: { completed, error in
                     if error != nil {
                         studio.shareError = ShareFailureMessage.sheet(file: WriteFailureMessage.fileNoun(for: url))
                     }
-                    shareOutcome = completed ? .completed : (error != nil ? .failed : .canceled)
+                    let outcome: ReviewPromptPolicy.ShareOutcome = completed ? .completed : (error != nil ? .failed : .canceled)
+                    if let decided = shareEnding.activityFinished(outcome) { afterShare(decided) }
                 })
             }
         }
@@ -344,7 +382,7 @@ struct ContentView: View {
                 successfulExports: successfulExportCount,
                 lastRequestExportCount: lastReviewRequestExportCount
             )
-            shareOutcome = .canceled
+            shareEnding = ShareSheetEnding()
             // The options panel gets out of the way first, and the share sheet
             // waits for it to actually be gone — see `ExportFlow`.
             let step = ExportFlow.afterRender(url: url, exportPresented: showingExport)
@@ -489,21 +527,23 @@ struct ContentView: View {
         showingShare = true
     }
 
-    /// Asking after the share sheet closes avoids competing presentations and
-    /// ties the prompt to a moment when the app has demonstrably been useful.
-    private func requestReviewIfDue() {
+    /// The share sheet has gone and its activity has said how it went (see
+    /// `ShareSheetEnding`). Asking for a review only now avoids competing
+    /// presentations and ties the prompt to a moment when the app has
+    /// demonstrably been useful.
+    private func afterShare(_ outcome: ReviewPromptPolicy.ShareOutcome) {
         // A canceled or failed share doesn't spend the milestone: only a
         // completed share advances `lastReviewRequestExportCount`, so the
         // user keeps their eligibility for the next share that actually goes
         // somewhere.
         let result = ReviewPromptPolicy.afterShareDismiss(
             eligible: reviewAfterSharing,
-            outcome: shareOutcome,
+            outcome: outcome,
             successfulExports: successfulExportCount,
             lastRequestExportCount: lastReviewRequestExportCount)
         reviewAfterSharing = false
-        if ExportFlow.reopensExportAfterShare(outcome: shareOutcome) { showingExport = true }
-        if ExportFlow.endsFlowAfterShare(outcome: shareOutcome) { studio.endExportFlow() }
+        if ExportFlow.reopensExportAfterShare(outcome: outcome) { showingExport = true }
+        if ExportFlow.endsFlowAfterShare(outcome: outcome) { studio.endExportFlow() }
         lastReviewRequestExportCount = result.lastRequestExportCount
         guard result.shouldRequestReview else { return }
         // StoreKit decides whether a request is actually shown.
