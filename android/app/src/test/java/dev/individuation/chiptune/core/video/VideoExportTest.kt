@@ -158,6 +158,36 @@ class VideoExportTest {
         assertEquals(emptyList<String>(), scratchFiles())
     }
 
+    /** Cancel tapped while the writer is finishing the file (after the last
+     * frame, as the muxer stops, before the move) is still a cancel: the old
+     * video stays and nothing is handed to the share sheet. */
+    @Test fun aCancelWhileTheFileFinishesKeepsThePreviousVideo() {
+        val song = song()
+        val previous = (ExportRenderer.render(ExportRequest(song, video()), temp.root, FakeWriter(byteArrayOf(9))) as ExportResult.Success).file
+        var finished = false
+        val finishing = object : FakeWriter(byteArrayOf(7, 7)) {
+            override fun write(job: VideoJob): ExportResult = super.write(job).also { finished = true }
+        }
+        val result = ExportRenderer.render(
+            ExportRequest(song, video(loops = 2), isCanceled = { finished }), temp.root, finishing)
+        assertTrue("the render should have reached the end of writing", finished)
+        assertEquals(ExportResult.Canceled, result)
+        assertArrayEquals("the previous video was replaced", byteArrayOf(9), previous.readBytes())
+        assertEquals(emptyList<String>(), scratchFiles())
+    }
+
+    /** A crash or a kill mid-render skips the cleanup, so the next export
+     * clears whatever the last one left. Only one export runs at a time
+     * (Studio refuses a second), so nothing in there is live. */
+    @Test fun anExportSweepsScratchLeftByAKilledOne() {
+        scratch.mkdirs()
+        val stale = File(scratch, "killed.mp4").apply { writeBytes(ByteArray(1024) { 1 }) }
+        val result = ExportRenderer.render(ExportRequest(song(), video()), temp.root, FakeWriter())
+        assertTrue("$result", result is ExportResult.Success)
+        assertFalse("the killed export's partial file is still there", stale.exists())
+        assertEquals(emptyList<String>(), scratchFiles())
+    }
+
     /** A writer that throws is a failure, not a crash, and still cleans up. */
     @Test fun aThrowingWriterIsAFailure() {
         val throwing = object : FakeWriter() {

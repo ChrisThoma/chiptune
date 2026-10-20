@@ -76,6 +76,11 @@ object VideoExport {
         if (writer == null) return ExportResult.Failed(UnsupportedOperationException("This build can't write videos."))
 
         val scratch = File(directory, SCRATCH_DIRECTORY)
+        // A render killed mid-way (a crash, the process killed in the
+        // background) never reached its cleanup. Only one export runs at a
+        // time (Studio refuses a second while one is running), so whatever
+        // is in here belongs to a dead one.
+        scratch.deleteRecursively()
         if (!scratch.isDirectory && !scratch.mkdirs()) {
             return ExportResult.Failed(IOException("Couldn't create $scratch"))
         }
@@ -114,6 +119,10 @@ object VideoExport {
                 ExportResult.Failed(e)
             }
             if (encoded !is ExportResult.Success) return encoded
+            // Stopping the muxer takes a moment, and a cancel tapped during
+            // it is still a cancel: the previous video stays and nothing is
+            // shared.
+            if (request.isCanceled()) return ExportResult.Canceled
 
             val destination = ExportFiles.file(song, directory, ExportOptions.Format.VIDEO)
             try {
