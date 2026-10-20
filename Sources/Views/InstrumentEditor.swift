@@ -17,7 +17,15 @@ struct InstrumentEditor: View {
     /// see `ChipLayout.presentsInstrumentAsPopover` for why this is passed in
     /// rather than read from the environment.
     var popover = false
+    /// Docked only: told when the Name field gains or loses focus, so the
+    /// side column can make room above the software keyboard. See
+    /// `DockedKeyboardAvoidance`.
+    var onNameFocusChange: ((Bool) -> Void)? = nil
+    /// Docked only: how much of the column's bottom the keyboard covers.
+    /// A change scrolls the Name field back into view while it is focused.
+    var keyboardInset: CGFloat = 0
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var nameFieldFocused: Bool
     // Snapshot which track a dialog targets at the moment it's raised, rather
     // than reading `index` (or `studio.selectedTrack`) again when it resolves:
     // in the docked layout this view stays alive while the grid's header
@@ -173,6 +181,12 @@ struct InstrumentEditor: View {
                     // make clearing it look like it did something.
                     TextField(kind.fullName, text: $nameDraft)
                         .accessibilityLabel("Track name")
+                        // A track name is a label, not prose: autocorrect
+                        // swapped "tonewf" for "tone" as the keyboard went
+                        // away. Same as the pattern rename field.
+                        .autocorrectionDisabled()
+                        .focused($nameFieldFocused)
+                        .id("name")
                         .onAppear { nameDraft = trackName.wrappedValue }
                         .onChange(of: nameDraft) { _, newValue in
                             let capped = NameCap.clip(newValue, to: Track.maxNameLength)
@@ -359,6 +373,23 @@ struct InstrumentEditor: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text(ConfirmationCopy.deleteTrack)
+            }
+            .onChange(of: nameFieldFocused) { _, focused in
+                guard docked else { return }
+                onNameFocusChange?(focused)
+                // Ending the rename by any route (Return, hiding the
+                // keyboard, tapping another control) hands the hardware keys
+                // back to the note entry; the flag alone is not a resign.
+                if !focused { HardwareKeyCapture.reclaim() }
+            }
+            // The column has just come up above the keyboard (and the piano
+            // may have stepped aside); bring the field being typed into back
+            // on screen inside the now shorter Form.
+            .onChange(of: keyboardInset) { _, inset in
+                guard docked, nameFieldFocused, inset > 0 else { return }
+                withAnimation(.easeOut(duration: 0.2)) {
+                    proxy.scrollTo("name", anchor: .center)
+                }
             }
             // The screenshot shoot's phone frame lands on this sheet
             // already open (see `ScreenshotMode.instrument` in

@@ -300,6 +300,15 @@ struct ContentView: View {
     /// A `.chipsong` is hovering over the editor, waiting to be dropped.
     @State private var songDropTargeted = false
     @FocusState private var nameFocused: Bool
+    /// The docked instrument editor's Name field holds focus, and with it
+    /// what the side column needs to keep that field above the keyboard.
+    /// See `DockedKeyboardAvoidance`.
+    @State private var dockedNameEditing = false
+    @State private var dockedColumnFrame: CGRect = .zero
+    @State private var dockedKeysHeight: CGFloat = 0
+    /// Top of the on-screen keyboard in global space, or the bottom of the
+    /// safe area while there is none.
+    @State private var keyboardTop: CGFloat = .greatestFiniteMagnitude
 
     /// Fixed for the life of the process — the bundle can't change under a
     /// running app — so it's read once rather than per menu open.
@@ -342,6 +351,14 @@ struct ContentView: View {
         // The window, not the window less the on-screen keyboard; see
         // `ChipLayout.measurementIgnoresSafeArea`.
         .ignoresSafeArea(ChipLayout.measurementIgnoresSafeArea)
+        // Outside the keyboard-ignoring region, so this one still sees the
+        // keyboard: where its top edge is, for the docked editor's column.
+        .background {
+            Color.clear
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.frame(in: .global).maxY - proxy.safeAreaInsets.bottom
+                } action: { keyboardTop = $0 }
+        }
         .background(Theme.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
         .hardwareKeys(studio: studio)
@@ -676,20 +693,54 @@ struct ContentView: View {
     /// Keys sit above the controls rather than below: they're what your hands
     /// go to, and the bottom edge of a 13-inch iPad is a long way from where
     /// the hands holding it are.
+    ///
+    /// The root ignores the keyboard safe area, so while the docked Name field
+    /// is typed into the column pads its own bottom up to the keyboard and,
+    /// when that leaves the editor no room under the piano, folds the piano
+    /// away until the rename ends (see `DockedKeyboardAvoidance`). The piano
+    /// is collapsed rather than removed so its state survives, and the column
+    /// keeps its width, so the grid beside it never moves.
     private func keyPanel(_ layout: ChipLayout) -> some View {
-        VStack(spacing: 0) {
-            editorKeyboard
-                .padding(.top, layout.docksInstrumentEditor ? 0 : 10)
+        let avoidance = layout.docksInstrumentEditor
+            ? DockedKeyboardAvoidance.resolve(nameEditing: dockedNameEditing,
+                                              column: dockedColumnFrame,
+                                              keyboardTop: keyboardTop,
+                                              keysHeight: dockedKeysHeight)
+            : .none
+        return VStack(spacing: 0) {
+            VStack(spacing: 0) {
+                editorKeyboard
+                    .padding(.top, layout.docksInstrumentEditor ? 0 : 10)
+
+                if layout.docksInstrumentEditor {
+                    Rectangle()
+                        .fill(Theme.grid.opacity(0.5))
+                        .frame(height: 1)
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 10)
+                }
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                // Only the unfolded height counts, or folding would read as
+                // a piano with no height and unfold it again at once.
+                if height > 0, !avoidance.hidesKeys { dockedKeysHeight = height }
+            }
+            .frame(height: avoidance.hidesKeys ? 0 : nil, alignment: .top)
+            .clipped()
+            .opacity(avoidance.hidesKeys ? 0 : 1)
+            .allowsHitTesting(!avoidance.hidesKeys)
+            .accessibilityHidden(avoidance.hidesKeys)
 
             if layout.docksInstrumentEditor {
-                Rectangle()
-                    .fill(Theme.grid.opacity(0.5))
-                    .frame(height: 1)
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 10)
-
-                InstrumentEditor(studio: studio, index: studio.selectedTrack, docked: true)
+                InstrumentEditor(studio: studio, index: studio.selectedTrack, docked: true,
+                                 onNameFocusChange: { dockedNameEditing = $0 },
+                                 keyboardInset: avoidance.bottomInset)
             }
+        }
+        .padding(.bottom, avoidance.bottomInset)
+        .animation(.easeOut(duration: 0.2), value: avoidance)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
+            dockedColumnFrame = frame
         }
     }
 
@@ -816,6 +867,9 @@ struct ContentView: View {
                 .layoutPriority(-1)
                 .accessibilityLabel(SongNameFieldAccessibility.label)
                 .textInputAutocapitalization(.words)
+                // A song title is a name: autocorrect turned "Zq" into "Zach"
+                // as the keyboard went away.
+                .autocorrectionDisabled()
                 .submitLabel(.done)
                 .focused($nameFocused)
                 .onSubmit { studio.normalizeSongName() }
