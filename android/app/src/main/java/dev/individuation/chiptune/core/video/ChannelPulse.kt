@@ -1,9 +1,11 @@
 package dev.individuation.chiptune.core.video
 
+import dev.individuation.chiptune.core.audio.ExportOptions
 import dev.individuation.chiptune.core.audio.MidiExport
 import dev.individuation.chiptune.core.model.Chip
 import dev.individuation.chiptune.core.model.Pattern
 import dev.individuation.chiptune.core.model.Song
+import dev.individuation.chiptune.core.model.Track
 
 /**
  * How bright each track's bar is on a frame of the Cover style. Port of
@@ -56,5 +58,12 @@ class ChannelPulse(song: Song, private val timeline: VideoTimeline) {
     companion object {
         /** A third of a second at 30 fps. */
         const val DECAY_FRAMES = 10
+
+        /** Whether a track's name is drawn dim, as one the soundtrack doesn't
+         * play: muted, or at a volume the MIDI export calls silent. The same
+         * rule in both styles, and the one that keeps a Cartridge bar dark.
+         * iOS's `VideoFrameRenderer.dimsName(of:in:)`. */
+        @Suppress("UNUSED_PARAMETER")
+        fun dimsName(track: Track, style: ExportOptions.VideoStyle): Boolean = MidiExport.isSilent(track)
     }
 }

@@ -17,7 +17,6 @@ import androidx.core.graphics.createBitmap
 import androidx.core.graphics.withClip
 import dev.individuation.chiptune.R
 import dev.individuation.chiptune.core.audio.ExportOptions
-import dev.individuation.chiptune.core.audio.MidiExport
 import dev.individuation.chiptune.core.audio.WavExport
 import dev.individuation.chiptune.core.model.Chip
 import dev.individuation.chiptune.core.model.NoteName
@@ -55,7 +54,7 @@ class VideoFrameDrawer(
     private val style = options.videoStyle
     private val layout = VideoLayout(this.song.tracks.size)
     private val pulse = ChannelPulse(this.song, timeline)
-    private val silent = this.song.tracks.map(MidiExport::isSilent)
+    private val dimmed = this.song.tracks.map { ChannelPulse.dimsName(it, style) }
 
     val bitmap: Bitmap = createBitmap(VideoLayout.WIDTH, VideoLayout.HEIGHT)
     private val canvas = Canvas(bitmap)
@@ -163,9 +162,8 @@ class VideoFrameDrawer(
 
     private fun drawColumnHeaders() {
         for (index in song.tracks.indices) {
-            val track = song.tracks[index]
             val cell = layout.columnHeaderRect(index)
-            val color = if (track.muted) DIM else channel(index)
+            val color = if (dimmed[index]) DIM else channel(index)
             text(song.label(index), layout.columnHeaderFontSize, bold, color, cell, Paint.Align.CENTER)
         }
     }
@@ -329,7 +327,7 @@ class VideoFrameDrawer(
             // Below the bar, so no level ever reaches it.
             val label = layout.coverBarLabelRect(index)
             text(song.label(index), layout.coverLabelFontSize, bold,
-                if (silent[index]) DIM else channel(index), label, Paint.Align.CENTER)
+                if (dimmed[index]) DIM else channel(index), label, Paint.Align.CENTER)
         }
 
         val track = layout.coverProgressRect

@@ -10,7 +10,9 @@ import dev.individuation.chiptune.core.model.ChannelKind
 import dev.individuation.chiptune.core.model.Chip
 import dev.individuation.chiptune.core.model.Pattern
 import dev.individuation.chiptune.core.model.Song
+import dev.individuation.chiptune.core.model.SongDocument
 import dev.individuation.chiptune.core.model.Track
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -95,6 +97,52 @@ class ChannelPulseTest {
         assertEquals(1.0, pulse.levels(9)[0], 0.0)
         assertTrue(pulse.levels(13)[0] > 0)
         assertTrue(pulse.levels(13)[0] < pulse.levels(12)[0])
+    }
+
+    /** Both styles dim a track's name by the same rule the bars go dark by:
+     * muted, or a volume the MIDI export would call silent. */
+    @Test fun bothStylesDimTheNamesOfTheSameSilentTracks() {
+        val plain = Track(kind = ChannelKind.PULSE1)
+        val cases = listOf(
+            Triple("muted", plain.copy(muted = true), true),
+            Triple("volume 0", Track(kind = ChannelKind.PULSE2).let { it.copy(instrument = it.instrument.copy(volume = 0.0)) }, true),
+            Triple("volume 0.003", Track(kind = ChannelKind.TRIANGLE).let { it.copy(instrument = it.instrument.copy(volume = 0.003)) }, true),
+            Triple("volume 0.01", Track(kind = ChannelKind.NOISE).let { it.copy(instrument = it.instrument.copy(volume = 0.01)) }, false),
+            Triple("plain", plain, false),
+        )
+        for (style in ExportOptions.VideoStyle.entries) {
+            for ((name, track, dim) in cases) {
+                assertEquals("$style / $name", dim, ChannelPulse.dimsName(track, style))
+            }
+        }
+    }
+
+    // MARK: Shared fixture
+
+    /** `video-timeline.json` carries every frame's bar levels, worked out by
+     * the reference script: a muted track that stays dark, a sustaining one
+     * that still flashes, note-offs, and the fade on into the tail. */
+    @Test fun theSharedFixtureLevelsMatch() {
+        val stream = javaClass.classLoader!!.getResourceAsStream("video-timeline.json")
+            ?: error("video-timeline.json is not on the test classpath")
+        val fixture = JSONObject(String(stream.use { it.readBytes() }, Charsets.UTF_8))
+        val song = SongDocument.decode(fixture.getJSONObject("song").toString().toByteArray(Charsets.UTF_8))
+        val pulse = pulse(song, loops = fixture.getInt("loopCount"))
+        val frames = fixture.getJSONArray("frames")
+        var midFade = false
+        for (i in 0 until frames.length()) {
+            val row = frames.getJSONObject(i)
+            val frame = row.getInt("frame")
+            assertTrue("frame $frame has its levels", row.has("levels"))
+            val want = row.getJSONArray("levels").let { a -> List(a.length()) { a.getDouble(it) } }
+            val got = pulse.levels(frame)
+            assertEquals("frame $frame", want.size, got.size)
+            want.forEachIndexed { track, level ->
+                assertEquals("frame $frame / track $track", level, got[track], 1e-9)
+                if (level > 0 && level < 1) midFade = true
+            }
+        }
+        assertTrue("some bar is mid-fade", midFade)
     }
 
     /** The first step of the second pass is the first step again. */
