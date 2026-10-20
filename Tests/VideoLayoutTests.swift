@@ -134,15 +134,18 @@ final class VideoLayoutTests: XCTestCase {
         let layout = VideoLayout(trackCount: 4)
         let cart = layout.cartridgeRect
         let outline = layout.cartridgeOutline
-        XCTAssertEqual(outline.count, 5)
-        XCTAssertEqual(outline[0], CGPoint(x: cart.minX, y: cart.minY))
-        XCTAssertEqual(outline[1], CGPoint(x: cart.maxX - layout.cartridgeNotch, y: cart.minY))
-        XCTAssertEqual(outline[2], CGPoint(x: cart.maxX, y: cart.minY + layout.cartridgeNotch))
-        XCTAssertEqual(outline[3], CGPoint(x: cart.maxX, y: cart.maxY))
-        XCTAssertEqual(outline[4], CGPoint(x: cart.minX, y: cart.maxY))
+        // Compared whole, so a short outline fails here instead of crashing
+        // the test process on an out-of-range index.
+        XCTAssertEqual(outline, [
+            CGPoint(x: cart.minX, y: cart.minY),
+            CGPoint(x: cart.maxX - layout.cartridgeNotch, y: cart.minY),
+            CGPoint(x: cart.maxX, y: cart.minY + layout.cartridgeNotch),
+            CGPoint(x: cart.maxX, y: cart.maxY),
+            CGPoint(x: cart.minX, y: cart.maxY),
+        ])
         XCTAssertGreaterThan(layout.cartridgeNotch, layout.cartridgeCornerRadius)
-        XCTAssertGreaterThan(outline[1].x, cart.midX)
-        XCTAssertLessThan(outline[2].y, layout.labelRecessRect.minY)
+        XCTAssertGreaterThan(cart.maxX - layout.cartridgeNotch, cart.midX)
+        XCTAssertLessThan(cart.minY + layout.cartridgeNotch, layout.labelRecessRect.minY)
     }
 
     /// Grip ridges stack across the band above the label, inside the body
