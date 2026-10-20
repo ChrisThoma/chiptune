@@ -48,7 +48,7 @@ class Mp4Writer(private val resources: Resources) : VideoWriter {
             ExportResult.Failed(e)
         } finally {
             session.release()
-            drawer.bitmap.recycle()
+            drawer.recycle()
         }
     }
 

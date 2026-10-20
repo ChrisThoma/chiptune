@@ -69,15 +69,42 @@ class VideoFrameDrawer(
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
     private val rect = RectF()
 
+    /** Everything in a Cartridge frame that never changes (the background,
+     * the cartridge, the label's text, the bars' wells, the progress track,
+     * the total time and the tag), drawn once and kept here. Each frame
+     * copies it back and draws only what moves on top, so the blurred shadow
+     * and the paths aren't redrawn 30 times a second. Nothing that moves
+     * overlaps anything the original order drew after it, so the frame comes
+     * out pixel for pixel the same. */
+    private val coverBackdrop: Bitmap? = if (style == ExportOptions.VideoStyle.COVER) {
+        canvas.drawColor(BACKGROUND.argb)
+        drawCoverStatic()
+        drawTag()
+        bitmap.copy(Bitmap.Config.ARGB_8888, false)
+    } else {
+        null
+    }
+
     /** Draws [frame] into [bitmap] and returns it. */
     fun draw(frame: Int): Bitmap {
-        canvas.drawColor(BACKGROUND.argb)
         when (style) {
-            ExportOptions.VideoStyle.GRID -> drawGrid(frame)
-            ExportOptions.VideoStyle.COVER -> drawCover(frame)
+            ExportOptions.VideoStyle.GRID -> {
+                canvas.drawColor(BACKGROUND.argb)
+                drawGrid(frame)
+                drawTag()
+            }
+            ExportOptions.VideoStyle.COVER -> {
+                canvas.drawBitmap(checkNotNull(coverBackdrop), 0f, 0f, null)
+                drawCoverMoving(frame)
+            }
         }
-        drawTag()
         return bitmap
+    }
+
+    /** Frees the frame and the backdrop. */
+    fun recycle() {
+        coverBackdrop?.recycle()
+        bitmap.recycle()
     }
 
     // MARK: Grid
@@ -280,7 +307,8 @@ class VideoFrameDrawer(
         close()
     }
 
-    private fun drawCover(frame: Int) {
+    /** The Cartridge frame's parts that stay put, for [coverBackdrop]. */
+    private fun drawCoverStatic() {
         drawCartridge()
 
         val titleRect = layout.coverTitleRect
@@ -293,19 +321,12 @@ class VideoFrameDrawer(
         val length = clock(timeline.seconds)
         text("${song.tempo.toInt()} BPM  ·  $length", layout.coverMetaFontSize, semibold, DIM, meta)
 
-        val levels = pulse.levels(frame)
         for (index in song.tracks.indices) {
             val bar = layout.coverBarRect(index)
-            val radius = minOf(bar.width / 2, 18.0).toFloat()
+            val radius = coverBarRadius(bar)
             fill.color = PANEL_HIGH.argb
             canvas.drawRoundRect(bar.toRectF(), radius, radius, fill)
-            val level = levels.getOrNull(index) ?: 0.0
-            if (level > 0) {
-                val height = maxOf(bar.height * level, radius * 2.0)
-                fill.color = channel(index).argb
-                rect.set(bar.minX.toFloat(), (bar.maxY - height).toFloat(), bar.maxX.toFloat(), bar.maxY.toFloat())
-                canvas.drawRoundRect(rect, radius, radius, fill)
-            }
+            // Below the bar, so no level ever reaches it.
             val label = FrameRect(bar.midX - 90, layout.coverBarLabelY - 20, 180.0, 40.0)
             text(song.label(index), layout.coverLabelFontSize, bold,
                 if (silent[index]) DIM else channel(index), label, Paint.Align.CENTER)
@@ -315,6 +336,27 @@ class VideoFrameDrawer(
         val trackRadius = (track.height / 2).toFloat()
         fill.color = PANEL_HIGH.argb
         canvas.drawRoundRect(track.toRectF(), trackRadius, trackRadius, fill)
+        text(length, 28.0, semibold, DIM, layout.coverTimeRect, Paint.Align.RIGHT)
+    }
+
+    /** The bars' levels, the progress and the running clock, over
+     * [coverBackdrop]. */
+    private fun drawCoverMoving(frame: Int) {
+        val levels = pulse.levels(frame)
+        for (index in song.tracks.indices) {
+            val level = levels.getOrNull(index) ?: 0.0
+            if (level > 0) {
+                val bar = layout.coverBarRect(index)
+                val radius = coverBarRadius(bar)
+                val height = maxOf(bar.height * level, radius * 2.0)
+                fill.color = channel(index).argb
+                rect.set(bar.minX.toFloat(), (bar.maxY - height).toFloat(), bar.maxX.toFloat(), bar.maxY.toFloat())
+                canvas.drawRoundRect(rect, radius, radius, fill)
+            }
+        }
+
+        val track = layout.coverProgressRect
+        val trackRadius = (track.height / 2).toFloat()
         val done = minOf(1.0, timeline.sample(frame).toDouble() / maxOf(timeline.totalSamples, 1))
         if (done > 0) {
             fill.color = TEXT.argb
@@ -322,11 +364,11 @@ class VideoFrameDrawer(
                 (track.minX + maxOf(track.width * done, track.height)).toFloat(), track.maxY.toFloat())
             canvas.drawRoundRect(rect, trackRadius, trackRadius, fill)
         }
-        val times = layout.coverTimeRect
         val elapsed = minOf(timeline.sample(frame) / WavExport.SAMPLE_RATE, timeline.seconds)
-        text(clock(elapsed), 28.0, semibold, DIM, times)
-        text(length, 28.0, semibold, DIM, times, Paint.Align.RIGHT)
+        text(clock(elapsed), 28.0, semibold, DIM, layout.coverTimeRect)
     }
+
+    private fun coverBarRadius(bar: FrameRect): Float = minOf(bar.width / 2, 18.0).toFloat()
 
     // MARK: Tag
 
