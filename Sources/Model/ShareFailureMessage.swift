@@ -99,6 +99,28 @@ enum ShareFailureMessage {
     static func sheet(file: String) -> String {
         "Couldn't share the \(file). Try again."
     }
+
+    /// The same, except when Photos access was turned down for Save Video:
+    /// retrying can't fix that, so the alert says where it can be.
+    static func sheet(file: String, error: Error) -> String {
+        photosAccessDenied(error as NSError)
+            ? "Allow Chiptune to add videos to Photos in Settings."
+            : sheet(file: file)
+    }
+
+    /// Save Video after Don't Allow reports an "unknown" assets-library
+    /// error (-1) wrapping Photos' access-denied code, so the chain is
+    /// searched. The codes are written out rather than imported: Photos is
+    /// otherwise unused here.
+    static func photosAccessDenied(_ ns: NSError) -> Bool {
+        switch (ns.domain, ns.code) {
+        case ("PHPhotosErrorDomain", 3311), // PHPhotosError.accessUserDenied
+             ("ALAssetsLibraryErrorDomain", -3311): // ALAssetsLibraryAccessUserDeniedError
+            return true
+        default:
+            return (ns.userInfo[NSUnderlyingErrorKey] as? NSError).map(photosAccessDenied) ?? false
+        }
+    }
 }
 
 /// The "Delete failed" alert's words. Built like Save failed, but only

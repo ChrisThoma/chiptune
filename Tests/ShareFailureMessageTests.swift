@@ -200,6 +200,36 @@ final class ShareSheetFailureMessageTests: XCTestCase {
     }
 }
 
+/// Save Video with Photos access turned down. Retrying can't help, so the
+/// alert says where to fix it instead.
+final class PhotosDeniedShareMessageTests: XCTestCase {
+    private let settings = "Allow Chiptune to add videos to Photos in Settings."
+
+    /// Exactly what the share sheet reported on the simulator after Don't
+    /// Allow: an "unknown" assets-library error wrapping Photos' own
+    /// access-denied code.
+    func testTheShareSheetsDeniedErrorPointsToSettings() {
+        let denied = NSError(domain: "ALAssetsLibraryErrorDomain", code: -1, userInfo: [
+            NSLocalizedDescriptionKey: "Unknown error",
+            NSUnderlyingErrorKey: NSError(domain: "PHPhotosErrorDomain", code: 3311),
+        ])
+        XCTAssertEqual(ShareFailureMessage.sheet(file: "video", error: denied), settings)
+    }
+
+    func testPhotosAndAssetsLibraryDeniedCodesPointToSettings() {
+        XCTAssertEqual(ShareFailureMessage.sheet(file: "video", error: NSError(domain: "PHPhotosErrorDomain", code: 3311)),
+                       settings)
+        XCTAssertEqual(ShareFailureMessage.sheet(file: "video",
+                                                 error: NSError(domain: "ALAssetsLibraryErrorDomain", code: -3311)),
+                       settings)
+    }
+
+    func testAnyOtherShareFailureStillSaysTryAgain() {
+        let other = NSError(domain: "ALAssetsLibraryErrorDomain", code: -1)
+        XCTAssertEqual(ShareFailureMessage.sheet(file: "video", error: other), "Couldn't share the video. Try again.")
+    }
+}
+
 /// The video writer reports a full disk in its own domain, not as a Cocoa or
 /// POSIX error.
 final class VideoWriteFailureCauseTests: XCTestCase {

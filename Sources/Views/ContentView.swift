@@ -360,8 +360,9 @@ struct ContentView: View {
         }) {
             if let url = studio.exportURL {
                 ShareSheet(items: [url], onComplete: { completed, error in
-                    if error != nil {
-                        studio.shareError = ShareFailureMessage.sheet(file: WriteFailureMessage.fileNoun(for: url))
+                    if let error {
+                        studio.shareError = ShareFailureMessage.sheet(file: WriteFailureMessage.fileNoun(for: url),
+                                                                      error: error)
                     }
                     let outcome: ReviewPromptPolicy.ShareOutcome = completed ? .completed : (error != nil ? .failed : .canceled)
                     if let decided = shareEnding.activityFinished(outcome) { afterShare(decided) }
