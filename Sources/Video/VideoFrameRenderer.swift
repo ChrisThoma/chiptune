@@ -109,7 +109,7 @@ final class VideoFrameRenderer {
     private func drawColumnHeaders() {
         for index in song.tracks.indices {
             let track = song.tracks[index]
-            let cell = layout.cellRect(track: index, centerY: layout.columnHeaderY)
+            let cell = layout.columnHeaderRect(track: index)
             let color = track.muted ? Palette.dim : Palette.channel(track.kind)
             Self.text(song.label(for: index), size: layout.columnHeaderFontSize, weight: .bold,
                       color: color, in: cell, alignment: .center)
@@ -301,7 +301,7 @@ final class VideoFrameRenderer {
                 UIBezierPath(roundedRect: lit, cornerRadius: radius).fill()
             }
             let silent = MidiExport.isSilent(track)
-            let labelRect = CGRect(x: rect.midX - 90, y: layout.coverBarLabelY - 20, width: 180, height: 40)
+            let labelRect = layout.coverBarLabelRect(track: index)
             Self.text(song.label(for: index), size: layout.coverLabelFontSize, weight: .bold,
                       color: silent ? Palette.dim : Palette.channel(track.kind), in: labelRect, alignment: .center)
         }

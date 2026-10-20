@@ -247,6 +247,59 @@ final class VideoLayoutTests: XCTestCase {
         XCTAssertEqual(VideoLayout(trackCount: 8).coverBarRect(track: 7), CGRect(x: 774, y: 752, width: 50, height: 220))
     }
 
+    // MARK: Track names
+
+    /// Width of `text` as the renderer draws it: SF Mono, bold.
+    private func width(_ text: String, size: CGFloat) -> CGFloat {
+        (text as NSString).size(withAttributes: [.font: UIFont.monospacedSystemFont(ofSize: size, weight: .bold)]).width
+    }
+
+    /// Track names side by side: each within its own slot, none touching the
+    /// next, a default name ("PU1 A") whole at the size drawn, and more space
+    /// between two names than the space inside one, so "PU1 A PU2 A" reads as
+    /// two names rather than one run.
+    private func assertNamesStaySeparate(_ rects: [CGRect], centres: [CGFloat], size: CGFloat,
+                                         _ what: String, file: StaticString = #filePath, line: UInt = #line) {
+        let name = width("PU1 A", size: size)
+        let space = width(" ", size: size)
+        for (index, rect) in rects.enumerated() {
+            XCTAssertEqual(rect.midX, centres[index], accuracy: 0.5, "\(what) / \(index) centred", file: file, line: line)
+            XCTAssertLessThanOrEqual(name, rect.width, "\(what) / \(index) truncates a default name", file: file, line: line)
+            guard index > 0 else { continue }
+            XCTAssertLessThanOrEqual(rects[index - 1].maxX, rect.minX, "\(what) / \(index) overlaps", file: file, line: line)
+            let textGap = (centres[index] - name / 2) - (centres[index - 1] + name / 2)
+            XCTAssertGreaterThan(textGap, 1.5 * space, "\(what) / \(index) runs into the one before", file: file, line: line)
+        }
+    }
+
+    func testCartridgeTrackNamesStaySeparateForOneToEightTracks() {
+        for count in 1...8 {
+            let layout = VideoLayout(trackCount: count)
+            let rects = (0..<count).map { layout.coverBarLabelRect(track: $0) }
+            let centres = (0..<count).map { layout.coverBarRect(track: $0).midX }
+            assertNamesStaySeparate(rects, centres: centres, size: layout.coverLabelFontSize, "cartridge \(count)")
+            for rect in rects { XCTAssertTrue(layout.labelRect.contains(rect), "\(count)") }
+        }
+    }
+
+    func testGridColumnNamesStaySeparateForOneToEightTracks() {
+        for count in 1...8 {
+            let layout = VideoLayout(trackCount: count)
+            let rects = (0..<count).map { layout.columnHeaderRect(track: $0) }
+            let centres = (0..<count).map { layout.cellRect(track: $0, centerY: 900).midX }
+            assertNamesStaySeparate(rects, centres: centres, size: layout.columnHeaderFontSize, "grid \(count)")
+            for rect in rects { XCTAssertTrue(VideoLayout.safeRect.contains(rect), "\(count)") }
+        }
+    }
+
+    /// Few tracks keep the full-size names; only crowded rows shrink them.
+    func testNamesOnlyShrinkWhenCrowded() {
+        XCTAssertEqual(VideoLayout(trackCount: 4).coverLabelFontSize, 26)
+        XCTAssertEqual(VideoLayout(trackCount: 4).columnHeaderFontSize, 26)
+        XCTAssertLessThan(VideoLayout(trackCount: 8).coverLabelFontSize, 26)
+        XCTAssertLessThan(VideoLayout(trackCount: 8).columnHeaderFontSize, 26)
+    }
+
     // MARK: Tag
 
     func testTheTagIsInsideTheFrameAndClearOfTheBottomOverlays() {

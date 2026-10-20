@@ -55,7 +55,28 @@ struct VideoLayout {
     let columnHeaderHeight: CGFloat = 52
     /// Centre line of the track names above the columns.
     var columnHeaderY: CGFloat { headerRect.maxY + 16 + columnHeaderHeight / 2 }
-    let columnHeaderFontSize: CGFloat = 26
+    /// Full size, or smaller when eight columns crowd the names together.
+    var columnHeaderFontSize: CGFloat { Self.nameFontSize(pitch: columnWidth + gap) }
+
+    /// Track names are drawn this large unless their slots are narrow.
+    static let fullNameFontSize: CGFloat = 26
+
+    /// The largest size, up to full, at which a default name like "PU1 A"
+    /// leaves more room before the next name than the space inside it, so a
+    /// row of names doesn't read as one run. SF Mono's advance is about 0.62
+    /// of its size: five characters plus one and a half spaces' gap.
+    static func nameFontSize(pitch: CGFloat) -> CGFloat {
+        min(fullNameFontSize, (pitch / 4.1).rounded(.down))
+    }
+
+    /// Where a track's name is drawn above its column: no wider than the
+    /// column, so the renderer truncates a long name rather than letting it
+    /// run into the next.
+    func columnHeaderRect(track: Int) -> CGRect {
+        let cell = cellRect(track: track, centerY: columnHeaderY)
+        return CGRect(x: cell.minX, y: columnHeaderY - columnHeaderHeight / 2,
+                      width: cell.width, height: columnHeaderHeight)
+    }
 
     /// Where rows are drawn; they are clipped to it as they scroll.
     var gridRect: CGRect {
@@ -191,7 +212,7 @@ struct VideoLayout {
     let coverPadding: CGFloat = 40
     let coverTitleFontSize: CGFloat = 72
     let coverMetaFontSize: CGFloat = 34
-    let coverLabelFontSize: CGFloat = 26
+    var coverLabelFontSize: CGFloat { Self.nameFontSize(pitch: coverBarWidth + coverBarGap) }
 
     /// Up to two lines of title.
     var coverTitleRect: CGRect {
@@ -235,4 +256,13 @@ struct VideoLayout {
 
     /// Track names sit centred under their bars.
     var coverBarLabelY: CGFloat { coverBarsBottom + 40 }
+
+    /// Where a track's name is drawn under its bar: no wider than the bar's
+    /// share of the row, less a gap, so names never run into each other; the
+    /// renderer truncates a longer one. A lone track has the row to itself.
+    func coverBarLabelRect(track: Int) -> CGRect {
+        let bar = coverBarRect(track: track)
+        let width = trackCount == 1 ? labelRect.width - 2 * coverPadding : coverBarWidth + coverBarGap - 8
+        return CGRect(x: bar.midX - width / 2, y: coverBarLabelY - 20, width: width, height: 40)
+    }
 }
