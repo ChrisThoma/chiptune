@@ -255,6 +255,67 @@ final class StudioUndoTests: XCTestCase {
         XCTAssertEqual(studio.song.tracks[1].instrument.volume, originalSecondVolume)
     }
 
+    /// Resizing pattern A, switching to B and resizing it inside the window
+    /// are two edits to two patterns: one Undo must not take back both.
+    func testPatternLengthInAnotherPatternDoesNotCoalesce() {
+        studio.open(TestSongs.twoPatterns(lengths: (16, 16)))
+        studio.undoCoalescingWindow = 60
+
+        studio.setPatternLength(8)
+        studio.selectPattern(1)
+        studio.setPatternLength(12)
+        studio.undo()
+
+        XCTAssertEqual(studio.song.patterns.map(\.length), [8, 16],
+                       "only pattern B's resize should be undone")
+    }
+
+    func testCellTapsInAnotherPatternDoNotCoalesce() {
+        studio.open(TestSongs.twoPatterns(lengths: (16, 16)))
+        studio.undoCoalescingWindow = 60
+        studio.selectedNote = 64
+
+        studio.toggleCell(track: 0, step: 3)
+        studio.selectPattern(1)
+        studio.toggleCell(track: 0, step: 4)
+        studio.undo()
+
+        XCTAssertEqual(studio.song.patterns[0].rows[0][3], 64, "pattern A's note was undone too")
+        XCTAssertEqual(studio.song.patterns[1].rows[0][4], Chip.emptyNote)
+    }
+
+    func testTypedNotesInAnotherPatternDoNotCoalesce() {
+        studio.open(TestSongs.twoPatterns(lengths: (16, 16)))
+        studio.undoCoalescingWindow = 60
+        studio.selectedStep = 3
+
+        studio.typeNote(64)
+        studio.selectPattern(1)
+        studio.selectedStep = 5
+        studio.clearAtCursor() // empty cell: no edit
+        studio.selectedStep = 4
+        studio.typeNote(65)
+        studio.undo()
+
+        XCTAssertEqual(studio.song.patterns[0].rows[0][3], 64, "pattern A's note was undone too")
+        XCTAssertEqual(studio.song.patterns[1].rows[0][4], Chip.emptyNote)
+    }
+
+    /// The control for the three above: a stroke inside one pattern still
+    /// folds, even with a reselection of the same pattern in the middle.
+    func testEditsInOnePatternStillCoalesceAcrossReselection() {
+        studio.open(TestSongs.twoPatterns(lengths: (16, 16)))
+        studio.undoCoalescingWindow = 60
+
+        studio.setPatternLength(8)
+        studio.selectPattern(0)
+        studio.setPatternLength(12)
+        studio.undo()
+
+        XCTAssertEqual(studio.song.patterns.map(\.length), [16, 16])
+        XCTAssertFalse(studio.canUndo)
+    }
+
     /// A discrete edit is never folded into the stroke before it, however fast
     /// it follows — deleting a pattern must not be undone by accident.
     func testDiscreteEditsDoNotCoalesce() {

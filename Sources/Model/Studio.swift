@@ -258,8 +258,16 @@ final class Studio {
     /// it, so time-coalescing only folds edits of the same kind — tapping the
     /// tempo stepper and then a grid cell within the window must stay two
     /// undo steps.
+    ///
+    /// Edits that land in one pattern carry that pattern's id, as `repeats`
+    /// carries its section's: tapping a cell in A, switching to B and tapping
+    /// one there inside the window is two edits to two patterns, and one Undo
+    /// must not take back both. Track-indexed kinds need no such id, since
+    /// tracks are song-wide and every reorder or delete is a discrete
+    /// checkpoint that ends the fold.
     enum CheckpointKind: Equatable {
-        case tempo, cell, note, patternLength
+        case tempo
+        case cell(UUID), note(UUID), patternLength(UUID)
         case trackName(Int), volume(Int), sustain(Int), decay(Int), duty(Int), arpeggio(Int)
         case repeats(UUID)
     }
@@ -296,6 +304,11 @@ final class Studio {
     /// corrupts the stack the moment you undo twice.
     func checkpoint(coalescing: Bool = false, kind: CheckpointKind? = nil, run: CheckpointRun? = nil) {
         history.record(snapshot(), coalescing: coalescing, kind: kind, run: run)
+    }
+
+    /// The id that scopes a pattern edit's undo kind to the selected pattern.
+    private var selectedPatternID: UUID? {
+        song.patterns.indices.contains(selectedPattern) ? song.patterns[selectedPattern].id : nil
     }
 
     /// Ends the current named run, so the next edit of that kind starts a fresh
@@ -528,7 +541,7 @@ final class Studio {
     /// Tap behavior: an empty cell takes the selected note; a filled cell
     /// overwrites with the selected note, or clears if it already matches.
     func toggleCell(track: Int, step: Int) {
-        checkpoint(coalescing: true, kind: .cell)
+        checkpoint(coalescing: true, kind: selectedPatternID.map(CheckpointKind.cell))
         let existing = note(track: track, step: step)
         if existing == selectedNote {
             setNote(track: track, step: step, note: Chip.emptyNote)
@@ -590,7 +603,7 @@ final class Studio {
         guard !song.tracks.isEmpty else { return }
         // A cell that already holds this note is not an edit (it would wipe Redo).
         if self.note(track: selectedTrack, step: selectedStep) != note {
-            checkpoint(coalescing: true, kind: .note)
+            checkpoint(coalescing: true, kind: selectedPatternID.map(CheckpointKind.note))
             setNote(track: selectedTrack, step: selectedStep, note: note)
         } else {
             pinToSelectedPattern()
@@ -607,7 +620,7 @@ final class Studio {
         clampCursor()
         guard !song.tracks.isEmpty else { return }
         if note(track: selectedTrack, step: selectedStep) != Chip.emptyNote {
-            checkpoint(coalescing: true, kind: .note)
+            checkpoint(coalescing: true, kind: selectedPatternID.map(CheckpointKind.note))
             setNote(track: selectedTrack, step: selectedStep, note: Chip.emptyNote)
         } else {
             pinToSelectedPattern()
@@ -835,7 +848,7 @@ final class Studio {
 
     func setPatternLength(_ length: Int) {
         guard selectedPattern < song.patterns.count else { return }
-        checkpoint(coalescing: true, kind: .patternLength)
+        checkpoint(coalescing: true, kind: selectedPatternID.map(CheckpointKind.patternLength))
         pinToSelectedPattern()
         song.patterns[selectedPattern].length = length.clamped(to: Chip.patternLengthRange)
         engine.core.setLength(pattern: selectedPattern, length: song.patterns[selectedPattern].length)
