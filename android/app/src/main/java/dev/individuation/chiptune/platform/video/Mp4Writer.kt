@@ -101,12 +101,22 @@ class Mp4Writer(private val resources: Resources) : VideoWriter {
         private var audioOutputDone = false
         private val info = MediaCodec.BufferInfo()
 
-        init {
-            val videoFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
+        /** The encoder's settings. [unthrottled] asks it to run flat out:
+         * left to [MediaFormat.KEY_FRAME_RATE] alone, an encoder may clock
+         * itself for 30 fps live capture (the Pixel 3 XL's managed about 46
+         * fps, slower than the frames could be drawn). The rate and the
+         * non-realtime priority are what Android's own transcoder asks for
+         * at 1080p. */
+        private fun videoFormat(unthrottled: Boolean): MediaFormat =
+            MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
                 setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible)
                 setInteger(MediaFormat.KEY_BIT_RATE, VIDEO_BIT_RATE)
                 setInteger(MediaFormat.KEY_FRAME_RATE, VideoTimeline.FPS)
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2)
+                if (unthrottled) {
+                    setInteger(MediaFormat.KEY_OPERATING_RATE, OPERATING_RATE)
+                    setInteger(MediaFormat.KEY_PRIORITY, 1)
+                }
                 // Tagged explicitly, as iOS does, so players don't guess at
                 // the theme colours; Yuv converts with these coefficients.
                 setInteger(MediaFormat.KEY_COLOR_STANDARD, MediaFormat.COLOR_STANDARD_BT709)
@@ -122,7 +132,16 @@ class Mp4Writer(private val resources: Resources) : VideoWriter {
                         setInteger(MediaFormat.KEY_LEVEL, minOf(it.level, MediaCodecInfo.CodecProfileLevel.AVCLevel42))
                     }
             }
-            video.configure(videoFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+
+        init {
+            try {
+                video.configure(videoFormat(unthrottled = true), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            } catch (e: Exception) {
+                // An encoder that refuses the operating rate still encodes
+                // at its own pace.
+                video.reset()
+                video.configure(videoFormat(unthrottled = false), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            }
             val audioFormat = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, SAMPLE_RATE, 1).apply {
                 setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
                 setInteger(MediaFormat.KEY_BIT_RATE, AUDIO_BIT_RATE)
@@ -307,5 +326,7 @@ class Mp4Writer(private val resources: Resources) : VideoWriter {
         /** Threads converting each frame to YUV: the Pixel 3 XL's four big
          * cores, while the encoder thread draws the next frame. */
         const val BANDS = 4
+        /** Frames a second the encoder is asked to be able to take. */
+        const val OPERATING_RATE = 240
     }
 }
