@@ -594,7 +594,9 @@ struct ExportSheet: View {
             startedAttempt = nil
         }
         .onChange(of: studio.isExporting) { _, exporting in
-            guard exporting else { return }
+            // Let go when the render ends, so the next one setting it true
+            // is a change and moves focus to Cancel export again.
+            guard exporting else { cancelFocused = false; return }
             announcing = ExportAnnouncement.Render()
             ExportAnnouncement.post(ExportAnnouncement.started(format: format))
             // A pass later, once Cancel export is in the tree to take it.
