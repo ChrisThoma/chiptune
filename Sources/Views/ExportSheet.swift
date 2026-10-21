@@ -177,6 +177,46 @@ enum ExportLengthFooter {
     }
 }
 
+/// What VoiceOver hears while a render runs. A video can take a minute, and
+/// a bar that only moves on screen tells someone who can't see it nothing.
+enum ExportAnnouncement {
+    static let canceled = "Export canceled"
+
+    /// Said as the render starts, and the progress row's label.
+    static func started(format: ExportOptions.Format) -> String {
+        format == .video ? "Exporting video" : "Exporting"
+    }
+
+    /// The quarters worth saying along the way. Not 100%: the end is the
+    /// share sheet coming up.
+    static let milestones = [0.25, 0.5, 0.75]
+
+    /// The quarter crossed going from `old` to `new`, the latest one if the
+    /// progress jumped past several. nil when none was crossed, including
+    /// the reset to 0 when a render ends.
+    static func milestone(from old: Double, to new: Double) -> String? {
+        guard let crossed = milestones.last(where: { old < $0 && $0 <= new }) else { return nil }
+        return Format.percent(crossed)
+    }
+
+    /// The progress row's value. A MIDI export reports no progress, so it
+    /// has none.
+    static func progressValue(format: ExportOptions.Format, progress: Double) -> String? {
+        switch format {
+        // Truncated like the line under the bar, so the two never disagree.
+        case .wav, .video: return "\(Int(progress * 100))%"
+        case .midi: return nil
+        }
+    }
+
+    static func post(_ text: String) {
+        var announcement = AttributedString(text)
+        // Not cut off by the focus moving to Cancel export as it starts.
+        announcement.accessibilitySpeechAnnouncementPriority = .high
+        AccessibilityNotification.Announcement(announcement).post()
+    }
+}
+
 /// Whether the repeats and ending controls can still be changed. They are
 /// frozen for the length of a render: it keeps the settings it started with, so
 /// an edit made mid-render would only make the readout disagree with the file.
@@ -237,6 +277,9 @@ struct ExportSheet: View {
     // and finishes between update passes. The model's monotonic attempt token
     // cannot be coalesced away, so failures and cancellations reliably retry.
     @State private var startedAttempt: Int?
+    /// VoiceOver moves to Cancel export as a render starts: the Export
+    /// button it was on has just gone.
+    @AccessibilityFocusState private var cancelFocused: Bool
 
     private var settingsLocked: Bool {
         ExportControls.settingsLocked(isExporting: studio.isExporting)
@@ -402,6 +445,29 @@ struct ExportSheet: View {
         }
     }
 
+    /// The bar and the line under it, read by VoiceOver as one element:
+    /// "Exporting video, 42%".
+    private var progressRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ProgressView(value: studio.exportProgress)
+                .tint(Theme.accentGreen)
+            Text(ExportProgressText.text(format: format, progress: studio.exportProgress))
+                .chipFont(11)
+                .foregroundStyle(Theme.dim)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(ExportAnnouncement.started(format: format))
+        .accessibilityValue(ExportAnnouncement.progressValue(format: format, progress: studio.exportProgress) ?? "")
+    }
+
+    private var cancelButton: some View {
+        Button("Cancel export", role: .destructive) {
+            studio.cancelExport()
+            ExportAnnouncement.post(ExportAnnouncement.canceled)
+        }
+        .accessibilityFocused($cancelFocused)
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -427,16 +493,8 @@ struct ExportSheet: View {
 
                 Section {
                     if studio.isExporting {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ProgressView(value: studio.exportProgress)
-                                .tint(Theme.accentGreen)
-                            Text(ExportProgressText.text(format: format, progress: studio.exportProgress))
-                                .chipFont(11)
-                                .foregroundStyle(Theme.dim)
-                        }
-                        Button("Cancel export", role: .destructive) {
-                            studio.cancelExport()
-                        }
+                        progressRow
+                        cancelButton
                     } else {
                         Button {
                             guard startedAttempt == nil else { return }
@@ -495,6 +553,17 @@ struct ExportSheet: View {
                                                    completedAttempt: completedAttempt,
                                                    producedFile: studio.exportURL != nil) else { return }
             startedAttempt = nil
+        }
+        .onChange(of: studio.isExporting) { _, exporting in
+            guard exporting else { return }
+            ExportAnnouncement.post(ExportAnnouncement.started(format: format))
+            // A pass later, once Cancel export is in the tree to take it.
+            DispatchQueue.main.async { cancelFocused = true }
+        }
+        .onChange(of: studio.exportProgress) { old, new in
+            guard studio.isExporting,
+                  let milestone = ExportAnnouncement.milestone(from: old, to: new) else { return }
+            ExportAnnouncement.post(milestone)
         }
         .errorAlert("Export failed", message: $studio.exportError)
         .popoverSized(popover,
