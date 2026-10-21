@@ -246,6 +246,19 @@ extension ExportFiles {
         }
     }
 
+    /// Whether deleting a song takes its exports now. An iPad's windows share
+    /// one Studio, so the song deleted in one window can be the one whose
+    /// export another is offering to share (`exportURL` in that song's
+    /// folder) or rendering. That folder is left for the share sheet, and
+    /// the next launch's `sweep` clears it.
+    static func removesExportsOnDelete(songID: UUID, exportURL: URL?, exportingSongID: UUID?) -> Bool {
+        if exportingSongID == songID { return false }
+        if let exportURL, exportURL.deletingLastPathComponent().lastPathComponent == songID.uuidString {
+            return false
+        }
+        return true
+    }
+
     /// A deleted song's exports, and its folder once nothing else is in it.
     static func removeExports(forSongID id: UUID, root: URL = FileManager.default.temporaryDirectory) {
         let fm = FileManager.default

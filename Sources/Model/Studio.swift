@@ -74,6 +74,8 @@ final class Studio {
     /// Monotonic completion token for views that must observe even an export
     /// which starts and finishes between two SwiftUI render passes.
     var completedExportAttempt = 0
+    /// The song the running export was started from, nil when none is running.
+    private(set) var exportingSongID: UUID?
 
     // MARK: Reported failures
     //
@@ -1313,8 +1315,12 @@ final class Studio {
             return
         }
         // Its exports would otherwise sit in tmp with nothing left to
-        // replace them.
-        ExportFiles.removeExports(forSongID: other.id)
+        // replace them. Not while one is on offer or rendering, possibly in
+        // another window: the launch sweep takes those.
+        if ExportFiles.removesExportsOnDelete(songID: other.id, exportURL: exportURL,
+                                              exportingSongID: exportingSongID) {
+            ExportFiles.removeExports(forSongID: other.id)
+        }
         // Deleting the song on screen: the editor has to move off it, or the
         // next autosave writes the "deleted" song straight back to disk.
         guard other.id == song.id else { return }
@@ -1464,6 +1470,7 @@ final class Studio {
         guard !isExporting else { return nil }
         let attempt = completedExportAttempt + 1
         isExporting = true
+        exportingSongID = song.id
         exportURL = nil
         exportError = nil
         exportProgress = 0
@@ -1502,6 +1509,7 @@ final class Studio {
             let leftForeground = keepAlive?.end() ?? false
             guard let self else { return }
             self.isExporting = false
+            self.exportingSongID = nil
             self.exportProgress = 0
             self.exportCancel = nil
             switch result {
