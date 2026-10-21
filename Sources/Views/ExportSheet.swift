@@ -62,7 +62,7 @@ enum ExportFormatFooter {
     static func text(for format: ExportOptions.Format) -> String? {
         switch format {
         case .wav: return nil
-        case .video: return "A 9:16 video for sharing to IG, TikTok, YouTube, etc."
+        case .video: return "A tall video for Instagram, TikTok and YouTube."
         case .midi:
             return "A MIDI file holds your notes, not the chip sounds. The app you open it in plays them with its own instruments."
         }
@@ -75,7 +75,7 @@ enum ExportStyleFooter {
     static func text(for style: ExportOptions.VideoStyle) -> String {
         switch style {
         case .grid: return "The pattern grid scrolls along as the song plays, the way it looks in the editor."
-        case .cover: return "A game cartridge with the song's title and a bar for each channel that jumps with its notes."
+        case .cover: return "A game cartridge with the song's title and a bar for each track that jumps with its notes."
         }
     }
 }
@@ -111,8 +111,15 @@ enum ExportPopoverSize {
 /// The length readout under Repeats, and what to say when the file will run
 /// past what a video can be.
 enum ExportLength {
-    /// Reels and Shorts cut a video off here.
+    /// The longest a YouTube Short can be. A longer video isn't cut off;
+    /// YouTube posts it as a regular video instead.
     static let shortsLimitSeconds = 180.0
+
+    /// Why the Export button is off for a video past `VideoExport.maxSeconds`:
+    /// the footer's warning and the button's VoiceOver hint.
+    static var tooLongForVideo: String {
+        "Too long for a video. The limit is \(Format.clock(VideoExport.maxSeconds))."
+    }
 
     /// Rough length of the file, so the repeat count means something. Reads
     /// the effective ending, so a video's length includes its tail.
@@ -132,10 +139,10 @@ enum ExportLength {
     static func warning(format: ExportOptions.Format, seconds: Double) -> String? {
         guard format == .video else { return nil }
         if seconds > VideoExport.maxSeconds {
-            return "Too long for a video — \(Format.clock(VideoExport.maxSeconds)) max."
+            return tooLongForVideo
         }
         if seconds > shortsLimitSeconds {
-            return "Reels and Shorts cut off at \(Format.clock(shortsLimitSeconds))."
+            return "Over \(Format.clock(shortsLimitSeconds)), YouTube posts it as a regular video, not a Short."
         }
         return nil
     }

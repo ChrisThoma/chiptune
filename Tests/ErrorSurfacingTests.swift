@@ -91,7 +91,7 @@ final class ErrorSurfacingTests: XCTestCase {
         waitForExport(studio)
 
         XCTAssertEqual(studio.exportError,
-                       "Too long for one WAV — lower the repeat count.")
+                       "Too long for one WAV. Lower the repeat count.")
     }
 
     func testASuccessfulExportReportsNoError() {

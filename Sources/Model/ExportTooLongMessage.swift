@@ -10,7 +10,7 @@ enum ExportTooLongMessage {
         // A MIDI file never comes back too long; it shares the WAV's words
         // only so the switch stays exhaustive.
         case .wav, .midi:
-            return "Too long for one WAV — lower the repeat count."
+            return "Too long for one WAV. Lower the repeat count."
         case .video:
             return "Videos can be up to 10 minutes long. Lower the repeat count, or export a WAV instead."
         }

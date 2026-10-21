@@ -59,8 +59,11 @@ final class ExportLengthTests: XCTestCase {
                        song.arrangementDuration, accuracy: 0.0001)
     }
 
-    func testAVideoOverThreeMinutesWarnsAboutReelsAndShorts() {
-        XCTAssertEqual(ExportLength.warning(format: .video, seconds: 181), "Reels and Shorts cut off at 3:00.")
+    /// Nothing cuts a longer video off: YouTube posts it as a regular video
+    /// rather than a Short, so that's what the warning says.
+    func testAVideoOverThreeMinutesSaysItWontBeAShort() {
+        XCTAssertEqual(ExportLength.warning(format: .video, seconds: 181),
+                       "Over 3:00, YouTube posts it as a regular video, not a Short.")
         XCTAssertNil(ExportLength.warning(format: .video, seconds: 180))
     }
 
@@ -69,7 +72,7 @@ final class ExportLengthTests: XCTestCase {
     }
 
     func testAVideoOverTheCapSaysItIsTooLong() {
-        XCTAssertEqual(ExportLength.warning(format: .video, seconds: 601), "Too long for a video — 10:00 max.")
+        XCTAssertEqual(ExportLength.warning(format: .video, seconds: 601), "Too long for a video. The limit is 10:00.")
     }
 }
 

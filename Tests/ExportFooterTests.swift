@@ -259,7 +259,7 @@ final class ExportFormatFooterTests: XCTestCase {
     }
 
     func testVideoSaysWhereItIsFor() {
-        XCTAssertEqual(ExportFormatFooter.text(for: .video), "A 9:16 video for sharing to IG, TikTok, YouTube, etc.")
+        XCTAssertEqual(ExportFormatFooter.text(for: .video), "A tall video for Instagram, TikTok and YouTube.")
     }
 }
 
@@ -273,7 +273,7 @@ final class ExportStyleFooterTests: XCTestCase {
 
     func testCartridgeSaysWhatIsOnTheCartridge() {
         XCTAssertEqual(ExportStyleFooter.text(for: .cover),
-                       "A game cartridge with the song's title and a bar for each channel that jumps with its notes.")
+                       "A game cartridge with the song's title and a bar for each track that jumps with its notes.")
     }
 }
 
