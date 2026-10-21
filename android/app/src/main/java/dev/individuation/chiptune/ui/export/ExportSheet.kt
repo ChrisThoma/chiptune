@@ -184,7 +184,7 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
                         )
                         PlainStepper(
                             value = options.loopCount,
-                            onValueChange = { studio.exportOptions = options.copy(loopCount = it) },
+                            onValueChange = { studio.exportOptions = options.withLoopCount(it) },
                             range = 1..ExportOptions.MAX_LOOP_COUNT,
                             accessibilityLabel = "Repeats",
                             accessibilityValue = Format.count(options.loopCount, "time"),

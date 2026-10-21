@@ -30,7 +30,14 @@ data class ExportOptions(
      * switching back finds the style the user left. Last, for the same
      * positional reason. */
     val videoStyle: VideoStyle = VideoStyle.GRID,
+    /** The user set the repeat count themselves, even back to 1, so it is
+     * theirs and switching to Video leaves it alone. Swift's
+     * `loopCountChosen`. Last, for the positional reason above. */
+    val loopCountChosen: Boolean = false,
 ) {
+    /** The Repeats stepper's way in: the count, marked as chosen. */
+    fun withLoopCount(count: Int): ExportOptions = copy(loopCount = count, loopCountChosen = true)
+
     /** Each format and everything that names it or its file: [label] in the
      * sheet ("Export WAV"), [fileExtension], [fileNoun] in an alert, and the
      * [mimeType] a share or save offers. Swift's `ExportOptions.Format`. */

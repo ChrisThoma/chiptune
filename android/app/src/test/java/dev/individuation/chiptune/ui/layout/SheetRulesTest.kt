@@ -468,8 +468,23 @@ class ExportCopyTest {
 
     @Test fun aCountTheUserChangedIsKept() {
         val song = TestSongs.golden()
-        val chosen = ExportOptions(loopCount = 3)
+        val chosen = ExportOptions().withLoopCount(3)
         assertEquals(3, ExportCopy.withFormat(song, chosen, ExportOptions.Format.VIDEO).loopCount)
+    }
+
+    /** Stepping back to 1 is a choice too (iOS `loopCountChosen`): a user who
+     * wants a one-pass video keeps it. */
+    @Test fun aCountSteppedBackToOneIsKept() {
+        val song = TestSongs.golden()
+        val back = ExportOptions().withLoopCount(2).withLoopCount(1)
+        assertTrue(back.loopCountChosen)
+        assertEquals(1, ExportCopy.withFormat(song, back, ExportOptions.Format.VIDEO).loopCount)
+    }
+
+    @Test fun theStepperMarksTheCountChosenAndAFreshExportDoesNot() {
+        assertFalse(ExportOptions().loopCountChosen)
+        assertTrue(ExportOptions().withLoopCount(4).loopCountChosen)
+        assertEquals(4, ExportOptions().withLoopCount(4).loopCount)
     }
 
     @Test fun otherFormatsLeaveTheCountAlone() {
