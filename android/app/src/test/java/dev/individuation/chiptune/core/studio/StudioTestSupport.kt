@@ -129,10 +129,10 @@ class StudioHarness(
     autosaveEnabled: Boolean = false,
     renderer: ((ExportRequest) -> ExportResult)? = null,
     keepAlive: ExportKeepAlive = ExportKeepAlive.None,
+    val exportDir: File = Files.createTempDirectory("chiptune-export-").toFile(),
 ) {
     val scheduler = ManualScheduler()
     val audio = FakeAudioOutput()
-    val exportDir: File = Files.createTempDirectory("chiptune-export-").toFile()
     val shareDir: File = Files.createTempDirectory("chiptune-share-").toFile()
     val executor: ExecutorService = Executors.newSingleThreadExecutor()
     val studio = Studio(
@@ -144,7 +144,13 @@ class StudioHarness(
         exportExecutor = executor,
         shareWriter = SongShareWriter(shareDir),
         keepAlive = keepAlive,
+        exportDirectory = exportDir,
     )
+
+    /** Waits for everything queued on the export executor so far. */
+    fun drainExecutor() {
+        executor.submit {}.get(10, java.util.concurrent.TimeUnit.SECONDS)
+    }
 
     /** Pumps posted work until the export finishes (Swift's `waitForExport`). */
     fun waitForExport(timeoutSeconds: Double = 60.0) {

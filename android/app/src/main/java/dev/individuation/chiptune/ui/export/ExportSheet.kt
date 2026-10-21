@@ -1,6 +1,7 @@
 package dev.individuation.chiptune.ui.export
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,10 +11,15 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.IosShare
+import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -28,6 +34,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.Role
@@ -37,6 +46,7 @@ import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,6 +65,7 @@ import dev.individuation.chiptune.ui.editor.PlainStepper
 import dev.individuation.chiptune.ui.editor.SheetBar
 import dev.individuation.chiptune.ui.editor.adjustable
 import dev.individuation.chiptune.ui.editor.plainClickable
+import dev.individuation.chiptune.ui.layout.ExportAnnouncement
 import dev.individuation.chiptune.ui.layout.ExportControls
 import dev.individuation.chiptune.ui.layout.ExportCopy
 import dev.individuation.chiptune.ui.layout.ExportFormatFooter
@@ -98,6 +109,8 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
     val completed by remember { derivedStateOf { ui.value.completedExportAttempt } }
     val exportError by remember { derivedStateOf { ui.value.exportError } }
     val locked = ExportControls.settingsLocked(isExporting)
+    // Segments clip at the largest text sizes; menu rows grow with it.
+    val menus = ExportControls.pickersAsMenus(LocalDensity.current.fontScale)
 
     // A failed or canceled attempt frees the button; a successful one
     // closes the sheet (ExportResultHost).
@@ -105,6 +118,25 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
         if (ExportControls.freesExportButton(startedAttempt, completed, producedFile = studio.exportFile != null)) {
             startedAttempt = null
         }
+    }
+    // TalkBack hears the render start and each quarter of it; otherwise it
+    // only learns how far along it is by finding the bar.
+    val view = LocalView.current
+    LaunchedEffect(view) {
+        var wasExporting = ui.value.isExporting
+        var previous = ui.value.exportProgress
+        snapshotFlow { ui.value.let { Triple(it.isExporting, it.exportProgress, it.exportOptions.format) } }
+            .collect { (exporting, now, format) ->
+                val text = when {
+                    exporting && !wasExporting -> ExportAnnouncement.started(format)
+                    exporting -> ExportAnnouncement.milestone(previous, now)
+                    else -> null
+                }
+                @Suppress("DEPRECATION")
+                text?.let { view.announceForAccessibility(it) }
+                wasExporting = exporting
+                previous = if (exporting) now else 0.0
+            }
     }
     DisposableEffect(Unit) {
         onDispose {
@@ -128,10 +160,15 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
                 .navigationBarsPadding(),
         ) {
             FormSection(footer = ExportFormatFooter.text(options.format)) {
-                SegmentedChoice(
-                    ExportOptions.Format.entries, options.format, enabled = !locked,
-                    label = { it.label }, description = ExportCopy::formatSegment,
-                ) { studio.exportOptions = options.copy(format = it) }
+                val pick = { format: ExportOptions.Format -> studio.exportOptions = ExportCopy.withFormat(song, options, format) }
+                if (menus) {
+                    MenuChoice("Format", ExportOptions.Format.entries, options.format, enabled = !locked, label = { it.label }, onSelect = pick)
+                } else {
+                    SegmentedChoice(
+                        ExportOptions.Format.entries, options.format, enabled = !locked,
+                        label = { it.label }, description = ExportCopy::formatSegment, onSelect = pick,
+                    )
+                }
             }
 
             if (ExportCopy.hasRepeats(options.format)) {
@@ -147,7 +184,7 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
                         )
                         PlainStepper(
                             value = options.loopCount,
-                            onValueChange = { studio.exportOptions = options.copy(loopCount = it) },
+                            onValueChange = { studio.exportOptions = options.withLoopCount(it) },
                             range = 1..ExportOptions.MAX_LOOP_COUNT,
                             accessibilityLabel = "Repeats",
                             accessibilityValue = Format.count(options.loopCount, "time"),
@@ -183,17 +220,27 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
 
             if (ExportCopy.hasStyle(options.format)) {
                 // Frozen and dimmed during a render, like Repeats.
-                FormSection(header = "Style", footer = ExportCopy.styleFooter(options.videoStyle)) {
-                    SegmentedChoice(
-                        ExportOptions.VideoStyle.entries, options.videoStyle, enabled = !locked,
-                        label = { it.label }, description = ExportCopy::styleSegment,
-                    ) { studio.exportOptions = options.copy(videoStyle = it) }
+                FormSection(header = ExportControls.styleHeader(menus), footer = ExportCopy.styleFooter(options.videoStyle)) {
+                    val pick = { style: ExportOptions.VideoStyle -> studio.exportOptions = options.copy(videoStyle = style) }
+                    if (menus) {
+                        MenuChoice("Style", ExportOptions.VideoStyle.entries, options.videoStyle, enabled = !locked, label = { it.label }, onSelect = pick)
+                    } else {
+                        SegmentedChoice(
+                            ExportOptions.VideoStyle.entries, options.videoStyle, enabled = !locked,
+                            label = { it.label }, description = ExportCopy::styleSegment, onSelect = pick,
+                        )
+                    }
                 }
             }
 
             FormSection(footer = ExportNotesFooter.text(song, options.format)) {
                 if (isExporting) {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // One TalkBack stop: the line and the bar's value together.
+                    Column(
+                        Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         LinearProgressIndicator(
                             progress = { progress.toFloat() },
                             color = ChipColors.accentGreen,
@@ -204,14 +251,19 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
                         Text(ExportCopy.exporting(options.format, progress), style = chipFont(11f), color = ChipColors.dim)
                     }
                     FormSeparator()
-                    FormButtonRow("Cancel export", color = FormColors.destructive, onClick = { studio.cancelExport() })
+                    FormButtonRow("Cancel export", color = FormColors.destructive, onClick = {
+                        studio.cancelExport()
+                        @Suppress("DEPRECATION")
+                        view.announceForAccessibility(ExportAnnouncement.CANCELED)
+                    })
                 } else {
+                    val blockedReason = ExportCopy.blockedReason(options.format, ExportLength.seconds(song, options))
                     FormButtonRow(
                         ExportCopy.exportButton(options.format),
                         icon = Icons.Filled.IosShare,
                         color = ChipColors.text,
-                        enabled = ExportCopy.canExport(song.hasNotes, startedAttempt != null) &&
-                            !ExportCopy.blocksExport(options.format, ExportLength.seconds(song, options)),
+                        enabled = ExportCopy.canExport(song.hasNotes, startedAttempt != null) && blockedReason == null,
+                        stateDescription = blockedReason,
                         onClick = {
                             if (startedAttempt == null) startedAttempt = studio.export()
                         },
@@ -244,8 +296,10 @@ private fun EndingRow(label: String, selected: Boolean, enabled: Boolean, onClic
 }
 
 /** A segmented choice frozen like the other settings during a render, which
- * keeps what it started with. The label is on each segment, not on the row:
- * a described row with no action of its own is a TalkBack stop. */
+ * keeps what it started with. The segments are one selectable group. Any
+ * label is on each segment, not on the row: a described row with no action
+ * of its own is a TalkBack stop. Format, with no heading, names itself on
+ * each segment; Style's heading names the group once. */
 @Composable
 private fun <T> SegmentedChoice(
     options: List<T>,
@@ -256,7 +310,7 @@ private fun <T> SegmentedChoice(
     onSelect: (T) -> Unit,
 ) {
     FormRow(Modifier.alpha(if (enabled) 1f else 0.4f)) {
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().selectableGroup()) {
             options.forEachIndexed { i, option ->
                 SegmentedButton(
                     selected = option == selected,
@@ -282,6 +336,56 @@ private fun <T> SegmentedChoice(
                 ) {
                     Text(label(option), fontSize = 15.sp)
                 }
+            }
+        }
+    }
+}
+
+/** [SegmentedChoice] at the accessibility text sizes (iOS's `.menu` picker
+ * style): a row with the picker's name and the current choice, which wrap
+ * rather than clip, opening a menu of the choices. One TalkBack element, a
+ * dropdown named [title] whose state is the choice. */
+@Composable
+private fun <T> MenuChoice(
+    title: String,
+    options: List<T>,
+    selected: T,
+    enabled: Boolean,
+    label: (T) -> String,
+    onSelect: (T) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        FormRow(
+            Modifier
+                .plainClickable(enabled = enabled) { open = true }
+                .alpha(if (enabled) 1f else 0.4f)
+                .clearAndSetSemantics {
+                    contentDescription = title
+                    stateDescription = label(selected)
+                    role = Role.DropdownList
+                    if (enabled) onClick { open = true; true } else disabled()
+                },
+        ) {
+            Text(title, color = ChipColors.text, fontSize = 17.sp, modifier = Modifier.weight(1f))
+            Text(label(selected), color = ChipColors.dim, fontSize = 17.sp)
+            Icon(Icons.Filled.UnfoldMore, contentDescription = null, tint = ChipColors.dim, modifier = Modifier.size(16.dp))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = ChipColors.panelHigh) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(label(option), color = ChipColors.text, style = MaterialTheme.typography.bodyLarge) },
+                    trailingIcon = if (option == selected) {
+                        { Icon(Icons.Filled.Check, contentDescription = null, tint = ChipColors.text) }
+                    } else {
+                        null
+                    },
+                    modifier = Modifier.semantics { this.selected = option == selected },
+                    onClick = {
+                        open = false
+                        onSelect(option)
+                    },
+                )
             }
         }
     }

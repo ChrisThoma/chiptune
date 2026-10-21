@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
@@ -26,6 +27,8 @@ import dev.individuation.chiptune.core.audio.ExportOptions
 import dev.individuation.chiptune.core.studio.ShareFailureMessage
 import dev.individuation.chiptune.core.studio.ShareOutcome
 import dev.individuation.chiptune.core.studio.WriteFailureMessage
+import dev.individuation.chiptune.platform.ExportSaveRoute
+import dev.individuation.chiptune.platform.GallerySaver
 import dev.individuation.chiptune.platform.ShareChosenReceiver
 import dev.individuation.chiptune.platform.ShareResult
 import dev.individuation.chiptune.platform.SongImporter
@@ -51,8 +54,10 @@ interface EditorEffects {
     /** Opens a web link in the browser. */
     fun openUrl(url: String)
 
-    /** "Save to device" on a finished export: `CreateDocument` of [mimeType]
-     * named [suggestedName], then [file] is copied into it. */
+    /** "Save to device" on a finished export. A video on Android 10 or
+     * later goes straight into the Gallery ([ExportSaveRoute]); anything else
+     * is a `CreateDocument` of [mimeType] named [suggestedName], then [file]
+     * is copied into it. */
     fun saveToDevice(file: File, suggestedName: String, mimeType: String)
 
     /** The review prompt, once a share after a milestone export went through
@@ -153,6 +158,13 @@ class AndroidEditorEffects(private val context: Context) : EditorEffects {
     }
 
     override fun saveToDevice(file: File, suggestedName: String, mimeType: String) {
+        val format = ExportOptions.Format.fromExtension(file.extension)
+        if (ExportSaveRoute.route(format, Build.VERSION.SDK_INT) == ExportSaveRoute.Route.GALLERY &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+        ) {
+            save(file, ExportSaveRoute.SAVED_TO_GALLERY) { GallerySaver.saveVideo(context, file, mimeType) }
+            return
+        }
         launch(ActivityResultContracts.CreateDocument(mimeType), suggestedName) { uri ->
             if (uri != null) copyInto(file, uri)
         }
@@ -160,16 +172,23 @@ class AndroidEditorEffects(private val context: Context) : EditorEffects {
 
     private fun copyInto(file: File, uri: Uri) {
         val resolver = context.contentResolver
+        save(file, "Saved") {
+            val out = resolver.openOutputStream(uri, "wt") ?: throw java.io.IOException("no stream")
+            out.use { o -> file.inputStream().use { it.copyTo(o) } }
+        }
+    }
+
+    /** Runs [write] off the main thread, then says how it went in a toast. */
+    private fun save(file: File, saved: String, write: () -> Unit) {
         saver.execute {
             val failure = try {
-                val out = resolver.openOutputStream(uri, "wt") ?: throw java.io.IOException("no stream")
-                out.use { o -> file.inputStream().use { it.copyTo(o) } }
+                write()
                 null
             } catch (e: Exception) {
                 e
             }
             main.post {
-                val text = if (failure == null) "Saved" else WriteFailureMessage.export(file.nameWithoutExtension, failure, WriteFailureMessage.fileNoun(file.extension))
+                val text = if (failure == null) saved else WriteFailureMessage.saveExport(file.nameWithoutExtension, failure, WriteFailureMessage.fileNoun(file.extension))
                 Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
             }
         }

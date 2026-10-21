@@ -195,6 +195,66 @@ class StudioExportTest {
         assertEquals("reset once finished", 0.0, h.studio.exportProgress, 0.0)
     }
 
+    /** A video reports every frame; the Studio posts a state copy only once
+     * the bar has moved a whole percent, or reached the end. */
+    @Test fun progressIsPostedOncePerPercentNotPerFrame() {
+        val reported = CountDownLatch(1)
+        val gate = CountDownLatch(1)
+        val h = make { request ->
+            for (i in 1..10_000) request.progress(i / 10_000.0)
+            reported.countDown()
+            gate.await(10, TimeUnit.SECONDS)
+            ExportResult.Canceled
+        }
+        h.studio.export()
+        assertTrue(reported.await(10, TimeUnit.SECONDS))
+        val posts = h.scheduler.runPosted()
+        assertTrue("posted $posts updates for 10,000 frames", posts in 90..101)
+        assertEquals("completion is still posted", 1.0, h.studio.exportProgress, 0.0)
+        gate.countDown()
+        h.waitForExport()
+    }
+
+    @Test fun progressThrottleAdmitsWholePercentStepsAndCompletion() {
+        val throttle = ExportProgressThrottle()
+        assertFalse(throttle.admits(0.004))
+        assertTrue(throttle.admits(0.01))
+        assertFalse(throttle.admits(0.015))
+        assertTrue(throttle.admits(0.02))
+        assertTrue("completion always gets through", ExportProgressThrottle().admits(1.0))
+        val nearEnd = ExportProgressThrottle()
+        assertTrue(nearEnd.admits(0.995))
+        assertTrue("reaching 1 is posted even under a percent on", nearEnd.admits(1.0))
+        assertFalse("but only once", nearEnd.admits(1.0))
+    }
+
+    /** Every song keeps its last export (a video is ~60 MB a minute) until
+     * the app next starts, which clears them all. */
+    @Test fun startingTheStudioSweepsEarlierExports() {
+        val dir = java.nio.file.Files.createTempDirectory("chiptune-export-").toFile()
+        val old = File(dir, UUID.randomUUID().toString().uppercase()).also { it.mkdirs() }
+        File(old, "Old.mp4").writeText("video")
+        val h = StudioHarness(exportDir = dir).also { harnesses.add(it) }
+        h.drainExecutor()
+        assertFalse(old.exists())
+    }
+
+    @Test fun deletingASongRemovesItsExportFolder() {
+        val h = make()
+        val doomed = Song.create("Doomed")
+        h.studio.open(doomed)
+        h.studio.edit { it.withNote(0, 0, 0, 60) }
+        h.studio.export()
+        h.waitForExport()
+        val folder = h.studio.exportFile!!.parentFile!!
+        assertTrue(folder.isDirectory)
+
+        h.studio.delete(h.studio.song)
+        h.drainExecutor()
+
+        assertFalse(folder.exists())
+    }
+
     @Test fun optionsReachTheRenderer() {
         val seen = AtomicReference<ExportOptions?>(null)
         val h = make { request ->
@@ -248,7 +308,7 @@ class StudioExportTest {
         val h = make { ExportResult.TooLong }
         h.studio.export()
         h.waitForExport()
-        assertEquals("Too long for one WAV \u2014 lower the repeat count.", h.studio.exportError)
+        assertEquals("Too long for one WAV. Lower the repeat count.", h.studio.exportError)
     }
 
     /** A video's limit is the ten minutes TikTok takes, not the WAV's RIFF
@@ -260,7 +320,7 @@ class StudioExportTest {
     }
 
     @Test fun aTooLongWavKeepsItsWording() {
-        assertEquals("Too long for one WAV — lower the repeat count.", ExportTooLongMessage.text(ExportOptions.Format.WAV))
+        assertEquals("Too long for one WAV. Lower the repeat count.", ExportTooLongMessage.text(ExportOptions.Format.WAV))
     }
 
     @Test fun aTooLongVideoExportShowsTheVideoMessage() {

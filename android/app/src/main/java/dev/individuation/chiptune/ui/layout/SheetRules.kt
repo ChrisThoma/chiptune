@@ -75,13 +75,33 @@ fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = 
     }
 }
 
+/** What TalkBack is told while a render runs, which it otherwise only
+ * learns by finding the progress bar: the start, each quarter, and a cancel. */
+object ExportAnnouncement {
+    const val CANCELED = "Export canceled"
+
+    private val QUARTERS = listOf(25, 50, 75)
+
+    fun started(format: ExportOptions.Format): String =
+        if (format == ExportOptions.Format.VIDEO) "Exporting video" else "Exporting"
+
+    /** The last quarter crossed going from [previous] to [now], or null. The
+     * finish is left to the result, which says itself. Whole percents, as
+     * the line under the bar reads them. */
+    fun milestone(previous: Double, now: Double): String? {
+        val before = (previous * 100).toInt()
+        val after = (now * 100).toInt()
+        return QUARTERS.lastOrNull { before < it && after >= it }?.let { "$it%" }
+    }
+}
+
 /** What sits under the WAV/MIDI picker. A MIDI file is the one a beginner
  * can be surprised by: it opens in another app with that app's sounds, not
  * the chip's. Null for a WAV, which is the sound itself. */
 object ExportFormatFooter {
     fun text(format: ExportOptions.Format): String? = when (format) {
         ExportOptions.Format.WAV -> null
-        ExportOptions.Format.VIDEO -> "A 9:16 video for sharing to IG, TikTok, YouTube, etc."
+        ExportOptions.Format.VIDEO -> "A tall video for Instagram, TikTok and YouTube."
         ExportOptions.Format.MIDI ->
             "A MIDI file holds your notes, not the chip sounds. The app you open it in plays them with its own instruments."
     }
@@ -91,6 +111,16 @@ object ExportFormatFooter {
  * it keeps the settings it started with. */
 object ExportControls {
     fun settingsLocked(isExporting: Boolean): Boolean = isExporting
+
+    /** Whether Format and Style are menu rows rather than segments. A
+     * segment's label wraps or clips at large text ("Cartridge" at 2x), so
+     * from the accessibility sizes on, where iOS switches its pickers to
+     * `.menu`, each becomes a row whose label and value can grow. */
+    fun pickersAsMenus(fontScale: Float): Boolean = TextScale.isAccessibilitySize(fontScale)
+
+    /** The Style section's heading: none when the menu row says "Style"
+     * itself, or it would be read and shown twice (iOS does the same). */
+    fun styleHeader(menus: Boolean): String? = if (menus) null else "Style"
 
     /** Whether the Export button comes back once the render it started has
      * finished. A failed or canceled one frees it for another try. One that
@@ -104,7 +134,7 @@ object ExportControls {
 /** The length readout under Repeats, and what to say when the file will run
  * long. Port of `ExportLength`. */
 object ExportLength {
-    /** Reels and Shorts cut a video off here. */
+    /** Past this, YouTube posts a video as a regular one, not a Short. */
     const val SHORTS_LIMIT_SECONDS = 180.0
 
     /** Rough length of the file, so the repeat count means something. Reads
@@ -124,8 +154,8 @@ object ExportLength {
     /** Null for anything but a video that runs long. */
     fun warning(format: ExportOptions.Format, seconds: Double): String? {
         if (format != ExportOptions.Format.VIDEO) return null
-        if (seconds > VideoExport.MAX_SECONDS) return "Too long for a video — ${Format.clock(VideoExport.MAX_SECONDS)} max."
-        if (seconds > SHORTS_LIMIT_SECONDS) return "Reels and Shorts cut off at ${Format.clock(SHORTS_LIMIT_SECONDS)}."
+        if (seconds > VideoExport.MAX_SECONDS) return "Too long for a video. The limit is ${Format.clock(VideoExport.MAX_SECONDS)}."
+        if (seconds > SHORTS_LIMIT_SECONDS) return "Over ${Format.clock(SHORTS_LIMIT_SECONDS)}, YouTube posts it as a regular video, not a Short."
         return null
     }
 }
@@ -156,24 +186,58 @@ object ExportCopy {
     fun blocksExport(format: ExportOptions.Format, seconds: Double): Boolean =
         format == ExportOptions.Format.VIDEO && seconds > VideoExport.MAX_SECONDS
 
-    /** What TalkBack reads for one segment of the style picker; the picker's
-     * name rides on each segment, as the format picker's does. */
-    fun styleSegment(style: ExportOptions.VideoStyle): String = "Style, ${style.label}"
+    /** Why [blocksExport] turned the button off, for TalkBack to read with
+     * it; null when it isn't blocked. The same words the footer shows. */
+    fun blockedReason(format: ExportOptions.Format, seconds: Double): String? =
+        if (blocksExport(format, seconds)) ExportLength.warning(format, seconds) else null
+
+    /** What TalkBack reads for one segment of the style picker: just the
+     * style. Unlike Format, the picker sits under a "Style" heading, and its
+     * segments are one selectable group under it, so naming the picker on
+     * each segment too had TalkBack say "Style" twice (iOS a743b71). */
+    fun styleSegment(style: ExportOptions.VideoStyle): String = style.label
 
     /** What the chosen video style looks like, under the Grid/Cartridge picker. */
     fun styleFooter(style: ExportOptions.VideoStyle): String = when (style) {
         ExportOptions.VideoStyle.GRID -> "The pattern grid scrolls along as the song plays, the way it looks in the editor."
-        ExportOptions.VideoStyle.COVER -> "A game cartridge with the song's title and a bar for each channel that jumps with its notes."
+        ExportOptions.VideoStyle.COVER -> "A game cartridge with the song's title and a bar for each track that jumps with its notes."
     }
 
     fun loopCount(n: Int): String = "$n\u00d7"
 
+    /** How long a video's passes should run, before the tail, when Repeats
+     * is left at one: a one-pass video of a short loop is over before anyone
+     * has looked at it. */
+    const val FIRST_VIDEO_SECONDS = 10.0
+
+    /** The fewest passes, up to the limit, that make [FIRST_VIDEO_SECONDS]
+     * of arrangement. */
+    fun videoRepeats(song: Song): Int {
+        val pass = song.arrangementDuration
+        if (pass <= 0.0) return ExportOptions.MAX_LOOP_COUNT
+        return (1..ExportOptions.MAX_LOOP_COUNT).firstOrNull { pass * it >= FIRST_VIDEO_SECONDS }
+            ?: ExportOptions.MAX_LOOP_COUNT
+    }
+
+    /** The options once the Format picker says [format]. Switching to Video
+     * with Repeats untouched at one raises it to [videoRepeats]; a count the
+     * user stepped to, even back to one ([ExportOptions.loopCountChosen]), is
+     * kept, and other formats take the count as it is. */
+    fun withFormat(song: Song, options: ExportOptions, format: ExportOptions.Format): ExportOptions {
+        val switched = options.copy(format = format)
+        val toVideo = format == ExportOptions.Format.VIDEO && options.format != ExportOptions.Format.VIDEO
+        if (!toVideo || options.loopCount != 1 || options.loopCountChosen) return switched
+        return switched.copy(loopCount = videoRepeats(song))
+    }
+
     /** Rough length of the file, so the repeat count means something. */
     fun duration(song: Song, options: ExportOptions): String = Format.clock(ExportLength.seconds(song, options))
 
-    /** The repeats readout, with a video's length warning after it. */
+    /** The repeats readout, with a video's ring out and length warning
+     * after it. A video has no Ending section to say it rings out. */
     fun repeatsFooter(song: Song, options: ExportOptions): String {
-        val line = "The whole arrangement, ${Format.count(options.loopCount, "time")} \u2014 ${duration(song, options)}."
+        var line = "The whole arrangement, ${Format.count(options.loopCount, "time")}: ${duration(song, options)}."
+        if (options.format == ExportOptions.Format.VIDEO) line += " Then it rings out."
         val warning = ExportLength.warning(options.format, ExportLength.seconds(song, options)) ?: return line
         return "$line $warning"
     }
@@ -201,8 +265,9 @@ object ExportCopy {
 
     fun canExport(hasNotes: Boolean, attemptInFlight: Boolean): Boolean = hasNotes && !attemptInFlight
 
-    /** The Android share step's title (iOS goes straight to the share sheet). */
-    fun resultTitle(fileName: String): String = "Exported $fileName"
+    /** The Android share step's title (iOS goes straight to the share
+     * sheet): the song's name in quotes, without the file's extension. */
+    fun resultTitle(fileName: String): String = "Exported \u201C${fileName.substringBeforeLast('.')}\u201D"
 }
 
 /** The Edit pill: its label comes from the same flag that drives the rows. */

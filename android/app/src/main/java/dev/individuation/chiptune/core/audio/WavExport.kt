@@ -30,7 +30,14 @@ data class ExportOptions(
      * switching back finds the style the user left. Last, for the same
      * positional reason. */
     val videoStyle: VideoStyle = VideoStyle.GRID,
+    /** The user set the repeat count themselves, even back to 1, so it is
+     * theirs and switching to Video leaves it alone. Swift's
+     * `loopCountChosen`. Last, for the positional reason above. */
+    val loopCountChosen: Boolean = false,
 ) {
+    /** The Repeats stepper's way in: the count, marked as chosen. */
+    fun withLoopCount(count: Int): ExportOptions = copy(loopCount = count, loopCountChosen = true)
+
     /** Each format and everything that names it or its file: [label] in the
      * sheet ("Export WAV"), [fileExtension], [fileNoun] in an alert, and the
      * [mimeType] a share or save offers. Swift's `ExportOptions.Format`. */
@@ -129,7 +136,7 @@ object ExportFiles {
      * songs from overwriting each other's export. Creates the folder. */
     fun file(song: Song, directory: File, format: ExportOptions.Format): File {
         val base = SongDocument.safeName(song)
-        val dir = File(directory, song.id.toString().uppercase())
+        val dir = songFolder(directory, song.id)
         dir.mkdirs()
         return File(dir, "$base.${format.fileExtension}")
     }
@@ -153,6 +160,42 @@ object ExportFiles {
             val sameType = entry.extension.lowercase() == ext
             if (sameType || entry.nameWithoutExtension != base) entry.delete()
         }
+    }
+
+    /** The folder [file] puts a song's exports in. */
+    private fun songFolder(directory: File, id: UUID): File = File(directory, id.toString().uppercase())
+
+    /** Whether [name] is a per-song export folder: a song's uppercase UUID. */
+    private fun isSongFolder(name: String): Boolean =
+        runCatching { UUID.fromString(name).toString().uppercase() == name }.getOrDefault(false)
+
+    /** Clears every song's exports at launch. [pruneStale] only ever tidies
+     * the song just exported, so without this each song keeps its last WAV,
+     * MIDI file and video (about 60 MB a minute) for good. Nothing from an
+     * earlier run is still on offer by then. Removes the exporters' own files
+     * from each per-song folder and the folder once empty, and both scratch
+     * folders; anything else in [directory] is left. Best-effort. Run on the
+     * export thread, so it never races a render. */
+    fun sweep(directory: File) {
+        val entries = directory.listFiles() ?: return
+        for (entry in entries) {
+            if (!entry.isDirectory) continue
+            when {
+                entry.name == WavExport.SCRATCH_DIRECTORY || entry.name == VideoExport.SCRATCH_DIRECTORY ->
+                    entry.deleteRecursively()
+                isSongFolder(entry.name) -> {
+                    entry.listFiles()?.forEach { file ->
+                        if (file.isFile && ExportOptions.Format.fromExtension(file.extension) != null) file.delete()
+                    }
+                    if (entry.list()?.isEmpty() == true) entry.delete()
+                }
+            }
+        }
+    }
+
+    /** A deleted song's exports go with it. Best-effort. */
+    fun removeSong(directory: File, id: UUID) {
+        songFolder(directory, id).deleteRecursively()
     }
 }
 

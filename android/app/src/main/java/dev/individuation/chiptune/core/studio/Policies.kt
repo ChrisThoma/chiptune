@@ -204,6 +204,22 @@ object ExportFlow {
     fun afterPanelDisappeared(isExporting: Boolean): Boolean = isExporting
 }
 
+/** Which render progress reports are worth a new [StudioState]. A video
+ * reports once a frame, up to 18,000 for a ten minute export, and each post
+ * copies the whole state. Only a move of a whole percent, or reaching the
+ * end, gets through, as iOS's exporters report. One per render: it is read
+ * on the rendering thread only. */
+class ExportProgressThrottle(private val step: Double = 0.01) {
+    private var reported = 0.0
+
+    fun admits(fraction: Double): Boolean {
+        val completes = fraction >= 1.0 && reported < 1.0
+        if (fraction - reported < step && !completes) return false
+        reported = fraction
+        return true
+    }
+}
+
 object KeyboardShortcutsMenuVisibility {
     fun visible(keyboardConnected: Boolean, hardwareKeyboardInUse: Boolean): Boolean =
         keyboardConnected || hardwareKeyboardInUse

@@ -268,11 +268,11 @@ class ExportCopyTest {
         // Golden: 16 steps at 132 BPM, 4 steps a beat = 1.818 s a pass.
         val song = TestSongs.golden()
         assertEquals(
-            "The whole arrangement, 1 time \u2014 0:01.8.",
+            "The whole arrangement, 1 time: 0:01.8.",
             ExportCopy.repeatsFooter(song, ExportOptions(loopCount = 1)),
         )
         assertEquals(
-            "The whole arrangement, 4 times \u2014 0:07.3.",
+            "The whole arrangement, 4 times: 0:07.3.",
             ExportCopy.repeatsFooter(song, ExportOptions(loopCount = 4)),
         )
     }
@@ -350,8 +350,9 @@ class ExportCopyTest {
     @Test fun styleSegmentsAreLabelledGridAndCartridge() {
         assertEquals("Grid", ExportOptions.VideoStyle.GRID.label)
         assertEquals("Cartridge", ExportOptions.VideoStyle.COVER.label)
-        assertEquals("Style, Grid", ExportCopy.styleSegment(ExportOptions.VideoStyle.GRID))
-        assertEquals("Style, Cartridge", ExportCopy.styleSegment(ExportOptions.VideoStyle.COVER))
+        // Just the name: the "Style" heading above the group says the rest once.
+        assertEquals("Grid", ExportCopy.styleSegment(ExportOptions.VideoStyle.GRID))
+        assertEquals("Cartridge", ExportCopy.styleSegment(ExportOptions.VideoStyle.COVER))
     }
 
     @Test fun anOverlongVideoBlocksTheExportButton() {
@@ -363,7 +364,7 @@ class ExportCopyTest {
     }
 
     @Test fun videoSaysWhereItIsFor() {
-        assertEquals("A 9:16 video for sharing to IG, TikTok, YouTube, etc.", ExportFormatFooter.text(ExportOptions.Format.VIDEO))
+        assertEquals("A tall video for Instagram, TikTok and YouTube.", ExportFormatFooter.text(ExportOptions.Format.VIDEO))
     }
 
     @Test fun eachStyleSaysWhatItLooksLike() {
@@ -372,7 +373,7 @@ class ExportCopyTest {
             ExportCopy.styleFooter(ExportOptions.VideoStyle.GRID),
         )
         assertEquals(
-            "A game cartridge with the song's title and a bar for each channel that jumps with its notes.",
+            "A game cartridge with the song's title and a bar for each track that jumps with its notes.",
             ExportCopy.styleFooter(ExportOptions.VideoStyle.COVER),
         )
     }
@@ -400,8 +401,8 @@ class ExportCopyTest {
         assertEquals(8.0, ExportLength.seconds(song, options), 0.0001)
     }
 
-    @Test fun aVideoOverThreeMinutesWarnsAboutReelsAndShorts() {
-        assertEquals("Reels and Shorts cut off at 3:00.", ExportLength.warning(ExportOptions.Format.VIDEO, 181.0))
+    @Test fun aVideoOverThreeMinutesWarnsItIsNotAShort() {
+        assertEquals("Over 3:00, YouTube posts it as a regular video, not a Short.", ExportLength.warning(ExportOptions.Format.VIDEO, 181.0))
         assertNull(ExportLength.warning(ExportOptions.Format.VIDEO, 180.0))
     }
 
@@ -411,8 +412,8 @@ class ExportCopyTest {
     }
 
     @Test fun aVideoOverTheCapSaysItIsTooLong() {
-        assertEquals("Too long for a video \u2014 10:00 max.", ExportLength.warning(ExportOptions.Format.VIDEO, 601.0))
-        assertEquals("Reels and Shorts cut off at 3:00.", ExportLength.warning(ExportOptions.Format.VIDEO, 600.0))
+        assertEquals("Too long for a video. The limit is 10:00.", ExportLength.warning(ExportOptions.Format.VIDEO, 601.0))
+        assertEquals("Over 3:00, YouTube posts it as a regular video, not a Short.", ExportLength.warning(ExportOptions.Format.VIDEO, 600.0))
     }
 
     @Test fun theRepeatsFooterCarriesTheLengthWarning() {
@@ -420,14 +421,85 @@ class ExportCopyTest {
         // 192 s + tail. Repeats stop at 16, as the stepper and the renderer do.
         val video = ExportOptions(loopCount = 12, format = ExportOptions.Format.VIDEO)
         val line = ExportCopy.repeatsFooter(song, video)
-        assertTrue(line, line.endsWith(" Reels and Shorts cut off at 3:00."))
+        assertTrue(line, line.endsWith(". Then it rings out. Over 3:00, YouTube posts it as a regular video, not a Short."))
         assertEquals(
-            "The whole arrangement, 2 times \u2014 ${ExportCopy.duration(song, ExportOptions(loopCount = 2))}.",
+            "The whole arrangement, 2 times: ${ExportCopy.duration(song, ExportOptions(loopCount = 2))}.",
             ExportCopy.repeatsFooter(song, ExportOptions(loopCount = 2)),
         )
     }
 
-    @Test fun resultTitleNamesTheFile() = assertEquals("Exported Golden.wav", ExportCopy.resultTitle("Golden.wav"))
+    /** A video says it rings out after the passes; a WAV's ending has its
+     * own section, so its readout stops at the length. */
+    @Test fun aVideosRepeatsFooterSaysItRingsOut() {
+        val song = TestSongs.golden()
+        val video = ExportOptions(loopCount = 6, format = ExportOptions.Format.VIDEO)
+        assertEquals(
+            "The whole arrangement, 6 times: ${ExportCopy.duration(song, video)}. Then it rings out.",
+            ExportCopy.repeatsFooter(song, video),
+        )
+    }
+
+    /** Golden is 1.8 s a pass: a one-pass video of it is over before anyone
+     * looks, so switching to Video starts at 6 passes, the fewest that make
+     * 10 s before the tail. */
+    @Test fun switchingToVideoRaisesOnePassToTenSeconds() {
+        val song = TestSongs.golden()
+        val switched = ExportCopy.withFormat(song, ExportOptions(), ExportOptions.Format.VIDEO)
+        assertEquals(ExportOptions.Format.VIDEO, switched.format)
+        assertEquals(6, switched.loopCount)
+        assertTrue(song.arrangementDuration * 6 >= 10.0)
+        assertTrue(song.arrangementDuration * 5 < 10.0)
+    }
+
+    @Test fun aLongEnoughSongStaysAtOnePass() {
+        val song = TestSongs.empty(length = 64) // 8 s a pass
+        assertEquals(2, ExportCopy.withFormat(song, ExportOptions(), ExportOptions.Format.VIDEO).loopCount)
+        val long = TestSongs.empty(tempo = 60.0, length = 64) // 16 s a pass
+        assertEquals(1, ExportCopy.withFormat(long, ExportOptions(), ExportOptions.Format.VIDEO).loopCount)
+    }
+
+    @Test fun aVeryShortSongStopsAtTheRepeatsLimit() {
+        val song = TestSongs.empty(tempo = 300.0, length = 1)
+        assertEquals(
+            ExportOptions.MAX_LOOP_COUNT,
+            ExportCopy.withFormat(song, ExportOptions(), ExportOptions.Format.VIDEO).loopCount,
+        )
+    }
+
+    @Test fun aCountTheUserChangedIsKept() {
+        val song = TestSongs.golden()
+        val chosen = ExportOptions().withLoopCount(3)
+        assertEquals(3, ExportCopy.withFormat(song, chosen, ExportOptions.Format.VIDEO).loopCount)
+    }
+
+    /** Stepping back to 1 is a choice too (iOS `loopCountChosen`): a user who
+     * wants a one-pass video keeps it. */
+    @Test fun aCountSteppedBackToOneIsKept() {
+        val song = TestSongs.golden()
+        val back = ExportOptions().withLoopCount(2).withLoopCount(1)
+        assertTrue(back.loopCountChosen)
+        assertEquals(1, ExportCopy.withFormat(song, back, ExportOptions.Format.VIDEO).loopCount)
+    }
+
+    @Test fun theStepperMarksTheCountChosenAndAFreshExportDoesNot() {
+        assertFalse(ExportOptions().loopCountChosen)
+        assertTrue(ExportOptions().withLoopCount(4).loopCountChosen)
+        assertEquals(4, ExportOptions().withLoopCount(4).loopCount)
+    }
+
+    @Test fun otherFormatsLeaveTheCountAlone() {
+        val song = TestSongs.golden()
+        assertEquals(1, ExportCopy.withFormat(song, ExportOptions(), ExportOptions.Format.WAV).loopCount)
+        assertEquals(1, ExportCopy.withFormat(song, ExportOptions(), ExportOptions.Format.MIDI).loopCount)
+        val fromVideo = ExportOptions(loopCount = 6, format = ExportOptions.Format.VIDEO)
+        assertEquals(ExportOptions.Format.WAV, ExportCopy.withFormat(song, fromVideo, ExportOptions.Format.WAV).format)
+    }
+
+    /** The song's name in quotes, not a raw file name with its extension. */
+    @Test fun resultTitleNamesTheSong() {
+        assertEquals("Exported \u201CGolden\u201D", ExportCopy.resultTitle("Golden.wav"))
+        assertEquals("Exported \u201CMy.Song\u201D", ExportCopy.resultTitle("My.Song.mp4"))
+    }
 }
 
 /** `ArrangementEditToggleTests.swift`, plus the sheet's copy. */
@@ -649,5 +721,54 @@ class ExportCapAgreementTest {
             tempo += 1.0
         }
         assertEquals(emptyList<String>(), disagreements)
+    }
+}
+
+/** What TalkBack hears while a render runs: the start, each quarter, and a cancel. */
+class ExportAnnouncementTest {
+    @Test fun theStartNamesAVideo() {
+        assertEquals("Exporting video", ExportAnnouncement.started(ExportOptions.Format.VIDEO))
+        assertEquals("Exporting", ExportAnnouncement.started(ExportOptions.Format.WAV))
+        assertEquals("Exporting", ExportAnnouncement.started(ExportOptions.Format.MIDI))
+    }
+
+    @Test fun eachQuarterIsSaidOnceAsItIsCrossed() {
+        assertNull(ExportAnnouncement.milestone(0.0, 0.24))
+        assertEquals("25%", ExportAnnouncement.milestone(0.24, 0.25))
+        assertNull("already said", ExportAnnouncement.milestone(0.25, 0.26))
+        assertEquals("50%", ExportAnnouncement.milestone(0.49, 0.51))
+        assertEquals("75%", ExportAnnouncement.milestone(0.74, 0.8))
+        assertNull("the end is the result, not a milestone", ExportAnnouncement.milestone(0.8, 1.0))
+    }
+
+    /** Progress posted in a jump past two quarters says only the latest. */
+    @Test fun aJumpSaysOnlyTheLastQuarterCrossed() {
+        assertEquals("50%", ExportAnnouncement.milestone(0.2, 0.6))
+    }
+
+    @Test fun aCancelIsSaid() = assertEquals("Export canceled", ExportAnnouncement.CANCELED)
+
+    /** Segment labels don't fit at the largest text ("Cartridge" wraps), so
+     * from the accessibility sizes on, as iOS does, Format and Style are
+     * menu rows, and Style's row names itself in place of the heading. */
+    @Test fun pickersBecomeMenusAtAccessibilitySizes() {
+        assertFalse(ExportControls.pickersAsMenus(1.0f))
+        assertFalse(ExportControls.pickersAsMenus(1.3f))
+        assertTrue(ExportControls.pickersAsMenus(1.5f))
+        assertTrue(ExportControls.pickersAsMenus(2.0f))
+        assertEquals("Style", ExportControls.styleHeader(menus = false))
+        assertNull(ExportControls.styleHeader(menus = true))
+    }
+
+    /** A greyed-out Export button says why, so TalkBack users aren't left
+     * guessing; it is only ever off for length when a video is too long. */
+    @Test fun aBlockedExportButtonSaysWhy() {
+        val over = VideoExport.MAX_SECONDS + 1
+        assertEquals(
+            "Too long for a video. The limit is 10:00.",
+            ExportCopy.blockedReason(ExportOptions.Format.VIDEO, over),
+        )
+        assertNull(ExportCopy.blockedReason(ExportOptions.Format.VIDEO, VideoExport.MAX_SECONDS))
+        assertNull(ExportCopy.blockedReason(ExportOptions.Format.WAV, over))
     }
 }
