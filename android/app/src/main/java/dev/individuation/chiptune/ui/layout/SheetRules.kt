@@ -168,12 +168,38 @@ object ExportCopy {
 
     fun loopCount(n: Int): String = "$n\u00d7"
 
+    /** How long a video's passes should run, before the tail, when Repeats
+     * is left at one: a one-pass video of a short loop is over before anyone
+     * has looked at it. */
+    const val FIRST_VIDEO_SECONDS = 10.0
+
+    /** The fewest passes, up to the limit, that make [FIRST_VIDEO_SECONDS]
+     * of arrangement. */
+    fun videoRepeats(song: Song): Int {
+        val pass = song.arrangementDuration
+        if (pass <= 0.0) return ExportOptions.MAX_LOOP_COUNT
+        return (1..ExportOptions.MAX_LOOP_COUNT).firstOrNull { pass * it >= FIRST_VIDEO_SECONDS }
+            ?: ExportOptions.MAX_LOOP_COUNT
+    }
+
+    /** The options once the Format picker says [format]. Switching to Video
+     * with Repeats still at one raises it to [videoRepeats]; a count the
+     * user changed is kept, and other formats take the count as it is. */
+    fun withFormat(song: Song, options: ExportOptions, format: ExportOptions.Format): ExportOptions {
+        val switched = options.copy(format = format)
+        val toVideo = format == ExportOptions.Format.VIDEO && options.format != ExportOptions.Format.VIDEO
+        if (!toVideo || options.loopCount != 1) return switched
+        return switched.copy(loopCount = videoRepeats(song))
+    }
+
     /** Rough length of the file, so the repeat count means something. */
     fun duration(song: Song, options: ExportOptions): String = Format.clock(ExportLength.seconds(song, options))
 
-    /** The repeats readout, with a video's length warning after it. */
+    /** The repeats readout, with a video's ring out and length warning
+     * after it. A video has no Ending section to say it rings out. */
     fun repeatsFooter(song: Song, options: ExportOptions): String {
-        val line = "The whole arrangement, ${Format.count(options.loopCount, "time")} \u2014 ${duration(song, options)}."
+        var line = "The whole arrangement, ${Format.count(options.loopCount, "time")}: ${duration(song, options)}."
+        if (options.format == ExportOptions.Format.VIDEO) line += " Then it rings out."
         val warning = ExportLength.warning(options.format, ExportLength.seconds(song, options)) ?: return line
         return "$line $warning"
     }

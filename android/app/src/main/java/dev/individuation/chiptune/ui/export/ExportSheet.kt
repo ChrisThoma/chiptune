@@ -131,7 +131,7 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
                 SegmentedChoice(
                     ExportOptions.Format.entries, options.format, enabled = !locked,
                     label = { it.label }, description = ExportCopy::formatSegment,
-                ) { studio.exportOptions = options.copy(format = it) }
+                ) { studio.exportOptions = ExportCopy.withFormat(song, options, it) }
             }
 
             if (ExportCopy.hasRepeats(options.format)) {

@@ -268,11 +268,11 @@ class ExportCopyTest {
         // Golden: 16 steps at 132 BPM, 4 steps a beat = 1.818 s a pass.
         val song = TestSongs.golden()
         assertEquals(
-            "The whole arrangement, 1 time \u2014 0:01.8.",
+            "The whole arrangement, 1 time: 0:01.8.",
             ExportCopy.repeatsFooter(song, ExportOptions(loopCount = 1)),
         )
         assertEquals(
-            "The whole arrangement, 4 times \u2014 0:07.3.",
+            "The whole arrangement, 4 times: 0:07.3.",
             ExportCopy.repeatsFooter(song, ExportOptions(loopCount = 4)),
         )
     }
@@ -420,11 +420,63 @@ class ExportCopyTest {
         // 192 s + tail. Repeats stop at 16, as the stepper and the renderer do.
         val video = ExportOptions(loopCount = 12, format = ExportOptions.Format.VIDEO)
         val line = ExportCopy.repeatsFooter(song, video)
-        assertTrue(line, line.endsWith(" Over 3:00, YouTube posts it as a regular video, not a Short."))
+        assertTrue(line, line.endsWith(". Then it rings out. Over 3:00, YouTube posts it as a regular video, not a Short."))
         assertEquals(
-            "The whole arrangement, 2 times \u2014 ${ExportCopy.duration(song, ExportOptions(loopCount = 2))}.",
+            "The whole arrangement, 2 times: ${ExportCopy.duration(song, ExportOptions(loopCount = 2))}.",
             ExportCopy.repeatsFooter(song, ExportOptions(loopCount = 2)),
         )
+    }
+
+    /** A video says it rings out after the passes; a WAV's ending has its
+     * own section, so its readout stops at the length. */
+    @Test fun aVideosRepeatsFooterSaysItRingsOut() {
+        val song = TestSongs.golden()
+        val video = ExportOptions(loopCount = 6, format = ExportOptions.Format.VIDEO)
+        assertEquals(
+            "The whole arrangement, 6 times: ${ExportCopy.duration(song, video)}. Then it rings out.",
+            ExportCopy.repeatsFooter(song, video),
+        )
+    }
+
+    /** Golden is 1.8 s a pass: a one-pass video of it is over before anyone
+     * looks, so switching to Video starts at 6 passes, the fewest that make
+     * 10 s before the tail. */
+    @Test fun switchingToVideoRaisesOnePassToTenSeconds() {
+        val song = TestSongs.golden()
+        val switched = ExportCopy.withFormat(song, ExportOptions(), ExportOptions.Format.VIDEO)
+        assertEquals(ExportOptions.Format.VIDEO, switched.format)
+        assertEquals(6, switched.loopCount)
+        assertTrue(song.arrangementDuration * 6 >= 10.0)
+        assertTrue(song.arrangementDuration * 5 < 10.0)
+    }
+
+    @Test fun aLongEnoughSongStaysAtOnePass() {
+        val song = TestSongs.empty(length = 64) // 8 s a pass
+        assertEquals(2, ExportCopy.withFormat(song, ExportOptions(), ExportOptions.Format.VIDEO).loopCount)
+        val long = TestSongs.empty(tempo = 60.0, length = 64) // 16 s a pass
+        assertEquals(1, ExportCopy.withFormat(long, ExportOptions(), ExportOptions.Format.VIDEO).loopCount)
+    }
+
+    @Test fun aVeryShortSongStopsAtTheRepeatsLimit() {
+        val song = TestSongs.empty(tempo = 300.0, length = 1)
+        assertEquals(
+            ExportOptions.MAX_LOOP_COUNT,
+            ExportCopy.withFormat(song, ExportOptions(), ExportOptions.Format.VIDEO).loopCount,
+        )
+    }
+
+    @Test fun aCountTheUserChangedIsKept() {
+        val song = TestSongs.golden()
+        val chosen = ExportOptions(loopCount = 3)
+        assertEquals(3, ExportCopy.withFormat(song, chosen, ExportOptions.Format.VIDEO).loopCount)
+    }
+
+    @Test fun otherFormatsLeaveTheCountAlone() {
+        val song = TestSongs.golden()
+        assertEquals(1, ExportCopy.withFormat(song, ExportOptions(), ExportOptions.Format.WAV).loopCount)
+        assertEquals(1, ExportCopy.withFormat(song, ExportOptions(), ExportOptions.Format.MIDI).loopCount)
+        val fromVideo = ExportOptions(loopCount = 6, format = ExportOptions.Format.VIDEO)
+        assertEquals(ExportOptions.Format.WAV, ExportCopy.withFormat(song, fromVideo, ExportOptions.Format.WAV).format)
     }
 
     /** The song's name in quotes, not a raw file name with its extension. */
