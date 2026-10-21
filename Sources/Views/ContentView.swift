@@ -225,6 +225,16 @@ struct ShareSheetEnding: Equatable {
         return decide()
     }
 
+    /// The app took the sheet down itself (a different song opened under
+    /// it). `UIActivityViewController` may then never call its completion,
+    /// so this can't wait for it: an outcome already reported stands, and
+    /// with none it's a cancel. Whatever arrives later decides nothing.
+    mutating func sheetClosedByApp() -> ReviewPromptPolicy.ShareOutcome? {
+        if !decided, outcome == nil { outcome = .canceled }
+        dismissed = true
+        return decide()
+    }
+
     private mutating func decide() -> ReviewPromptPolicy.ShareOutcome? {
         guard !decided, dismissed, let outcome else { return nil }
         decided = true
@@ -395,9 +405,15 @@ struct ContentView: View {
             showingArrangement = after.arrangement
             showingExport = after.export
             // A share sheet still offering the previous song's file goes too.
-            // Its dismissal runs `afterShare`, which sees a different song
-            // open and neither reopens the Export panel nor keeps the choices.
-            showingShare = after.exportShare
+            // The activity may never report after a dismissal it didn't
+            // make, so the ending is settled here (a cancel, unless it had
+            // already said otherwise) rather than left waiting. `afterShare`
+            // sees a different song open and neither reopens the Export
+            // panel nor keeps the choices.
+            if showingShare && !after.exportShare {
+                showingShare = false
+                if let outcome = shareEnding.sheetClosedByApp() { afterShare(outcome) }
+            }
             if !after.songFileShare { studio.shareURL = nil }
             // The export options belong to the song that was open. With the
             // share sheet up there is no panel to close, so nothing else
