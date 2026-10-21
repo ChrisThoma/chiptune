@@ -27,6 +27,7 @@ SAVE AND SHARE
 • Duplicate a song to try something slightly different
 • Export any song as a WAV file with a seamless loop or with the last notes ringing out
 • Export as a MIDI file to keep working on your notes in another music app
+• Export a video of your song playing, as a scrolling grid or a game cartridge, to post on Instagram, TikTok or YouTube
 • Share an export or save it straight to your device
 • Send a song file to a friend, or open one from Files, Gmail or Drive
 
