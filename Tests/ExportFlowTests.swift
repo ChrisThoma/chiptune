@@ -71,6 +71,34 @@ final class ExportFlowTests: XCTestCase {
         XCTAssertTrue(ExportFlow.endsFlowAfterShare(outcome: .failed, sharedSongID: song, currentSongID: song))
     }
 
+    /// Don't Allow on Save Video fails the share, but the Photos alert is
+    /// offering to share the same video again after Settings. Ending the
+    /// flow there put the options back to WAV, 1x, so backing out of the
+    /// retried share reopened Export on the wrong format.
+    func testAFailedShareWithAPhotosRetryOfferedKeepsTheFlowGoing() {
+        XCTAssertFalse(ExportFlow.endsFlowAfterShare(outcome: .failed, sharedSongID: song, currentSongID: song,
+                                                     photosRetryOffered: true))
+    }
+
+    /// The panel still stays shut: the Photos alert is what's on screen.
+    func testAFailedShareWithAPhotosRetryOfferedLeavesTheExportPanelClosed() {
+        XCTAssertFalse(ExportFlow.reopensExportAfterShare(outcome: .failed, sharedSongID: song, currentSongID: song))
+    }
+
+    /// OK on the Photos alert drops the retry, and with it the export.
+    /// Open Settings keeps both until the user is back.
+    func testThePhotosAlertEndsTheFlowOnlyWhenTheRetryIsDropped() {
+        XCTAssertTrue(ExportFlow.endsFlowAfterPhotosAlert(openedSettings: false))
+        XCTAssertFalse(ExportFlow.endsFlowAfterPhotosAlert(openedSettings: true))
+    }
+
+    /// Back from Settings: a reshare carries on the export, and a retry that
+    /// can't be offered any more ends it.
+    func testARetryThatCantReshareEndsTheFlow() {
+        XCTAssertTrue(ExportFlow.endsFlowAfterPhotosRetry(reshares: false))
+        XCTAssertFalse(ExportFlow.endsFlowAfterPhotosRetry(reshares: true))
+    }
+
     /// The Close button pairs a cancel with its dismiss, but a swipe-to-dismiss
     /// or an outside tap on the popover reaches `onDisappear` with no cancel
     /// having happened. A render still in flight at that point must not be

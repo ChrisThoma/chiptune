@@ -161,9 +161,29 @@ enum ExportFlow {
 
     /// Whatever doesn't bring the panel back ends the export. One that does
     /// is the same export, and the panel shows what was picked in it.
+    ///
+    /// Except a share Photos turned down: its alert offers to share the
+    /// same video again after Settings, and backing out of that retried
+    /// share brings the panel back, so the options are kept until the retry
+    /// is either used or dropped (`endsFlowAfterPhotosAlert`,
+    /// `endsFlowAfterPhotosRetry`).
     static func endsFlowAfterShare(outcome: ReviewPromptPolicy.ShareOutcome,
-                                   sharedSongID: UUID?, currentSongID: UUID) -> Bool {
-        !reopensExportAfterShare(outcome: outcome, sharedSongID: sharedSongID, currentSongID: currentSongID)
+                                   sharedSongID: UUID?, currentSongID: UUID,
+                                   photosRetryOffered: Bool = false) -> Bool {
+        if photosRetryOffered { return false }
+        return !reopensExportAfterShare(outcome: outcome, sharedSongID: sharedSongID, currentSongID: currentSongID)
+    }
+
+    /// The Photos alert was answered. OK drops the retry, and the export
+    /// ends with it; Open Settings keeps both until the user is back.
+    static func endsFlowAfterPhotosAlert(openedSettings: Bool) -> Bool {
+        !openedSettings
+    }
+
+    /// Back from Settings. A reshare carries the export on; a retry that
+    /// can no longer be offered (another song, the file gone) ends it.
+    static func endsFlowAfterPhotosRetry(reshares: Bool) -> Bool {
+        !reshares
     }
 
     /// The file a just-finished render left to share, read off the studio's
@@ -499,7 +519,9 @@ struct ContentView: View {
                     UIApplication.shared.open(settings)
                 }
             }
-            Button("OK", role: .cancel) {}
+            Button("OK", role: .cancel) {
+                if ExportFlow.endsFlowAfterPhotosAlert(openedSettings: false) { studio.endExportFlow() }
+            }
         } message: { _ in
             Text(PhotosDeniedAlert.message)
         }
@@ -508,10 +530,12 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active, let retry = pendingPhotosRetry else { return }
             pendingPhotosRetry = nil
-            guard retry.reshares(exportURL: studio.exportURL,
-                                 currentSongID: studio.song.id,
-                                 fileExists: FileManager.default.fileExists(atPath: retry.url.path),
-                                 anyPresented: anyPresented) else { return }
+            let reshares = retry.reshares(exportURL: studio.exportURL,
+                                          currentSongID: studio.song.id,
+                                          fileExists: FileManager.default.fileExists(atPath: retry.url.path),
+                                          anyPresented: anyPresented)
+            if ExportFlow.endsFlowAfterPhotosRetry(reshares: reshares) { studio.endExportFlow() }
+            guard reshares else { return }
             shareEnding = ShareSheetEnding()
             sharedSongID = retry.songID
             showingShare = true
@@ -650,7 +674,8 @@ struct ContentView: View {
             showingExport = true
         }
         if ExportFlow.endsFlowAfterShare(outcome: outcome, sharedSongID: sharedSongID,
-                                         currentSongID: studio.song.id) {
+                                         currentSongID: studio.song.id,
+                                         photosRetryOffered: photosDenied != nil || pendingPhotosRetry != nil) {
             studio.endExportFlow()
         }
         sharedSongID = nil
