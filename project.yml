@@ -121,6 +121,13 @@ targets:
             UTTypeTagSpecification:
               public.filename-extension: [chipsong]
               public.mime-type: [application/json]
+          # What an arrangement row carries while it is dragged to a new
+          # place (ArrangementView). It never leaves the app, so it needs no
+          # extension, but an undeclared exported type logs a warning and
+          # has no conformances.
+          - UTTypeIdentifier: dev.individuation.chiptune.arrangement-section
+            UTTypeDescription: Chiptune Arrangement Section
+            UTTypeConformsTo: [public.data]
         CFBundleDocumentTypes:
           - CFBundleTypeName: Chiptune Song
             LSItemContentTypes: [dev.individuation.chiptune.song]
