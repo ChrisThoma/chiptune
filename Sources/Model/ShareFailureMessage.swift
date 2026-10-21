@@ -123,12 +123,18 @@ enum ShareFailureMessage {
         "Couldn't share the \(file). Try again."
     }
 
-    /// The same, except when Photos access was turned down for Save Video:
-    /// retrying can't fix that, so the alert says where it can be.
-    static func sheet(file: String, error: Error) -> String {
-        photosAccessDenied(error as NSError)
-            ? "Allow Chiptune to add videos to Photos in Settings."
-            : sheet(file: file)
+    /// What the share sheet's failure puts up.
+    enum SheetFailure: Equatable {
+        /// Photos access was turned down for Save Video: `PhotosDeniedAlert`.
+        case photosDenied
+        /// Anything else: the "Share failed" alert with this message.
+        case message(String)
+    }
+
+    /// Retrying can't fix a Photos refusal until access is given, so that
+    /// one gets its own alert, with a way to Settings.
+    static func sheetFailure(file: String, error: Error) -> SheetFailure {
+        photosAccessDenied(error as NSError) ? .photosDenied : .message(sheet(file: file))
     }
 
     /// Save Video after Don't Allow reports an "unknown" assets-library
@@ -143,6 +149,30 @@ enum ShareFailureMessage {
         default:
             return (ns.userInfo[NSUnderlyingErrorKey] as? NSError).map(photosAccessDenied) ?? false
         }
+    }
+}
+
+/// Save Video after Don't Allow. Its own alert rather than "Share failed":
+/// nothing failed that trying again would fix, and the one fix is in
+/// Settings, so the alert has a button that goes there. App Review walks
+/// this path.
+enum PhotosDeniedAlert {
+    static let title = "Chiptune can't save to Photos"
+    static let message = "Allow Chiptune to add videos to Photos in Settings, then try again."
+    static let openSettings = "Open Settings"
+}
+
+/// The video that Photos turned down, held while the user is in Settings.
+/// Coming back puts the share sheet up again with the same file, so giving
+/// access doesn't cost another render.
+struct PhotosRetry: Equatable {
+    var url: URL
+    var songID: UUID
+
+    /// Only for the video still on offer, from the song still open, with
+    /// nothing else on screen to present over.
+    func reshares(exportURL: URL?, currentSongID: UUID, fileExists: Bool, anyPresented: Bool) -> Bool {
+        exportURL == url && currentSongID == songID && fileExists && !anyPresented
     }
 }
 

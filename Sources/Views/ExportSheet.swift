@@ -30,7 +30,7 @@ extension ExportNotesFooter {
             return text(for: song)
         case .midi:
             guard song.hasNotes else { return text(for: song) }
-            var line = "The whole arrangement once — \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote."
+            var line = "The whole arrangement once: \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote."
             // Worked out once: only a silent track with notes the
             // arrangement plays has anything in the file to speak of.
             let chain = song.chain
@@ -62,7 +62,7 @@ enum ExportFormatFooter {
     static func text(for format: ExportOptions.Format) -> String? {
         switch format {
         case .wav: return nil
-        case .video: return "A 9:16 video for sharing to IG, TikTok, YouTube, etc."
+        case .video: return "A tall video for Instagram, TikTok and YouTube."
         case .midi:
             return "A MIDI file holds your notes, not the chip sounds. The app you open it in plays them with its own instruments."
         }
@@ -75,7 +75,7 @@ enum ExportStyleFooter {
     static func text(for style: ExportOptions.VideoStyle) -> String {
         switch style {
         case .grid: return "The pattern grid scrolls along as the song plays, the way it looks in the editor."
-        case .cover: return "A game cartridge with the song's title and a bar for each channel that jumps with its notes."
+        case .cover: return "A game cartridge with the song's title and a bar for each track that jumps with its notes."
         }
     }
 }
@@ -111,8 +111,15 @@ enum ExportPopoverSize {
 /// The length readout under Repeats, and what to say when the file will run
 /// past what a video can be.
 enum ExportLength {
-    /// Reels and Shorts cut a video off here.
+    /// The longest a YouTube Short can be. A longer video isn't cut off;
+    /// YouTube posts it as a regular video instead.
     static let shortsLimitSeconds = 180.0
+
+    /// Why the Export button is off for a video past `VideoExport.maxSeconds`:
+    /// the footer's warning and the button's VoiceOver hint.
+    static var tooLongForVideo: String {
+        "Too long for a video. The limit is \(Format.clock(VideoExport.maxSeconds))."
+    }
 
     /// Rough length of the file, so the repeat count means something. Reads
     /// the effective ending, so a video's length includes its tail.
@@ -132,12 +139,81 @@ enum ExportLength {
     static func warning(format: ExportOptions.Format, seconds: Double) -> String? {
         guard format == .video else { return nil }
         if seconds > VideoExport.maxSeconds {
-            return "Too long for a video — \(Format.clock(VideoExport.maxSeconds)) max."
+            return tooLongForVideo
         }
         if seconds > shortsLimitSeconds {
-            return "Reels and Shorts cut off at \(Format.clock(shortsLimitSeconds))."
+            return "Over \(Format.clock(shortsLimitSeconds)), YouTube posts it as a regular video, not a Short."
         }
         return nil
+    }
+}
+
+/// How many repeats a video starts at when the user hasn't picked a count.
+enum ExportRepeats {
+    /// The song a video should at least show, before its ring-out.
+    static let videoBodySeconds = 10.0
+
+    /// The smallest count, up to `ExportOptions.maxLoopCount`, whose passes
+    /// (before the tail) run at least `videoBodySeconds`. The starter song
+    /// is 1.8 s, so it gets 6.
+    static func forVideo(song: Song) -> Int {
+        let pass = song.arrangementDuration
+        guard pass > 0 else { return 1 }
+        // A hair of slack so a pass that divides ten exactly isn't pushed
+        // one count further by rounding.
+        let needed = Int((videoBodySeconds / pass - 1e-9).rounded(.up))
+        return min(max(needed, 1), ExportOptions.maxLoopCount)
+    }
+}
+
+/// The readout under Repeats: the count and the file's length, then for a
+/// video that it rings out and any length warning.
+enum ExportLengthFooter {
+    static func text(format: ExportOptions.Format, loopCount: Int, seconds: Double) -> String {
+        var line = "The whole arrangement, \(Format.count(loopCount, "time")): \(Format.clock(seconds))."
+        if format == .video { line += " Then it rings out." }
+        guard let warning = ExportLength.warning(format: format, seconds: seconds) else { return line }
+        return "\(line) \(warning)"
+    }
+}
+
+/// What VoiceOver hears while a render runs. A video can take a minute, and
+/// a bar that only moves on screen tells someone who can't see it nothing.
+enum ExportAnnouncement {
+    static let canceled = "Export canceled"
+
+    /// Said as the render starts, and the progress row's label.
+    static func started(format: ExportOptions.Format) -> String {
+        format == .video ? "Exporting video" : "Exporting"
+    }
+
+    /// The quarters worth saying along the way. Not 100%: the end is the
+    /// share sheet coming up.
+    static let milestones = [0.25, 0.5, 0.75]
+
+    /// The quarter crossed going from `old` to `new`, the latest one if the
+    /// progress jumped past several. nil when none was crossed, including
+    /// the reset to 0 when a render ends.
+    static func milestone(from old: Double, to new: Double) -> String? {
+        guard let crossed = milestones.last(where: { old < $0 && $0 <= new }) else { return nil }
+        return Format.percent(crossed)
+    }
+
+    /// The progress row's value. A MIDI export reports no progress, so it
+    /// has none.
+    static func progressValue(format: ExportOptions.Format, progress: Double) -> String? {
+        switch format {
+        // Truncated like the line under the bar, so the two never disagree.
+        case .wav, .video: return "\(Int(progress * 100))%"
+        case .midi: return nil
+        }
+    }
+
+    static func post(_ text: String) {
+        var announcement = AttributedString(text)
+        // Not cut off by the focus moving to Cancel export as it starts.
+        announcement.accessibilitySpeechAnnouncementPriority = .high
+        AccessibilityNotification.Announcement(announcement).post()
     }
 }
 
@@ -163,6 +239,13 @@ enum ExportControls {
     /// a video past `VideoExport.maxSeconds` is refused before it renders.
     static func blocksExport(format: ExportOptions.Format, seconds: Double) -> Bool {
         format == .video && seconds > VideoExport.maxSeconds
+    }
+
+    /// What VoiceOver hears on an Export button that `blocksExport` turned
+    /// off: the footer says why, but VoiceOver doesn't read it with the
+    /// button. nil whenever the length isn't what's stopping it.
+    static func disabledHint(format: ExportOptions.Format, seconds: Double) -> String? {
+        blocksExport(format: format, seconds: seconds) ? ExportLength.tooLongForVideo : nil
     }
 
     /// Whether the Export button comes back once the render it started has
@@ -194,6 +277,9 @@ struct ExportSheet: View {
     // and finishes between update passes. The model's monotonic attempt token
     // cannot be coalesced away, so failures and cancellations reliably retry.
     @State private var startedAttempt: Int?
+    /// VoiceOver moves to Cancel export as a render starts: the Export
+    /// button it was on has just gone.
+    @AccessibilityFocusState private var cancelFocused: Bool
 
     private var settingsLocked: Bool {
         ExportControls.settingsLocked(isExporting: studio.isExporting)
@@ -217,7 +303,8 @@ struct ExportSheet: View {
 
     // Not the system Stepper; see PlainStepper.
     private var repeatsStepper: some View {
-        PlainStepper(value: $studio.exportOptions.loopCount,
+        PlainStepper(value: Binding(get: { studio.exportOptions.loopCount },
+                                    set: { studio.exportOptions.setLoopCount($0) }),
                      range: 1...ExportOptions.maxLoopCount,
                      isEnabled: !settingsLocked,
                      accessibilityLabel: "Repeats",
@@ -326,7 +413,9 @@ struct ExportSheet: View {
     /// menu row, whose label and value do.
     @ViewBuilder
     private var formatPicker: some View {
-        let picker = Picker("Format", selection: $studio.exportOptions.format) {
+        let selection = Binding(get: { studio.exportOptions.format },
+                                set: { studio.exportOptions.selectFormat($0, for: studio.song) })
+        let picker = Picker("Format", selection: selection) {
             ForEach(ExportOptions.Format.allCases, id: \.self) { format in
                 Text(format.label).tag(format)
             }
@@ -356,54 +445,86 @@ struct ExportSheet: View {
         }
     }
 
+    /// The bar and the line under it, read by VoiceOver as one element:
+    /// "Exporting video, 42%".
+    private var progressRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ProgressView(value: studio.exportProgress)
+                .tint(Theme.accentGreen)
+            Text(ExportProgressText.text(format: format, progress: studio.exportProgress))
+                .chipFont(11)
+                .foregroundStyle(Theme.dim)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(ExportAnnouncement.started(format: format))
+        .accessibilityValue(ExportAnnouncement.progressValue(format: format, progress: studio.exportProgress) ?? "")
+    }
+
+    private var cancelButton: some View {
+        Button("Cancel export", role: .destructive) {
+            studio.cancelExport()
+            ExportAnnouncement.post(ExportAnnouncement.canceled)
+        }
+        .accessibilityFocused($cancelFocused)
+        .id(Self.cancelExportID)
+    }
+
+    private static let cancelExportID = "cancelExport"
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    formatPicker
-                    // Like the repeats: the render keeps the format it started
-                    // with, so a mid-render switch would only mislabel the file.
-                    .disabled(settingsLocked)
-                    // Dimmed like Repeats and Style: a disabled segmented
-                    // control barely looks it.
-                    .opacity(settingsLocked ? 0.4 : 1)
-                } footer: {
-                    if let text = ExportFormatFooter.text(for: format) {
-                        Text(text)
+            ScrollViewReader { scroller in
+                Form {
+                    Section {
+                        formatPicker
+                        // Like the repeats: the render keeps the format it started
+                        // with, so a mid-render switch would only mislabel the file.
+                        .disabled(settingsLocked)
+                        // Dimmed like Repeats and Style: a disabled segmented
+                        // control barely looks it.
+                        .opacity(settingsLocked ? 0.4 : 1)
+                    } footer: {
+                        if let text = ExportFormatFooter.text(for: format) {
+                            Text(text)
+                        }
+                    }
+
+                    // A MIDI file is the arrangement once, so neither control
+                    // applies to it.
+                    if ExportControls.showsRepeats(format) { repeatsSection }
+                    if ExportControls.showsEnding(format) { endingSection }
+                    if ExportControls.showsStyle(format) { styleSection }
+
+                    Section {
+                        if studio.isExporting {
+                            progressRow
+                            cancelButton
+                        } else {
+                            Button {
+                                guard startedAttempt == nil else { return }
+                                startedAttempt = studio.export()
+                            } label: {
+                                exportLabel
+                            }
+                            .disabled(startedAttempt != nil || !studio.song.hasNotes
+                                       || ExportControls.blocksExport(format: format, seconds: length))
+                            .accessibilityHint(ExportControls.disabledHint(format: format, seconds: length) ?? "")
+                        }
+                    } footer: {
+                        if let text = ExportNotesFooter.text(for: studio.song, format: format) {
+                            Text(text)
+                        }
                     }
                 }
-
-                // A MIDI file is the arrangement once, so neither control
-                // applies to it.
-                if ExportControls.showsRepeats(format) { repeatsSection }
-                if ExportControls.showsEnding(format) { endingSection }
-                if ExportControls.showsStyle(format) { styleSection }
-
-                Section {
-                    if studio.isExporting {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ProgressView(value: studio.exportProgress)
-                                .tint(Theme.accentGreen)
-                            Text(ExportProgressText.text(format: format, progress: studio.exportProgress))
-                                .chipFont(11)
-                                .foregroundStyle(Theme.dim)
-                        }
-                        Button("Cancel export", role: .destructive) {
-                            studio.cancelExport()
-                        }
-                    } else {
-                        Button {
-                            guard startedAttempt == nil else { return }
-                            startedAttempt = studio.export()
-                        } label: {
-                            exportLabel
-                        }
-                        .disabled(startedAttempt != nil || !studio.song.hasNotes
-                                   || ExportControls.blocksExport(format: format, seconds: length))
-                    }
-                } footer: {
-                    if let text = ExportNotesFooter.text(for: studio.song, format: format) {
-                        Text(text)
+                // At the largest text sizes the sections above push the progress
+                // and Cancel export below the fold, so a render brings them up.
+                // No anchor: the least scroll that shows Cancel, which is none
+                // when it's already on screen, and the progress row sits just
+                // above it.
+                .onChange(of: studio.isExporting) { _, exporting in
+                    guard exporting else { return }
+                    DispatchQueue.main.async {
+                        withAnimation { scroller.scrollTo(Self.cancelExportID) }
                     }
                 }
             }
@@ -449,6 +570,17 @@ struct ExportSheet: View {
                                                    producedFile: studio.exportURL != nil) else { return }
             startedAttempt = nil
         }
+        .onChange(of: studio.isExporting) { _, exporting in
+            guard exporting else { return }
+            ExportAnnouncement.post(ExportAnnouncement.started(format: format))
+            // A pass later, once Cancel export is in the tree to take it.
+            DispatchQueue.main.async { cancelFocused = true }
+        }
+        .onChange(of: studio.exportProgress) { old, new in
+            guard studio.isExporting,
+                  let milestone = ExportAnnouncement.milestone(from: old, to: new) else { return }
+            ExportAnnouncement.post(milestone)
+        }
         .errorAlert("Export failed", message: $studio.exportError)
         .popoverSized(popover,
                       minHeight: ExportPopoverSize.heights(for: format).min,
@@ -462,8 +594,6 @@ struct ExportSheet: View {
 
     /// The repeats readout, with a video's length warning after it.
     private var lengthFooter: String {
-        let line = "The whole arrangement, \(Format.count(studio.exportOptions.loopCount, "time")) — \(Format.clock(length))."
-        guard let warning = ExportLength.warning(format: format, seconds: length) else { return line }
-        return "\(line) \(warning)"
+        ExportLengthFooter.text(format: format, loopCount: studio.exportOptions.loopCount, seconds: length)
     }
 }

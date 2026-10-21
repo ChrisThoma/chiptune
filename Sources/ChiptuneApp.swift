@@ -18,6 +18,14 @@ struct ChiptuneApp: App {
     /// A file opened before the studio finished loading.
     @State private var pendingImport: URL?
 
+    /// Once per launch, not per window: a second iPad window's `.task`
+    /// could otherwise sweep while the first one is exporting. Off the main
+    /// thread, and long done before the studio exists to start a render.
+    init() {
+        guard !Self.isTestHost else { return }
+        DispatchQueue.global(qos: .utility).async { ExportFiles.sweep() }
+    }
+
     var body: some Scene {
         WindowGroup {
             ZStack {

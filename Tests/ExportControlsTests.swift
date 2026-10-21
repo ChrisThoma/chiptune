@@ -32,6 +32,21 @@ final class ExportControlsVisibilityTests: XCTestCase {
     }
 }
 
+/// The Export button off for a video past the cap says why to VoiceOver,
+/// which doesn't read the footer with the button.
+final class ExportDisabledHintTests: XCTestCase {
+
+    func testAnOverlongVideoSaysTheLimit() {
+        XCTAssertEqual(ExportControls.disabledHint(format: .video, seconds: VideoExport.maxSeconds + 1),
+                       "Too long for a video. The limit is 10:00.")
+    }
+
+    func testNoHintWhenTheButtonIsntBlockedForLength() {
+        XCTAssertNil(ExportControls.disabledHint(format: .video, seconds: VideoExport.maxSeconds))
+        XCTAssertNil(ExportControls.disabledHint(format: .wav, seconds: VideoExport.maxSeconds + 1))
+    }
+}
+
 /// The length readout under Repeats.
 final class ExportLengthTests: XCTestCase {
 
@@ -59,8 +74,11 @@ final class ExportLengthTests: XCTestCase {
                        song.arrangementDuration, accuracy: 0.0001)
     }
 
-    func testAVideoOverThreeMinutesWarnsAboutReelsAndShorts() {
-        XCTAssertEqual(ExportLength.warning(format: .video, seconds: 181), "Reels and Shorts cut off at 3:00.")
+    /// Nothing cuts a longer video off: YouTube posts it as a regular video
+    /// rather than a Short, so that's what the warning says.
+    func testAVideoOverThreeMinutesSaysItWontBeAShort() {
+        XCTAssertEqual(ExportLength.warning(format: .video, seconds: 181),
+                       "Over 3:00, YouTube posts it as a regular video, not a Short.")
         XCTAssertNil(ExportLength.warning(format: .video, seconds: 180))
     }
 
@@ -69,7 +87,7 @@ final class ExportLengthTests: XCTestCase {
     }
 
     func testAVideoOverTheCapSaysItIsTooLong() {
-        XCTAssertEqual(ExportLength.warning(format: .video, seconds: 601), "Too long for a video — 10:00 max.")
+        XCTAssertEqual(ExportLength.warning(format: .video, seconds: 601), "Too long for a video. The limit is 10:00.")
     }
 }
 

@@ -225,6 +225,16 @@ struct ShareSheetEnding: Equatable {
         return decide()
     }
 
+    /// The app took the sheet down itself (a different song opened under
+    /// it). `UIActivityViewController` may then never call its completion,
+    /// so this can't wait for it: an outcome already reported stands, and
+    /// with none it's a cancel. Whatever arrives later decides nothing.
+    mutating func sheetClosedByApp() -> ReviewPromptPolicy.ShareOutcome? {
+        if !decided, outcome == nil { outcome = .canceled }
+        dismissed = true
+        return decide()
+    }
+
     private mutating func decide() -> ReviewPromptPolicy.ShareOutcome? {
         guard !decided, dismissed, let outcome else { return nil }
         decided = true
@@ -255,6 +265,7 @@ struct ContentView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.requestReview) private var requestReview
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("successfulExportCount") private var successfulExportCount = 0
     @AppStorage("lastReviewRequestExportCount") private var lastReviewRequestExportCount = 0
     @State private var showingSongs = false
@@ -288,6 +299,12 @@ struct ContentView: View {
     /// canceled share brings the Export panel back only if that song is
     /// still the one open. See `ExportFlow.reopensExportAfterShare`.
     @State private var sharedSongID: UUID?
+    /// Save Video was turned down by Photos: the alert with Open Settings is
+    /// up for this video.
+    @State private var photosDenied: PhotosRetry?
+    /// Open Settings was tapped for this video, so coming back offers it
+    /// again. See `PhotosRetry`.
+    @State private var pendingPhotosRetry: PhotosRetry?
     /// A `.chipsong` is hovering over the editor, waiting to be dropped.
     @State private var songDropTargeted = false
     @FocusState private var nameFocused: Bool
@@ -388,9 +405,15 @@ struct ContentView: View {
             showingArrangement = after.arrangement
             showingExport = after.export
             // A share sheet still offering the previous song's file goes too.
-            // Its dismissal runs `afterShare`, which sees a different song
-            // open and neither reopens the Export panel nor keeps the choices.
-            showingShare = after.exportShare
+            // The activity may never report after a dismissal it didn't
+            // make, so the ending is settled here (a cancel, unless it had
+            // already said otherwise) rather than left waiting. `afterShare`
+            // sees a different song open and neither reopens the Export
+            // panel nor keeps the choices.
+            if showingShare && !after.exportShare {
+                showingShare = false
+                if let outcome = shareEnding.sheetClosedByApp() { afterShare(outcome) }
+            }
             if !after.songFileShare { studio.shareURL = nil }
             // The export options belong to the song that was open. With the
             // share sheet up there is no panel to close, so nothing else
@@ -407,8 +430,13 @@ struct ContentView: View {
             if let url = studio.exportURL {
                 ShareSheet(items: [url], onComplete: { completed, error in
                     if let error {
-                        studio.shareError = ShareFailureMessage.sheet(file: WriteFailureMessage.fileNoun(for: url),
-                                                                      error: error)
+                        switch ShareFailureMessage.sheetFailure(file: WriteFailureMessage.fileNoun(for: url),
+                                                                error: error) {
+                        case .photosDenied:
+                            photosDenied = PhotosRetry(url: url, songID: sharedSongID ?? studio.song.id)
+                        case .message(let text):
+                            studio.shareError = text
+                        }
                     }
                     let outcome: ReviewPromptPolicy.ShareOutcome = completed ? .completed : (error != nil ? .failed : .canceled)
                     if let decided = shareEnding.activityFinished(outcome) { afterShare(decided) }
@@ -461,6 +489,33 @@ struct ContentView: View {
         .errorAlert("Audio unavailable", message: $studio.audioError)
         .errorAlert("Import failed", message: $studio.importError)
         .errorAlert("Share failed", message: $studio.shareError)
+        .alert(PhotosDeniedAlert.title,
+               isPresented: Binding(get: { photosDenied != nil },
+                                    set: { if !$0 { photosDenied = nil } }),
+               presenting: photosDenied) { retry in
+            Button(PhotosDeniedAlert.openSettings) {
+                pendingPhotosRetry = retry
+                if let settings = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(settings)
+                }
+            }
+            Button("OK", role: .cancel) {}
+        } message: { _ in
+            Text(PhotosDeniedAlert.message)
+        }
+        // Back from Settings after the Photos alert: the same video, offered
+        // again, without another render.
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active, let retry = pendingPhotosRetry else { return }
+            pendingPhotosRetry = nil
+            guard retry.reshares(exportURL: studio.exportURL,
+                                 currentSongID: studio.song.id,
+                                 fileExists: FileManager.default.fileExists(atPath: retry.url.path),
+                                 anyPresented: anyPresented) else { return }
+            shareEnding = ShareSheetEnding()
+            sharedSongID = retry.songID
+            showingShare = true
+        }
         .errorAlert(UnreadableSongs.title, message: $studio.unreadableSongsNotice)
         .songFileImporter(isPresented: $showingImporter, studio: studio)
         // Opens whichever screen the screenshot shoot asked for. Inert unless

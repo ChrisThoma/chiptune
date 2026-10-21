@@ -200,33 +200,74 @@ final class ShareSheetFailureMessageTests: XCTestCase {
     }
 }
 
-/// Save Video with Photos access turned down. Retrying can't help, so the
-/// alert says where to fix it instead.
+/// Save Video with Photos access turned down. Retrying can't help until
+/// access is given, so it gets an alert of its own with a way to Settings
+/// rather than the plain "Share failed" one.
 final class PhotosDeniedShareMessageTests: XCTestCase {
-    private let settings = "Allow Chiptune to add videos to Photos in Settings."
 
     /// Exactly what the share sheet reported on the simulator after Don't
     /// Allow: an "unknown" assets-library error wrapping Photos' own
     /// access-denied code.
-    func testTheShareSheetsDeniedErrorPointsToSettings() {
+    func testTheShareSheetsDeniedErrorIsPhotosDenied() {
         let denied = NSError(domain: "ALAssetsLibraryErrorDomain", code: -1, userInfo: [
             NSLocalizedDescriptionKey: "Unknown error",
             NSUnderlyingErrorKey: NSError(domain: "PHPhotosErrorDomain", code: 3311),
         ])
-        XCTAssertEqual(ShareFailureMessage.sheet(file: "video", error: denied), settings)
+        XCTAssertEqual(ShareFailureMessage.sheetFailure(file: "video", error: denied), .photosDenied)
     }
 
-    func testPhotosAndAssetsLibraryDeniedCodesPointToSettings() {
-        XCTAssertEqual(ShareFailureMessage.sheet(file: "video", error: NSError(domain: "PHPhotosErrorDomain", code: 3311)),
-                       settings)
-        XCTAssertEqual(ShareFailureMessage.sheet(file: "video",
-                                                 error: NSError(domain: "ALAssetsLibraryErrorDomain", code: -3311)),
-                       settings)
+    func testPhotosAndAssetsLibraryDeniedCodesArePhotosDenied() {
+        XCTAssertEqual(ShareFailureMessage.sheetFailure(file: "video",
+                                                        error: NSError(domain: "PHPhotosErrorDomain", code: 3311)),
+                       .photosDenied)
+        XCTAssertEqual(ShareFailureMessage.sheetFailure(file: "video",
+                                                        error: NSError(domain: "ALAssetsLibraryErrorDomain", code: -3311)),
+                       .photosDenied)
     }
 
     func testAnyOtherShareFailureStillSaysTryAgain() {
         let other = NSError(domain: "ALAssetsLibraryErrorDomain", code: -1)
-        XCTAssertEqual(ShareFailureMessage.sheet(file: "video", error: other), "Couldn't share the video. Try again.")
+        XCTAssertEqual(ShareFailureMessage.sheetFailure(file: "video", error: other),
+                       .message("Couldn't share the video. Try again."))
+    }
+
+    func testThePhotosAlertSaysWhereToFixIt() {
+        XCTAssertEqual(PhotosDeniedAlert.title, "Chiptune can't save to Photos")
+        XCTAssertEqual(PhotosDeniedAlert.message, "Allow Chiptune to add videos to Photos in Settings, then try again.")
+        XCTAssertEqual(PhotosDeniedAlert.openSettings, "Open Settings")
+    }
+}
+
+/// Coming back from Settings after the Photos alert brings the share sheet
+/// back with the video already rendered, rather than sending the user
+/// through another render.
+final class PhotosRetryTests: XCTestCase {
+    private let song = UUID()
+    private let url = URL(fileURLWithPath: "/tmp/x/Song.mp4")
+
+    func testTheSameVideoIsOfferedAgain() {
+        let retry = PhotosRetry(url: url, songID: song)
+        XCTAssertTrue(retry.reshares(exportURL: url, currentSongID: song, fileExists: true, anyPresented: false))
+    }
+
+    func testNotWhenAnotherSongIsOpen() {
+        let retry = PhotosRetry(url: url, songID: song)
+        XCTAssertFalse(retry.reshares(exportURL: url, currentSongID: UUID(), fileExists: true, anyPresented: false))
+    }
+
+    func testNotWhenTheVideoIsGoneOrReplaced() {
+        let retry = PhotosRetry(url: url, songID: song)
+        XCTAssertFalse(retry.reshares(exportURL: url, currentSongID: song, fileExists: false, anyPresented: false))
+        XCTAssertFalse(retry.reshares(exportURL: nil, currentSongID: song, fileExists: true, anyPresented: false))
+        XCTAssertFalse(retry.reshares(exportURL: URL(fileURLWithPath: "/tmp/x/Other.mp4"),
+                                      currentSongID: song, fileExists: true, anyPresented: false))
+    }
+
+    /// Something else came up in the meantime; a second presentation would
+    /// be refused by UIKit and fire later on some unrelated dismissal.
+    func testNotOverSomethingElse() {
+        let retry = PhotosRetry(url: url, songID: song)
+        XCTAssertFalse(retry.reshares(exportURL: url, currentSongID: song, fileExists: true, anyPresented: true))
     }
 }
 

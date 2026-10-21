@@ -93,6 +93,27 @@ struct ExportOptions: Equatable, Sendable {
 
     static let maxLoopCount = 16
 
+    /// The user set the repeat count themselves, even back to 1, so it is
+    /// theirs and switching to Video leaves it alone.
+    var loopCountChosen = false
+
+    /// The format picker's way in. A short song's first video at 1x is
+    /// mostly ring-out, so switching to Video with Repeats untouched at 1
+    /// picks enough repeats for about ten seconds of song (see
+    /// `ExportRepeats.forVideo`). A count the user set is never changed.
+    mutating func selectFormat(_ format: Format, for song: Song) {
+        self.format = format
+        if format == .video, loopCount == 1, !loopCountChosen {
+            loopCount = ExportRepeats.forVideo(song: song)
+        }
+    }
+
+    /// The Repeats stepper's way in.
+    mutating func setLoopCount(_ count: Int) {
+        loopCount = count
+        loopCountChosen = true
+    }
+
     var clamped: ExportOptions {
         var copy = self
         copy.loopCount = min(max(loopCount, 1), ExportOptions.maxLoopCount)
@@ -176,6 +197,56 @@ enum ExportFiles {
             if sameType || entry.deletingPathExtension().lastPathComponent != base {
                 try? fm.removeItem(at: entry)
             }
+        }
+    }
+}
+
+extension ExportFiles {
+    /// The scratch folders the WAV and video renders work in, by name under
+    /// the temp folder.
+    static var scratchFolderNames: [String] {
+        [WavExport.scratchDirectory.lastPathComponent, VideoExport.scratchDirectory.lastPathComponent]
+    }
+
+    /// Run at launch, before anything can be rendering. `pruneStale` only
+    /// tidies the folder of the song just exported, so every other song kept
+    /// its last export (a video runs to about 60 MB a minute) until iOS got
+    /// round to clearing tmp. This clears every song's exports, the folders
+    /// they leave empty, and the scratch a killed render left behind. Only
+    /// what the exporters write: a folder named for a song id, the files in
+    /// it with an export's extension, the two scratch folders, and a stray
+    /// `.raw` from builds before the WAV scratch folder. Everything else in
+    /// tmp, the song-file share folders included, is left alone.
+    /// Best-effort, like `pruneStale`.
+    static func sweep(root: URL = FileManager.default.temporaryDirectory) {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) else { return }
+        for entry in entries {
+            let name = entry.lastPathComponent
+            if scratchFolderNames.contains(name) {
+                try? fm.removeItem(at: entry)
+            } else if entry.pathExtension == "raw" {
+                try? fm.removeItem(at: entry)
+            } else if let id = UUID(uuidString: name) {
+                removeExports(forSongID: id, root: root)
+            }
+        }
+    }
+
+    /// A deleted song's exports, and its folder once nothing else is in it.
+    static func removeExports(forSongID id: UUID, root: URL = FileManager.default.temporaryDirectory) {
+        let fm = FileManager.default
+        let dir = root.appendingPathComponent(id.uuidString, isDirectory: true)
+        guard let entries = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.isDirectoryKey]) else {
+            return
+        }
+        for entry in entries where ExportOptions.Format(fileExtension: entry.pathExtension) != nil {
+            let isDirectory = (try? entry.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+            guard !isDirectory else { continue }
+            try? fm.removeItem(at: entry)
+        }
+        if (try? fm.contentsOfDirectory(atPath: dir.path))?.isEmpty == true {
+            try? fm.removeItem(at: dir)
         }
     }
 }

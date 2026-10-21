@@ -159,7 +159,7 @@ final class StudioExportTests: XCTestCase {
     /// Pinned word for word by ErrorSurfacingTests too.
     func testATooLongWavKeepsItsWording() {
         XCTAssertEqual(ExportTooLongMessage.text(format: .wav),
-                       "Too long for one WAV — lower the repeat count.")
+                       "Too long for one WAV. Lower the repeat count.")
     }
 
     func testATooLongVideoExportShowsTheVideoMessage() {

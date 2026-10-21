@@ -188,6 +188,31 @@ final class ShareSheetEndingTests: XCTestCase {
 
     /// An activity backed out of (a Mail draft canceled, say) leaves the
     /// sheet up, and what the user does next is what counts.
+    /// A different song opening takes the sheet down from the app's side,
+    /// and `UIActivityViewController` may then never report at all. With
+    /// nothing reported, that ending is a cancel, decided right there.
+    func testTheAppClosingTheSheetWithNoReportIsACancel() {
+        var ending = ShareSheetEnding()
+        XCTAssertEqual(ending.sheetClosedByApp(), .canceled)
+        XCTAssertNil(ending.sheetDismissed(), "SwiftUI's own dismissal comes after and decides nothing more")
+        XCTAssertNil(ending.activityFinished(.completed))
+    }
+
+    /// The activity had already reported (a save that finished, say): that
+    /// is still what happened.
+    func testTheAppClosingTheSheetKeepsAReportedOutcome() {
+        var ending = ShareSheetEnding()
+        XCTAssertNil(ending.activityFinished(.completed))
+        XCTAssertEqual(ending.sheetClosedByApp(), .completed)
+    }
+
+    func testTheAppClosingADecidedShareDecidesNothing() {
+        var ending = ShareSheetEnding()
+        XCTAssertNil(ending.activityFinished(.canceled))
+        XCTAssertEqual(ending.sheetDismissed(), .canceled)
+        XCTAssertNil(ending.sheetClosedByApp())
+    }
+
     func testTheLastCompletionBeforeTheDismissalCounts() {
         var ending = ShareSheetEnding()
         XCTAssertNil(ending.activityFinished(.canceled))

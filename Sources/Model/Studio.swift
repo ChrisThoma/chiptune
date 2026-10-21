@@ -1312,6 +1312,9 @@ final class Studio {
             deleteError = DeleteFailureMessage.song(name: other.name, error: error)
             return
         }
+        // Its exports would otherwise sit in tmp with nothing left to
+        // replace them.
+        ExportFiles.removeExports(forSongID: other.id)
         // Deleting the song on screen: the editor has to move off it, or the
         // next autosave writes the "deleted" song straight back to disk.
         guard other.id == song.id else { return }
