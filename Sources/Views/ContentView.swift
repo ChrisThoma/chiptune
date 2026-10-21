@@ -453,7 +453,10 @@ struct ContentView: View {
                         switch ShareFailureMessage.sheetFailure(file: WriteFailureMessage.fileNoun(for: url),
                                                                 error: error) {
                         case .photosDenied:
-                            photosDenied = PhotosRetry(url: url, songID: sharedSongID ?? studio.song.id)
+                            switch PhotosRetry.afterDenial(url: url, sharedSongID: sharedSongID) {
+                            case .retry(let retry): photosDenied = retry
+                            case .message(let text): studio.shareError = text
+                            }
                         case .message(let text):
                             studio.shareError = text
                         }

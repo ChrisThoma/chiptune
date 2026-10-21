@@ -169,6 +169,22 @@ struct PhotosRetry: Equatable {
     var url: URL
     var songID: UUID
 
+    /// What a Photos denial puts up: the alert with Open Settings and a
+    /// retry for the song the share sheet was offering, or, when that song
+    /// isn't known any more (the app already took the sheet down because
+    /// another song opened), only what to do in Settings, under Share
+    /// failed. Crediting it to the song now open would offer that song a
+    /// retry of a file it never made.
+    enum Denial: Equatable {
+        case retry(PhotosRetry)
+        case message(String)
+    }
+
+    static func afterDenial(url: URL, sharedSongID: UUID?) -> Denial {
+        guard let sharedSongID else { return .message(PhotosDeniedAlert.message) }
+        return .retry(PhotosRetry(url: url, songID: sharedSongID))
+    }
+
     /// Only for the video still on offer, from the song still open, with
     /// nothing else on screen to present over.
     func reshares(exportURL: URL?, currentSongID: UUID, fileExists: Bool, anyPresented: Bool) -> Bool {
