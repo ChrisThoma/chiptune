@@ -101,7 +101,7 @@ fun TitleBar(editor: Editor) {
             singleLine = true,
             textStyle = chipFont(16f, FontWeight.Bold).copy(color = ChipColors.text),
             cursorBrush = SolidColor(ChipColors.text),
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
+            keyboardOptions = SongTitleField.keyboardOptions,
             keyboardActions = KeyboardActions(onDone = {
                 studio.normalizeSongName()
                 focusManager.clearFocus()
@@ -295,4 +295,15 @@ private fun MenuRow(
 @Composable
 private fun MenuDivider() {
     HorizontalDivider(color = ChipColors.grid, thickness = 6.dp, modifier = Modifier.padding(vertical = 2.dp).alpha(0.5f))
+}
+
+/** The song title field's keyboard. Words capitalized, and no autocorrect:
+ * a title is a made-up name the keyboard would otherwise rewrite, as iOS
+ * turned off too. */
+object SongTitleField {
+    val keyboardOptions = KeyboardOptions(
+        capitalization = KeyboardCapitalization.Words,
+        autoCorrectEnabled = false,
+        imeAction = ImeAction.Done,
+    )
 }
