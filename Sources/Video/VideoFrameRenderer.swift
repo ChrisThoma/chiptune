@@ -19,13 +19,23 @@ final class VideoFrameRenderer {
     private let timeline: VideoTimeline
     private let layout: VideoLayout
     private let pulse: ChannelPulse
+    private let cachesBackdrop: Bool
+    /// The Cartridge's still parts, drawn on the first frame. See
+    /// `drawCoverBackdrop`.
+    private var backdrop: CGImage?
+    /// How many times the Cartridge's still parts have been drawn, for a
+    /// test that they're drawn once.
+    private(set) var backdropDraws = 0
 
-    init(song: Song, options: ExportOptions, timeline: VideoTimeline) {
+    /// `cachesBackdrop` false draws every part of every frame, the picture a
+    /// test compares the cached frames against. The app never passes it.
+    init(song: Song, options: ExportOptions, timeline: VideoTimeline, cachesBackdrop: Bool = true) {
         var song = song
         song.normalize()
         self.song = song
         style = options.videoStyle
         self.timeline = timeline
+        self.cachesBackdrop = cachesBackdrop
         layout = VideoLayout(trackCount: song.tracks.count)
         pulse = ChannelPulse(song: song, timeline: timeline)
     }
@@ -35,10 +45,13 @@ final class VideoFrameRenderer {
     func draw(frame: Int, in context: CGContext) {
         UIGraphicsPushContext(context)
         defer { UIGraphicsPopContext() }
-        drawBackground(in: context)
         switch style {
-        case .grid: drawGrid(frame: frame, in: context)
-        case .cover: drawCover(frame: frame, in: context)
+        case .grid:
+            drawBackground(in: context)
+            drawGrid(frame: frame, in: context)
+        case .cover:
+            drawCoverBackdrop(in: context)
+            drawCover(frame: frame, in: context)
         }
         drawTag()
     }
@@ -259,7 +272,46 @@ final class VideoFrameRenderer {
         return path
     }
 
-    private func drawCover(frame: Int, in context: CGContext) {
+    /// Everything in a Cartridge frame that doesn't move: the background,
+    /// the plastic with its shadow, the title and the tempo line. The
+    /// shadow's 60 pt blur made this most of a frame's cost, so it is drawn
+    /// once into an image and that image is copied into every frame after,
+    /// as the Android renderer does.
+    private func drawCoverBackdrop(in context: CGContext) {
+        guard cachesBackdrop else { return drawStillCover(in: context) }
+        if backdrop == nil { backdrop = makeBackdrop() }
+        guard let backdrop else { return drawStillCover(in: context) }
+        // The frame's context is flipped; an image draws in unflipped space.
+        // The copy is pixel for pixel, so nothing is blended or smoothed.
+        context.saveGState()
+        context.translateBy(x: 0, y: VideoLayout.size.height)
+        context.scaleBy(x: 1, y: -1)
+        context.interpolationQuality = .none
+        context.setBlendMode(.copy)
+        context.draw(backdrop, in: CGRect(origin: .zero, size: VideoLayout.size))
+        context.restoreGState()
+    }
+
+    /// The still parts in a bitmap made the way `VideoExport` makes each
+    /// frame's: sRGB, BGRA, flipped so y runs down.
+    private func makeBackdrop() -> CGImage? {
+        let width = Int(VideoLayout.size.width), height = Int(VideoLayout.size.height)
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: Palette.colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        ) else { return nil }
+        context.translateBy(x: 0, y: CGFloat(height))
+        context.scaleBy(x: 1, y: -1)
+        UIGraphicsPushContext(context)
+        drawStillCover(in: context)
+        UIGraphicsPopContext()
+        return context.makeImage()
+    }
+
+    private func drawStillCover(in context: CGContext) {
+        backdropDraws += 1
+        drawBackground(in: context)
         drawCartridge(in: context)
 
         let titleRect = layout.coverTitleRect
@@ -278,7 +330,11 @@ final class VideoFrameRenderer {
         let length = VideoClock.total(timeline.seconds)
         Self.text("\(Int(song.tempo)) BPM  ·  \(length)", size: layout.coverMetaFontSize, weight: .semibold,
                   color: Palette.dim, in: meta)
+    }
 
+    /// The parts of a Cartridge frame that move, over its backdrop.
+    private func drawCover(frame: Int, in context: CGContext) {
+        let length = VideoClock.total(timeline.seconds)
         let levels = pulse.levels(frame: frame)
         for index in song.tracks.indices {
             let track = song.tracks[index]
