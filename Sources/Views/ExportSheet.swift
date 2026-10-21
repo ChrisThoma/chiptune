@@ -30,7 +30,7 @@ extension ExportNotesFooter {
             return text(for: song)
         case .midi:
             guard song.hasNotes else { return text(for: song) }
-            var line = "The whole arrangement once — \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote."
+            var line = "The whole arrangement once: \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote."
             // Worked out once: only a silent track with notes the
             // arrangement plays has anything in the file to speak of.
             let chain = song.chain
@@ -148,6 +148,35 @@ enum ExportLength {
     }
 }
 
+/// How many repeats a video starts at when the user hasn't picked a count.
+enum ExportRepeats {
+    /// The song a video should at least show, before its ring-out.
+    static let videoBodySeconds = 10.0
+
+    /// The smallest count, up to `ExportOptions.maxLoopCount`, whose passes
+    /// (before the tail) run at least `videoBodySeconds`. The starter song
+    /// is 1.8 s, so it gets 6.
+    static func forVideo(song: Song) -> Int {
+        let pass = song.arrangementDuration
+        guard pass > 0 else { return 1 }
+        // A hair of slack so a pass that divides ten exactly isn't pushed
+        // one count further by rounding.
+        let needed = Int((videoBodySeconds / pass - 1e-9).rounded(.up))
+        return min(max(needed, 1), ExportOptions.maxLoopCount)
+    }
+}
+
+/// The readout under Repeats: the count and the file's length, then for a
+/// video that it rings out and any length warning.
+enum ExportLengthFooter {
+    static func text(format: ExportOptions.Format, loopCount: Int, seconds: Double) -> String {
+        var line = "The whole arrangement, \(Format.count(loopCount, "time")): \(Format.clock(seconds))."
+        if format == .video { line += " Then it rings out." }
+        guard let warning = ExportLength.warning(format: format, seconds: seconds) else { return line }
+        return "\(line) \(warning)"
+    }
+}
+
 /// Whether the repeats and ending controls can still be changed. They are
 /// frozen for the length of a render: it keeps the settings it started with, so
 /// an edit made mid-render would only make the readout disagree with the file.
@@ -224,7 +253,8 @@ struct ExportSheet: View {
 
     // Not the system Stepper; see PlainStepper.
     private var repeatsStepper: some View {
-        PlainStepper(value: $studio.exportOptions.loopCount,
+        PlainStepper(value: Binding(get: { studio.exportOptions.loopCount },
+                                    set: { studio.exportOptions.setLoopCount($0) }),
                      range: 1...ExportOptions.maxLoopCount,
                      isEnabled: !settingsLocked,
                      accessibilityLabel: "Repeats",
@@ -333,7 +363,9 @@ struct ExportSheet: View {
     /// menu row, whose label and value do.
     @ViewBuilder
     private var formatPicker: some View {
-        let picker = Picker("Format", selection: $studio.exportOptions.format) {
+        let selection = Binding(get: { studio.exportOptions.format },
+                                set: { studio.exportOptions.selectFormat($0, for: studio.song) })
+        let picker = Picker("Format", selection: selection) {
             ForEach(ExportOptions.Format.allCases, id: \.self) { format in
                 Text(format.label).tag(format)
             }
@@ -469,8 +501,6 @@ struct ExportSheet: View {
 
     /// The repeats readout, with a video's length warning after it.
     private var lengthFooter: String {
-        let line = "The whole arrangement, \(Format.count(studio.exportOptions.loopCount, "time")) — \(Format.clock(length))."
-        guard let warning = ExportLength.warning(format: format, seconds: length) else { return line }
-        return "\(line) \(warning)"
+        ExportLengthFooter.text(format: format, loopCount: studio.exportOptions.loopCount, seconds: length)
     }
 }

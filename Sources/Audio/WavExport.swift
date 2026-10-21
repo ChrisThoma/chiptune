@@ -93,6 +93,27 @@ struct ExportOptions: Equatable, Sendable {
 
     static let maxLoopCount = 16
 
+    /// The user set the repeat count themselves, even back to 1, so it is
+    /// theirs and switching to Video leaves it alone.
+    var loopCountChosen = false
+
+    /// The format picker's way in. A short song's first video at 1x is
+    /// mostly ring-out, so switching to Video with Repeats untouched at 1
+    /// picks enough repeats for about ten seconds of song (see
+    /// `ExportRepeats.forVideo`). A count the user set is never changed.
+    mutating func selectFormat(_ format: Format, for song: Song) {
+        self.format = format
+        if format == .video, loopCount == 1, !loopCountChosen {
+            loopCount = ExportRepeats.forVideo(song: song)
+        }
+    }
+
+    /// The Repeats stepper's way in.
+    mutating func setLoopCount(_ count: Int) {
+        loopCount = count
+        loopCountChosen = true
+    }
+
     var clamped: ExportOptions {
         var copy = self
         copy.loopCount = min(max(loopCount, 1), ExportOptions.maxLoopCount)

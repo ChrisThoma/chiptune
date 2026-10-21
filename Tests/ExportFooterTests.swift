@@ -64,14 +64,14 @@ final class ExportFooterTests: XCTestCase {
     func testMidiFooterGivesTheLengthAndTheArpeggioNote() {
         let song = TestSongs.golden()
         XCTAssertEqual(midiFooter(song),
-                       "The whole arrangement once — \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote.")
+                       "The whole arrangement once: \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote.")
     }
 
     func testMidiFooterSaysAMutedTrackIsInTheFileAtVolumeZero() {
         var song = TestSongs.golden()
         song.tracks[0].muted = true
         XCTAssertEqual(midiFooter(song),
-                       "The whole arrangement once — \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote. A muted or silent track keeps its notes in the file, turned all the way down.")
+                       "The whole arrangement once: \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote. A muted or silent track keeps its notes in the file, turned all the way down.")
     }
 
     func testMidiFooterSaysMutedTracksAreInTheFileAtVolumeZero() {
@@ -79,7 +79,7 @@ final class ExportFooterTests: XCTestCase {
         song.tracks[0].muted = true
         song.tracks[2].muted = true
         XCTAssertEqual(midiFooter(song),
-                       "The whole arrangement once — \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote. Muted or silent tracks keep their notes in the file, turned all the way down.")
+                       "The whole arrangement once: \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote. Muted or silent tracks keep their notes in the file, turned all the way down.")
     }
 
     /// The MIDI file still has the notes, so the WAV's "would be silent"
@@ -106,7 +106,7 @@ final class ExportFooterTests: XCTestCase {
     }
 
     private func lead(_ song: Song) -> String {
-        "The whole arrangement once — \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote."
+        "The whole arrangement once: \(Format.clock(song.arrangementDuration)). Arpeggios come out as the note you wrote."
     }
 
     /// Every noise track muted: none plays on the drum channel, so each is
