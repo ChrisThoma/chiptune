@@ -21,6 +21,17 @@
 				<string>CA92.1</string>
 			</array>
 		</dict>
+		<dict>
+			<!-- SongStore reads each saved song's modification date, so an
+			     unreadable file that is replaced reads as a new one. The
+			     files are the app's own, in its container: C617.1. -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>
