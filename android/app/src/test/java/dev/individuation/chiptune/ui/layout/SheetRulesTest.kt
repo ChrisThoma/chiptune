@@ -495,6 +495,32 @@ class ExportCopyTest {
         assertEquals(ExportOptions.Format.WAV, ExportCopy.withFormat(song, fromVideo, ExportOptions.Format.WAV).format)
     }
 
+    /** Peeking at Video and going back must not leave the WAV at Video's
+     * raised count: the raise is undone when the format leaves Video. */
+    @Test fun leavingVideoUndoesTheRaise() {
+        val song = TestSongs.golden()
+        val video = ExportCopy.withFormat(song, ExportOptions(), ExportOptions.Format.VIDEO)
+        assertEquals(6, video.loopCount)
+        val wav = ExportCopy.withFormat(song, video, ExportOptions.Format.WAV)
+        assertEquals(ExportOptions.Format.WAV, wav.format)
+        assertEquals(1, wav.loopCount)
+        assertFalse(wav.loopCountChosen)
+    }
+
+    @Test fun videoThenMidiThenVideoRaisesAgain() {
+        val song = TestSongs.golden()
+        val video = ExportCopy.withFormat(song, ExportOptions(), ExportOptions.Format.VIDEO)
+        val midi = ExportCopy.withFormat(song, video, ExportOptions.Format.MIDI)
+        assertEquals(1, midi.loopCount)
+        assertEquals(6, ExportCopy.withFormat(song, midi, ExportOptions.Format.VIDEO).loopCount)
+    }
+
+    @Test fun aCountSteppedToAfterTheRaiseStaysWhenLeavingVideo() {
+        val song = TestSongs.golden()
+        val stepped = ExportCopy.withFormat(song, ExportOptions(), ExportOptions.Format.VIDEO).withLoopCount(3)
+        assertEquals(3, ExportCopy.withFormat(song, stepped, ExportOptions.Format.WAV).loopCount)
+    }
+
     /** The song's name in quotes, not a raw file name with its extension. */
     @Test fun resultTitleNamesTheSong() {
         assertEquals("Exported \u201CGolden\u201D", ExportCopy.resultTitle("Golden.wav"))

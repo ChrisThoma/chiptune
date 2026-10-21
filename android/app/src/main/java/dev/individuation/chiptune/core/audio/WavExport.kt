@@ -34,9 +34,14 @@ data class ExportOptions(
      * theirs and switching to Video leaves it alone. Swift's
      * `loopCountChosen`. Last, for the positional reason above. */
     val loopCountChosen: Boolean = false,
+    /** Switching to Video raised the count from one on its own, so leaving
+     * Video puts it back: peeking at Video must not leave a WAV at six
+     * passes. Stepping the count clears it, since the count is then the
+     * user's. Swift's `loopCountRaised`. Last, for the positional reason. */
+    val loopCountRaised: Boolean = false,
 ) {
     /** The Repeats stepper's way in: the count, marked as chosen. */
-    fun withLoopCount(count: Int): ExportOptions = copy(loopCount = count, loopCountChosen = true)
+    fun withLoopCount(count: Int): ExportOptions = copy(loopCount = count, loopCountChosen = true, loopCountRaised = false)
 
     /** Each format and everything that names it or its file: [label] in the
      * sheet ("Export WAV"), [fileExtension], [fileNoun] in an alert, and the

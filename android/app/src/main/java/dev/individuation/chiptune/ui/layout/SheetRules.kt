@@ -222,12 +222,19 @@ object ExportCopy {
     /** The options once the Format picker says [format]. Switching to Video
      * with Repeats untouched at one raises it to [videoRepeats]; a count the
      * user stepped to, even back to one ([ExportOptions.loopCountChosen]), is
-     * kept, and other formats take the count as it is. */
+     * kept, and other formats take the count as it is. Leaving Video
+     * undoes a raise the user hasn't stepped since
+     * ([ExportOptions.loopCountRaised]), so a peek at Video doesn't change
+     * the WAV's repeats. */
     fun withFormat(song: Song, options: ExportOptions, format: ExportOptions.Format): ExportOptions {
         val switched = options.copy(format = format)
-        val toVideo = format == ExportOptions.Format.VIDEO && options.format != ExportOptions.Format.VIDEO
-        if (!toVideo || options.loopCount != 1 || options.loopCountChosen) return switched
-        return switched.copy(loopCount = videoRepeats(song))
+        val wasVideo = options.format == ExportOptions.Format.VIDEO
+        val isVideo = format == ExportOptions.Format.VIDEO
+        if (wasVideo && !isVideo && options.loopCountRaised && !options.loopCountChosen) {
+            return switched.copy(loopCount = 1, loopCountRaised = false)
+        }
+        if (wasVideo || !isVideo || options.loopCount != 1 || options.loopCountChosen) return switched
+        return switched.copy(loopCount = videoRepeats(song), loopCountRaised = true)
     }
 
     /** Rough length of the file, so the repeat count means something. */
