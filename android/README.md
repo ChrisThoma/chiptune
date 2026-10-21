@@ -42,19 +42,19 @@ cd android
 
 ## Tests
 
-`./gradlew test` runs 1167 JVM unit tests (all green at the last count):
+`./gradlew test` runs 1179 JVM unit tests (all green at the last count):
 
 | Area | Tests |
 | --- | --- |
-| `core/studio` (Studio, undo, shortcuts, key routing, policies) | 407 |
-| `ui/layout` (phone/tablet rules, screenshot modes) | 243 |
-| `core/audio` (ChipCore, WAV and MIDI export, golden files) | 196 |
+| `core/studio` (Studio, undo, shortcuts, key routing, policies) | 409 |
+| `ui/layout` (phone/tablet rules, screenshot modes) | 248 |
+| `core/audio` (ChipCore, WAV and MIDI export, golden files) | 198 |
 | `core/model` (codec, presets, names) | 151 |
 | `platform` (key mapper, incoming intents, sharing, list encoding) | 36 |
 | `core/video` (timeline, layout, frames, clock, resource release) | 92 |
 | `core/store` | 24 |
 | `core/text` | 11 |
-| `ui/editor` (export MIME types, title field) | 5 |
+| `ui/editor` (export MIME types, title field, result keys) | 8 |
 | root (`CorePurityTest`) | 2 |
 
 There is no instrumented (`androidTest`) suite; the on-device checks are the
