@@ -452,7 +452,14 @@ class ExportCopyTest {
         assertTrue(song.arrangementDuration * 5 < 10.0)
     }
 
-    @Test fun aLongEnoughSongStaysAtOnePass() {
+    /** A pass with no length has nothing to repeat: one pass, as iOS
+     * `ExportRepeats.forVideo` says, not the limit. */
+    @Test fun aZeroLengthPassGetsOneRepeat() {
+        assertEquals(1, ExportCopy.videoRepeats(0.0))
+        assertEquals(2, ExportCopy.videoRepeats(8.0))
+    }
+
+    @Test fun switchingToVideoRaisesOnlyAsFarAsTenSecondsNeeds() {
         val song = TestSongs.empty(length = 64) // 8 s a pass
         assertEquals(2, ExportCopy.withFormat(song, ExportOptions(), ExportOptions.Format.VIDEO).loopCount)
         val long = TestSongs.empty(tempo = 60.0, length = 64) // 16 s a pass

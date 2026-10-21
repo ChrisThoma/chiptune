@@ -213,9 +213,12 @@ object ExportCopy {
 
     /** The fewest passes, up to the limit, that make [FIRST_VIDEO_SECONDS]
      * of arrangement. */
-    fun videoRepeats(song: Song): Int {
-        val pass = song.arrangementDuration
-        if (pass <= 0.0) return ExportOptions.MAX_LOOP_COUNT
+    fun videoRepeats(song: Song): Int = videoRepeats(song.arrangementDuration)
+
+    /** [videoRepeats] for a pass of [pass] seconds. A pass with no length
+     * has nothing to repeat, so it stays at one (iOS `ExportRepeats.forVideo`). */
+    fun videoRepeats(pass: Double): Int {
+        if (pass <= 0.0) return 1
         return (1..ExportOptions.MAX_LOOP_COUNT).firstOrNull { pass * it >= FIRST_VIDEO_SECONDS }
             ?: ExportOptions.MAX_LOOP_COUNT
     }
