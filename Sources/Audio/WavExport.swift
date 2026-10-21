@@ -180,6 +180,56 @@ enum ExportFiles {
     }
 }
 
+extension ExportFiles {
+    /// The scratch folders the WAV and video renders work in, by name under
+    /// the temp folder.
+    static var scratchFolderNames: [String] {
+        [WavExport.scratchDirectory.lastPathComponent, VideoExport.scratchDirectory.lastPathComponent]
+    }
+
+    /// Run at launch, before anything can be rendering. `pruneStale` only
+    /// tidies the folder of the song just exported, so every other song kept
+    /// its last export (a video runs to about 60 MB a minute) until iOS got
+    /// round to clearing tmp. This clears every song's exports, the folders
+    /// they leave empty, and the scratch a killed render left behind. Only
+    /// what the exporters write: a folder named for a song id, the files in
+    /// it with an export's extension, the two scratch folders, and a stray
+    /// `.raw` from builds before the WAV scratch folder. Everything else in
+    /// tmp, the song-file share folders included, is left alone.
+    /// Best-effort, like `pruneStale`.
+    static func sweep(root: URL = FileManager.default.temporaryDirectory) {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) else { return }
+        for entry in entries {
+            let name = entry.lastPathComponent
+            if scratchFolderNames.contains(name) {
+                try? fm.removeItem(at: entry)
+            } else if entry.pathExtension == "raw" {
+                try? fm.removeItem(at: entry)
+            } else if let id = UUID(uuidString: name) {
+                removeExports(forSongID: id, root: root)
+            }
+        }
+    }
+
+    /// A deleted song's exports, and its folder once nothing else is in it.
+    static func removeExports(forSongID id: UUID, root: URL = FileManager.default.temporaryDirectory) {
+        let fm = FileManager.default
+        let dir = root.appendingPathComponent(id.uuidString, isDirectory: true)
+        guard let entries = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.isDirectoryKey]) else {
+            return
+        }
+        for entry in entries where ExportOptions.Format(fileExtension: entry.pathExtension) != nil {
+            let isDirectory = (try? entry.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+            guard !isDirectory else { continue }
+            try? fm.removeItem(at: entry)
+        }
+        if (try? fm.contentsOfDirectory(atPath: dir.path))?.isEmpty == true {
+            try? fm.removeItem(at: dir)
+        }
+    }
+}
+
 /// Renders a song offline and writes it out as a 16-bit mono WAV.
 enum WavExport {
     static let sampleRate = 44100.0
