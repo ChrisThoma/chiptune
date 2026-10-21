@@ -32,6 +32,21 @@ final class ExportControlsVisibilityTests: XCTestCase {
     }
 }
 
+/// The Export button off for a video past the cap says why to VoiceOver,
+/// which doesn't read the footer with the button.
+final class ExportDisabledHintTests: XCTestCase {
+
+    func testAnOverlongVideoSaysTheLimit() {
+        XCTAssertEqual(ExportControls.disabledHint(format: .video, seconds: VideoExport.maxSeconds + 1),
+                       "Too long for a video. The limit is 10:00.")
+    }
+
+    func testNoHintWhenTheButtonIsntBlockedForLength() {
+        XCTAssertNil(ExportControls.disabledHint(format: .video, seconds: VideoExport.maxSeconds))
+        XCTAssertNil(ExportControls.disabledHint(format: .wav, seconds: VideoExport.maxSeconds + 1))
+    }
+}
+
 /// The length readout under Repeats.
 final class ExportLengthTests: XCTestCase {
 

@@ -201,6 +201,13 @@ enum ExportControls {
         format == .video && seconds > VideoExport.maxSeconds
     }
 
+    /// What VoiceOver hears on an Export button that `blocksExport` turned
+    /// off: the footer says why, but VoiceOver doesn't read it with the
+    /// button. nil whenever the length isn't what's stopping it.
+    static func disabledHint(format: ExportOptions.Format, seconds: Double) -> String? {
+        blocksExport(format: format, seconds: seconds) ? ExportLength.tooLongForVideo : nil
+    }
+
     /// Whether the Export button comes back once the render it started has
     /// finished. A failed or canceled one frees it for another try. One that
     /// left a file keeps it: the panel is coming down for the share sheet,
@@ -439,6 +446,7 @@ struct ExportSheet: View {
                         }
                         .disabled(startedAttempt != nil || !studio.song.hasNotes
                                    || ExportControls.blocksExport(format: format, seconds: length))
+                        .accessibilityHint(ExportControls.disabledHint(format: format, seconds: length) ?? "")
                     }
                 } footer: {
                     if let text = ExportNotesFooter.text(for: studio.song, format: format) {
