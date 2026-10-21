@@ -1,6 +1,7 @@
 package dev.individuation.chiptune.core.studio
 
 import dev.individuation.chiptune.core.TestSongs
+import dev.individuation.chiptune.core.audio.ExportFiles
 import dev.individuation.chiptune.core.audio.ExportOptions
 import dev.individuation.chiptune.core.audio.ExportResult
 import dev.individuation.chiptune.core.audio.RenderHarness
@@ -229,14 +230,27 @@ class StudioExportTest {
     }
 
     /** Every song keeps its last export (a video is ~60 MB a minute) until
-     * the app next starts, which clears them all. */
+     * the app starts with it over a day old, which clears it. */
     @Test fun startingTheStudioSweepsEarlierExports() {
         val dir = java.nio.file.Files.createTempDirectory("chiptune-export-").toFile()
         val old = File(dir, UUID.randomUUID().toString().uppercase()).also { it.mkdirs() }
-        File(old, "Old.mp4").writeText("video")
+        File(old, "Old.mp4").apply {
+            writeText("video")
+            setLastModified(System.currentTimeMillis() - 2 * ExportFiles.SWEEP_MIN_AGE_MILLIS)
+        }
         val h = StudioHarness(exportDir = dir).also { harnesses.add(it) }
         h.drainExecutor()
         assertFalse(old.exists())
+    }
+
+    /** A recent export may still be open in the app it was shared to. */
+    @Test fun startingTheStudioKeepsARecentExport() {
+        val dir = java.nio.file.Files.createTempDirectory("chiptune-export-").toFile()
+        val recent = File(File(dir, UUID.randomUUID().toString().uppercase()).also { it.mkdirs() }, "Shared.wav")
+        recent.writeText("audio")
+        val h = StudioHarness(exportDir = dir).also { harnesses.add(it) }
+        h.drainExecutor()
+        assertTrue(recent.exists())
     }
 
     @Test fun deletingASongRemovesItsExportFolder() {

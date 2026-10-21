@@ -20,6 +20,48 @@ class ExportFilesTest {
 
     private fun File.touch(name: String): File = File(this, name).also { it.writeText("x") }
 
+    /** A day and a minute after the files above were written: old enough to sweep. */
+    private val later = System.currentTimeMillis() + ExportFiles.SWEEP_MIN_AGE_MILLIS + 60_000
+
+    /** A file another app may still be reading through a share's URI stays
+     * through a relaunch; one over a day old goes. */
+    @Test fun theSweepKeepsExportsUnderADayOld() {
+        val root = temp.newFolder("export")
+        val now = 1_000_000_000_000L
+        val day = 24 * 60 * 60 * 1000L
+        val fresh = songFolder(root)
+        val shared = fresh.touch("Shared.wav")
+        shared.setLastModified(now - day + 60_000)
+        val mixed = songFolder(root)
+        val recent = mixed.touch("Recent.mp4")
+        recent.setLastModified(now - 60_000)
+        val old = mixed.touch("Old.wav")
+        old.setLastModified(now - day - 60_000)
+        val stale = songFolder(root)
+        stale.touch("Stale.mid").setLastModified(now - 2 * day)
+
+        ExportFiles.sweep(root, now, day)
+
+        assertTrue("a file under a day old may still be open in another app", shared.exists())
+        assertTrue(recent.exists())
+        assertFalse("over a day old goes", old.exists())
+        assertFalse("an emptied folder goes", stale.exists())
+        assertTrue("a folder still holding a recent export stays", mixed.isDirectory)
+    }
+
+    /** Scratch is never shared, so it goes whatever its age. */
+    @Test fun theSweepClearsFreshScratch() {
+        val root = temp.newFolder("export")
+        val wav = File(root, WavExport.SCRATCH_DIRECTORY).also { it.mkdirs() }
+        val now = 1_000_000_000_000L
+        wav.touch("ABC.raw").setLastModified(now)
+        wav.setLastModified(now)
+
+        ExportFiles.sweep(root, now, ExportFiles.SWEEP_MIN_AGE_MILLIS)
+
+        assertFalse(wav.exists())
+    }
+
     @Test fun theSweepClearsEverySongsExportsAndTheirEmptyFolders() {
         val root = temp.newFolder("export")
         val a = songFolder(root)
@@ -28,7 +70,7 @@ class ExportFilesTest {
         val b = songFolder(root)
         b.touch("Other.mp4")
 
-        ExportFiles.sweep(root)
+        ExportFiles.sweep(root, later)
 
         assertFalse("a's exports and folder are gone", a.exists())
         assertFalse(b.exists())
@@ -42,7 +84,7 @@ class ExportFilesTest {
         val video = File(root, VideoExport.SCRATCH_DIRECTORY).also { it.mkdirs() }
         video.touch("ABC.mp4")
 
-        ExportFiles.sweep(root)
+        ExportFiles.sweep(root, later)
 
         assertFalse(wav.exists())
         assertFalse(video.exists())
@@ -57,7 +99,7 @@ class ExportFilesTest {
         val strangerWav = stranger.touch("keep.wav")
         val loose = root.touch("loose.wav")
 
-        ExportFiles.sweep(root)
+        ExportFiles.sweep(root, later)
 
         assertFalse(File(song, "Song.wav").exists())
         assertTrue("a folder still holding something stays", note.exists())
@@ -72,7 +114,7 @@ class ExportFilesTest {
         val share = File(cache, "share").also { it.mkdirs() }
         val shared = share.touch("Song.chipsong")
 
-        ExportFiles.sweep(root)
+        ExportFiles.sweep(root, later)
 
         assertTrue(shared.exists())
     }

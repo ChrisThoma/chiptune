@@ -174,14 +174,22 @@ object ExportFiles {
     private fun isSongFolder(name: String): Boolean =
         runCatching { UUID.fromString(name).toString().uppercase() == name }.getOrDefault(false)
 
-    /** Clears every song's exports at launch. [pruneStale] only ever tidies
+    /** How old an export must be before [sweep] removes it: a day. */
+    const val SWEEP_MIN_AGE_MILLIS = 24 * 60 * 60 * 1000L
+
+    /** Clears old song exports at launch. [pruneStale] only ever tidies
      * the song just exported, so without this each song keeps its last WAV,
-     * MIDI file and video (about 60 MB a minute) for good. Nothing from an
-     * earlier run is still on offer by then. Removes the exporters' own files
-     * from each per-song folder and the folder once empty, and both scratch
-     * folders; anything else in [directory] is left. Best-effort. Run on the
-     * export thread, so it never races a render. */
-    fun sweep(directory: File) {
+     * MIDI file and video (about 60 MB a minute) for good. Removes the
+     * exporters' own files from each per-song folder, and the folder once
+     * empty, but only files last modified more than [minAgeMillis] before
+     * [now]: a share hands another app a FileProvider URI into this folder,
+     * and that app (a Gmail draft, an upload that runs on send) can still be
+     * reading it after Chiptune's process has died and relaunched. A day
+     * covers that and still bounds the cache. Both scratch folders are
+     * cleared whatever their age, since they are never shared. Anything else
+     * in [directory] is left. Best-effort. Run on the export thread, so it
+     * never races a render. */
+    fun sweep(directory: File, now: Long = System.currentTimeMillis(), minAgeMillis: Long = SWEEP_MIN_AGE_MILLIS) {
         val entries = directory.listFiles() ?: return
         for (entry in entries) {
             if (!entry.isDirectory) continue
@@ -190,7 +198,8 @@ object ExportFiles {
                     entry.deleteRecursively()
                 isSongFolder(entry.name) -> {
                     entry.listFiles()?.forEach { file ->
-                        if (file.isFile && ExportOptions.Format.fromExtension(file.extension) != null) file.delete()
+                        val ours = file.isFile && ExportOptions.Format.fromExtension(file.extension) != null
+                        if (ours && now - file.lastModified() > minAgeMillis) file.delete()
                     }
                     if (entry.list()?.isEmpty() == true) entry.delete()
                 }
