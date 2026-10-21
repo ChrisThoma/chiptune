@@ -115,7 +115,7 @@ round-6 verified: S1 0, S2 0, S3 4, S4 2
 
 ### Fixers (forward)
 - New pure types or fields: `SongBoundPresenters.Surface.trackClear/.trackDelete`, `VideoClock` (Sources/Video), `PresentedSurfaces.exportShare/.songFileShare`, `ExportFlow.reopensExportAfterShare(panelIsPopover:)`, the single-character guard in `KeyAction.forKey`. Suite after the fixes: 955 tests, 2 skipped.
-- Tar pit: round-6 #4 reached a fixer on a misread confirm; the fixer's frame-by-frame look at the evidence video found the intended popover reopen. 8d82445 changes that intended behavior at regular width and is a product question, not a counted fix.
+- Tar pit: round-6 #4 reached a fixer on a misread confirm; the fixer's frame-by-frame look at the evidence video found the intended popover reopen. 8d82445 changed that intended behavior at regular width; Chris had it reverted on 2026-10-21, so the reopen after a canceled share stays on every width.
 
 ### Orchestrator only
 - Verifier conditions that mattered: landscape fixes need the scratch landscape build copied to a neutral path; video label fixes need ffprobe plus stills at a mid point and the last frame (the elapsed clock read 0:14 on the frame 0.05 s before the end of a 14.98 s file); share-sheet fixes need both a video and a WAV share plus the canceled-share invariant.
