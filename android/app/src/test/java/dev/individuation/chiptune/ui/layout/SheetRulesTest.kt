@@ -707,3 +707,28 @@ class ExportCapAgreementTest {
         assertEquals(emptyList<String>(), disagreements)
     }
 }
+
+/** What TalkBack hears while a render runs: the start, each quarter, and a cancel. */
+class ExportAnnouncementTest {
+    @Test fun theStartNamesAVideo() {
+        assertEquals("Exporting video", ExportAnnouncement.started(ExportOptions.Format.VIDEO))
+        assertEquals("Exporting", ExportAnnouncement.started(ExportOptions.Format.WAV))
+        assertEquals("Exporting", ExportAnnouncement.started(ExportOptions.Format.MIDI))
+    }
+
+    @Test fun eachQuarterIsSaidOnceAsItIsCrossed() {
+        assertNull(ExportAnnouncement.milestone(0.0, 0.24))
+        assertEquals("25%", ExportAnnouncement.milestone(0.24, 0.25))
+        assertNull("already said", ExportAnnouncement.milestone(0.25, 0.26))
+        assertEquals("50%", ExportAnnouncement.milestone(0.49, 0.51))
+        assertEquals("75%", ExportAnnouncement.milestone(0.74, 0.8))
+        assertNull("the end is the result, not a milestone", ExportAnnouncement.milestone(0.8, 1.0))
+    }
+
+    /** Progress posted in a jump past two quarters says only the latest. */
+    @Test fun aJumpSaysOnlyTheLastQuarterCrossed() {
+        assertEquals("50%", ExportAnnouncement.milestone(0.2, 0.6))
+    }
+
+    @Test fun aCancelIsSaid() = assertEquals("Export canceled", ExportAnnouncement.CANCELED)
+}

@@ -75,6 +75,26 @@ fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = 
     }
 }
 
+/** What TalkBack is told while a render runs, which it otherwise only
+ * learns by finding the progress bar: the start, each quarter, and a cancel. */
+object ExportAnnouncement {
+    const val CANCELED = "Export canceled"
+
+    private val QUARTERS = listOf(25, 50, 75)
+
+    fun started(format: ExportOptions.Format): String =
+        if (format == ExportOptions.Format.VIDEO) "Exporting video" else "Exporting"
+
+    /** The last quarter crossed going from [previous] to [now], or null. The
+     * finish is left to the result, which says itself. Whole percents, as
+     * the line under the bar reads them. */
+    fun milestone(previous: Double, now: Double): String? {
+        val before = (previous * 100).toInt()
+        val after = (now * 100).toInt()
+        return QUARTERS.lastOrNull { before < it && after >= it }?.let { "$it%" }
+    }
+}
+
 /** What sits under the WAV/MIDI picker. A MIDI file is the one a beginner
  * can be surprised by: it opens in another app with that app's sounds, not
  * the chip's. Null for a WAV, which is the sound itself. */

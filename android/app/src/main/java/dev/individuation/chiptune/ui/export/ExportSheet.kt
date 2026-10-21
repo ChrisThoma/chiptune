@@ -28,6 +28,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.Role
@@ -55,6 +57,7 @@ import dev.individuation.chiptune.ui.editor.PlainStepper
 import dev.individuation.chiptune.ui.editor.SheetBar
 import dev.individuation.chiptune.ui.editor.adjustable
 import dev.individuation.chiptune.ui.editor.plainClickable
+import dev.individuation.chiptune.ui.layout.ExportAnnouncement
 import dev.individuation.chiptune.ui.layout.ExportControls
 import dev.individuation.chiptune.ui.layout.ExportCopy
 import dev.individuation.chiptune.ui.layout.ExportFormatFooter
@@ -105,6 +108,25 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
         if (ExportControls.freesExportButton(startedAttempt, completed, producedFile = studio.exportFile != null)) {
             startedAttempt = null
         }
+    }
+    // TalkBack hears the render start and each quarter of it; otherwise it
+    // only learns how far along it is by finding the bar.
+    val view = LocalView.current
+    LaunchedEffect(view) {
+        var wasExporting = ui.value.isExporting
+        var previous = ui.value.exportProgress
+        snapshotFlow { ui.value.let { Triple(it.isExporting, it.exportProgress, it.exportOptions.format) } }
+            .collect { (exporting, now, format) ->
+                val text = when {
+                    exporting && !wasExporting -> ExportAnnouncement.started(format)
+                    exporting -> ExportAnnouncement.milestone(previous, now)
+                    else -> null
+                }
+                @Suppress("DEPRECATION")
+                text?.let { view.announceForAccessibility(it) }
+                wasExporting = exporting
+                previous = if (exporting) now else 0.0
+            }
     }
     DisposableEffect(Unit) {
         onDispose {
@@ -193,7 +215,12 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
 
             FormSection(footer = ExportNotesFooter.text(song, options.format)) {
                 if (isExporting) {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // One TalkBack stop: the line and the bar's value together.
+                    Column(
+                        Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         LinearProgressIndicator(
                             progress = { progress.toFloat() },
                             color = ChipColors.accentGreen,
@@ -204,7 +231,11 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
                         Text(ExportCopy.exporting(options.format, progress), style = chipFont(11f), color = ChipColors.dim)
                     }
                     FormSeparator()
-                    FormButtonRow("Cancel export", color = FormColors.destructive, onClick = { studio.cancelExport() })
+                    FormButtonRow("Cancel export", color = FormColors.destructive, onClick = {
+                        studio.cancelExport()
+                        @Suppress("DEPRECATION")
+                        view.announceForAccessibility(ExportAnnouncement.CANCELED)
+                    })
                 } else {
                     FormButtonRow(
                         ExportCopy.exportButton(options.format),
