@@ -1,5 +1,6 @@
 package dev.individuation.chiptune.platform
 
+import dev.individuation.chiptune.core.audio.ExportOptions
 import dev.individuation.chiptune.core.studio.ShareOutcome
 import java.io.File
 
@@ -57,6 +58,24 @@ object ShareResult {
     /** The chooser reports the component the user picked; no pick is a back-out. */
     fun outcome(chosenComponent: String?): ShareOutcome =
         if (chosenComponent.isNullOrEmpty()) ShareOutcome.CANCELED else ShareOutcome.COMPLETED
+}
+
+/** Where "Save to device" puts a finished export. A video goes into the
+ * Gallery's Movies/Chiptune, as iOS's Save Video goes to Photos; Android 10
+ * and later let an app add its own media there with no permission. Before
+ * that it would need storage permission, which the app doesn't ask for, so
+ * those, and every WAV and MIDI file, go through the system file picker. */
+object ExportSaveRoute {
+    enum class Route { GALLERY, PICKER }
+
+    /** `Build.VERSION_CODES.Q`, where scoped MediaStore writes begin. */
+    const val GALLERY_MIN_SDK = 29
+
+    const val GALLERY_FOLDER = "Movies/Chiptune"
+    const val SAVED_TO_GALLERY = "Saved to $GALLERY_FOLDER."
+
+    fun route(format: ExportOptions.Format?, sdk: Int): Route =
+        if (format == ExportOptions.Format.VIDEO && sdk >= GALLERY_MIN_SDK) Route.GALLERY else Route.PICKER
 }
 
 /** The cache subfolders `res/xml/file_paths.xml` exposes; keep the two in step. */
