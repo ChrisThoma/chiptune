@@ -232,7 +232,7 @@ enum VideoExport {
 
     /// The dispatch QoS matching a task's priority, so the encode queue runs
     /// at the priority of the render that waits on it.
-    private static func qos(of priority: TaskPriority) -> DispatchQoS {
+    static func qos(of priority: TaskPriority) -> DispatchQoS {
         switch priority.rawValue {
         case TaskPriority.userInitiated.rawValue...: return .userInitiated
         case TaskPriority.medium.rawValue...: return .default

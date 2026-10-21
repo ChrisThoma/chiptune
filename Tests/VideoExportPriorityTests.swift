@@ -36,6 +36,17 @@ final class VideoExportPriorityTests: XCTestCase {
         return (try? String(contentsOf: log, encoding: .utf8)) ?? ""
     }
 
+    /// The encode queue takes its QoS from the render's priority. An export
+    /// the user started and is watching runs user-initiated, and so must
+    /// the queue it waits on.
+    func testTheEncodeQueueMatchesTheRendersPriority() {
+        XCTAssertEqual(VideoExport.qos(of: .userInitiated), .userInitiated)
+        XCTAssertEqual(VideoExport.qos(of: .high), .userInitiated)
+        XCTAssertEqual(VideoExport.qos(of: .medium), .default)
+        XCTAssertEqual(VideoExport.qos(of: .utility), .utility)
+        XCTAssertEqual(VideoExport.qos(of: .background), .background)
+    }
+
     func testAVideoRenderWaitsOnNothingAtALowerPriority() async throws {
         var song = TestSongs.empty(name: "Priority", tempo: 240, length: 8)
         song.patterns[0].rows[0][0] = 60
