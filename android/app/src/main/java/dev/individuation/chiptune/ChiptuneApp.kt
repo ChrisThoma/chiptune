@@ -87,6 +87,7 @@ class ChiptuneApp : Application() {
             shareWriter = SongShareWriter(File(cacheDir, ShareRoots.SHARE)),
             core = core,
             keepAlive = exportKeepAlive,
+            exportDirectory = exportDir,
         )
         output.events = object : AudioOutputEvents {
             override fun onAudioFocusLost() = built.onAudioFocusLost()

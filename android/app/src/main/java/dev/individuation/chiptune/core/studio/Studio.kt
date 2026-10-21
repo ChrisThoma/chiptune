@@ -1,6 +1,7 @@
 package dev.individuation.chiptune.core.studio
 
 import dev.individuation.chiptune.core.audio.ChipCore
+import dev.individuation.chiptune.core.audio.ExportFiles
 import dev.individuation.chiptune.core.audio.ExportOptions
 import dev.individuation.chiptune.core.audio.ExportRequest
 import dev.individuation.chiptune.core.audio.ExportResult
@@ -64,6 +65,9 @@ class Studio(
     /** Holds the screen on while a video renders. Injectable so a test can
      * see it begun and ended on every way a render finishes. */
     private val keepAlive: ExportKeepAlive = ExportKeepAlive.None,
+    /** Where [renderer] writes, so a launch can sweep old exports and a
+     * deleted song's can go with it. Null leaves the folder alone. */
+    private val exportDirectory: File? = null,
 ) {
     /** A point the editor can be put back to. The selection travels with the
      * song: `pushAll` clamps both indices into the current song, so they can't
@@ -111,6 +115,17 @@ class Studio(
         if (restored == null) save(song)
         noteUnreadable(launchLibrary)
         pushAll()
+        // On the export thread, so it is done before the first render starts.
+        exportDirectory?.let { dir -> onExportThread { ExportFiles.sweep(dir) } }
+    }
+
+    /** Runs file cleanup behind any render already queued; a shut-down
+     * executor just skips it. */
+    private fun onExportThread(work: () -> Unit) {
+        try {
+            exportExecutor.execute { runCatching(work) }
+        } catch (_: RejectedExecutionException) {
+        }
     }
 
     private inline fun update(transform: (StudioState) -> StudioState) {
@@ -1147,6 +1162,7 @@ class Studio(
             deleteError = DeleteFailureMessage.song(other.name, e)
             return
         }
+        exportDirectory?.let { dir -> onExportThread { ExportFiles.removeSong(dir, other.id) } }
         // Deleting the song on screen: move off it, or the next autosave
         // writes it straight back.
         if (other.id != song.id) return

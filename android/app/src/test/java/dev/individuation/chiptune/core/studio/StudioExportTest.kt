@@ -228,6 +228,33 @@ class StudioExportTest {
         assertFalse("but only once", nearEnd.admits(1.0))
     }
 
+    /** Every song keeps its last export (a video is ~60 MB a minute) until
+     * the app next starts, which clears them all. */
+    @Test fun startingTheStudioSweepsEarlierExports() {
+        val dir = java.nio.file.Files.createTempDirectory("chiptune-export-").toFile()
+        val old = File(dir, UUID.randomUUID().toString().uppercase()).also { it.mkdirs() }
+        File(old, "Old.mp4").writeText("video")
+        val h = StudioHarness(exportDir = dir).also { harnesses.add(it) }
+        h.drainExecutor()
+        assertFalse(old.exists())
+    }
+
+    @Test fun deletingASongRemovesItsExportFolder() {
+        val h = make()
+        val doomed = Song.create("Doomed")
+        h.studio.open(doomed)
+        h.studio.edit { it.withNote(0, 0, 0, 60) }
+        h.studio.export()
+        h.waitForExport()
+        val folder = h.studio.exportFile!!.parentFile!!
+        assertTrue(folder.isDirectory)
+
+        h.studio.delete(h.studio.song)
+        h.drainExecutor()
+
+        assertFalse(folder.exists())
+    }
+
     @Test fun optionsReachTheRenderer() {
         val seen = AtomicReference<ExportOptions?>(null)
         val h = make { request ->
