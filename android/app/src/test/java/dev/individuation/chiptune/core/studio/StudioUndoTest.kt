@@ -1,5 +1,6 @@
 package dev.individuation.chiptune.core.studio
 
+import dev.individuation.chiptune.core.TestSongs
 import dev.individuation.chiptune.core.assertSameSong
 import dev.individuation.chiptune.core.audio.withInstrument
 import dev.individuation.chiptune.core.model.ChannelKind
@@ -228,6 +229,58 @@ class StudioUndoTest {
         studio.undo()
         assertEquals(0.2, studio.song.tracks[0].instrument.volume, 0.0)
         assertEquals(originalSecond, studio.song.tracks[1].instrument.volume, 0.0)
+    }
+
+    /** Resizing pattern A, switching to B and resizing it inside the window
+     * are two edits to two patterns: one Undo must not take back both. */
+    @Test fun patternLengthInAnotherPatternDoesNotCoalesce() {
+        studio.open(TestSongs.twoPatterns(lengths = 16 to 16))
+        studio.undoCoalescingWindow = 60.0
+        studio.setPatternLength(8)
+        studio.selectPattern(1)
+        studio.setPatternLength(12)
+        studio.undo()
+        assertEquals("only pattern B's resize should be undone", listOf(8, 16), studio.song.patterns.map { it.length })
+    }
+
+    @Test fun cellTapsInAnotherPatternDoNotCoalesce() {
+        studio.open(TestSongs.twoPatterns(lengths = 16 to 16))
+        studio.undoCoalescingWindow = 60.0
+        studio.selectedNote = 64
+        studio.toggleCell(0, 3)
+        studio.selectPattern(1)
+        studio.toggleCell(0, 4)
+        studio.undo()
+        assertEquals("pattern A's note was undone too", 64, studio.song.patterns[0].rows[0][3])
+        assertEquals(Chip.EMPTY_NOTE, studio.song.patterns[1].rows[0][4])
+    }
+
+    @Test fun typedNotesInAnotherPatternDoNotCoalesce() {
+        studio.open(TestSongs.twoPatterns(lengths = 16 to 16))
+        studio.undoCoalescingWindow = 60.0
+        studio.selectedStep = 3
+        studio.typeNote(64)
+        studio.selectPattern(1)
+        studio.selectedStep = 5
+        studio.clearAtCursor() // empty cell: no edit
+        studio.selectedStep = 4
+        studio.typeNote(65)
+        studio.undo()
+        assertEquals("pattern A's note was undone too", 64, studio.song.patterns[0].rows[0][3])
+        assertEquals(Chip.EMPTY_NOTE, studio.song.patterns[1].rows[0][4])
+    }
+
+    /** The control for the three above: a stroke inside one pattern still
+     * folds, even with a reselection of the same pattern in the middle. */
+    @Test fun editsInOnePatternStillCoalesceAcrossReselection() {
+        studio.open(TestSongs.twoPatterns(lengths = 16 to 16))
+        studio.undoCoalescingWindow = 60.0
+        studio.setPatternLength(8)
+        studio.selectPattern(0)
+        studio.setPatternLength(12)
+        studio.undo()
+        assertEquals(listOf(16, 16), studio.song.patterns.map { it.length })
+        assertFalse(studio.canUndo)
     }
 
     @Test fun aSliderDragIsOneUndoStep() {

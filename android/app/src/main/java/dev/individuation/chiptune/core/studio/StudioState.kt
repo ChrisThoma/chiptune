@@ -23,12 +23,19 @@ data class RevealRequest(val generation: Int = 0, val reason: Reason = Reason.UN
 }
 
 /** Tags a coalescing checkpoint with the operation that made it, so only
- * edits of the same kind fold into one undo step. */
+ * edits of the same kind fold into one undo step.
+ *
+ * Edits that land in one pattern carry that pattern's id, as [Repeats]
+ * carries its section's: tapping a cell in A, switching to B and tapping one
+ * there inside the window is two edits to two patterns, and one Undo must not
+ * take back both. Track-indexed kinds need no such id, since tracks are
+ * song-wide and every reorder or delete is a discrete checkpoint that ends
+ * the fold. */
 sealed interface CheckpointKind {
     data object Tempo : CheckpointKind
-    data object Cell : CheckpointKind
-    data object Note : CheckpointKind
-    data object PatternLength : CheckpointKind
+    data class Cell(val pattern: UUID) : CheckpointKind
+    data class Note(val pattern: UUID) : CheckpointKind
+    data class PatternLength(val pattern: UUID) : CheckpointKind
     data class TrackName(val track: Int) : CheckpointKind
     data class Volume(val track: Int) : CheckpointKind
     data class Sustain(val track: Int) : CheckpointKind

@@ -338,6 +338,9 @@ class Studio(
         syncHistory()
     }
 
+    /** The id that scopes a pattern edit's undo kind to the selected pattern. */
+    private val selectedPatternID: UUID? get() = song.patterns.getOrNull(selectedPattern)?.id
+
     /** The keyboard asking for whatever is on screen to close. */
     fun requestDismiss() = update { it.copy(dismissRequests = it.dismissRequests + 1) }
 
@@ -494,7 +497,7 @@ class Studio(
     /** Tap: an empty cell takes the selected note; a filled cell overwrites,
      * or clears if it already matches. */
     fun toggleCell(track: Int, step: Int) {
-        checkpoint(coalescing = true, kind = CheckpointKind.Cell)
+        checkpoint(coalescing = true, kind = selectedPatternID?.let(CheckpointKind::Cell))
         if (note(track, step) == selectedNote) {
             setNote(track, step, Chip.EMPTY_NOTE)
         } else {
@@ -536,7 +539,7 @@ class Studio(
         if (song.tracks.isEmpty()) return
         // A cell that already holds this note is not an edit.
         if (note(selectedTrack, selectedStep) != note) {
-            checkpoint(coalescing = true, kind = CheckpointKind.Note)
+            checkpoint(coalescing = true, kind = selectedPatternID?.let(CheckpointKind::Note))
             setNote(selectedTrack, selectedStep, note)
         } else {
             pinToSelectedPattern()
@@ -552,7 +555,7 @@ class Studio(
         clampCursor()
         if (song.tracks.isEmpty()) return
         if (note(selectedTrack, selectedStep) != Chip.EMPTY_NOTE) {
-            checkpoint(coalescing = true, kind = CheckpointKind.Note)
+            checkpoint(coalescing = true, kind = selectedPatternID?.let(CheckpointKind::Note))
             setNote(selectedTrack, selectedStep, Chip.EMPTY_NOTE)
         } else {
             pinToSelectedPattern()
@@ -697,7 +700,7 @@ class Studio(
 
     fun setPatternLength(length: Int) {
         if (selectedPattern !in song.patterns.indices) return
-        checkpoint(coalescing = true, kind = CheckpointKind.PatternLength)
+        checkpoint(coalescing = true, kind = selectedPatternID?.let(CheckpointKind::PatternLength))
         pinToSelectedPattern()
         val clamped = swiftClamp(length, Chip.patternLengthRange.first, Chip.patternLengthRange.last)
         song = song.copy(patterns = song.patterns.replacing(selectedPattern) { it.copy(length = clamped) })
