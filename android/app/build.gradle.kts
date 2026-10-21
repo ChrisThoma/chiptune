@@ -81,11 +81,11 @@ android {
         applicationId = "dev.individuation.chiptune"
         minSdk = 26
         targetSdk = 36
-        // versionName stays put at 1.0 for the whole 1.0 release; versionCode
+        // versionName names the release (1.1 adds video export); versionCode
         // comes from CI (CHIPTUNE_VERSION_CODE), defaulting to 1 for local
         // builds so a plain `assembleRelease` here never needs the env var.
         versionCode = (System.getenv("CHIPTUNE_VERSION_CODE") ?: "1").toInt()
-        versionName = "1.0"
+        versionName = "1.1"
 
         buildConfigField("String", "GIT_COMMIT_HASH", "\"${gitCommitHash()}\"")
         // The day of the build (UTC), for the menu's "Built ..." line. A day

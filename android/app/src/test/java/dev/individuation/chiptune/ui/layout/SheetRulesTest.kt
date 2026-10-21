@@ -69,7 +69,7 @@ class ExportFooterTest {
     @Test fun midiFooterGivesTheLengthAndTheArpeggioNote() {
         val song = TestSongs.golden()
         assertEquals(
-            "The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. Arpeggios come out as the note you wrote.",
+            "The whole arrangement once: ${Format.clock(song.arrangementDuration)}. Arpeggios come out as the note you wrote.",
             ExportNotesFooter.text(song, midi),
         )
     }
@@ -77,7 +77,7 @@ class ExportFooterTest {
     @Test fun midiFooterSaysAMutedTrackIsInTheFileAtVolumeZero() {
         val song = TestSongs.golden().let { s -> s.copy(tracks = s.tracks.mapIndexed { i, t -> if (i == 0) t.copy(muted = true) else t }) }
         assertEquals(
-            "The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. " +
+            "The whole arrangement once: ${Format.clock(song.arrangementDuration)}. " +
                 "Arpeggios come out as the note you wrote. A muted or silent track keeps its notes in the file, turned all the way down.",
             ExportNotesFooter.text(song, midi),
         )
@@ -86,7 +86,7 @@ class ExportFooterTest {
     @Test fun midiFooterSaysMutedTracksAreInTheFileAtVolumeZero() {
         val song = TestSongs.golden().let { s -> s.copy(tracks = s.tracks.mapIndexed { i, t -> if (i == 0 || i == 2) t.copy(muted = true) else t }) }
         assertEquals(
-            "The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. " +
+            "The whole arrangement once: ${Format.clock(song.arrangementDuration)}. " +
                 "Arpeggios come out as the note you wrote. Muted or silent tracks keep their notes in the file, turned all the way down.",
             ExportNotesFooter.text(song, midi),
         )
@@ -108,7 +108,7 @@ class ExportFooterTest {
     }
 
     private fun lead(song: Song) =
-        "The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. Arpeggios come out as the note you wrote."
+        "The whole arrangement once: ${Format.clock(song.arrangementDuration)}. Arpeggios come out as the note you wrote."
 
     /** Every noise track muted: none plays on the drum channel, so each is
      * silenced with the channel's volume like any other muted track. */

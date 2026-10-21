@@ -52,7 +52,7 @@ fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = 
     ExportOptions.Format.MIDI -> if (!song.hasNotes) {
         text(song)
     } else {
-        val line = StringBuilder("The whole arrangement once \u2014 ${Format.clock(song.arrangementDuration)}. ")
+        val line = StringBuilder("The whole arrangement once: ${Format.clock(song.arrangementDuration)}. ")
             .append("Arpeggios come out as the note you wrote.")
         // Worked out once: only a silent track with notes the arrangement
         // plays has anything in the file to speak of.
