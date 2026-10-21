@@ -23,4 +23,22 @@ final class VideoClockTests: XCTestCase {
         XCTAssertEqual(VideoClock.elapsed(14.96, total: 14.977, isFinalFrame: true), "0:15")
         XCTAssertEqual(VideoClock.elapsed(24.05, total: 24.07, isFinalFrame: true), "0:24")
     }
+
+    /// Under ten seconds the total keeps a tenth, so the running clock does
+    /// too: "0:00" against "0:04.1" read as two different clocks.
+    func testElapsedKeepsATenthWhenTheTotalDoes() {
+        XCTAssertEqual(VideoClock.total(4.1), "0:04.1")
+        XCTAssertEqual(VideoClock.elapsed(0, total: 4.1, isFinalFrame: false), "0:00.0")
+        XCTAssertEqual(VideoClock.elapsed(2.37, total: 4.1, isFinalFrame: false), "0:02.3")
+        XCTAssertEqual(VideoClock.elapsed(4.09, total: 4.1, isFinalFrame: false), "0:04.0")
+        XCTAssertEqual(VideoClock.elapsed(0.3, total: 4.1, isFinalFrame: false), "0:00.3")
+        XCTAssertEqual(VideoClock.elapsed(4.1, total: 4.1, isFinalFrame: true), "0:04.1")
+    }
+
+    /// 9.96 s rounds to "0:10" on the sheet, a whole-second total, so the
+    /// running clock stays in whole seconds.
+    func testElapsedFollowsATotalThatRoundsUpToTenSeconds() {
+        XCTAssertEqual(VideoClock.total(9.96), "0:10")
+        XCTAssertEqual(VideoClock.elapsed(9.5, total: 9.96, isFinalFrame: false), "0:09")
+    }
 }
