@@ -110,6 +110,42 @@ class VideoExportTest {
         assertTrue(values.any { it > 0.3 + 1e-9 && it < 1.0 })
     }
 
+    /** However a writer reports (backwards, past 1, its own 1 more than once,
+     * NaN), the bar never goes back and reaches 1 exactly once, after the
+     * file is in place. */
+    @Test fun anErraticWritersProgressStillRisesAndEndsOnOneOnce() {
+        val reported = Collections.synchronizedList(ArrayList<Double>())
+        val erratic = object : FakeWriter() {
+            override fun write(job: VideoJob): ExportResult {
+                for (f in listOf(0.5, 0.2, 1.0, 1.0, 0.9, 1.5, Double.NaN, -1.0, 1.0)) job.progress(f)
+                job.output.writeBytes(bytes)
+                return ExportResult.Success(job.output)
+            }
+        }
+        val result = ExportRenderer.render(
+            ExportRequest(song(), video(), progress = { reported.add(it) }), temp.root, erratic)
+        assertTrue(result is ExportResult.Success)
+        val values = reported.toList()
+        assertEquals("progress went backwards: $values", values.sorted(), values)
+        assertEquals("1 reported once: $values", 1, values.count { it == 1.0 })
+        assertEquals(1.0, values.last(), 0.0)
+        assertTrue(values.all { it in 0.0..1.0 })
+    }
+
+    /** A writer that fails or is canceled after reporting all its frames
+     * never shows a full bar. */
+    @Test fun aFailedOrCanceledVideoNeverReportsOne() {
+        for (ending in listOf<ExportResult>(ExportResult.Failed(IOException("muxer")), ExportResult.Canceled)) {
+            val reported = Collections.synchronizedList(ArrayList<Double>())
+            val writer = VideoWriter { job ->
+                for (f in 0..10) job.progress(f / 10.0)
+                ending
+            }
+            ExportRenderer.render(ExportRequest(song(), video(), progress = { reported.add(it) }), temp.root, writer)
+            assertTrue("$ending: $reported", reported.none { it >= 1.0 })
+        }
+    }
+
     /** A video longer than TikTok's ten minutes is refused from the timeline,
      * before any audio or frames are rendered. */
     @Test fun anOverlongVideoIsRefusedBeforeRendering() {
