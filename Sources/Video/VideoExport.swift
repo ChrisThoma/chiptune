@@ -45,7 +45,8 @@ enum VideoExport {
     /// AVFoundation calls its completion handlers back at default QoS, below
     /// the user-initiated render waiting on them: a priority inversion the
     /// waiting thread could do nothing about. Awaited, nothing is parked.
-    /// The rest of the render is the same synchronous loop.
+    /// The frames are drawn and fed by a synchronous loop on a queue of its
+    /// own (see `encode`), which the render awaits.
     static func render(_ request: ExportRequest, hooks: Hooks = Hooks()) async -> ExportResult {
         var song = request.song
         song.normalize()
@@ -152,7 +153,7 @@ enum VideoExport {
     /// Writes every frame and the soundtrack into `url`. The two inputs are
     /// fed from one loop, each whenever the writer is ready for it, so the
     /// writer's interleaving never waits on a stream that isn't being fed.
-    private static func encode(timeline: VideoTimeline, draw: (Int, CGContext) -> Void,
+    private static func encode(timeline: VideoTimeline, draw: @escaping (Int, CGContext) -> Void,
                                soundtrack: URL, to url: URL, request: ExportRequest) async -> ExportResult {
         let writer: AVAssetWriter
         let reader: AVAssetReader
@@ -204,6 +205,50 @@ enum VideoExport {
         }
         writer.startSession(atSourceTime: .zero)
 
+        // The loop runs for the whole render and sleeps whenever the encoders
+        // are busy. On a Swift concurrency thread it held that thread, out of
+        // a pool sized to the cores, for minutes. It gets a queue of its own
+        // at the render's priority, and the render awaits it.
+        let queue = DispatchQueue(label: "dev.individuation.chiptune.video-encode", qos: qos(of: Task.currentPriority))
+        let looped: ExportResult? = await withCheckedContinuation { continuation in
+            queue.async {
+                continuation.resume(returning: feed(timeline: timeline, draw: draw, writer: writer, reader: reader,
+                                                    videoInput: videoInput, adaptor: adaptor, audioInput: audioInput,
+                                                    audioOutput: audioOutput, request: request))
+            }
+        }
+        if let looped { return looped }
+
+        // The last frame stays up to the end of the audio, so the file is as
+        // long as its soundtrack rather than rounded up to a whole frame.
+        writer.endSession(atSourceTime: CMTime(value: CMTimeValue(timeline.totalSamples),
+                                               timescale: CMTimeScale(WavExport.sampleRate)))
+        await writer.finishWriting()
+        guard writer.status == .completed else {
+            return .failed(writer.error ?? CocoaError(.fileWriteUnknown))
+        }
+        return .success(url)
+    }
+
+    /// The dispatch QoS matching a task's priority, so the encode queue runs
+    /// at the priority of the render that waits on it.
+    private static func qos(of priority: TaskPriority) -> DispatchQoS {
+        switch priority.rawValue {
+        case TaskPriority.userInitiated.rawValue...: return .userInitiated
+        case TaskPriority.medium.rawValue...: return .default
+        case TaskPriority.utility.rawValue...: return .utility
+        default: return .background
+        }
+    }
+
+    /// Feeds every frame and the soundtrack to the writer, synchronously,
+    /// until both inputs are finished. nil when they are; a result when the
+    /// render ended early, with the writer and reader already abandoned.
+    private static func feed(timeline: VideoTimeline, draw: (Int, CGContext) -> Void,
+                             writer: AVAssetWriter, reader: AVAssetReader,
+                             videoInput: AVAssetWriterInput, adaptor: AVAssetWriterInputPixelBufferAdaptor,
+                             audioInput: AVAssetWriterInput, audioOutput: AVAssetReaderTrackOutput,
+                             request: ExportRequest) -> ExportResult? {
         func abandon() {
             reader.cancelReading()
             writer.cancelWriting()
@@ -272,16 +317,7 @@ enum VideoExport {
             }
             if let outcome { return outcome }
         }
-
-        // The last frame stays up to the end of the audio, so the file is as
-        // long as its soundtrack rather than rounded up to a whole frame.
-        writer.endSession(atSourceTime: CMTime(value: CMTimeValue(timeline.totalSamples),
-                                               timescale: CMTimeScale(WavExport.sampleRate)))
-        await writer.finishWriting()
-        guard writer.status == .completed else {
-            return .failed(writer.error ?? CocoaError(.fileWriteUnknown))
-        }
-        return .success(url)
+        return nil
     }
 
     private static func drawFrame(_ frame: Int, draw: (Int, CGContext) -> Void,

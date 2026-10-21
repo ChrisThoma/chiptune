@@ -50,4 +50,37 @@ final class VideoExportPriorityTests: XCTestCase {
         guard case .success = result else { return XCTFail("video export did not succeed: \(String(describing: result))") }
         XCTAssertFalse(report.contains("priority inversion"), report)
     }
+
+    /// The labels of the queues the frames were drawn on.
+    private final class Queues: @unchecked Sendable {
+        private let lock = NSLock()
+        private var seen: Set<String> = []
+        func record() {
+            let label = String(cString: __dispatch_queue_get_label(nil))
+            lock.withLock { _ = seen.insert(label) }
+        }
+        var labels: Set<String> { lock.withLock { seen } }
+    }
+
+    /// The draw-and-encode loop runs for the whole render, sleeping whenever
+    /// the encoders are busy. On one of Swift concurrency's pool threads it
+    /// held that thread the whole time, out of a pool sized to the cores, so
+    /// it runs on its own queue and the async render only awaits it.
+    func testTheEncodeLoopRunsOffTheConcurrencyPool() async throws {
+        var song = TestSongs.empty(name: "Pool", tempo: 240, length: 8)
+        song.patterns[0].rows[0][0] = 60
+        var options = ExportOptions()
+        options.format = .video
+        let queues = Queues()
+        let result = await Task.detached(priority: .userInitiated) {
+            await VideoExport.render(ExportRequest(song: song, options: options),
+                                     hooks: VideoExport.Hooks(draw: { _, _ in queues.record() }))
+        }.value
+        guard case .success = result else { return XCTFail("video export did not succeed: \(result)") }
+        let labels = queues.labels
+        XCTAssertFalse(labels.isEmpty, "no frame was drawn")
+        XCTAssertFalse(labels.contains { $0.contains("cooperative") },
+                       "frames were drawn on a concurrency pool thread: \(labels)")
+        XCTAssertFalse(labels.contains("com.apple.main-thread"), "frames were drawn on the main thread")
+    }
 }
