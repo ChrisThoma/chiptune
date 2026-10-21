@@ -49,8 +49,11 @@ Left:
 
 1. Real-phone pass on the internal build (checks in step 5 below); skipped
    before submission.
-2. After launch: update individuation.dev/projects/chiptune and the README
-   with the Play link.
+2. ~~After launch: update individuation.dev/projects/chiptune and the README
+   with the Play link.~~ Done 2026-10-21.
+
+**Live on Google Play 2026-10-21** (reported by Chris; the US listing shows
+$0.99 and `play_sync.py --check` matches the repo).
 
 Production access: the account is an organization account, so the
 12-tester, 14-day closed test rule for new personal accounts does not apply;

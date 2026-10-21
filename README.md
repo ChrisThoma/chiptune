@@ -1,11 +1,12 @@
 # Chiptune
 
-A step sequencer for iOS that writes NES-style chiptune music. Every sound is
+A step sequencer for iOS and Android that writes NES-style chiptune music. Every sound is
 synthesized as you play it: four channels modeled on the NES, no samples, no
 audio files anywhere in the app.
 
 Get it on the [App Store](https://apps.apple.com/app/apple-store/id6794059658?pt=129044888&ct=github&mt=8)
-for iPhone and iPad. More on the [project page](https://individuation.dev/projects/chiptune/).
+for iPhone and iPad, or on [Google Play](https://play.google.com/store/apps/details?id=dev.individuation.chiptune&referrer=utm_source%3Dgithub)
+for Android. More on the [project page](https://individuation.dev/projects/chiptune/).
 
 <p>
   <img src="docs/screenshots/1-grid.png" width="24%" alt="Pattern grid">
@@ -79,7 +80,8 @@ With a hardware keyboard attached, the grid works like a tracker:
 
 ## Android
 
-An Android port lives in [`android/`](android/README.md). It opens the same
+The Android app is on [Google Play](https://play.google.com/store/apps/details?id=dev.individuation.chiptune&referrer=utm_source%3Dgithub),
+and its source lives in [`android/`](android/README.md). It opens the same
 `.chipsong` files as the iPhone and iPad app, and its WAV export is
 bit-identical: the Kotlin synth is checked against the same golden file. It
 runs on phones and tablets, with the instrument editor in a sheet on a phone
