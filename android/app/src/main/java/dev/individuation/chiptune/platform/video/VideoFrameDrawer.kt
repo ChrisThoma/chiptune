@@ -25,6 +25,7 @@ import dev.individuation.chiptune.core.model.Song
 import dev.individuation.chiptune.core.video.ChannelPulse
 import dev.individuation.chiptune.core.video.FrameRect
 import dev.individuation.chiptune.core.video.GridFrame
+import dev.individuation.chiptune.core.video.VideoClock
 import dev.individuation.chiptune.core.video.VideoLayout
 import dev.individuation.chiptune.core.video.VideoTimeline
 import dev.individuation.chiptune.ui.theme.ChipColors
@@ -305,7 +306,7 @@ class VideoFrameDrawer(
         val meta = layout.coverMetaRect.let {
             it.copy(y = minOf(it.minY, titleRect.minY + titleHeight + 8))
         }
-        val length = clock(timeline.seconds)
+        val length = VideoClock.total(timeline.seconds)
         text("${song.tempo.toInt()} BPM  ·  $length", layout.coverMetaFontSize, semibold, DIM, meta)
 
         for (index in song.tracks.indices) {
@@ -352,7 +353,9 @@ class VideoFrameDrawer(
             canvas.drawRoundRect(rect, trackRadius, trackRadius, fill)
         }
         val elapsed = minOf(timeline.sample(frame) / WavExport.SAMPLE_RATE, timeline.seconds)
-        text(clock(elapsed), 28.0, semibold, DIM, layout.coverTimeRect)
+        val elapsedText = VideoClock.elapsed(elapsed, total = timeline.seconds,
+            isFinalFrame = frame >= timeline.totalFrames - 1)
+        text(elapsedText, 28.0, semibold, DIM, layout.coverTimeRect)
     }
 
     private fun coverBarRadius(bar: FrameRect): Float = minOf(bar.width / 2, 18.0).toFloat()
@@ -447,12 +450,6 @@ class VideoFrameDrawer(
         const val EDGE = 7.0
 
         fun rgb(r: Int, g: Int, b: Int) = Rgba(r / 255.0, g / 255.0, b / 255.0)
-
-        /** Whole seconds, "m:ss", so a running clock keeps its shape. */
-        fun clock(seconds: Double): String {
-            val whole = maxOf(seconds, 0.0).toInt()
-            return "${whole / 60}:${twoDigits(whole % 60)}"
-        }
 
         /** "07", in ASCII digits whatever the locale, as the iOS frame shows. */
         fun twoDigits(n: Int): String = n.toString().padStart(2, '0')

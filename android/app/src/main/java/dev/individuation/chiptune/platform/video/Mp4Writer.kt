@@ -6,6 +6,7 @@ import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.media.MediaMuxer
 import dev.individuation.chiptune.core.audio.ExportResult
+import dev.individuation.chiptune.core.video.ResourceStack
 import dev.individuation.chiptune.core.video.VideoJob
 import dev.individuation.chiptune.core.video.VideoLayout
 import dev.individuation.chiptune.core.video.VideoTimeline
@@ -37,31 +38,30 @@ import java.util.concurrent.Executors
  *
  * Not unit-tested: MediaCodec only exists on a device, and the app has no
  * instrumented suite. Everything it is driven by (the timeline, the layout,
- * the pulse, the YUV conversion, the scratch-and-move around it) is tested
- * in core; this file is checked by exporting on a phone and probing the file.
+ * the pulse, the YUV conversion, the scratch-and-move around it, the
+ * [ResourceStack] that releases what a failed start opened) is tested in
+ * core; this file is checked by exporting on a phone and probing the file.
  */
 class Mp4Writer(private val resources: Resources) : VideoWriter {
 
-    override fun write(job: VideoJob): ExportResult {
-        val drawer = VideoFrameDrawer(resources, job.song, job.options, job.timeline)
-        val session = try {
-            Session(job, drawer)
-        } catch (e: Exception) {
-            return ExportResult.Failed(e)
-        }
-        return try {
-            session.run()
+    /** Everything is opened through one [ResourceStack], so a start that
+     * fails part-way (every configure refused, the muxer unable to open the
+     * file, a short soundtrack) still releases each encoder it took and
+     * recycles the drawer's bitmaps. */
+    override fun write(job: VideoJob): ExportResult = ResourceStack().use { stack ->
+        try {
+            val drawer = stack.open({ VideoFrameDrawer(resources, job.song, job.options, job.timeline) }) { it.recycle() }
+            Session(job, drawer, stack).run()
         } catch (e: Exception) {
             ExportResult.Failed(e)
-        } finally {
-            session.release()
-            drawer.recycle()
         }
     }
 
     private class Pending(val track: Int, val data: ByteArray, val info: MediaCodec.BufferInfo)
 
-    private class Session(private val job: VideoJob, private val drawer: VideoFrameDrawer) {
+    /** Opens its threads, encoders, muxer and soundtrack stream on [stack],
+     * which releases them when the write ends, however it ends. */
+    private class Session(private val job: VideoJob, private val drawer: VideoFrameDrawer, stack: ResourceStack) {
         private val width = VideoLayout.WIDTH
         private val height = VideoLayout.HEIGHT
         private val totalFrames = job.timeline.totalFrames
@@ -74,22 +74,32 @@ class Mp4Writer(private val resources: Resources) : VideoWriter {
         private var readyFrame = -1
 
         /** Converts each frame in [BANDS] horizontal bands at once. */
-        private val converters: ExecutorService = Executors.newFixedThreadPool(BANDS) { task ->
-            Thread(task, "VideoYuv").apply { isDaemon = true }
-        }
+        private val converters: ExecutorService = stack.open({
+            Executors.newFixedThreadPool(BANDS) { task -> Thread(task, "VideoYuv").apply { isDaemon = true } }
+        }) { it.shutdownNow() }
 
         private fun render(frame: Int, into: IntArray) {
             drawer.draw(frame).copyPixelsToBuffer(IntBuffer.wrap(into))
         }
 
-        private val video: MediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
-        private val audio: MediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
-        private val muxer = MediaMuxer(job.output.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
-        private val pcm = FileInputStream(job.soundtrack)
+        // Stopping a codec that never started throws; it is released anyway.
+        private val video: MediaCodec = stack.open({ MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC) }) {
+            runCatching { it.stop() }
+            it.release()
+        }
+        private val audio: MediaCodec = stack.open({ MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC) }) {
+            runCatching { it.stop() }
+            it.release()
+        }
+        private var muxing = false
+        private val muxer = stack.open({ MediaMuxer(job.output.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4) }) {
+            if (muxing) runCatching { it.stop() }
+            it.release()
+        }
+        private val pcm = stack.open({ FileInputStream(job.soundtrack) }) { it.close() }
 
         private var videoTrack = -1
         private var audioTrack = -1
-        private var muxing = false
         private val pending = ArrayList<Pending>()
 
         private var frame = 0
@@ -312,17 +322,6 @@ class Mp4Writer(private val resources: Resources) : VideoWriter {
             muxing = true
             for (p in pending) muxer.writeSampleData(p.track, ByteBuffer.wrap(p.data), p.info)
             pending.clear()
-        }
-
-        fun release() {
-            converters.shutdownNow()
-            runCatching { pcm.close() }
-            runCatching { video.stop() }
-            runCatching { video.release() }
-            runCatching { audio.stop() }
-            runCatching { audio.release() }
-            if (muxing) runCatching { muxer.stop() }
-            runCatching { muxer.release() }
         }
     }
 
