@@ -15,6 +15,7 @@ import dev.individuation.chiptune.core.model.Song
 import dev.individuation.chiptune.core.model.SongClock
 import dev.individuation.chiptune.core.model.SongSection
 import dev.individuation.chiptune.core.model.Track
+import dev.individuation.chiptune.core.studio.WriteFailureMessage
 import java.time.ZoneOffset
 import java.util.Locale
 import org.junit.Assert.assertEquals
@@ -521,10 +522,19 @@ class ExportCopyTest {
         assertEquals(3, ExportCopy.withFormat(song, stepped, ExportOptions.Format.WAV).loopCount)
     }
 
-    /** The song's name in quotes, not a raw file name with its extension. */
-    @Test fun resultTitleNamesTheSong() {
-        assertEquals("Exported \u201CGolden\u201D", ExportCopy.resultTitle("Golden.wav"))
-        assertEquals("Exported \u201CMy.Song\u201D", ExportCopy.resultTitle("My.Song.mp4"))
+    /** The song's own title in quotes, punctuation and all: the file name
+     * strips it ("Mega Mans Theme") or falls back to "chiptune". */
+    @Test fun resultTitleNamesTheSongAsTitled() {
+        assertEquals("Exported \u201CGolden\u201D", ExportCopy.resultTitle("Golden"))
+        assertEquals("Exported \u201CMega Man's Theme!\u201D", ExportCopy.resultTitle("Mega Man's Theme!"))
+        assertEquals("Exported \u201C???\u201D", ExportCopy.resultTitle("???"))
+    }
+
+    /** Trimmed and clipped the way every alert shows a song's name. */
+    @Test fun resultTitleTrimsLikeTheAlerts() {
+        assertEquals("Exported \u201CGolden\u201D", ExportCopy.resultTitle("  Golden \n"))
+        val long = "L".repeat(40)
+        assertEquals("Exported ${WriteFailureMessage.shown(long)}", ExportCopy.resultTitle(long))
     }
 }
 

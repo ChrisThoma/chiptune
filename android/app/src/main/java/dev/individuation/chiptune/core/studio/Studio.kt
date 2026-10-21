@@ -208,6 +208,10 @@ class Studio(
         get() = mutableState.value.exportFile
         set(value) = update { it.copy(exportFile = value) }
 
+    /** [StudioState.exportTitle]. */
+    val exportTitle: String?
+        get() = mutableState.value.exportTitle
+
     val isExporting: Boolean get() = mutableState.value.isExporting
 
     val exportProgress: Double get() = mutableState.value.exportProgress
@@ -1274,7 +1278,7 @@ class Studio(
     fun export(options: ExportOptions = exportOptions): Int? {
         if (isExporting) return null
         val attempt = completedExportAttempt + 1
-        update { it.copy(isExporting = true, exportFile = null, exportError = null, exportProgress = 0.0) }
+        update { it.copy(isExporting = true, exportFile = null, exportTitle = null, exportError = null, exportProgress = 0.0) }
         // Only a video needs it: its frames go through a hardware encoder the
         // system may take back once the app is off screen. Ended in
         // finishExport, however the render ends.
@@ -1319,7 +1323,7 @@ class Studio(
         update {
             val base = it.copy(isExporting = false, exportProgress = 0.0, completedExportAttempt = attempt)
             when (result) {
-                is ExportResult.Success -> base.copy(exportFile = result.file)
+                is ExportResult.Success -> base.copy(exportFile = result.file, exportTitle = name)
                 // Canceling is not failing; an alert for it would be noise.
                 ExportResult.Canceled -> base
                 ExportResult.TooLong -> base.copy(exportError = ExportTooLongMessage.text(format))

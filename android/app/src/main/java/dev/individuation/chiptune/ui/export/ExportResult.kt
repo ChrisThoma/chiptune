@@ -45,8 +45,8 @@ fun ExportResultHost(editor: Editor) {
         // is the one that attempt left. The first value is whatever finished
         // before the editor was up, which is not this host's to present.
         var previous: Int? = null
-        val finished = snapshotFlow { editor.ui.value.let { it.completedExportAttempt to it.exportFile } }
-        finished.collect { (completed, latest) ->
+        val finished = snapshotFlow { editor.ui.value.let { Triple(it.completedExportAttempt, it.exportFile, it.exportTitle) } }
+        finished.collect { (completed, latest, title) ->
             val last = previous
             previous = completed
             if (last == null) return@collect
@@ -55,9 +55,10 @@ fun ExportResultHost(editor: Editor) {
             tracker.exportSucceeded()
             val step = ExportFlow.afterRender(file, exportPresented = presentation.current == Presented.Export)
             flow.file = file
+            flow.title = title.orEmpty()
             flow.waiting = step.shareWhenExportCloses
             if (step.closeExport) presentation.close(Presented.Export)
-            if (step.shareNow) presentation.open(Presented.ExportResult(file))
+            if (step.shareNow) presentation.open(Presented.ExportResult(file, flow.title))
         }
     }
     LaunchedEffect(editor) {
@@ -68,7 +69,7 @@ fun ExportResultHost(editor: Editor) {
                 flow.waiting = false
                 if (step.endsFlow) editor.studio.endExportFlow()
                 val file = flow.file
-                if (step.shareNow && file != null) presentation.open(Presented.ExportResult(file))
+                if (step.shareNow && file != null) presentation.open(Presented.ExportResult(file, flow.title))
             }
             if (previous is Presented.ExportResult && now !is Presented.ExportResult) {
                 if (ExportFlow.afterResultClosed().endsFlow) editor.studio.endExportFlow()
@@ -81,6 +82,8 @@ fun ExportResultHost(editor: Editor) {
 /** What the render left owed: a file to offer once the panel has closed. */
 private class PendingShare {
     var file: File? = null
+    /** The exported song's own title ([dev.individuation.chiptune.core.studio.StudioState.exportTitle]). */
+    var title = ""
     var waiting = false
 }
 
@@ -90,7 +93,7 @@ private class PendingShare {
  * share as it does there.
  */
 @Composable
-fun ExportResultDialog(editor: Editor, file: File, onDismiss: () -> Unit) {
+fun ExportResultDialog(editor: Editor, file: File, title: String, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val tracker = remember(context) {
         (context.applicationContext as? ChiptuneApp)?.reviewPrompt ?: ReviewPromptTracker(InMemoryKeyValueStore())
@@ -103,14 +106,14 @@ fun ExportResultDialog(editor: Editor, file: File, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = ::closeWithoutSharing,
         containerColor = ChipColors.panelHigh,
-        title = { Text(ExportCopy.resultTitle(file.name)) },
+        title = { Text(ExportCopy.resultTitle(title)) },
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = {
                     // Phase 7's save reports nothing back; it doesn't spend the milestone.
                     tracker.shareDismissed(ShareOutcome.CANCELED)
                     onDismiss()
-                    editor.effects.saveToDevice(file, file.name, EditorEffects.mimeTypeFor(file))
+                    editor.effects.saveToDevice(file, file.name, EditorEffects.mimeTypeFor(file), title)
                 }) { Text("Save to device", color = ChipColors.text) }
                 TextButton(onClick = {
                     onDismiss()

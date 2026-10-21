@@ -89,6 +89,11 @@ data class StudioState(
     val exportOptions: ExportOptions = ExportOptions(),
     /** The finished WAV or MIDI file, set when an export succeeds. */
     val exportFile: File? = null,
+    /** The title of the song [exportFile] was rendered from, as the user
+     * typed it, for the result dialog and Save to device's failure alert.
+     * The file name is a sanitised form (punctuation stripped, clipped, or
+     * "chiptune"), so it can't stand in. Set and cleared with [exportFile]. */
+    val exportTitle: String? = null,
     val isExporting: Boolean = false,
     /** 0...1 while [isExporting]. */
     val exportProgress: Double = 0.0,

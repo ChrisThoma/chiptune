@@ -306,7 +306,7 @@ private fun PresentedSurfaceHost(editor: Editor) {
                 SurfaceContainer.SHEET -> InstrumentEditorSheet(editor, current.track, current.showSound, close)
             }
         }
-        is Presented.ExportResult -> ExportResultDialog(editor, current.file) { presentation.close(current) }
+        is Presented.ExportResult -> ExportResultDialog(editor, current.file, current.title) { presentation.close(current) }
         Presented.KeyboardHelp -> {
             val close = { presentation.close(Presented.KeyboardHelp) }
             if (container(SurfaceKind.KEYBOARD_HELP) == SurfaceContainer.POPOVER) {

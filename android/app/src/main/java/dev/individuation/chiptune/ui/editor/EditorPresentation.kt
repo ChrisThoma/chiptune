@@ -48,7 +48,7 @@ sealed interface Presented {
 
     /** A finished export's next step (Share or Save to device); opens once
      * the export panel has gone, as iOS's share sheet waits for it. */
-    data class ExportResult(val file: java.io.File) : Presented
+    data class ExportResult(val file: java.io.File, val title: String) : Presented
 
     /** The hardware-key list (Phase 6). */
     data object KeyboardHelp : Presented

@@ -57,8 +57,9 @@ interface EditorEffects {
     /** "Save to device" on a finished export. A video on Android 10 or
      * later goes straight into the Gallery ([ExportSaveRoute]); anything else
      * is a `CreateDocument` of [mimeType] named [suggestedName], then [file]
-     * is copied into it. */
-    fun saveToDevice(file: File, suggestedName: String, mimeType: String)
+     * is copied into it. [songTitle] is the song's own title, which a
+     * failure alert names; the file name is a sanitised form of it. */
+    fun saveToDevice(file: File, suggestedName: String, mimeType: String, songTitle: String)
 
     /** The review prompt, once a share after a milestone export went through
      * (`ReviewPromptTracker.shareDismissed` said so): Play's in-app review
@@ -157,29 +158,30 @@ class AndroidEditorEffects(private val context: Context) : EditorEffects {
         onFinished(false)
     }
 
-    override fun saveToDevice(file: File, suggestedName: String, mimeType: String) {
+    override fun saveToDevice(file: File, suggestedName: String, mimeType: String, songTitle: String) {
         val format = ExportOptions.Format.fromExtension(file.extension)
         if (ExportSaveRoute.route(format, Build.VERSION.SDK_INT) == ExportSaveRoute.Route.GALLERY &&
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
         ) {
-            save(file, ExportSaveRoute.SAVED_TO_GALLERY) { GallerySaver.saveVideo(context, file, mimeType) }
+            save(file, songTitle, ExportSaveRoute.SAVED_TO_GALLERY) { GallerySaver.saveVideo(context, file, mimeType) }
             return
         }
         launch(ActivityResultContracts.CreateDocument(mimeType), suggestedName) { uri ->
-            if (uri != null) copyInto(file, uri)
+            if (uri != null) copyInto(file, songTitle, uri)
         }
     }
 
-    private fun copyInto(file: File, uri: Uri) {
+    private fun copyInto(file: File, songTitle: String, uri: Uri) {
         val resolver = context.contentResolver
-        save(file, "Saved") {
+        save(file, songTitle, "Saved") {
             val out = resolver.openOutputStream(uri, "wt") ?: throw java.io.IOException("no stream")
             out.use { o -> file.inputStream().use { it.copyTo(o) } }
         }
     }
 
-    /** Runs [write] off the main thread, then says how it went in a toast. */
-    private fun save(file: File, saved: String, write: () -> Unit) {
+    /** Runs [write] off the main thread, then says how it went in a toast,
+     * naming the song by [songTitle] if it failed. */
+    private fun save(file: File, songTitle: String, saved: String, write: () -> Unit) {
         saver.execute {
             val failure = try {
                 write()
@@ -188,7 +190,7 @@ class AndroidEditorEffects(private val context: Context) : EditorEffects {
                 e
             }
             main.post {
-                val text = if (failure == null) saved else WriteFailureMessage.saveExport(file.nameWithoutExtension, failure, WriteFailureMessage.fileNoun(file.extension))
+                val text = if (failure == null) saved else WriteFailureMessage.saveExport(songTitle, failure, WriteFailureMessage.fileNoun(file.extension))
                 Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
             }
         }

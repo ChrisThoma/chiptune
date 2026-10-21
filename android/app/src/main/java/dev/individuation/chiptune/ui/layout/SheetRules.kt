@@ -10,6 +10,7 @@ import dev.individuation.chiptune.core.model.InstrumentPreset
 import dev.individuation.chiptune.core.model.Song
 import dev.individuation.chiptune.core.model.SongClock
 import dev.individuation.chiptune.core.model.Track
+import dev.individuation.chiptune.core.studio.WriteFailureMessage
 import dev.individuation.chiptune.core.text.Graphemes
 import dev.individuation.chiptune.core.text.SwiftText
 import dev.individuation.chiptune.core.video.VideoExport
@@ -273,8 +274,10 @@ object ExportCopy {
     fun canExport(hasNotes: Boolean, attemptInFlight: Boolean): Boolean = hasNotes && !attemptInFlight
 
     /** The Android share step's title (iOS goes straight to the share
-     * sheet): the song's name in quotes, without the file's extension. */
-    fun resultTitle(fileName: String): String = "Exported \u201C${fileName.substringBeforeLast('.')}\u201D"
+     * sheet): the song's own title, quoted, trimmed and clipped as every
+     * alert shows it ([WriteFailureMessage.shown]). Not the file name,
+     * which strips punctuation and falls back to "chiptune". */
+    fun resultTitle(songTitle: String): String = "Exported ${WriteFailureMessage.shown(songTitle)}"
 }
 
 /** The Edit pill: its label comes from the same flag that drives the rows. */

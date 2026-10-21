@@ -55,6 +55,19 @@ class StudioExportTest {
         assertEquals("RIFF", String(file.readBytes().copyOfRange(0, 4)))
     }
 
+    /** The result dialog names the song as titled, not its sanitised file
+     * name, and a rename after the export doesn't change it. */
+    @Test fun aFinishedExportCarriesTheSongsOwnTitle() {
+        val h = make()
+        h.studio.open(Song.create("Mega Man's Theme!"))
+        h.studio.edit { it.withNote(0, 0, 0, 60) }
+        h.studio.export()
+        assertNull(h.studio.exportTitle)
+        h.waitForExport()
+        assertEquals("Mega Mans Theme.wav", h.studio.exportFile!!.name)
+        assertEquals("Mega Man's Theme!", h.studio.exportTitle)
+    }
+
     @Test fun secondExportWhileBusyIsIgnored() {
         val h = make()
         val first = h.studio.export()
