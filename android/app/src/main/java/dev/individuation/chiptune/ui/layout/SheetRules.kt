@@ -112,6 +112,16 @@ object ExportFormatFooter {
 object ExportControls {
     fun settingsLocked(isExporting: Boolean): Boolean = isExporting
 
+    /** Whether Format and Style are menu rows rather than segments. A
+     * segment's label wraps or clips at large text ("Cartridge" at 2x), so
+     * from the accessibility sizes on, where iOS switches its pickers to
+     * `.menu`, each becomes a row whose label and value can grow. */
+    fun pickersAsMenus(fontScale: Float): Boolean = TextScale.isAccessibilitySize(fontScale)
+
+    /** The Style section's heading: none when the menu row says "Style"
+     * itself, or it would be read and shown twice (iOS does the same). */
+    fun styleHeader(menus: Boolean): String? = if (menus) null else "Style"
+
     /** Whether the Export button comes back once the render it started has
      * finished. A failed or canceled one frees it for another try. One that
      * left a file keeps it: the panel is coming down for the result dialog,

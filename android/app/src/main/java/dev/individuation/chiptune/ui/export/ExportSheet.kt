@@ -1,6 +1,7 @@
 package dev.individuation.chiptune.ui.export
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,6 +16,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.IosShare
+import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -30,6 +35,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -40,6 +46,7 @@ import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -102,6 +109,8 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
     val completed by remember { derivedStateOf { ui.value.completedExportAttempt } }
     val exportError by remember { derivedStateOf { ui.value.exportError } }
     val locked = ExportControls.settingsLocked(isExporting)
+    // Segments clip at the largest text sizes; menu rows grow with it.
+    val menus = ExportControls.pickersAsMenus(LocalDensity.current.fontScale)
 
     // A failed or canceled attempt frees the button; a successful one
     // closes the sheet (ExportResultHost).
@@ -151,10 +160,15 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
                 .navigationBarsPadding(),
         ) {
             FormSection(footer = ExportFormatFooter.text(options.format)) {
-                SegmentedChoice(
-                    ExportOptions.Format.entries, options.format, enabled = !locked,
-                    label = { it.label }, description = ExportCopy::formatSegment,
-                ) { studio.exportOptions = ExportCopy.withFormat(song, options, it) }
+                val pick = { format: ExportOptions.Format -> studio.exportOptions = ExportCopy.withFormat(song, options, format) }
+                if (menus) {
+                    MenuChoice("Format", ExportOptions.Format.entries, options.format, enabled = !locked, label = { it.label }, onSelect = pick)
+                } else {
+                    SegmentedChoice(
+                        ExportOptions.Format.entries, options.format, enabled = !locked,
+                        label = { it.label }, description = ExportCopy::formatSegment, onSelect = pick,
+                    )
+                }
             }
 
             if (ExportCopy.hasRepeats(options.format)) {
@@ -206,11 +220,16 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
 
             if (ExportCopy.hasStyle(options.format)) {
                 // Frozen and dimmed during a render, like Repeats.
-                FormSection(header = "Style", footer = ExportCopy.styleFooter(options.videoStyle)) {
-                    SegmentedChoice(
-                        ExportOptions.VideoStyle.entries, options.videoStyle, enabled = !locked,
-                        label = { it.label }, description = ExportCopy::styleSegment,
-                    ) { studio.exportOptions = options.copy(videoStyle = it) }
+                FormSection(header = ExportControls.styleHeader(menus), footer = ExportCopy.styleFooter(options.videoStyle)) {
+                    val pick = { style: ExportOptions.VideoStyle -> studio.exportOptions = options.copy(videoStyle = style) }
+                    if (menus) {
+                        MenuChoice("Style", ExportOptions.VideoStyle.entries, options.videoStyle, enabled = !locked, label = { it.label }, onSelect = pick)
+                    } else {
+                        SegmentedChoice(
+                            ExportOptions.VideoStyle.entries, options.videoStyle, enabled = !locked,
+                            label = { it.label }, description = ExportCopy::styleSegment, onSelect = pick,
+                        )
+                    }
                 }
             }
 
@@ -317,6 +336,56 @@ private fun <T> SegmentedChoice(
                 ) {
                     Text(label(option), fontSize = 15.sp)
                 }
+            }
+        }
+    }
+}
+
+/** [SegmentedChoice] at the accessibility text sizes (iOS's `.menu` picker
+ * style): a row with the picker's name and the current choice, which wrap
+ * rather than clip, opening a menu of the choices. One TalkBack element, a
+ * dropdown named [title] whose state is the choice. */
+@Composable
+private fun <T> MenuChoice(
+    title: String,
+    options: List<T>,
+    selected: T,
+    enabled: Boolean,
+    label: (T) -> String,
+    onSelect: (T) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        FormRow(
+            Modifier
+                .plainClickable(enabled = enabled) { open = true }
+                .alpha(if (enabled) 1f else 0.4f)
+                .clearAndSetSemantics {
+                    contentDescription = title
+                    stateDescription = label(selected)
+                    role = Role.DropdownList
+                    if (enabled) onClick { open = true; true } else disabled()
+                },
+        ) {
+            Text(title, color = ChipColors.text, fontSize = 17.sp, modifier = Modifier.weight(1f))
+            Text(label(selected), color = ChipColors.dim, fontSize = 17.sp)
+            Icon(Icons.Filled.UnfoldMore, contentDescription = null, tint = ChipColors.dim, modifier = Modifier.size(16.dp))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = ChipColors.panelHigh) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(label(option), color = ChipColors.text, style = MaterialTheme.typography.bodyLarge) },
+                    trailingIcon = if (option == selected) {
+                        { Icon(Icons.Filled.Check, contentDescription = null, tint = ChipColors.text) }
+                    } else {
+                        null
+                    },
+                    modifier = Modifier.semantics { this.selected = option == selected },
+                    onClick = {
+                        open = false
+                        onSelect(option)
+                    },
+                )
             }
         }
     }

@@ -733,6 +733,18 @@ class ExportAnnouncementTest {
 
     @Test fun aCancelIsSaid() = assertEquals("Export canceled", ExportAnnouncement.CANCELED)
 
+    /** Segment labels don't fit at the largest text ("Cartridge" wraps), so
+     * from the accessibility sizes on, as iOS does, Format and Style are
+     * menu rows, and Style's row names itself in place of the heading. */
+    @Test fun pickersBecomeMenusAtAccessibilitySizes() {
+        assertFalse(ExportControls.pickersAsMenus(1.0f))
+        assertFalse(ExportControls.pickersAsMenus(1.3f))
+        assertTrue(ExportControls.pickersAsMenus(1.5f))
+        assertTrue(ExportControls.pickersAsMenus(2.0f))
+        assertEquals("Style", ExportControls.styleHeader(menus = false))
+        assertNull(ExportControls.styleHeader(menus = true))
+    }
+
     /** A greyed-out Export button says why, so TalkBack users aren't left
      * guessing; it is only ever off for length when a video is too long. */
     @Test fun aBlockedExportButtonSaysWhy() {
