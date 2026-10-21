@@ -237,12 +237,13 @@ fun ExportPanel(editor: Editor, onDismiss: () -> Unit) {
                         view.announceForAccessibility(ExportAnnouncement.CANCELED)
                     })
                 } else {
+                    val blockedReason = ExportCopy.blockedReason(options.format, ExportLength.seconds(song, options))
                     FormButtonRow(
                         ExportCopy.exportButton(options.format),
                         icon = Icons.Filled.IosShare,
                         color = ChipColors.text,
-                        enabled = ExportCopy.canExport(song.hasNotes, startedAttempt != null) &&
-                            !ExportCopy.blocksExport(options.format, ExportLength.seconds(song, options)),
+                        enabled = ExportCopy.canExport(song.hasNotes, startedAttempt != null) && blockedReason == null,
+                        stateDescription = blockedReason,
                         onClick = {
                             if (startedAttempt == null) startedAttempt = studio.export()
                         },

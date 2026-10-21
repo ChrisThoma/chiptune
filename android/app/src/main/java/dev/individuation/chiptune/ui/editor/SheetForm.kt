@@ -228,8 +228,13 @@ fun FormButtonRow(
     icon: ImageVector? = null,
     color: Color = FormColors.tint,
     enabled: Boolean = true,
+    /** Read after the label, as why a disabled button is off. */
+    stateDescription: String? = null,
 ) {
-    FormRow(Modifier.plainClickable(enabled = enabled, onClick = onClick).alpha(if (enabled) 1f else 0.4f)) {
+    FormRow(
+        Modifier.plainClickable(enabled = enabled, onClick = onClick).alpha(if (enabled) 1f else 0.4f)
+            .then(if (stateDescription != null) Modifier.semantics { this.stateDescription = stateDescription } else Modifier),
+    ) {
         if (icon != null) Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(22.dp))
         Text(label, color = color, fontSize = 17.sp, modifier = Modifier.weight(1f))
     }

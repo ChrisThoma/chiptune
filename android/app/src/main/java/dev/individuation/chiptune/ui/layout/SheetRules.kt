@@ -176,6 +176,11 @@ object ExportCopy {
     fun blocksExport(format: ExportOptions.Format, seconds: Double): Boolean =
         format == ExportOptions.Format.VIDEO && seconds > VideoExport.MAX_SECONDS
 
+    /** Why [blocksExport] turned the button off, for TalkBack to read with
+     * it; null when it isn't blocked. The same words the footer shows. */
+    fun blockedReason(format: ExportOptions.Format, seconds: Double): String? =
+        if (blocksExport(format, seconds)) ExportLength.warning(format, seconds) else null
+
     /** What TalkBack reads for one segment of the style picker; the picker's
      * name rides on each segment, as the format picker's does. */
     fun styleSegment(style: ExportOptions.VideoStyle): String = "Style, ${style.label}"

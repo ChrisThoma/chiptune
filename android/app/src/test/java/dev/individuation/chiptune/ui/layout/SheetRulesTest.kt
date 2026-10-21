@@ -731,4 +731,16 @@ class ExportAnnouncementTest {
     }
 
     @Test fun aCancelIsSaid() = assertEquals("Export canceled", ExportAnnouncement.CANCELED)
+
+    /** A greyed-out Export button says why, so TalkBack users aren't left
+     * guessing; it is only ever off for length when a video is too long. */
+    @Test fun aBlockedExportButtonSaysWhy() {
+        val over = VideoExport.MAX_SECONDS + 1
+        assertEquals(
+            "Too long for a video. The limit is 10:00.",
+            ExportCopy.blockedReason(ExportOptions.Format.VIDEO, over),
+        )
+        assertNull(ExportCopy.blockedReason(ExportOptions.Format.VIDEO, VideoExport.MAX_SECONDS))
+        assertNull(ExportCopy.blockedReason(ExportOptions.Format.WAV, over))
+    }
 }
