@@ -117,6 +117,42 @@ enum ReviewPromptPolicy {
     }
 }
 
+/// When a Photos retry is spent. Open Settings arms it, and it fires on the
+/// first `.active` after the scene has been through `.background`, which is
+/// the trip to Settings and back. An `.active` with no background in between
+/// (Settings never came up) leaves it waiting rather than putting the share
+/// sheet up over whatever the user does next, and a new export, the export
+/// ending or another song opening clears it.
+struct PhotosRetryWatch: Equatable {
+    private(set) var pending: PhotosRetry?
+    private var leftForeground = false
+
+    mutating func settingsOpened(for retry: PhotosRetry) {
+        pending = retry
+        leftForeground = false
+    }
+
+    /// The retry to offer now, if this phase is the return from Settings.
+    mutating func phaseChanged(to phase: ScenePhase) -> PhotosRetry? {
+        guard let retry = pending else { return nil }
+        switch phase {
+        case .background:
+            leftForeground = true
+            return nil
+        case .active where leftForeground:
+            clear()
+            return retry
+        default:
+            return nil
+        }
+    }
+
+    mutating func clear() {
+        pending = nil
+        leftForeground = false
+    }
+}
+
 /// Getting from a finished render to the share sheet.
 ///
 /// The export panel and the share sheet are presented by different hosts — the
@@ -323,8 +359,8 @@ struct ContentView: View {
     /// up for this video.
     @State private var photosDenied: PhotosRetry?
     /// Open Settings was tapped for this video, so coming back offers it
-    /// again. See `PhotosRetry`.
-    @State private var pendingPhotosRetry: PhotosRetry?
+    /// again. See `PhotosRetry` and `PhotosRetryWatch`.
+    @State private var photosRetryWatch = PhotosRetryWatch()
     /// A `.chipsong` is hovering over the editor, waiting to be dropped.
     @State private var songDropTargeted = false
     @FocusState private var nameFocused: Bool
@@ -438,7 +474,10 @@ struct ContentView: View {
             // The export options belong to the song that was open. With the
             // share sheet up there is no panel to close, so nothing else
             // would put them back to the defaults until that share ends.
-            if previousSongID != currentSongID { studio.endExportFlow() }
+            if previousSongID != currentSongID {
+                studio.endExportFlow()
+                photosRetryWatch.clear()
+            }
         }
         // Arrangement and Export are no longer presented here: each hangs off
         // the control that opens it — ARR in the transport, the ••• menu — so
@@ -517,7 +556,7 @@ struct ContentView: View {
                                     set: { if !$0 { photosDenied = nil } }),
                presenting: photosDenied) { retry in
             Button(PhotosDeniedAlert.openSettings) {
-                pendingPhotosRetry = retry
+                photosRetryWatch.settingsOpened(for: retry)
                 if let settings = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(settings)
                 }
@@ -531,8 +570,7 @@ struct ContentView: View {
         // Back from Settings after the Photos alert: the same video, offered
         // again, without another render.
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .active, let retry = pendingPhotosRetry else { return }
-            pendingPhotosRetry = nil
+            guard let retry = photosRetryWatch.phaseChanged(to: phase) else { return }
             let reshares = retry.reshares(exportURL: studio.exportURL,
                                           currentSongID: studio.song.id,
                                           fileExists: FileManager.default.fileExists(atPath: retry.url.path),
@@ -542,6 +580,14 @@ struct ContentView: View {
             shareEnding = ShareSheetEnding()
             sharedSongID = retry.songID
             showingShare = true
+        }
+        // A retry belongs to the export it came from. A new export, that
+        // export ending, or another song opening (which ends it) drops it.
+        .onChange(of: studio.isExporting) { _, exporting in
+            if exporting { photosRetryWatch.clear() }
+        }
+        .onChange(of: studio.exportFlowEnds) { _, _ in
+            photosRetryWatch.clear()
         }
         .errorAlert(UnreadableSongs.title, message: $studio.unreadableSongsNotice)
         .songFileImporter(isPresented: $showingImporter, studio: studio)
@@ -678,7 +724,7 @@ struct ContentView: View {
         }
         if ExportFlow.endsFlowAfterShare(outcome: outcome, sharedSongID: sharedSongID,
                                          currentSongID: studio.song.id,
-                                         photosRetryOffered: photosDenied != nil || pendingPhotosRetry != nil) {
+                                         photosRetryOffered: photosDenied != nil || photosRetryWatch.pending != nil) {
             studio.endExportFlow()
         }
         sharedSongID = nil

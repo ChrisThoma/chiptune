@@ -1446,7 +1446,13 @@ final class Studio {
     /// rather than whatever this one picked.
     func endExportFlow() {
         exportOptions = ExportOptions()
+        exportFlowEnds += 1
     }
+
+    /// Counts `endExportFlow` calls, so every window (they share this
+    /// studio) can drop what it held for the export that ended, such as a
+    /// pending Photos retry.
+    private(set) var exportFlowEnds = 0
 
     /// Renders the export (WAV or MIDI) off the main thread; a long arrangement can take a
     /// while, and the render must not freeze the UI. `exportURL` clears at the
