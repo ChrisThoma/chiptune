@@ -10,7 +10,7 @@ object ExportTooLongMessage {
     fun text(format: ExportOptions.Format): String = when (format) {
         // A MIDI file never comes back too long; it shares the WAV's words
         // only so the when stays exhaustive.
-        ExportOptions.Format.WAV, ExportOptions.Format.MIDI -> "Too long for one WAV — lower the repeat count."
+        ExportOptions.Format.WAV, ExportOptions.Format.MIDI -> "Too long for one WAV. Lower the repeat count."
         ExportOptions.Format.VIDEO ->
             "Videos can be up to 10 minutes long. Lower the repeat count, or export a WAV instead."
     }
