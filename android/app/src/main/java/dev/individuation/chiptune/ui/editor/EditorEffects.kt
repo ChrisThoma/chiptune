@@ -83,6 +83,26 @@ interface EditorEffects {
     }
 }
 
+/**
+ * The keys the editor's one-shot pickers register their results under.
+ * `ActivityResultRegistry` saves a result that arrives while no one is
+ * registered (the process died with the picker open) and delivers it to
+ * the next registration of the same key in the new process. With a plain
+ * counter from 0, that next registration is an unrelated request: a stale
+ * Save to device pick would get a fresh export copied into it. Prefixing
+ * every key with an id made once per process means an earlier process's
+ * result is never handed to a new request; it just sits unclaimed.
+ */
+class ActivityResultKeys(private val processId: String) {
+    private var count = 0
+
+    fun next(): String = "chiptune-effect-$processId-${count++}"
+
+    companion object {
+        fun newProcessId(): String = java.util.UUID.randomUUID().toString()
+    }
+}
+
 /** The app's [EditorEffects]. */
 class AndroidEditorEffects(private val context: Context) : EditorEffects {
     private val activity: ComponentActivity? =
@@ -223,7 +243,7 @@ class AndroidEditorEffects(private val context: Context) : EditorEffects {
     private fun <I, O> launch(contract: ActivityResultContract<I, O>, input: I, onResult: (O) -> Unit) {
         val host = activity ?: return
         var launcher: ActivityResultLauncher<I>? = null
-        launcher = host.activityResultRegistry.register("chiptune-effect-${nextKey++}", contract) { result ->
+        launcher = host.activityResultRegistry.register(resultKeys.next(), contract) { result ->
             launcher?.unregister()
             onResult(result)
         }
@@ -232,7 +252,8 @@ class AndroidEditorEffects(private val context: Context) : EditorEffects {
 
     private companion object {
         const val CHOOSER_RESULT_GRACE_MS = 700L
-        var nextKey = 0
+        /** One per process: see [ActivityResultKeys]. Main thread only. */
+        val resultKeys = ActivityResultKeys(ActivityResultKeys.newProcessId())
         val saver = Executors.newSingleThreadExecutor { r -> Thread(r, "chiptune-save") }
     }
 }
