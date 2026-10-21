@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -276,8 +277,10 @@ private fun EndingRow(label: String, selected: Boolean, enabled: Boolean, onClic
 }
 
 /** A segmented choice frozen like the other settings during a render, which
- * keeps what it started with. The label is on each segment, not on the row:
- * a described row with no action of its own is a TalkBack stop. */
+ * keeps what it started with. The segments are one selectable group. Any
+ * label is on each segment, not on the row: a described row with no action
+ * of its own is a TalkBack stop. Format, with no heading, names itself on
+ * each segment; Style's heading names the group once. */
 @Composable
 private fun <T> SegmentedChoice(
     options: List<T>,
@@ -288,7 +291,7 @@ private fun <T> SegmentedChoice(
     onSelect: (T) -> Unit,
 ) {
     FormRow(Modifier.alpha(if (enabled) 1f else 0.4f)) {
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().selectableGroup()) {
             options.forEachIndexed { i, option ->
                 SegmentedButton(
                     selected = option == selected,

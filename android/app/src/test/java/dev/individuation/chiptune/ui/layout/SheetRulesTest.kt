@@ -350,8 +350,9 @@ class ExportCopyTest {
     @Test fun styleSegmentsAreLabelledGridAndCartridge() {
         assertEquals("Grid", ExportOptions.VideoStyle.GRID.label)
         assertEquals("Cartridge", ExportOptions.VideoStyle.COVER.label)
-        assertEquals("Style, Grid", ExportCopy.styleSegment(ExportOptions.VideoStyle.GRID))
-        assertEquals("Style, Cartridge", ExportCopy.styleSegment(ExportOptions.VideoStyle.COVER))
+        // Just the name: the "Style" heading above the group says the rest once.
+        assertEquals("Grid", ExportCopy.styleSegment(ExportOptions.VideoStyle.GRID))
+        assertEquals("Cartridge", ExportCopy.styleSegment(ExportOptions.VideoStyle.COVER))
     }
 
     @Test fun anOverlongVideoBlocksTheExportButton() {

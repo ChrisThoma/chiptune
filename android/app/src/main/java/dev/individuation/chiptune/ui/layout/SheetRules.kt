@@ -181,9 +181,11 @@ object ExportCopy {
     fun blockedReason(format: ExportOptions.Format, seconds: Double): String? =
         if (blocksExport(format, seconds)) ExportLength.warning(format, seconds) else null
 
-    /** What TalkBack reads for one segment of the style picker; the picker's
-     * name rides on each segment, as the format picker's does. */
-    fun styleSegment(style: ExportOptions.VideoStyle): String = "Style, ${style.label}"
+    /** What TalkBack reads for one segment of the style picker: just the
+     * style. Unlike Format, the picker sits under a "Style" heading, and its
+     * segments are one selectable group under it, so naming the picker on
+     * each segment too had TalkBack say "Style" twice (iOS a743b71). */
+    fun styleSegment(style: ExportOptions.VideoStyle): String = style.label
 
     /** What the chosen video style looks like, under the Grid/Cartridge picker. */
     fun styleFooter(style: ExportOptions.VideoStyle): String = when (style) {
