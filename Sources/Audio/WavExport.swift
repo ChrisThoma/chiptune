@@ -97,14 +97,26 @@ struct ExportOptions: Equatable, Sendable {
     /// theirs and switching to Video leaves it alone.
     var loopCountChosen = false
 
+    /// The count was raised by switching to Video, not set by the user, so
+    /// it belongs to the video and leaving Video puts it back to 1.
+    var loopCountPickedForVideo = false
+
     /// The format picker's way in. A short song's first video at 1x is
     /// mostly ring-out, so switching to Video with Repeats untouched at 1
     /// picks enough repeats for about ten seconds of song (see
-    /// `ExportRepeats.forVideo`). A count the user set is never changed.
+    /// `ExportRepeats.forVideo`). Switching away again puts that picked
+    /// count back to 1, so a look at Video doesn't turn a WAV into six
+    /// passes. A count the user set is never changed.
     mutating func selectFormat(_ format: Format, for song: Song) {
         self.format = format
-        if format == .video, loopCount == 1, !loopCountChosen {
-            loopCount = ExportRepeats.forVideo(song: song)
+        if format == .video {
+            if loopCount == 1, !loopCountChosen {
+                loopCount = ExportRepeats.forVideo(song: song)
+                loopCountPickedForVideo = loopCount != 1
+            }
+        } else if loopCountPickedForVideo {
+            loopCount = 1
+            loopCountPickedForVideo = false
         }
     }
 
@@ -112,6 +124,7 @@ struct ExportOptions: Equatable, Sendable {
     mutating func setLoopCount(_ count: Int) {
         loopCount = count
         loopCountChosen = true
+        loopCountPickedForVideo = false
     }
 
     var clamped: ExportOptions {
@@ -231,6 +244,19 @@ extension ExportFiles {
                 removeExports(forSongID: id, root: root)
             }
         }
+    }
+
+    /// Whether deleting a song takes its exports now. An iPad's windows share
+    /// one Studio, so the song deleted in one window can be the one whose
+    /// export another is offering to share (`exportURL` in that song's
+    /// folder) or rendering. That folder is left for the share sheet, and
+    /// the next launch's `sweep` clears it.
+    static func removesExportsOnDelete(songID: UUID, exportURL: URL?, exportingSongID: UUID?) -> Bool {
+        if exportingSongID == songID { return false }
+        if let exportURL, exportURL.deletingLastPathComponent().lastPathComponent == songID.uuidString {
+            return false
+        }
+        return true
     }
 
     /// A deleted song's exports, and its folder once nothing else is in it.

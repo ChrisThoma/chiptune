@@ -269,6 +269,22 @@ final class PhotosRetryTests: XCTestCase {
         let retry = PhotosRetry(url: url, songID: song)
         XCTAssertFalse(retry.reshares(exportURL: url, currentSongID: song, fileExists: true, anyPresented: true))
     }
+
+    /// The share sheet's song is known: the alert offers to share it again.
+    func testADenialForAKnownSongOffersARetry() {
+        XCTAssertEqual(PhotosRetry.afterDenial(url: url, sharedSongID: song),
+                       .retry(PhotosRetry(url: url, songID: song)))
+    }
+
+    /// The app already took the sheet down because another song opened, and
+    /// the denial came after. Crediting it to the song now open would have
+    /// offered that song a retry of a file it never made, so it only says
+    /// what to do in Settings.
+    func testALateDenialWithNoSharedSongOffersNoRetry() {
+        XCTAssertEqual(PhotosRetry.afterDenial(url: url, sharedSongID: nil),
+                       .message(PhotosDeniedAlert.message))
+    }
+
 }
 
 /// The video writer reports a full disk in its own domain, not as a Cocoa or

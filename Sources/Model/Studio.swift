@@ -74,6 +74,12 @@ final class Studio {
     /// Monotonic completion token for views that must observe even an export
     /// which starts and finishes between two SwiftUI render passes.
     var completedExportAttempt = 0
+    /// The last export to finish ended because it was canceled. Read with
+    /// `completedExportAttempt`, so VoiceOver hears "Export canceled" only
+    /// once the render has actually stopped.
+    private(set) var lastExportWasCanceled = false
+    /// The song the running export was started from, nil when none is running.
+    private(set) var exportingSongID: UUID?
 
     // MARK: Reported failures
     //
@@ -1313,8 +1319,12 @@ final class Studio {
             return
         }
         // Its exports would otherwise sit in tmp with nothing left to
-        // replace them.
-        ExportFiles.removeExports(forSongID: other.id)
+        // replace them. Not while one is on offer or rendering, possibly in
+        // another window: the launch sweep takes those.
+        if ExportFiles.removesExportsOnDelete(songID: other.id, exportURL: exportURL,
+                                              exportingSongID: exportingSongID) {
+            ExportFiles.removeExports(forSongID: other.id)
+        }
         // Deleting the song on screen: the editor has to move off it, or the
         // next autosave writes the "deleted" song straight back to disk.
         guard other.id == song.id else { return }
@@ -1446,7 +1456,13 @@ final class Studio {
     /// rather than whatever this one picked.
     func endExportFlow() {
         exportOptions = ExportOptions()
+        exportFlowEnds += 1
     }
+
+    /// Counts `endExportFlow` calls, so every window (they share this
+    /// studio) can drop what it held for the export that ended, such as a
+    /// pending Photos retry.
+    private(set) var exportFlowEnds = 0
 
     /// Renders the export (WAV or MIDI) off the main thread; a long arrangement can take a
     /// while, and the render must not freeze the UI. `exportURL` clears at the
@@ -1458,6 +1474,7 @@ final class Studio {
         guard !isExporting else { return nil }
         let attempt = completedExportAttempt + 1
         isExporting = true
+        exportingSongID = song.id
         exportURL = nil
         exportError = nil
         exportProgress = 0
@@ -1496,8 +1513,14 @@ final class Studio {
             let leftForeground = keepAlive?.end() ?? false
             guard let self else { return }
             self.isExporting = false
+            self.exportingSongID = nil
             self.exportProgress = 0
             self.exportCancel = nil
+            if case .canceled = result {
+                self.lastExportWasCanceled = true
+            } else {
+                self.lastExportWasCanceled = false
+            }
             switch result {
             case .success(let url):
                 self.exportURL = url

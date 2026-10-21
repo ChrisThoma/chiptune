@@ -209,6 +209,24 @@ enum ExportAnnouncement {
         }
     }
 
+    /// One render's announcements. Once Cancel export is tapped, quarters
+    /// the render crosses before it notices are not said, and "Export
+    /// canceled" waits for the render to actually end canceled: one that
+    /// finishes anyway made a file and says nothing more.
+    struct Render {
+        private(set) var cancelRequested = false
+
+        mutating func cancelTapped() { cancelRequested = true }
+
+        func milestone(from old: Double, to new: Double) -> String? {
+            cancelRequested ? nil : ExportAnnouncement.milestone(from: old, to: new)
+        }
+
+        static func ended(canceled: Bool) -> String? {
+            canceled ? ExportAnnouncement.canceled : nil
+        }
+    }
+
     static func post(_ text: String) {
         var announcement = AttributedString(text)
         // Not cut off by the focus moving to Cancel export as it starts.
@@ -280,6 +298,8 @@ struct ExportSheet: View {
     /// VoiceOver moves to Cancel export as a render starts: the Export
     /// button it was on has just gone.
     @AccessibilityFocusState private var cancelFocused: Bool
+    /// What VoiceOver has left to say about the running render.
+    @State private var announcing = ExportAnnouncement.Render()
 
     private var settingsLocked: Bool {
         ExportControls.settingsLocked(isExporting: studio.isExporting)
@@ -463,7 +483,7 @@ struct ExportSheet: View {
     private var cancelButton: some View {
         Button("Cancel export", role: .destructive) {
             studio.cancelExport()
-            ExportAnnouncement.post(ExportAnnouncement.canceled)
+            announcing.cancelTapped()
         }
         .accessibilityFocused($cancelFocused)
         .id(Self.cancelExportID)
@@ -565,20 +585,26 @@ struct ExportSheet: View {
             .tint(Theme.text)
         }
         .onChange(of: studio.completedExportAttempt) { _, completedAttempt in
+            if let text = ExportAnnouncement.Render.ended(canceled: studio.lastExportWasCanceled) {
+                ExportAnnouncement.post(text)
+            }
             guard ExportControls.freesExportButton(startedAttempt: startedAttempt,
                                                    completedAttempt: completedAttempt,
                                                    producedFile: studio.exportURL != nil) else { return }
             startedAttempt = nil
         }
         .onChange(of: studio.isExporting) { _, exporting in
-            guard exporting else { return }
+            // Let go when the render ends, so the next one setting it true
+            // is a change and moves focus to Cancel export again.
+            guard exporting else { cancelFocused = false; return }
+            announcing = ExportAnnouncement.Render()
             ExportAnnouncement.post(ExportAnnouncement.started(format: format))
             // A pass later, once Cancel export is in the tree to take it.
             DispatchQueue.main.async { cancelFocused = true }
         }
         .onChange(of: studio.exportProgress) { old, new in
             guard studio.isExporting,
-                  let milestone = ExportAnnouncement.milestone(from: old, to: new) else { return }
+                  let milestone = announcing.milestone(from: old, to: new) else { return }
             ExportAnnouncement.post(milestone)
         }
         .errorAlert("Export failed", message: $studio.exportError)

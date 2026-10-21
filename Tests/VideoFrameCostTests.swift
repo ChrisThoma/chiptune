@@ -7,7 +7,8 @@ import UIKit
 /// a render the user waits through and one they give up on.
 ///
 /// Prints its numbers rather than asserting a budget: the simulator's
-/// timings swing with whatever else the Mac is doing.
+/// timings swing with whatever else the Mac is doing. The one thing it
+/// asserts is a ratio between two styles measured in the same run.
 final class VideoFrameCostTests: XCTestCase {
     private func renderer(style: ExportOptions.VideoStyle,
                           cachesBackdrop: Bool = true) -> (VideoFrameRenderer, VideoTimeline) {
@@ -67,11 +68,15 @@ final class VideoFrameCostTests: XCTestCase {
         XCTAssertEqual(renderer.backdropDraws, 1)
     }
 
-    private func millisecondsPerFrame(style: ExportOptions.VideoStyle, frames: Int = 90) -> Double {
-        let (renderer, timeline) = renderer(style: style)
+    /// Milliseconds for each of `frames` frames, drawn one at a time. The
+    /// median is read, so one frame slowed by whatever else the Mac is doing
+    /// doesn't decide the number.
+    private func frameTimes(style: ExportOptions.VideoStyle, cachesBackdrop: Bool = true,
+                            frames: Int = 31) -> [Double] {
+        let (renderer, timeline) = renderer(style: style, cachesBackdrop: cachesBackdrop)
         let width = Int(VideoLayout.size.width), height = Int(VideoLayout.size.height)
         var bytes = Data(count: width * height * 4)
-        var elapsed = 0.0
+        var times: [Double] = []
         bytes.withUnsafeMutableBytes { raw in
             guard let context = CGContext(data: raw.baseAddress, width: width, height: height,
                                           bitsPerComponent: 8, bytesPerRow: width * 4, space: Palette.colorSpace,
@@ -80,20 +85,35 @@ final class VideoFrameCostTests: XCTestCase {
             context.translateBy(x: 0, y: CGFloat(height))
             context.scaleBy(x: 1, y: -1)
             renderer.draw(frame: 0, in: context)   // warm caches and fonts
-            let start = DispatchTime.now().uptimeNanoseconds
             for frame in 0..<frames {
+                let start = DispatchTime.now().uptimeNanoseconds
                 renderer.draw(frame: frame % max(timeline.totalFrames, 1), in: context)
+                times.append(Double(DispatchTime.now().uptimeNanoseconds - start) / 1e6)
             }
-            elapsed = Double(DispatchTime.now().uptimeNanoseconds - start) / 1e6
         }
-        return elapsed / Double(frames)
+        XCTAssertEqual(times.count, frames, "couldn't make a bitmap context")
+        return times
     }
 
+    private func median(_ values: [Double]) -> Double {
+        guard !values.isEmpty else { return 0 }
+        let sorted = values.sorted()
+        return sorted[sorted.count / 2]
+    }
+
+    /// Prints both styles' costs, and holds the Cartridge's cache to what it
+    /// is for: copying the still parts in has to cost well under drawing them
+    /// each frame. Both are measured in the same run, so a busy Mac slows
+    /// both and the ratio still holds.
     func testFrameCostPerStyle() {
-        let grid = millisecondsPerFrame(style: .grid)
-        let cartridge = millisecondsPerFrame(style: .cover)
-        print(String(format: "VIDEO FRAME COST: grid %.2f ms, cartridge %.2f ms", grid, cartridge))
+        let grid = median(frameTimes(style: .grid))
+        let cartridge = median(frameTimes(style: .cover))
+        let uncached = median(frameTimes(style: .cover, cachesBackdrop: false))
+        print(String(format: "VIDEO FRAME COST: grid %.2f ms, cartridge %.2f ms, cartridge uncached %.2f ms",
+                     grid, cartridge, uncached))
         XCTAssertGreaterThan(grid, 0)
         XCTAssertGreaterThan(cartridge, 0)
+        XCTAssertLessThan(cartridge, uncached / 2,
+                          "the cached Cartridge frame should cost under half the uncached one")
     }
 }

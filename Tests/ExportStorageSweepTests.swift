@@ -122,3 +122,30 @@ final class SongDeleteExportCleanupTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.deletingLastPathComponent().path))
     }
 }
+
+/// All of an iPad's windows share one Studio, so the song deleted in one
+/// window can be the one whose export another window is offering to share.
+/// Its file stays for the share sheet; the next launch's sweep takes it.
+final class DeleteKeepsTheExportOnOfferTests: XCTestCase {
+    private let song = UUID()
+    private let root = URL(fileURLWithPath: "/tmp/root", isDirectory: true)
+
+    private func export(of id: UUID) -> URL {
+        root.appendingPathComponent(id.uuidString, isDirectory: true).appendingPathComponent("Song.mp4")
+    }
+
+    func testASongWithNothingOnOfferLosesItsExports() {
+        XCTAssertTrue(ExportFiles.removesExportsOnDelete(songID: song, exportURL: nil, exportingSongID: nil))
+        XCTAssertTrue(ExportFiles.removesExportsOnDelete(songID: song, exportURL: export(of: UUID()),
+                                                         exportingSongID: UUID()))
+    }
+
+    func testTheSongWhoseExportIsOnOfferKeepsIt() {
+        XCTAssertFalse(ExportFiles.removesExportsOnDelete(songID: song, exportURL: export(of: song),
+                                                          exportingSongID: nil))
+    }
+
+    func testTheSongBeingExportedKeepsItsFolder() {
+        XCTAssertFalse(ExportFiles.removesExportsOnDelete(songID: song, exportURL: nil, exportingSongID: song))
+    }
+}
