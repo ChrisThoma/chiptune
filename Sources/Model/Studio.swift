@@ -74,6 +74,10 @@ final class Studio {
     /// Monotonic completion token for views that must observe even an export
     /// which starts and finishes between two SwiftUI render passes.
     var completedExportAttempt = 0
+    /// The last export to finish ended because it was canceled. Read with
+    /// `completedExportAttempt`, so VoiceOver hears "Export canceled" only
+    /// once the render has actually stopped.
+    private(set) var lastExportWasCanceled = false
     /// The song the running export was started from, nil when none is running.
     private(set) var exportingSongID: UUID?
 
@@ -1512,6 +1516,11 @@ final class Studio {
             self.exportingSongID = nil
             self.exportProgress = 0
             self.exportCancel = nil
+            if case .canceled = result {
+                self.lastExportWasCanceled = true
+            } else {
+                self.lastExportWasCanceled = false
+            }
             switch result {
             case .success(let url):
                 self.exportURL = url

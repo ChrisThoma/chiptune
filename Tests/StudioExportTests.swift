@@ -146,6 +146,23 @@ final class StudioExportTests: XCTestCase {
         XCTAssertEqual(studio.exportURL, standIn)
     }
 
+    /// The export sheet says "Export canceled" from this, once the render
+    /// has actually stopped, rather than on the Cancel tap.
+    func testACanceledRenderSaysSoAndASuccessfulOneDoesNot() throws {
+        let studio = makeStudio()
+        studio.renderer = { _ in .canceled }
+        studio.export()
+        waitForExport(studio)
+        XCTAssertTrue(studio.lastExportWasCanceled)
+
+        let standIn = FileManager.default.temporaryDirectory
+            .appendingPathComponent("done-\(UUID().uuidString).mid")
+        studio.renderer = { _ in .success(standIn) }
+        studio.export()
+        waitForExport(studio)
+        XCTAssertFalse(studio.lastExportWasCanceled)
+    }
+
     // MARK: Too long
 
     /// A video's limit is the ten minutes TikTok takes, not the WAV's RIFF
