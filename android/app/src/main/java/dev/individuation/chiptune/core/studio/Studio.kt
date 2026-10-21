@@ -1268,8 +1268,10 @@ class Studio(
         exportCancel = token
         val song = song
         val renderer = renderer
+        // A video reports every frame; a state copy per frame is wasted work.
+        val throttle = ExportProgressThrottle()
         val progress: (Double) -> Unit = { fraction ->
-            scheduler.post {
+            if (throttle.admits(fraction)) scheduler.post {
                 if (isExporting && completedExportAttempt < attempt) update { it.copy(exportProgress = fraction) }
             }
         }
