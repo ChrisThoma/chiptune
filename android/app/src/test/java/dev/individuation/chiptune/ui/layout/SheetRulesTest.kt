@@ -363,7 +363,7 @@ class ExportCopyTest {
     }
 
     @Test fun videoSaysWhereItIsFor() {
-        assertEquals("A 9:16 video for sharing to IG, TikTok, YouTube, etc.", ExportFormatFooter.text(ExportOptions.Format.VIDEO))
+        assertEquals("A tall video for Instagram, TikTok and YouTube.", ExportFormatFooter.text(ExportOptions.Format.VIDEO))
     }
 
     @Test fun eachStyleSaysWhatItLooksLike() {
@@ -372,7 +372,7 @@ class ExportCopyTest {
             ExportCopy.styleFooter(ExportOptions.VideoStyle.GRID),
         )
         assertEquals(
-            "A game cartridge with the song's title and a bar for each channel that jumps with its notes.",
+            "A game cartridge with the song's title and a bar for each track that jumps with its notes.",
             ExportCopy.styleFooter(ExportOptions.VideoStyle.COVER),
         )
     }
@@ -400,8 +400,8 @@ class ExportCopyTest {
         assertEquals(8.0, ExportLength.seconds(song, options), 0.0001)
     }
 
-    @Test fun aVideoOverThreeMinutesWarnsAboutReelsAndShorts() {
-        assertEquals("Reels and Shorts cut off at 3:00.", ExportLength.warning(ExportOptions.Format.VIDEO, 181.0))
+    @Test fun aVideoOverThreeMinutesWarnsItIsNotAShort() {
+        assertEquals("Over 3:00, YouTube posts it as a regular video, not a Short.", ExportLength.warning(ExportOptions.Format.VIDEO, 181.0))
         assertNull(ExportLength.warning(ExportOptions.Format.VIDEO, 180.0))
     }
 
@@ -411,8 +411,8 @@ class ExportCopyTest {
     }
 
     @Test fun aVideoOverTheCapSaysItIsTooLong() {
-        assertEquals("Too long for a video \u2014 10:00 max.", ExportLength.warning(ExportOptions.Format.VIDEO, 601.0))
-        assertEquals("Reels and Shorts cut off at 3:00.", ExportLength.warning(ExportOptions.Format.VIDEO, 600.0))
+        assertEquals("Too long for a video. The limit is 10:00.", ExportLength.warning(ExportOptions.Format.VIDEO, 601.0))
+        assertEquals("Over 3:00, YouTube posts it as a regular video, not a Short.", ExportLength.warning(ExportOptions.Format.VIDEO, 600.0))
     }
 
     @Test fun theRepeatsFooterCarriesTheLengthWarning() {
@@ -420,14 +420,18 @@ class ExportCopyTest {
         // 192 s + tail. Repeats stop at 16, as the stepper and the renderer do.
         val video = ExportOptions(loopCount = 12, format = ExportOptions.Format.VIDEO)
         val line = ExportCopy.repeatsFooter(song, video)
-        assertTrue(line, line.endsWith(" Reels and Shorts cut off at 3:00."))
+        assertTrue(line, line.endsWith(" Over 3:00, YouTube posts it as a regular video, not a Short."))
         assertEquals(
             "The whole arrangement, 2 times \u2014 ${ExportCopy.duration(song, ExportOptions(loopCount = 2))}.",
             ExportCopy.repeatsFooter(song, ExportOptions(loopCount = 2)),
         )
     }
 
-    @Test fun resultTitleNamesTheFile() = assertEquals("Exported Golden.wav", ExportCopy.resultTitle("Golden.wav"))
+    /** The song's name in quotes, not a raw file name with its extension. */
+    @Test fun resultTitleNamesTheSong() {
+        assertEquals("Exported \u201CGolden\u201D", ExportCopy.resultTitle("Golden.wav"))
+        assertEquals("Exported \u201CMy.Song\u201D", ExportCopy.resultTitle("My.Song.mp4"))
+    }
 }
 
 /** `ArrangementEditToggleTests.swift`, plus the sheet's copy. */

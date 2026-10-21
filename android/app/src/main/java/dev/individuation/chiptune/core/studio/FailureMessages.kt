@@ -32,6 +32,12 @@ object WriteFailureMessage {
     fun export(name: String, error: Throwable, file: String): String =
         "Couldn't export ${shown(name)}. ${reasonAndAdvice(error, file)}"
 
+    /** "Couldn't save \u201CName\u201D. <reason>[ Try again.]" for a finished
+     * export that "Save to device" couldn't copy out: the export itself
+     * worked, so the alert says save. */
+    fun saveExport(name: String, error: Throwable, file: String): String =
+        "Couldn't save ${shown(name)}. ${reasonAndAdvice(error, file)}"
+
     /** "Couldn't export \u201CName\u201D. <reason>", knowing whether the app
      * left the screen while it rendered. Port of iOS's
      * `export(name:error:format:leftForeground:)`. A video's encoder and

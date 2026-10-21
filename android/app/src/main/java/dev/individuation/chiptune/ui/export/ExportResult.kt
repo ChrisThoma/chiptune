@@ -85,7 +85,7 @@ private class PendingShare {
 }
 
 /**
- * "Exported X.wav" (or X.mid): Share... or Save to device. Android's stand-in for the
+ * "Exported \u201CX\u201D": Share... or Save to device. Android's stand-in for the
  * iOS share sheet that follows an export; the review prompt hangs off the
  * share as it does there.
  */

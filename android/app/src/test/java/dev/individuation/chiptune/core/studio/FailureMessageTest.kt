@@ -221,4 +221,12 @@ class FailureMessageTest {
         assertEquals(plain, AudioFailureMessage.start(IllegalStateException("AudioTrack init failed: -38")))
         assertEquals(plain, AudioFailureMessage.start(null))
     }
+
+    /** "Save to device" is a save, not the export, which already succeeded. */
+    @Test fun aFailedSaveOfAnExportSaysSave() {
+        assertEquals(
+            "Couldn't save \u201CGolden\u201D. There isn't enough free space to write the video. Try again.",
+            WriteFailureMessage.saveExport("Golden", java.io.IOException("ENOSPC (No space left on device)"), "video"),
+        )
+    }
 }

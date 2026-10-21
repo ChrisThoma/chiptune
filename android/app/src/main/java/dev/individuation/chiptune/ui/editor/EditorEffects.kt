@@ -169,7 +169,7 @@ class AndroidEditorEffects(private val context: Context) : EditorEffects {
                 e
             }
             main.post {
-                val text = if (failure == null) "Saved" else WriteFailureMessage.export(file.nameWithoutExtension, failure, WriteFailureMessage.fileNoun(file.extension))
+                val text = if (failure == null) "Saved" else WriteFailureMessage.saveExport(file.nameWithoutExtension, failure, WriteFailureMessage.fileNoun(file.extension))
                 Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
             }
         }

@@ -81,7 +81,7 @@ fun ExportNotesFooter.text(song: Song, format: ExportOptions.Format): String? = 
 object ExportFormatFooter {
     fun text(format: ExportOptions.Format): String? = when (format) {
         ExportOptions.Format.WAV -> null
-        ExportOptions.Format.VIDEO -> "A 9:16 video for sharing to IG, TikTok, YouTube, etc."
+        ExportOptions.Format.VIDEO -> "A tall video for Instagram, TikTok and YouTube."
         ExportOptions.Format.MIDI ->
             "A MIDI file holds your notes, not the chip sounds. The app you open it in plays them with its own instruments."
     }
@@ -104,7 +104,7 @@ object ExportControls {
 /** The length readout under Repeats, and what to say when the file will run
  * long. Port of `ExportLength`. */
 object ExportLength {
-    /** Reels and Shorts cut a video off here. */
+    /** Past this, YouTube posts a video as a regular one, not a Short. */
     const val SHORTS_LIMIT_SECONDS = 180.0
 
     /** Rough length of the file, so the repeat count means something. Reads
@@ -124,8 +124,8 @@ object ExportLength {
     /** Null for anything but a video that runs long. */
     fun warning(format: ExportOptions.Format, seconds: Double): String? {
         if (format != ExportOptions.Format.VIDEO) return null
-        if (seconds > VideoExport.MAX_SECONDS) return "Too long for a video — ${Format.clock(VideoExport.MAX_SECONDS)} max."
-        if (seconds > SHORTS_LIMIT_SECONDS) return "Reels and Shorts cut off at ${Format.clock(SHORTS_LIMIT_SECONDS)}."
+        if (seconds > VideoExport.MAX_SECONDS) return "Too long for a video. The limit is ${Format.clock(VideoExport.MAX_SECONDS)}."
+        if (seconds > SHORTS_LIMIT_SECONDS) return "Over ${Format.clock(SHORTS_LIMIT_SECONDS)}, YouTube posts it as a regular video, not a Short."
         return null
     }
 }
@@ -163,7 +163,7 @@ object ExportCopy {
     /** What the chosen video style looks like, under the Grid/Cartridge picker. */
     fun styleFooter(style: ExportOptions.VideoStyle): String = when (style) {
         ExportOptions.VideoStyle.GRID -> "The pattern grid scrolls along as the song plays, the way it looks in the editor."
-        ExportOptions.VideoStyle.COVER -> "A game cartridge with the song's title and a bar for each channel that jumps with its notes."
+        ExportOptions.VideoStyle.COVER -> "A game cartridge with the song's title and a bar for each track that jumps with its notes."
     }
 
     fun loopCount(n: Int): String = "$n\u00d7"
@@ -201,8 +201,9 @@ object ExportCopy {
 
     fun canExport(hasNotes: Boolean, attemptInFlight: Boolean): Boolean = hasNotes && !attemptInFlight
 
-    /** The Android share step's title (iOS goes straight to the share sheet). */
-    fun resultTitle(fileName: String): String = "Exported $fileName"
+    /** The Android share step's title (iOS goes straight to the share
+     * sheet): the song's name in quotes, without the file's extension. */
+    fun resultTitle(fileName: String): String = "Exported \u201C${fileName.substringBeforeLast('.')}\u201D"
 }
 
 /** The Edit pill: its label comes from the same flag that drives the rows. */
