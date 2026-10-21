@@ -466,49 +466,65 @@ struct ExportSheet: View {
             ExportAnnouncement.post(ExportAnnouncement.canceled)
         }
         .accessibilityFocused($cancelFocused)
+        .id(Self.cancelExportID)
     }
+
+    private static let cancelExportID = "cancelExport"
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    formatPicker
-                    // Like the repeats: the render keeps the format it started
-                    // with, so a mid-render switch would only mislabel the file.
-                    .disabled(settingsLocked)
-                    // Dimmed like Repeats and Style: a disabled segmented
-                    // control barely looks it.
-                    .opacity(settingsLocked ? 0.4 : 1)
-                } footer: {
-                    if let text = ExportFormatFooter.text(for: format) {
-                        Text(text)
+            ScrollViewReader { scroller in
+                Form {
+                    Section {
+                        formatPicker
+                        // Like the repeats: the render keeps the format it started
+                        // with, so a mid-render switch would only mislabel the file.
+                        .disabled(settingsLocked)
+                        // Dimmed like Repeats and Style: a disabled segmented
+                        // control barely looks it.
+                        .opacity(settingsLocked ? 0.4 : 1)
+                    } footer: {
+                        if let text = ExportFormatFooter.text(for: format) {
+                            Text(text)
+                        }
+                    }
+
+                    // A MIDI file is the arrangement once, so neither control
+                    // applies to it.
+                    if ExportControls.showsRepeats(format) { repeatsSection }
+                    if ExportControls.showsEnding(format) { endingSection }
+                    if ExportControls.showsStyle(format) { styleSection }
+
+                    Section {
+                        if studio.isExporting {
+                            progressRow
+                            cancelButton
+                        } else {
+                            Button {
+                                guard startedAttempt == nil else { return }
+                                startedAttempt = studio.export()
+                            } label: {
+                                exportLabel
+                            }
+                            .disabled(startedAttempt != nil || !studio.song.hasNotes
+                                       || ExportControls.blocksExport(format: format, seconds: length))
+                            .accessibilityHint(ExportControls.disabledHint(format: format, seconds: length) ?? "")
+                        }
+                    } footer: {
+                        if let text = ExportNotesFooter.text(for: studio.song, format: format) {
+                            Text(text)
+                        }
                     }
                 }
-
-                // A MIDI file is the arrangement once, so neither control
-                // applies to it.
-                if ExportControls.showsRepeats(format) { repeatsSection }
-                if ExportControls.showsEnding(format) { endingSection }
-                if ExportControls.showsStyle(format) { styleSection }
-
-                Section {
-                    if studio.isExporting {
-                        progressRow
-                        cancelButton
-                    } else {
-                        Button {
-                            guard startedAttempt == nil else { return }
-                            startedAttempt = studio.export()
-                        } label: {
-                            exportLabel
-                        }
-                        .disabled(startedAttempt != nil || !studio.song.hasNotes
-                                   || ExportControls.blocksExport(format: format, seconds: length))
-                        .accessibilityHint(ExportControls.disabledHint(format: format, seconds: length) ?? "")
-                    }
-                } footer: {
-                    if let text = ExportNotesFooter.text(for: studio.song, format: format) {
-                        Text(text)
+                // At the largest text sizes the sections above push the progress
+                // and Cancel export below the fold, so a render brings them up.
+                // No anchor: the least scroll that shows Cancel, which is none
+                // when it's already on screen, and the progress row sits just
+                // above it.
+                .onChange(of: studio.isExporting) { _, exporting in
+                    guard exporting else { return }
+                    DispatchQueue.main.async {
+                        withAnimation { scroller.scrollTo(Self.cancelExportID) }
                     }
                 }
             }
