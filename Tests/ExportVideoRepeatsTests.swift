@@ -59,8 +59,8 @@ final class ExportVideoRepeatsTests: XCTestCase {
         XCTAssertEqual(options.loopCount, 1)
     }
 
-    /// The count it picked isn't the user's, but it's no longer 1, so
-    /// leaving Video and coming back keeps it.
+    /// Leaving Video puts the picked count back to 1, and coming back picks
+    /// it again.
     func testComingBackToVideoKeepsThePickedCount() {
         let song = TestSongs.empty(tempo: 132, length: 16)
         var options = ExportOptions()
@@ -68,6 +68,39 @@ final class ExportVideoRepeatsTests: XCTestCase {
         options.selectFormat(.wav, for: song)
         options.selectFormat(.video, for: song)
         XCTAssertEqual(options.loopCount, 6)
+    }
+
+    /// Looking at Video picked six repeats, but only for the video: going
+    /// back to WAV without touching Repeats exported six passes of a song
+    /// the user had asked for once.
+    func testLeavingVideoPutsAPickedCountBack() {
+        let song = TestSongs.empty(tempo: 132, length: 16)
+        var options = ExportOptions()
+        options.selectFormat(.video, for: song)
+        options.selectFormat(.wav, for: song)
+        XCTAssertEqual(options.format, .wav)
+        XCTAssertEqual(options.loopCount, 1)
+    }
+
+    func testVideoThenMidiThenVideoPicksTheCountAgain() {
+        let song = TestSongs.empty(tempo: 132, length: 16)
+        var options = ExportOptions()
+        options.selectFormat(.video, for: song)
+        options.selectFormat(.midi, for: song)
+        XCTAssertEqual(options.loopCount, 1)
+        options.selectFormat(.video, for: song)
+        XCTAssertEqual(options.loopCount, 6)
+    }
+
+    /// Stepped to on Video, the count is the user's, and leaving Video
+    /// keeps it.
+    func testACountSteppedToOnVideoSurvivesLeavingIt() {
+        let song = TestSongs.empty(tempo: 132, length: 16)
+        var options = ExportOptions()
+        options.selectFormat(.video, for: song)
+        options.setLoopCount(3)
+        options.selectFormat(.wav, for: song)
+        XCTAssertEqual(options.loopCount, 3)
     }
 }
 
