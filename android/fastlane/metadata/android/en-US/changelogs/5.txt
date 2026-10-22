@@ -1,0 +1,1 @@
+New: export a song as a video. Pick Video in the Export sheet to get a tall video of your song playing, ready for Instagram, TikTok or YouTube. Choose Grid to show your notes scrolling past, or Cartridge for a game cartridge with a bar for each track that lights up in blocks with its notes, like the meter on the app icon. Save to device puts it in Movies/Chiptune.

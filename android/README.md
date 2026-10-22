@@ -137,5 +137,5 @@ export CHIPTUNE_VERSION_CODE=1
 The four signing values can instead go in the gitignored `keystore.properties`
 (same names as keys). Without them the release build still assembles, unsigned,
 with a warning. `CHIPTUNE_VERSION_CODE` sets the version code (default 1);
-`versionName` stays 1.0. Release is minified with R8. Play submission steps are
+`versionName` matches the iOS release (1.2.1). Release is minified with R8. Play submission steps are
 in `../docs/play-store/submission.md`.
