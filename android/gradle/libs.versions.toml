@@ -10,6 +10,7 @@ coroutines = "1.11.0"
 json = "20260814"
 profileinstaller = "1.4.1"
 playReview = "2.0.2"
+fragment = "1.9.1"
 
 [libraries]
 androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
@@ -29,6 +30,7 @@ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 play-review = { group = "com.google.android.play", name = "review", version.ref = "playReview" }
+androidx-fragment = { group = "androidx.fragment", name = "fragment", version.ref = "fragment" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]

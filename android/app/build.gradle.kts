@@ -173,6 +173,11 @@ dependencies {
     implementation(libs.androidx.profileinstaller)
     // In-app review: asked for after a milestone export is shared. A no-op without Play.
     implementation(libs.play.review)
+    // play-services-basement, under review 2.0.2 (the newest), asks for
+    // fragment 1.1.0, and nothing else here asks for a newer one. Play Console
+    // flagged 1.2.1 (5) for shipping that outdated version, so this sets the
+    // floor.
+    implementation(libs.androidx.fragment)
     debugImplementation(libs.androidx.ui.tooling)
 
     testImplementation(libs.junit)
