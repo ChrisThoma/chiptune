@@ -265,12 +265,28 @@ struct VideoLayout {
         return min(140, (available / CGFloat(trackCount)).rounded(.down))
     }
 
-    /// The full extent of a track's bar. The renderer fills it from the
-    /// bottom by the track's pulse.
+    /// The full extent of a track's bar. The renderer lights its segments
+    /// from the bottom by the track's pulse.
     func coverBarRect(track: Int) -> CGRect {
         let total = CGFloat(trackCount) * coverBarWidth + CGFloat(trackCount - 1) * coverBarGap
         let x = labelRect.midX - total / 2 + CGFloat(track) * (coverBarWidth + coverBarGap)
         return CGRect(x: x, y: coverBarsTop, width: coverBarWidth, height: coverBarsBottom - coverBarsTop)
+    }
+
+    /// A bar is drawn as a stack of segments, like the app icon's meter.
+    static let coverSegmentCount = 6
+    static let coverSegmentGap: CGFloat = 8
+
+    /// A track's bar cut into `coverSegmentCount` equal segments, bottom
+    /// first, with `coverSegmentGap` between each.
+    func coverBarSegments(track: Int) -> [CGRect] {
+        let bar = coverBarRect(track: track)
+        let count = CGFloat(Self.coverSegmentCount)
+        let height = (bar.height - Self.coverSegmentGap * (count - 1)) / count
+        return (0..<Self.coverSegmentCount).map { index in
+            let y = bar.maxY - height - CGFloat(index) * (height + Self.coverSegmentGap)
+            return CGRect(x: bar.minX, y: y, width: bar.width, height: height)
+        }
     }
 
     /// Track names sit centred under their bars.

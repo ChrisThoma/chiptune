@@ -27,6 +27,14 @@ struct ChannelPulse {
         silent = song.tracks.map(MidiExport.isSilent)
     }
 
+    /// How many of a bar's `count` segments `level` lights: any level lights
+    /// the bottom one, and the count rounds up so a note's first frames
+    /// light the whole bar.
+    static func litSegments(level: Double, of count: Int) -> Int {
+        guard level > 0 else { return 0 }
+        return min(count, Int((level * Double(count)).rounded(.up)))
+    }
+
     /// One level per track, 0...1.
     func levels(frame: Int) -> [Double] {
         silent.indices.map { level(track: $0, frame: frame) }

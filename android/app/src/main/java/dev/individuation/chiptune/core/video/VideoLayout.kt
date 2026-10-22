@@ -241,6 +241,17 @@ class VideoLayout(trackCount: Int) {
     }
 
     /** Track names sit centred under their bars. */
+    /** [coverBarRect] cut into [COVER_SEGMENT_COUNT] equal segments, bottom
+     * first, with [COVER_SEGMENT_GAP] between each, like the app icon's
+     * meter. iOS's `coverBarSegments(track:)`. */
+    fun coverBarSegments(track: Int): List<FrameRect> {
+        val bar = coverBarRect(track)
+        val height = (bar.height - COVER_SEGMENT_GAP * (COVER_SEGMENT_COUNT - 1)) / COVER_SEGMENT_COUNT
+        return (0 until COVER_SEGMENT_COUNT).map { index ->
+            FrameRect(bar.minX, bar.maxY - height - index * (height + COVER_SEGMENT_GAP), bar.width, height)
+        }
+    }
+
     val coverBarLabelY: Double get() = coverBarsBottom + 40
 
     /** Where a track's name is drawn under its bar: no wider than the bar's
@@ -253,6 +264,8 @@ class VideoLayout(trackCount: Int) {
     }
 
     companion object {
+        const val COVER_SEGMENT_COUNT = 6
+        const val COVER_SEGMENT_GAP = 8.0
         const val WIDTH = 1080
         const val HEIGHT = 1920
         /** Kept clear at the top: 12.5% of the height. */

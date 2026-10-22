@@ -401,6 +401,29 @@ class VideoLayoutTest {
         assertEquals(FrameRect(774.0, 752.0, 50.0, 220.0), VideoLayout(8).coverBarRect(7))
     }
 
+    /** Port of the iOS segment test: each bar is a stack of segments, like
+     * the app icon's meter, bottom first. */
+    @Test
+    fun aBarIsAStackOfEvenSegmentsFromTheBottomUp() {
+        for (count in listOf(1, 4, 8)) {
+            val layout = VideoLayout(count)
+            for (track in 0 until count) {
+                val bar = layout.coverBarRect(track)
+                val segments = layout.coverBarSegments(track)
+                assertEquals(VideoLayout.COVER_SEGMENT_COUNT, segments.size)
+                assertEquals(bar.maxY, segments.first().maxY, 0.0)
+                assertEquals(bar.minY, segments.last().minY, 0.0)
+                for ((lower, upper) in segments.zipWithNext()) {
+                    assertEquals(lower.height, upper.height, 0.0)
+                    assertEquals("$count / $track", VideoLayout.COVER_SEGMENT_GAP, lower.minY - upper.maxY, 0.0)
+                    assertEquals(bar.minX, upper.minX, 0.0)
+                    assertEquals(bar.width, upper.width, 0.0)
+                }
+            }
+        }
+        assertEquals(FrameRect(256.0, 942.0, 124.0, 30.0), VideoLayout(4).coverBarSegments(0).first())
+    }
+
     // MARK: Track names
 
     /** Width of [text] as the drawer draws it: JetBrains Mono Bold, measured

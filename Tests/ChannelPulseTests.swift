@@ -165,4 +165,14 @@ final class ChannelPulseTests: XCTestCase {
         song.patterns[0].rows[0][0] = 60
         XCTAssertEqual(pulse(song, loops: 2).levels(frame: 12)[0], 1)
     }
+
+    /// A bar lights whole segments: any level at all lights the bottom one,
+    /// a full level lights them all, and the count rounds up between.
+    func testALevelLightsWholeSegmentsRoundingUp() {
+        XCTAssertEqual(ChannelPulse.litSegments(level: 0, of: 6), 0)
+        XCTAssertEqual(ChannelPulse.litSegments(level: 0.01, of: 6), 1)
+        XCTAssertEqual(ChannelPulse.litSegments(level: 0.5, of: 6), 3)
+        XCTAssertEqual(ChannelPulse.litSegments(level: 0.51, of: 6), 4)
+        XCTAssertEqual(ChannelPulse.litSegments(level: 1, of: 6), 6)
+    }
 }

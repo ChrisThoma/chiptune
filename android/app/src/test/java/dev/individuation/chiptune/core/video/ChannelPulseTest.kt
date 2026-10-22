@@ -150,4 +150,15 @@ class ChannelPulseTest {
         val song = song().withPattern(0) { it.copy(length = 4) }.setNote(0, 0, 60)
         assertEquals(1.0, pulse(song, loops = 2).levels(12)[0], 0.0)
     }
+
+    /** A bar lights whole segments: any level lights the bottom one, a full
+     * level lights them all, and the count rounds up between. */
+    @Test
+    fun aLevelLightsWholeSegmentsRoundingUp() {
+        assertEquals(0, ChannelPulse.litSegments(0.0, 6))
+        assertEquals(1, ChannelPulse.litSegments(0.01, 6))
+        assertEquals(3, ChannelPulse.litSegments(0.5, 6))
+        assertEquals(4, ChannelPulse.litSegments(0.51, 6))
+        assertEquals(6, ChannelPulse.litSegments(1.0, 6))
+    }
 }

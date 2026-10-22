@@ -345,6 +345,30 @@ final class VideoLayoutTests: XCTestCase {
         }
     }
 
+    /// Each bar is a stack of segments, like the app icon's meter: bottom
+    /// first, inside the bar, the same size, with a gap between each.
+    func testABarIsAStackOfEvenSegmentsFromTheBottomUp() {
+        for count in [1, 4, 8] {
+            let layout = VideoLayout(trackCount: count)
+            for track in 0..<count {
+                let bar = layout.coverBarRect(track: track)
+                let segments = layout.coverBarSegments(track: track)
+                XCTAssertEqual(segments.count, VideoLayout.coverSegmentCount)
+                guard let first = segments.first, let last = segments.last else { continue }
+                XCTAssertEqual(first.maxY, bar.maxY)
+                XCTAssertEqual(last.minY, bar.minY)
+                for (lower, upper) in zip(segments, segments.dropFirst()) {
+                    XCTAssertEqual(lower.size, upper.size)
+                    XCTAssertEqual(lower.minY - upper.maxY, VideoLayout.coverSegmentGap, "\(count) / \(track)")
+                    XCTAssertEqual(upper.minX, bar.minX)
+                    XCTAssertEqual(upper.width, bar.width)
+                }
+            }
+        }
+        XCTAssertEqual(VideoLayout(trackCount: 4).coverBarSegments(track: 0).first,
+                       CGRect(x: 256, y: 942, width: 124, height: 30))
+    }
+
     /// The moulded arrow sits in the plastic under the label.
     func testTheTriangleSitsBetweenTheLabelAndTheBodysBottom() {
         let layout = VideoLayout(trackCount: 4)

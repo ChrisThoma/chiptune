@@ -59,6 +59,11 @@ class ChannelPulse(song: Song, private val timeline: VideoTimeline) {
         /** A third of a second at 30 fps. */
         const val DECAY_FRAMES = 10
 
+        /** How many of a bar's [count] segments [level] lights: any level
+         * lights the bottom one, and the count rounds up. */
+        fun litSegments(level: Double, count: Int): Int =
+            if (level <= 0) 0 else minOf(count, kotlin.math.ceil(level * count).toInt())
+
         /** Whether a track's name is drawn dim, as one the soundtrack doesn't
          * play: muted, or at a volume the MIDI export calls silent. The same
          * rule in both styles, and the one that keeps a Cartridge bar dark.

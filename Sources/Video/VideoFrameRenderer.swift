@@ -338,16 +338,13 @@ final class VideoFrameRenderer {
         let levels = pulse.levels(frame: frame)
         for index in song.tracks.indices {
             let track = song.tracks[index]
-            let rect = layout.coverBarRect(track: index)
-            let radius = min(rect.width / 2, 18)
-            Palette.panelHigh.uiColor.setFill()
-            UIBezierPath(roundedRect: rect, cornerRadius: radius).fill()
-            let level = levels[safe: index] ?? 0
-            if level > 0 {
-                let height = max(rect.height * CGFloat(level), radius * 2)
-                let lit = CGRect(x: rect.minX, y: rect.maxY - height, width: rect.width, height: height)
-                Palette.channel(track.kind).uiColor.setFill()
-                UIBezierPath(roundedRect: lit, cornerRadius: radius).fill()
+            let segments = layout.coverBarSegments(track: index)
+            let lit = ChannelPulse.litSegments(level: levels[safe: index] ?? 0, of: segments.count)
+            for (row, segment) in segments.enumerated() {
+                let color = row < lit ? Self.segmentColor(Palette.channel(track.kind), row: row, of: segments.count)
+                                      : Palette.panelHigh
+                color.uiColor.setFill()
+                UIBezierPath(roundedRect: segment, cornerRadius: Self.segmentRadius).fill()
             }
             let silent = Self.dimsName(of: track, in: .cover)
             let labelRect = layout.coverBarLabelRect(track: index)
@@ -371,6 +368,15 @@ final class VideoFrameRenderer {
                                              isFinalFrame: frame >= timeline.totalFrames - 1)
         Self.text(elapsedText, size: 28, weight: .semibold, color: Palette.dim, in: times)
         Self.text(length, size: 28, weight: .semibold, color: Palette.dim, in: times, alignment: .right)
+    }
+
+    static let segmentRadius: CGFloat = 6
+
+    /// A lit segment's colour: the channel's at the bottom, a little darker
+    /// up the stack, as the app icon's bars are.
+    static func segmentColor(_ channel: RGBA, row: Int, of count: Int) -> RGBA {
+        let height = CGFloat(row) / CGFloat(max(count - 1, 1))
+        return channel.withAlpha(1 - 0.2 * height).flattened(over: Palette.background)
     }
 
     /// Whether a track's name is drawn dim, as one the soundtrack doesn't

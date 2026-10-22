@@ -310,10 +310,10 @@ class VideoFrameDrawer(
         text("${song.tempo.toInt()} BPM  ·  $length", layout.coverMetaFontSize, semibold, DIM, meta)
 
         for (index in song.tracks.indices) {
-            val bar = layout.coverBarRect(index)
-            val radius = coverBarRadius(bar)
             fill.color = PANEL_HIGH.argb
-            canvas.drawRoundRect(bar.toRectF(), radius, radius, fill)
+            for (segment in layout.coverBarSegments(index)) {
+                canvas.drawRoundRect(segment.toRectF(), SEGMENT_RADIUS, SEGMENT_RADIUS, fill)
+            }
             // Below the bar, so no level ever reaches it.
             val label = layout.coverBarLabelRect(index)
             text(song.label(index), layout.coverLabelFontSize, bold,
@@ -332,14 +332,11 @@ class VideoFrameDrawer(
     private fun drawCoverMoving(frame: Int) {
         val levels = pulse.levels(frame)
         for (index in song.tracks.indices) {
-            val level = levels.getOrNull(index) ?: 0.0
-            if (level > 0) {
-                val bar = layout.coverBarRect(index)
-                val radius = coverBarRadius(bar)
-                val height = maxOf(bar.height * level, radius * 2.0)
-                fill.color = channel(index).argb
-                rect.set(bar.minX.toFloat(), (bar.maxY - height).toFloat(), bar.maxX.toFloat(), bar.maxY.toFloat())
-                canvas.drawRoundRect(rect, radius, radius, fill)
+            val segments = layout.coverBarSegments(index)
+            val lit = ChannelPulse.litSegments(levels.getOrNull(index) ?: 0.0, segments.size)
+            for (row in 0 until lit) {
+                fill.color = segmentColor(channel(index), row, segments.size).argb
+                canvas.drawRoundRect(segments[row].toRectF(), SEGMENT_RADIUS, SEGMENT_RADIUS, fill)
             }
         }
 
@@ -358,7 +355,12 @@ class VideoFrameDrawer(
         text(elapsedText, 28.0, semibold, DIM, layout.coverTimeRect)
     }
 
-    private fun coverBarRadius(bar: FrameRect): Float = minOf(bar.width / 2, 18.0).toFloat()
+    /** A lit segment's colour: the channel's at the bottom, a little darker
+     * up the stack, as the app icon's bars are. */
+    private fun segmentColor(channel: Rgba, row: Int, count: Int): Rgba {
+        val height = row.toDouble() / maxOf(count - 1, 1)
+        return channel.withAlpha(1 - 0.2 * height).flattened(BACKGROUND)
+    }
 
     // MARK: Tag
 
@@ -434,6 +436,7 @@ class VideoFrameDrawer(
         val BACKGROUND = Rgba(ChipColors.background)
         val PANEL = Rgba(ChipColors.panel)
         val PANEL_HIGH = Rgba(ChipColors.panelHigh)
+        const val SEGMENT_RADIUS = 6f
         val GRID = Rgba(ChipColors.grid)
         val TEXT = Rgba(ChipColors.text)
         val DIM = Rgba(ChipColors.dim)
