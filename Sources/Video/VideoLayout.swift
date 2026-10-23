@@ -155,20 +155,13 @@ struct VideoLayout {
         return lo...max(min(upper, last), lo)
     }
 
-    /// How much of a step the sounding row holds still on the playhead
-    /// before the grid starts moving on to the next.
-    static let scrollHold = 0.7
-
-    /// Where the grid is, in steps, `elapsed` steps into the body: held on
-    /// the sounding step for most of it, then eased to the next over the
-    /// step's last 30%, so the scroll is continuous at slow tempos but the
-    /// sounding row is never half a row off the playhead mid-step. The last
-    /// step holds, since nothing follows it.
+    /// Where the grid is, in steps, `elapsed` steps into the body: it glides
+    /// at one steady speed, so each row crosses the playhead as its note
+    /// starts and drifts up out of it over the rest of its step. Holding each
+    /// row for most of its step and then easing on read as choppy at 30 fps.
+    /// The last step holds, since nothing follows it.
     static func scrollPosition(elapsed: Double, lastStep: Int) -> Double {
-        let step = min(Int(max(elapsed, 0)), lastStep)
-        guard step < lastStep else { return Double(step) }
-        let into = min(max((elapsed - Double(step) - scrollHold) / (1 - scrollHold), 0), 1)
-        return Double(step) + into * into * (3 - 2 * into)
+        min(max(elapsed, 0), Double(lastStep))
     }
 
     // MARK: Cartridge (the Cover style)
@@ -345,10 +338,10 @@ struct GridFrame: Equatable {
                     centerY: layout.rowCenterY(step: step, position: position))
             }
         }
-        // While the grid moves on, the band stretches up to keep the
-        // sounding row inside it until its step ends.
-        let lift = layout.rowCenterY(step: sounding, position: position) - layout.playheadY
-        band = layout.playheadRowRect.union(layout.playheadRowRect.offsetBy(dx: 0, dy: lift))
+        // The band marks the playhead and stays put while the rows glide
+        // through it. Stretching it after the moving row snapped it back on
+        // every step.
+        band = layout.playheadRowRect
         bandLight = timeline.position(frame: frame) == nil
             ? max(0, 1 - Double(timeline.sample(frame: frame) - timeline.bodySamples) / Double(max(timeline.tailSamples, 1)))
             : 1

@@ -219,41 +219,63 @@ class VideoLayoutTest {
         }
     }
 
-    /** The row whose sound is playing stays inside the highlighted band on
-     * every frame of its step, at slow, middling, fast and uneven tempos. */
-    @Test fun theSoundingRowStaysInsideTheBandForItsWholeStep() {
-        for (count in listOf(1, 8)) {
-            val layout = VideoLayout(count)
-            for (tempo in listOf(40.0, 60.0, 97.0, 137.0, 150.0, 300.0)) {
-                val timeline = shortThenLong(tempo)
-                for (frame in bodyFrames(timeline)) {
-                    val grid = GridFrame.of(layout, timeline, frame)
-                    val row = grid?.rows?.firstOrNull { it.globalStep == grid.soundingStep }
-                    if (grid == null || row == null) {
-                        fail("$tempo BPM frame $frame doesn't draw its sounding row"); return
-                    }
-                    assertEquals(timeline.sample(frame) / timeline.samplesPerStep, grid.soundingStep)
-                    val rect = layout.rowRect(row.centerY)
-                    assertTrue("$count tracks, $tempo BPM frame $frame: $rect outside ${grid.band}", grid.band.contains(rect))
-                    assertTrue("$tempo BPM frame $frame", grid.band.height <= 2 * layout.rowPitch + 0.001)
+    /** Through the body the grid glides at one steady speed, a row per step,
+     * at slow, middling, fast and uneven tempos: no frame holds still and
+     * none lurches. Holding each row and then jumping read as choppy on a
+     * phone at 30 fps. */
+    @Test fun theGridGlidesAtASteadySpeed() {
+        val layout = VideoLayout(4)
+        for (tempo in listOf(40.0, 60.0, 97.0, 120.0, 137.0, 150.0, 300.0)) {
+            val timeline = shortThenLong(tempo)
+            val last = timeline.stepsPerPass * timeline.loopCount - 1
+            val speed = layout.rowPitch * VideoTimeline.SAMPLES_PER_FRAME / timeline.samplesPerStep
+            var previous: GridFrame? = null
+            for (frame in bodyFrames(timeline)) {
+                if (timeline.elapsedSteps(frame) > last) continue
+                val grid = GridFrame.of(layout, timeline, frame) ?: return fail("$tempo BPM frame $frame has no grid")
+                val row = grid.rows.firstOrNull()
+                val before = row?.let { r -> previous?.rows?.firstOrNull { it.globalStep == r.globalStep } }
+                if (row != null && before != null) {
+                    assertEquals("$tempo BPM frame $frame", -speed, row.centerY - before.centerY, 0.01)
                 }
+                previous = grid
             }
         }
     }
 
-    /** For most of its step the sounding row sits still on the playhead,
-     * with the band its own size; the grid only moves on in the step's last
-     * part. */
-    @Test fun theSoundingRowHoldsOnThePlayheadForMostOfItsStep() {
+    /** Each row crosses the playhead as its note starts and drifts up out of
+     * it over the rest of its step, so the sounding row is always on the
+     * playhead or less than a row above it. */
+    @Test fun eachRowReachesThePlayheadAsItsNoteStarts() {
+        for (step in 0..5) assertEquals(step.toDouble(), VideoLayout.scrollPosition(step.toDouble(), 5), 0.0)
+        assertEquals(2.25, VideoLayout.scrollPosition(2.25, 5), 0.0)
         val layout = VideoLayout(4)
-        val timeline = shortThenLong(tempo = 60.0)
+        val timeline = shortThenLong(tempo = 97.0)
         for (frame in bodyFrames(timeline)) {
-            val into = (timeline.sample(frame) % timeline.samplesPerStep).toDouble() / timeline.samplesPerStep
-            if (into >= 0.65) continue
-            val grid = GridFrame.of(layout, timeline, frame) ?: continue
-            val row = grid.rows.firstOrNull { it.globalStep == grid.soundingStep } ?: continue
-            assertEquals("frame $frame", layout.playheadY, row.centerY, 0.001)
-            assertEquals("frame $frame", layout.playheadRowRect, grid.band)
+            val grid = GridFrame.of(layout, timeline, frame)
+            val row = grid?.rows?.firstOrNull { it.globalStep == grid.soundingStep }
+            if (grid == null || row == null) {
+                fail("frame $frame doesn't draw its sounding row"); return
+            }
+            assertEquals(timeline.sample(frame) / timeline.samplesPerStep, grid.soundingStep)
+            assertTrue("frame $frame", row.centerY <= layout.playheadY + 0.001)
+            assertTrue("frame $frame", row.centerY > layout.playheadY - layout.rowPitch)
+        }
+    }
+
+    /** The band stays put on the playhead, one row tall, while the rows glide
+     * through it. A band that stretched after the moving row snapped back on
+     * every step. */
+    @Test fun theBandStaysOnThePlayhead() {
+        for (count in listOf(1, 8)) {
+            val layout = VideoLayout(count)
+            for (tempo in listOf(40.0, 120.0, 300.0)) {
+                val timeline = shortThenLong(tempo)
+                for (frame in bodyFrames(timeline)) {
+                    assertEquals("$count tracks, $tempo BPM frame $frame",
+                        layout.playheadRowRect, GridFrame.of(layout, timeline, frame)?.band)
+                }
+            }
         }
     }
 

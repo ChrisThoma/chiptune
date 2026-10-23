@@ -7,9 +7,9 @@ import UIKit
 ///
 /// Grid: the song's steps, across patterns and passes, scroll up past a
 /// fixed playing row (`GridFrame`), as the header video on the product page
-/// does. The row that is sounding is at
-/// full colour; rows away from it dim into the background, so the eye stays
-/// on the beat. Cover (shown as "Cartridge"): a grey game cartridge whose
+/// does. The grid glides at a steady speed, each row crossing the playhead
+/// as its note starts. The row on the playhead is at full colour; rows away
+/// from it dim into the background, so the eye stays on the beat. Cover (shown as "Cartridge"): a grey game cartridge whose
 /// label carries the title, tempo and length, a bar per track that flashes
 /// on each note (`ChannelPulse`), and a progress bar.
 /// Both carry the "Made with Chiptune" tag.

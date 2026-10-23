@@ -25,13 +25,6 @@ data class FrameRect(val x: Double, val y: Double, val width: Double, val height
     fun insetBy(dx: Double, dy: Double): FrameRect = FrameRect(x + dx, y + dy, width - 2 * dx, height - 2 * dy)
 
     fun offsetBy(dx: Double, dy: Double): FrameRect = FrameRect(x + dx, y + dy, width, height)
-
-    /** CGRect's `union`: the smallest rectangle holding both. */
-    fun union(other: FrameRect): FrameRect {
-        val left = minOf(minX, other.minX)
-        val top = minOf(minY, other.minY)
-        return FrameRect(left, top, maxOf(maxX, other.maxX) - left, maxOf(maxY, other.maxY) - top)
-    }
 }
 
 /** A point in video pixels, origin top left. CGPoint's shape. */
@@ -280,21 +273,13 @@ class VideoLayout(trackCount: Int) {
         /** iOS `Theme.cellRadius` and Android `ChipRadii.cell`. */
         const val CELL_RADIUS = 5.0
 
-        /** How much of a step the sounding row holds still on the playhead
-         * before the grid starts moving on to the next. */
-        const val SCROLL_HOLD = 0.7
-
-        /** Where the grid is, in steps, [elapsed] steps into the body: held on
-         * the sounding step for most of it, then eased to the next over the
-         * step's last 30%, so the scroll is continuous at slow tempos but the
-         * sounding row is never half a row off the playhead mid-step. The
-         * last step holds, since nothing follows it. */
-        fun scrollPosition(elapsed: Double, lastStep: Int): Double {
-            val step = minOf(maxOf(elapsed, 0.0).toInt(), lastStep)
-            if (step >= lastStep) return step.toDouble()
-            val into = ((elapsed - step - SCROLL_HOLD) / (1 - SCROLL_HOLD)).coerceIn(0.0, 1.0)
-            return step + into * into * (3 - 2 * into)
-        }
+        /** Where the grid is, in steps, [elapsed] steps into the body: it
+         * glides at one steady speed, so each row crosses the playhead as its
+         * note starts and drifts up out of it over the rest of its step.
+         * Holding each row for most of its step and then easing on read as
+         * choppy at 30 fps. The last step holds, since nothing follows it. */
+        fun scrollPosition(elapsed: Double, lastStep: Int): Double =
+            elapsed.coerceIn(0.0, lastStep.toDouble())
 
         /** The song's name as both frames draw it: each line break, with the
          * spaces around it, becomes one space. A name typed in the app has
@@ -379,10 +364,10 @@ data class GridFrame(
                     Row(step, it.pattern, it.step, layout.rowCenterY(step, position))
                 }
             }
-            // While the grid moves on, the band stretches up to keep the
-            // sounding row inside it until its step ends.
-            val lift = layout.rowCenterY(sounding, position) - layout.playheadY
-            val band = layout.playheadRowRect.union(layout.playheadRowRect.offsetBy(0.0, lift))
+            // The band marks the playhead and stays put while the rows glide
+            // through it. Stretching it after the moving row snapped it back
+            // on every step.
+            val band = layout.playheadRowRect
             val light = if (timeline.position(frame) == null) {
                 maxOf(0.0, 1 - (timeline.sample(frame) - timeline.bodySamples).toDouble() / maxOf(timeline.tailSamples, 1))
             } else {

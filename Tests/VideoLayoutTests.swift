@@ -203,38 +203,64 @@ final class VideoLayoutTests: XCTestCase {
         }
     }
 
-    /// The row whose sound is playing stays inside the highlighted band on
-    /// every frame of its step, at slow, middling, fast and uneven tempos.
-    func testTheSoundingRowStaysInsideTheBandForItsWholeStep() {
-        for count in [1, 8] {
-            let layout = VideoLayout(trackCount: count)
-            for tempo in [40.0, 60, 97, 137, 150, 300] {
-                let timeline = shortThenLong(tempo: tempo)
-                for frame in bodyFrames(timeline) {
-                    guard let grid = GridFrame(layout: layout, timeline: timeline, frame: frame),
-                          let row = grid.rows.first(where: { $0.globalStep == grid.soundingStep }) else {
-                        XCTFail("\(tempo) BPM frame \(frame) doesn't draw its sounding row"); continue
-                    }
-                    XCTAssertEqual(grid.soundingStep, timeline.sample(frame: frame) / timeline.samplesPerStep)
-                    let rect = layout.rowRect(centerY: row.centerY)
-                    XCTAssertTrue(grid.band.contains(rect), "\(count) tracks, \(tempo) BPM frame \(frame): \(rect) outside \(grid.band)")
-                    XCTAssertLessThanOrEqual(grid.band.height, 2 * layout.rowPitch + 0.001, "\(tempo) BPM frame \(frame)")
+    /// Through the body the grid glides at one steady speed, a row per step,
+    /// at slow, middling, fast and uneven tempos: no frame holds still and
+    /// none lurches. Holding each row and then jumping read as choppy on a
+    /// phone at 30 fps.
+    func testTheGridGlidesAtASteadySpeed() {
+        let layout = VideoLayout(trackCount: 4)
+        for tempo in [40.0, 60, 97, 120, 137, 150, 300] {
+            let timeline = shortThenLong(tempo: tempo)
+            let last = timeline.stepsPerPass * timeline.loopCount - 1
+            let speed = layout.rowPitch * CGFloat(VideoTimeline.samplesPerFrame) / CGFloat(timeline.samplesPerStep)
+            var previous: GridFrame?
+            for frame in bodyFrames(timeline) where timeline.elapsedSteps(frame: frame) <= Double(last) {
+                guard let grid = GridFrame(layout: layout, timeline: timeline, frame: frame) else {
+                    return XCTFail("\(tempo) BPM frame \(frame) has no grid")
                 }
+                if let previous, let row = grid.rows.first,
+                   let before = previous.rows.first(where: { $0.globalStep == row.globalStep }) {
+                    XCTAssertEqual(row.centerY - before.centerY, -speed, accuracy: 0.01, "\(tempo) BPM frame \(frame)")
+                }
+                previous = grid
             }
         }
     }
 
-    /// For most of its step the sounding row sits still on the playhead, with
-    /// the band its own size; the grid only moves on in the step's last part.
-    func testTheSoundingRowHoldsOnThePlayheadForMostOfItsStep() {
+    /// Each row crosses the playhead as its note starts and drifts up out of
+    /// it over the rest of its step, so the sounding row is always on the
+    /// playhead or less than a row above it.
+    func testEachRowReachesThePlayheadAsItsNoteStarts() {
+        for step in 0...5 {
+            XCTAssertEqual(VideoLayout.scrollPosition(elapsed: Double(step), lastStep: 5), Double(step))
+        }
+        XCTAssertEqual(VideoLayout.scrollPosition(elapsed: 2.25, lastStep: 5), 2.25)
         let layout = VideoLayout(trackCount: 4)
-        let timeline = shortThenLong(tempo: 60)
+        let timeline = shortThenLong(tempo: 97)
         for frame in bodyFrames(timeline) {
-            let into = Double(timeline.sample(frame: frame) % timeline.samplesPerStep) / Double(timeline.samplesPerStep)
-            guard into < 0.65, let grid = GridFrame(layout: layout, timeline: timeline, frame: frame),
-                  let row = grid.rows.first(where: { $0.globalStep == grid.soundingStep }) else { continue }
-            XCTAssertEqual(row.centerY, layout.playheadY, accuracy: 0.001, "frame \(frame)")
-            XCTAssertEqual(grid.band, layout.playheadRowRect, "frame \(frame)")
+            guard let grid = GridFrame(layout: layout, timeline: timeline, frame: frame),
+                  let row = grid.rows.first(where: { $0.globalStep == grid.soundingStep }) else {
+                XCTFail("frame \(frame) doesn't draw its sounding row"); continue
+            }
+            XCTAssertEqual(grid.soundingStep, timeline.sample(frame: frame) / timeline.samplesPerStep)
+            XCTAssertLessThanOrEqual(row.centerY, layout.playheadY + 0.001, "frame \(frame)")
+            XCTAssertGreaterThan(row.centerY, layout.playheadY - layout.rowPitch, "frame \(frame)")
+        }
+    }
+
+    /// The band stays put on the playhead, one row tall, while the rows glide
+    /// through it. A band that stretched after the moving row snapped back
+    /// on every step.
+    func testTheBandStaysOnThePlayhead() {
+        for count in [1, 8] {
+            let layout = VideoLayout(trackCount: count)
+            for tempo in [40.0, 120, 300] {
+                let timeline = shortThenLong(tempo: tempo)
+                for frame in bodyFrames(timeline) {
+                    XCTAssertEqual(GridFrame(layout: layout, timeline: timeline, frame: frame)?.band,
+                                   layout.playheadRowRect, "\(count) tracks, \(tempo) BPM frame \(frame)")
+                }
+            }
         }
     }
 
