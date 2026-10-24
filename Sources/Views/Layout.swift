@@ -74,6 +74,14 @@ struct ChipLayout: Equatable {
     /// than a constant because a 13-inch window can afford a wider column than
     /// an 11-inch one without starving the grid.
     var sideColumnWidth: CGFloat
+    /// The slot between the grid column and the keyboard column in the side
+    /// arrangement, with the 1pt divider line centered in it. Ordinarily it
+    /// is just the line, 1pt. On a folding display in book pose it is the
+    /// fold itself (see `resolve(size:horizontalSizeClass:fold:)`), so the
+    /// grid ends where the hinge starts and the keys begin where it ends,
+    /// and nothing anyone needs to read or tap sits in the crease. Unused
+    /// when stacked.
+    var sideGapWidth: CGFloat = 1
     /// Octaves of piano the keyboard draws. Whatever this is, the octave
     /// buttons and `studio.octave` still name the *lowest* one shown, and the
     /// hardware letter row still plays that one.
@@ -420,10 +428,21 @@ struct ChipLayout: Equatable {
     /// half width is regular but too tall-and-thin to put the keys beside the
     /// grid. So the class decides which set of numbers, and the proportions
     /// decide the arrangement.
-    static func resolve(size: CGSize, horizontalSizeClass: UserInterfaceSizeClass?) -> ChipLayout {
-        var layout = horizontalSizeClass == .regular
-            ? arrangedPad(size: size)
-            : ChipLayout.phone
+    ///
+    /// `fold` is the display's division region — the hinge of a folding
+    /// phone — in the same local space as `size`, or nil where there is none
+    /// (and before iOS 27.1, which is the first to report one). It's a plain
+    /// rect rather than SwiftUI's `ReservedRegion` so this stays a pure
+    /// function the tests can call on any OS. See `foldSplit` for when it
+    /// counts.
+    static func resolve(size: CGSize, horizontalSizeClass: UserInterfaceSizeClass?,
+                        fold: CGRect? = nil) -> ChipLayout {
+        var layout: ChipLayout
+        if horizontalSizeClass == .regular {
+            layout = fold.flatMap { foldSplit(size: size, fold: $0) } ?? arrangedPad(size: size)
+        } else {
+            layout = ChipLayout.phone
+        }
         if size.height - layout.editorFixedHeight
             < CGFloat(minimumGridRows) * (layout.gridRowHeight + 2) {
             // Too short for the fixed editor in either arrangement, and the
@@ -459,6 +478,71 @@ struct ChipLayout: Equatable {
     /// further by `keyboardMaxWidth`.
     func editorColumnWidth(windowWidth: CGFloat) -> CGFloat {
         min(windowWidth, editorMaxWidth)
+    }
+
+    /// The narrowest the grid side of a fold may be: the step gutter, four
+    /// tracks at the *phone's* column floor, the "+" column, the 12pt of
+    /// padding and the 2pt gaps between the six items. Lower than
+    /// `minimumSideGridWidth`, which assumes iPad-width columns: a folding
+    /// phone's half is a phone's width, and four phone-width columns are
+    /// what the phone itself has always shown. Comes to 384.
+    static let minimumFoldGridWidth: CGFloat =
+        pad.gridGutterWidth + 4 * phone.gridMinColumnWidth + addColumnWidth + 12 + 5 * 2
+
+    /// The narrowest the key side of a fold may be: eight white keys at 40pt,
+    /// the seven 2pt gaps between them and the keyboard's own 20pt of inset.
+    /// 40 rather than the iPad column's 44: on a phone-sized half the 44pt
+    /// rule would refuse the 371.5pt column an 867pt Duo window leaves, and
+    /// the alternative there is a keyboard scrolled off the bottom of the
+    /// screen, which is no target at all. Comes to 354.
+    static let minimumFoldColumnWidth: CGFloat =
+        8 * 40 + 7 * whiteKeySpacing + 2 * keyboardHorizontalPadding
+
+    /// The side arrangement split at a fold instead of at `sideColumnWidth`,
+    /// or nil when the fold doesn't earn it.
+    ///
+    /// An iPhone Duo's inner display in landscape is 867 or 951pt wide —
+    /// under `minimumSideBySideWidth` one way round, so the editor stacked,
+    /// ran out of height and scrolled the keyboard off the bottom; just over
+    /// it the other, so the 400pt column put the hinge through the grid. The
+    /// fold is the natural seam: the grid and its chrome on the leading
+    /// half, the hinge as the gap between them, the keys and the docked
+    /// sound controls on the trailing half. A device held like a book is
+    /// already showing you two pages.
+    ///
+    /// Only a vertical fold inside the window counts, and only when both
+    /// sides clear their minimums (`minimumFoldGridWidth`,
+    /// `minimumFoldColumnWidth`). A horizontal fold — portrait tabletop —
+    /// is deliberately ignored: splitting the grid from the keys across it
+    /// would leave each a squat band, and the stacked editor already reads
+    /// fine there. The caller passes the fold whether the device is flat or
+    /// partly folded, so a pose change never re-lays out the editor under
+    /// the user's hands.
+    private static func foldSplit(size: CGSize, fold: CGRect) -> ChipLayout? {
+        guard fold.height > fold.width,
+              fold.minX > 0, fold.maxX < size.width else { return nil }
+        let leading = fold.minX
+        let trailing = size.width - fold.maxX
+        guard leading >= minimumFoldGridWidth,
+              trailing >= minimumFoldColumnWidth else { return nil }
+
+        var layout = ChipLayout.pad
+        layout.usesSideKeyboard = true
+        layout.keyboardMaxWidth = .infinity
+        layout.keyboardHeight = 220
+        layout.keyboardOctaves = 1
+        layout.sideColumnWidth = trailing
+        layout.sideGapWidth = fold.width
+        // The pad's 104pt floor would push four tracks into sideways scroll
+        // in a 455pt half. Lower it to what four tracks actually get there,
+        // floored to a whole point so rounding can't tip the row a fraction
+        // over, but never under the phone's floor (the minimum above already
+        // guarantees that) and never over the pad's.
+        let reserved = layout.gridRowWidth(columnWidth: 0, tracks: 4, canAddTrack: true)
+        let fits = ((leading - reserved) / 4).rounded(.down)
+        layout.gridMinColumnWidth = min(pad.gridMinColumnWidth,
+                                        max(phone.gridMinColumnWidth, fits))
+        return layout
     }
 
     /// The regular-width metrics, in whichever arrangement the window's

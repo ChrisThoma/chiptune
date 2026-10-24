@@ -649,4 +649,134 @@ final class LayoutTests: XCTestCase {
                                  inset,
                                  "the top black key overhangs the keyboard")
     }
+
+    // MARK: Book pose (a fold down the middle of the window)
+
+    /// An iPhone Duo's inner display in landscape, status bar on the trailing
+    /// edge, as ContentView's GeometryReader measures it: under the side
+    /// threshold, so without the fold it stacks and scrolls.
+    private let duoInner = CGSize(width: 867, height: 635)
+    /// The same display rotated the other way, which today splits at the
+    /// 400pt column and runs the fold through the grid.
+    private let duoInnerFlipped = CGSize(width: 951, height: 553)
+    /// The display in portrait, where the fold runs across instead of down.
+    private let duoInnerPortrait = CGSize(width: 669, height: 835)
+    /// The division region the simulator reports in both landscape
+    /// orientations, flat or partly folded, in the GeometryReader's space.
+    private let duoFold = CGRect(x: 455.5, y: 0, width: 40, height: 669)
+    /// The portrait one: a horizontal strip.
+    private let duoPortraitFold = CGRect(x: 0, y: 373.5, width: 669, height: 40)
+
+    /// Passing no fold has to be the two-argument rule exactly, field for
+    /// field, or every device without a hinge would move.
+    func testNoFoldIsTodaysLayout() {
+        let cases: [(CGSize, UserInterfaceSizeClass?)] = [
+            (padPortrait, .regular), (padLandscape, .regular),
+            (phonePortrait, .compact), (padLandscape, nil)
+        ]
+        for (size, sizeClass) in cases {
+            XCTAssertEqual(ChipLayout.resolve(size: size, horizontalSizeClass: sizeClass, fold: nil),
+                           ChipLayout.resolve(size: size, horizontalSizeClass: sizeClass),
+                           "\(size) \(String(describing: sizeClass))")
+        }
+    }
+
+    /// The case the fold exists for: the grid takes the leading half up to
+    /// the hinge, the hinge is the gap, and the keys and the docked sound
+    /// controls take the trailing half — without scrolling.
+    func testDuoInnerLandscapeSplitsAtTheFold() {
+        let layout = ChipLayout.resolve(size: duoInner, horizontalSizeClass: .regular,
+                                        fold: duoFold)
+        XCTAssertTrue(layout.usesSideKeyboard)
+        XCTAssertFalse(layout.scrollsEditor)
+        XCTAssertTrue(layout.isRegularWidth)
+        XCTAssertEqual(layout.sideColumnWidth, 371.5)
+        XCTAssertEqual(layout.sideGapWidth, 40)
+        XCTAssertEqual(layout.keyboardOctaves, 1)
+        XCTAssertEqual(layout.keyboardHeight, 220)
+        XCTAssertEqual(layout.keyboardMaxWidth, .infinity)
+
+        let grid = duoInner.width - layout.sideGapWidth - layout.sideColumnWidth
+        XCTAssertEqual(grid, 455.5)
+        let column = layout.gridColumnWidth(available: grid, tracks: 4, canAddTrack: true)
+        XCTAssertLessThanOrEqual(layout.gridRowWidth(columnWidth: column, tracks: 4,
+                                                     canAddTrack: true),
+                                 grid, "four starter tracks scroll sideways beside the fold")
+        XCTAssertGreaterThanOrEqual(layout.gridMinColumnWidth, ChipLayout.phone.gridMinColumnWidth)
+        XCTAssertLessThanOrEqual(layout.gridMinColumnWidth, ChipLayout.pad.gridMinColumnWidth)
+        XCTAssertEqual(layout.transportForm(width: grid), .row)
+    }
+
+    /// Rotated the other way the window is wider, and the fold still decides:
+    /// two equal halves rather than a 400pt column with the hinge in the grid.
+    func testDuoInnerFlippedSplitsAtTheFoldToo() {
+        let layout = ChipLayout.resolve(size: duoInnerFlipped, horizontalSizeClass: .regular,
+                                        fold: duoFold)
+        XCTAssertTrue(layout.usesSideKeyboard)
+        XCTAssertFalse(layout.scrollsEditor)
+        XCTAssertEqual(layout.sideColumnWidth, 455.5)
+        XCTAssertEqual(layout.sideGapWidth, 40)
+        XCTAssertEqual(duoInnerFlipped.width - layout.sideGapWidth - layout.sideColumnWidth, 455.5)
+    }
+
+    /// Why the fold matters: the same window without one is under the side
+    /// threshold, stacks, and is too short for the stacked keys, so the
+    /// keyboard scrolls off the bottom.
+    func testDuoInnerWithoutTheFoldScrolls() {
+        let layout = ChipLayout.resolve(size: duoInner, horizontalSizeClass: .regular)
+        XCTAssertTrue(layout.scrollsEditor)
+        XCTAssertFalse(layout.usesSideKeyboard)
+    }
+
+    /// Portrait tabletop is left alone: a fold across the window changes
+    /// nothing.
+    func testHorizontalFoldIsIgnored() {
+        XCTAssertEqual(ChipLayout.resolve(size: duoInnerPortrait, horizontalSizeClass: .regular,
+                                          fold: duoPortraitFold),
+                       ChipLayout.resolve(size: duoInnerPortrait, horizontalSizeClass: .regular))
+    }
+
+    /// Compact width, or no size class yet, is the phone whatever the fold.
+    func testCompactWidthIgnoresTheFold() {
+        XCTAssertEqual(ChipLayout.resolve(size: duoInner, horizontalSizeClass: .compact,
+                                          fold: duoFold), .phone)
+        XCTAssertEqual(ChipLayout.resolve(size: duoInner, horizontalSizeClass: nil,
+                                          fold: duoFold), .phone)
+    }
+
+    /// A fold that leaves either side under its minimum isn't worth
+    /// splitting at, and one outside the window isn't this window's.
+    func testAFoldTooFarToOneSideIsIgnored() {
+        let folds = [
+            CGRect(x: 700, y: 0, width: 40, height: 669),   // keys too narrow
+            CGRect(x: 200, y: 0, width: 40, height: 669),   // grid too narrow
+            CGRect(x: 1200, y: 0, width: 40, height: 669),  // past the trailing edge
+            CGRect(x: -100, y: 0, width: 40, height: 669)   // before the leading edge
+        ]
+        let unfolded = ChipLayout.resolve(size: duoInner, horizontalSizeClass: .regular)
+        for fold in folds {
+            XCTAssertEqual(ChipLayout.resolve(size: duoInner, horizontalSizeClass: .regular,
+                                              fold: fold),
+                           unfolded, "\(fold)")
+        }
+    }
+
+    /// The minimums are what they claim: the narrowest grid side holds four
+    /// tracks at the phone's column floor, and the narrowest key side draws
+    /// eight 40pt white keys.
+    func testFoldMinimumsMatchWhatTheyHold() {
+        var floorLayout = ChipLayout.pad
+        floorLayout.gridMinColumnWidth = ChipLayout.phone.gridMinColumnWidth
+        XCTAssertEqual(floorLayout.gridRowWidth(columnWidth: ChipLayout.phone.gridMinColumnWidth,
+                                                tracks: 4, canAddTrack: true),
+                       ChipLayout.minimumFoldGridWidth)
+        XCTAssertEqual(ChipLayout.whiteKeyWidth(columnWidth: ChipLayout.minimumFoldColumnWidth,
+                                                octaves: 1), 40)
+    }
+
+    /// The 371.5pt column the 867pt window leaves still draws keys a finger
+    /// can find.
+    func testWhiteKeysInTheFoldColumnAreAtLeast40pt() {
+        XCTAssertGreaterThanOrEqual(ChipLayout.whiteKeyWidth(columnWidth: 371.5, octaves: 1), 40)
+    }
 }

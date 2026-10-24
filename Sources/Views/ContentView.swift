@@ -384,7 +384,8 @@ struct ContentView: View {
         // slice gets the phone layout, and a rotation swaps arrangements.
         GeometryReader { geo in
             let layout = ChipLayout.resolve(size: geo.size,
-                                            horizontalSizeClass: horizontalSizeClass)
+                                            horizontalSizeClass: horizontalSizeClass,
+                                            fold: Self.fold(in: geo))
             Group {
                 // Kept apart from `editor`, so crossing into or out of it
                 // still rebuilds the editor. Both are rare mid-task: a text
@@ -753,6 +754,20 @@ struct ContentView: View {
         }
     }
 
+    /// The display's fold, as `ChipLayout.resolve` takes it: the first
+    /// division region in the GeometryReader's own space, or nil on a
+    /// display without one and on anything before iOS 27.1, which is the
+    /// first to report it. Inactive regions are included, so a Duo lying
+    /// flat gets the same layout it has half folded and opening or closing
+    /// the hinge a little never re-lays out the editor.
+    private static func fold(in geo: GeometryProxy) -> CGRect? {
+        if #available(iOS 27.1, *) {
+            return geo.reservedRegions(kind: .division, options: .includeInactive)
+                .first?.frame
+        }
+        return nil
+    }
+
     /// The editor in both of its arrangements.
     ///
     /// Phone, and any iPad window taller than it is wide: the keys sit under
@@ -784,10 +799,15 @@ struct ContentView: View {
             }
 
             // The grid used to run straight into the keys; this is the
-            // breathing room between the two, whichever way they meet.
+            // breathing room between the two, whichever way they meet. Side
+            // by side the line sits centered in a slot `sideGapWidth` wide:
+            // just the line, or on a folding display the whole hinge, so
+            // the grid ends where the fold starts and the keys begin where
+            // it ends.
             Rectangle()
                 .fill(Theme.grid.opacity(0.5))
                 .frame(width: side ? 1 : nil, height: side ? nil : 1)
+                .frame(width: side ? layout.sideGapWidth : nil)
                 .padding(.top, side ? 12 : 10)
                 .padding(.bottom, side ? 12 : 0)
                 .padding(.horizontal, side ? 0 : 14)
@@ -829,8 +849,12 @@ struct ContentView: View {
             : .none
         return VStack(spacing: 0) {
             VStack(spacing: 0) {
+                // Docked, the octave row starts level with the title bar
+                // beside it, which pads its own top by 4. An iPad's status
+                // bar hid the difference; a Duo's inner display has no top
+                // inset, and at 0 the row sat flush against the glass.
                 editorKeyboard
-                    .padding(.top, layout.docksInstrumentEditor ? 0 : 10)
+                    .padding(.top, layout.docksInstrumentEditor ? 4 : 10)
 
                 if layout.docksInstrumentEditor {
                     Rectangle()
