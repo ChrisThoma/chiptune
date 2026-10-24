@@ -719,6 +719,18 @@ final class LayoutTests: XCTestCase {
         XCTAssertEqual(duoInnerFlipped.width - layout.sideGapWidth - layout.sideColumnWidth, 455.5)
     }
 
+    /// A Duo held like a book is held from the bottom, so the keys go under
+    /// the docked sound controls there. An iPad's side column keeps them on
+    /// top, where the hands holding a 13-inch screen are.
+    func testOnlyTheFoldPutsTheKeysAtTheBottomOfTheColumn() {
+        XCTAssertTrue(ChipLayout.resolve(size: duoInner, horizontalSizeClass: .regular,
+                                         fold: duoFold).keysAtColumnBottom)
+        XCTAssertTrue(ChipLayout.resolve(size: duoInnerFlipped, horizontalSizeClass: .regular,
+                                         fold: duoFold).keysAtColumnBottom)
+        XCTAssertFalse(ChipLayout.resolve(size: padLandscape,
+                                          horizontalSizeClass: .regular).keysAtColumnBottom)
+    }
+
     /// Why the fold matters: the same window without one is under the side
     /// threshold, stacks, and is too short for the stacked keys, so the
     /// keyboard scrolls off the bottom.

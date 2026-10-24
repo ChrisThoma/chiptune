@@ -830,9 +830,11 @@ struct ContentView: View {
     /// which on an iPad covered the grid every time you nudged a decay — and
     /// nudging a decay is something you do against the part you just wrote.
     ///
-    /// Keys sit above the controls rather than below: they're what your hands
-    /// go to, and the bottom edge of a 13-inch iPad is a long way from where
-    /// the hands holding it are.
+    /// On an iPad the keys sit above the controls: they're what your hands go
+    /// to, and the bottom edge of a 13-inch iPad is a long way from where the
+    /// hands holding it are. Split at a Duo's fold they sit below, where the
+    /// thumbs of a phone held open like a book already are (see
+    /// `ChipLayout.keysAtColumnBottom`).
     ///
     /// The root ignores the keyboard safe area, so while the docked Name field
     /// is typed into the column pads its own bottom up to the keyboard and,
@@ -847,46 +849,66 @@ struct ContentView: View {
                                               keyboardTop: keyboardTop,
                                               keysHeight: dockedKeysHeight)
             : .none
-        return VStack(spacing: 0) {
-            VStack(spacing: 0) {
-                // Docked, the octave row starts level with the title bar
-                // beside it, which pads its own top by 4. An iPad's status
-                // bar hid the difference; a Duo's inner display has no top
-                // inset, and at 0 the row sat flush against the glass.
-                editorKeyboard
-                    .padding(.top, layout.docksInstrumentEditor ? 4 : 10)
+        let keysBelow = layout.docksInstrumentEditor && layout.keysAtColumnBottom
+        let keys = VStack(spacing: 0) {
+            if keysBelow {
+                columnHairline
+                    .padding(.top, 10)
+            }
 
-                if layout.docksInstrumentEditor {
-                    Rectangle()
-                        .fill(Theme.grid.opacity(0.5))
-                        .frame(height: 1)
-                        .padding(.horizontal, 14)
-                        .padding(.bottom, 10)
-                }
+            // Docked at the top, the octave row starts level with the title
+            // bar beside it, which pads its own top by 4. An iPad's status
+            // bar hid the difference; a Duo's inner display has no top inset,
+            // and at 0 the row sat flush against the glass.
+            editorKeyboard
+                .padding(.top, layout.docksInstrumentEditor && !keysBelow ? 4 : 10)
+
+            if layout.docksInstrumentEditor && !keysBelow {
+                columnHairline
+                    .padding(.bottom, 10)
             }
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-                // Read only while no rename is under way. Folding the piano
-                // changes this height, and feeding that back into the
-                // decision that folded it made the layout oscillate forever.
-                if height > 0, !dockedNameEditing { dockedKeysHeight = height }
-            }
-            .frame(height: avoidance.hidesKeys ? 0 : nil, alignment: .top)
-            .clipped()
-            .opacity(avoidance.hidesKeys ? 0 : 1)
-            .allowsHitTesting(!avoidance.hidesKeys)
-            .accessibilityHidden(avoidance.hidesKeys)
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+            // Read only while no rename is under way. Folding the piano
+            // changes this height, and feeding that back into the
+            // decision that folded it made the layout oscillate forever.
+            if height > 0, !dockedNameEditing { dockedKeysHeight = height }
+        }
+        .frame(height: avoidance.hidesKeys ? 0 : nil, alignment: .top)
+        .clipped()
+        .opacity(avoidance.hidesKeys ? 0 : 1)
+        .allowsHitTesting(!avoidance.hidesKeys)
+        .accessibilityHidden(avoidance.hidesKeys)
+
+        return VStack(spacing: 0) {
+            if !keysBelow { keys }
 
             if layout.docksInstrumentEditor {
                 InstrumentEditor(studio: studio, index: studio.selectedTrack, docked: true,
                                  onNameFocusChange: { dockedNameEditing = $0 },
                                  keyboardInset: avoidance.bottomInset)
+                    // At the top of the column the controls' heading would
+                    // otherwise sit against the glass; this brings it down
+                    // to the song title's line beside it.
+                    .padding(.top, keysBelow ? 16 : 0)
             }
+
+            if keysBelow { keys }
         }
         .padding(.bottom, avoidance.bottomInset)
         .animation(.easeOut(duration: 0.2), value: avoidance)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
             dockedColumnFrame = frame
         }
+    }
+
+    /// The rule between the keys and the docked sound controls, on whichever
+    /// side of the keys the controls are.
+    private var columnHairline: some View {
+        Rectangle()
+            .fill(Theme.grid.opacity(0.5))
+            .frame(height: 1)
+            .padding(.horizontal, 14)
     }
 
     /// The grid and the piano, with the rename closed out first.

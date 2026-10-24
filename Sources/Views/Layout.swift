@@ -82,6 +82,11 @@ struct ChipLayout: Equatable {
     /// and nothing anyone needs to read or tap sits in the crease. Unused
     /// when stacked.
     var sideGapWidth: CGFloat = 1
+    /// The side column puts the keys under the docked sound controls rather
+    /// than over them. Only the fold split does: a Duo held open like a book
+    /// is held from the bottom, where the thumbs already are, while a 13-inch
+    /// iPad's bottom edge is a long way from the hands holding it.
+    var keysAtColumnBottom = false
     /// Octaves of piano the keyboard draws. Whatever this is, the octave
     /// buttons and `studio.octave` still name the *lowest* one shown, and the
     /// hardware letter row still plays that one.
@@ -533,6 +538,7 @@ struct ChipLayout: Equatable {
         layout.keyboardOctaves = 1
         layout.sideColumnWidth = trailing
         layout.sideGapWidth = fold.width
+        layout.keysAtColumnBottom = true
         // The pad's 104pt floor would push four tracks into sideways scroll
         // in a 455pt half. Lower it to what four tracks actually get there,
         // floored to a whole point so rounding can't tip the row a fraction

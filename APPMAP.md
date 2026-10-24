@@ -19,7 +19,7 @@ Reuse these; never duplicate them.
 iPhone Duo, measured as the editor's GeometryReader sees it (safe area applied; the status bar is a vertical 84pt strip on the trailing side of both displays):
 
 - Outer display (closed): 382x644, compact, `.phone`. iPhone stays portrait-only there.
-- Inner display (open or partly folded) rotates to all four orientations. Landscape: 867x635 or 951x553, regular, side layout split at the fold (`ChipLayout.resolve(..., fold:)`): grid to x 455.5, fold 455.5-495.5, keys and docked sound controls after it. Portrait: 669x835, stacked pad; the horizontal fold falls across scrolling grid rows by design.
+- Inner display (open or partly folded) rotates to all four orientations. Landscape: 867x635 or 951x553, regular, side layout split at the fold (`ChipLayout.resolve(..., fold:)`): grid to x 455.5, fold 455.5-495.5, then docked sound controls with the keys under them (iPad keeps keys on top). Portrait: 669x835, stacked pad; the horizontal fold falls across scrolling grid rows by design.
 - The fold (`.division` reserved region) is reported flat and folded, `isActive` only when folded, in the GeometryReader's local space. simctl can't fold or rotate; capture with `simctl io <UDID> screenshot --display=1` (outer) or `--display=3` (inner).
 
 iPhone simulators (`BugHunt-Chiptune-iPhone-A` / `-B`) belong to the iPhone target; do not drive them.
