@@ -760,11 +760,18 @@ struct ContentView: View {
     /// first to report it. Inactive regions are included, so a Duo lying
     /// flat gets the same layout it has half folded and opening or closing
     /// the hinge a little never re-lays out the editor.
+    ///
+    /// `#available` only gates the call at run time; an older SDK can't
+    /// compile it at all (CI's pinned Xcode 16.4 failed on 2026-10-24), so
+    /// the call is also compiled only against SwiftUICore from the iOS 27.1
+    /// SDK, where `reservedRegions` first appears.
     private static func fold(in geo: GeometryProxy) -> CGRect? {
+        #if canImport(SwiftUICore, _version: 8.0.85.29)
         if #available(iOS 27.1, *) {
             return geo.reservedRegions(kind: .division, options: .includeInactive)
                 .first?.frame
         }
+        #endif
         return nil
     }
 
