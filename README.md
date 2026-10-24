@@ -49,8 +49,8 @@ Every export starts at WAV, once, Seamless loop. A WAV can end two ways:
 
 A song can also export as a video of it playing: a 1080×1920, 30 fps mp4 for
 Instagram, TikTok or YouTube, with the song's audio, which always rings out at
-the end. **Grid** scrolls the pattern grid past the playhead the way it looks in
-the editor. **Cartridge** draws a game cartridge with a bar for each track that
+the end. **Grid** scrolls the pattern grid past the playhead at a steady speed, the
+way it looks in the editor. **Cartridge** draws a game cartridge with a bar for each track that
 lights up in blocks with its notes. On iOS, Save Video puts it in Photos; the
 app asks only to add to the library, never to read it. On Android, Save to
 device puts it in Movies/Chiptune.
@@ -73,11 +73,15 @@ and muted. When four channels aren't enough you can add tracks, up to eight in
 all. To put them in a different order, long-press a column header and drag it
 sideways; each track's notes move with it.
 
-## iPad and hardware keyboards
+## iPad, iPhone Duo and hardware keyboards
 
 The app runs on iPhone and iPad. On a landscape iPad the keyboard moves beside
 the grid and the instrument editor docks under it, so the sound controls stay
 open while you write.
+
+On iPhone Duo's inside screen, held sideways, the editor splits at the fold:
+the grid sits on one side, and the sound controls and keys on the other, with
+the keys at the bottom of that column.
 
 With a hardware keyboard attached, the grid works like a tracker:
 
