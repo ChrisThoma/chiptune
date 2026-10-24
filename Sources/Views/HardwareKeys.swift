@@ -201,7 +201,7 @@ extension View {
 /// iOS the editor never takes it: nothing here is a focusable control, so
 /// there's nothing for focus to land on and the presses go nowhere. A first
 /// responder gets them whatever the focus system thinks.
-private struct KeyCatcher: UIViewRepresentable {
+struct KeyCatcher: UIViewRepresentable {
     @Bindable var studio: Studio
 
     func makeUIView(context: Context) -> CatcherView {
@@ -273,6 +273,16 @@ private struct KeyCatcher: UIViewRepresentable {
         static weak var current: CatcherView?
 
         override var canBecomeFirstResponder: Bool { true }
+
+        // This view holds first responder all session, so whatever iOS shows
+        // for the first responder it shows for this view. On iOS 27.1 opening
+        // any menu (the song menu, a Sound preset) raised the full software
+        // keyboard over the app with this view as first responder and no
+        // text field focused. An empty input view gives the system nothing
+        // to show. Hardware presses come through `pressesBegan` and don't
+        // involve it; a text field brings its own keyboard when focused.
+        private let noKeyboard = UIView(frame: .zero)
+        override var inputView: UIView? { noKeyboard }
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
