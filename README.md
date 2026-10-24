@@ -47,6 +47,14 @@ Every export starts at WAV, once, Seamless loop. A WAV can end two ways:
 - **Ring out:** the file plays on after the last pass until the final notes
   fade, so it ends like a finished track.
 
+A song can also export as a video of it playing: a 1080×1920, 30 fps mp4 for
+Instagram, TikTok or YouTube, with the song's audio, which always rings out at
+the end. **Grid** scrolls the pattern grid past the playhead the way it looks in
+the editor. **Cartridge** draws a game cartridge with a bar for each track that
+lights up in blocks with its notes. On iOS, Save Video puts it in Photos; the
+app asks only to add to the library, never to read it. On Android, Save to
+device puts it in Movies/Chiptune.
+
 ## The four channels
 
 The layout follows the NES sound hardware:
