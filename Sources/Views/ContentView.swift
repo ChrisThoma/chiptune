@@ -256,11 +256,12 @@ enum ExportFlow {
         isExporting && !stillPresented
     }
 
-    /// `onDisappear` was a rebuild of the panel, not a close: a render is
-    /// running and the flag that shows the panel never went off. The render,
-    /// the chosen options and the pending share all stay as they are.
-    static func panelRebuiltMidRender(isExporting: Bool, stillPresented: Bool) -> Bool {
-        isExporting && stillPresented
+    /// `onDisappear` was a rebuild of the panel, not a close: the flag that
+    /// shows the panel never went off. Whether or not a render is running,
+    /// the render, the chosen options, a shown error and the pending share
+    /// all stay as they are.
+    static func panelRebuilt(stillPresented: Bool) -> Bool {
+        stillPresented
     }
 }
 
@@ -705,8 +706,7 @@ struct ContentView: View {
     /// The export panel has left the screen. If it left behind a rendered
     /// file, this is the first moment UIKit will present anything else.
     private func shareAfterExport() {
-        if ExportFlow.panelRebuiltMidRender(isExporting: studio.isExporting,
-                                            stillPresented: showingExport) { return }
+        if ExportFlow.panelRebuilt(stillPresented: showingExport) { return }
         if ExportFlow.afterPanelDisappeared(isExporting: studio.isExporting,
                                             stillPresented: showingExport) {
             studio.cancelExport()

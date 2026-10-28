@@ -113,16 +113,22 @@ final class ExportFlowTests: XCTestCase {
     /// a new panel appears. That is not a close, so the render carries on and
     /// nothing is cancelled or reset.
     func testPanelRebuiltMidRenderIsNotACloseAndKeepsTheRender() {
-        XCTAssertTrue(ExportFlow.panelRebuiltMidRender(isExporting: true, stillPresented: true))
+        XCTAssertTrue(ExportFlow.panelRebuilt(stillPresented: true))
         XCTAssertFalse(ExportFlow.afterPanelDisappeared(isExporting: true, stillPresented: true))
     }
 
-    /// A close by hand (flag already off) mid-render still cancels, and an
-    /// idle panel going away is not a mid-render rebuild.
+    /// A rebuild with no render running (the options are only chosen, nothing
+    /// exporting) is just as little a close: the flag is still on, so the
+    /// export flow must not end and the chosen options stay.
+    func testPanelRebuiltWhileIdleIsNotACloseAndKeepsTheOptions() {
+        XCTAssertTrue(ExportFlow.panelRebuilt(stillPresented: true))
+    }
+
+    /// A close by hand (flag already off) mid-render still cancels, and a
+    /// panel going away with its flag off is not a rebuild.
     func testPanelClosedByHandMidRenderStillCancels() {
-        XCTAssertFalse(ExportFlow.panelRebuiltMidRender(isExporting: true, stillPresented: false))
+        XCTAssertFalse(ExportFlow.panelRebuilt(stillPresented: false))
         XCTAssertTrue(ExportFlow.afterPanelDisappeared(isExporting: true, stillPresented: false))
-        XCTAssertFalse(ExportFlow.panelRebuiltMidRender(isExporting: false, stillPresented: true))
     }
 
     /// The panel disappearing because the render already finished — success or
