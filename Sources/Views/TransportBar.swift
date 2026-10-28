@@ -119,13 +119,20 @@ struct TransportBar: View {
         // Anchored to ARR so the play order sits beside the transport that
         // plays it and the grid stays visible behind; a phone gets the sheet
         // it has always had.
-        .popover(isPresented: $showingArrangement,
+        .popover(isPresented: arrangementPresented(asSheet: false),
                  attachmentAnchor: arrangementAnchor, arrowEdge: .top) {
             // `isRegularWidth` comes from the presenting side: a popover's
             // content is handed a compact size class whatever the window
             // is, so the view inside can't ask for itself.
-            ArrangementView(studio: studio, regularWidth: layout.isRegularWidth)
+            ArrangementView(studio: studio, regularWidth: layout.presentsArrangementAsPopover)
                 .presentationCompactAdaptation(.sheet)
+        }
+        // The scrolling editor can put ARR near the bottom of the window,
+        // where a popover hung under it lost its Edit/Done header, so there
+        // it is a sheet. Each presenter gets a binding of its own: two on
+        // one flag fight over it.
+        .sheet(isPresented: arrangementPresented(asSheet: true)) {
+            ArrangementView(studio: studio, regularWidth: false)
         }
         // Edit mode outlives the sheet/popover swap of a pose change, which
         // leaves this flag set, but not Arrangement being closed.
@@ -182,6 +189,14 @@ struct TransportBar: View {
             modeTray(stretched: true).frame(maxWidth: .infinity)
             tempoStepper(stretched: true)
         }
+    }
+
+    /// `showingArrangement` seen by one presenter only: the sheet in the
+    /// scrolling editor, the popover everywhere else.
+    private func arrangementPresented(asSheet: Bool) -> Binding<Bool> {
+        let mine = layout.presentsOverlaysAsSheets == asSheet
+        return Binding(get: { mine && showingArrangement },
+                       set: { showingArrangement = $0 })
     }
 
     private var arrangementAnchor: PopoverAttachmentAnchor {

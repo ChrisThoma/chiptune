@@ -489,6 +489,59 @@ final class LayoutTests: XCTestCase {
         XCTAssertTrue(stacked.presentsInstrumentAsPopover)
     }
 
+    /// The scrolling editor (accessibility text, or a window too short for
+    /// the fixed one) can put ARR or a track header anywhere down the window,
+    /// often near the bottom. A popover anchored there with its arrow on top
+    /// has a sliver of height below it, and its header (Edit, Done) is what
+    /// gets cut off. So that editor presents Arrangement and the sound
+    /// controls as sheets, which always get the screen.
+    func testScrollingEditorPresentsArrangementAndSoundAsSheets() {
+        let windows: [(String, CGSize, CGRect?)] = [
+            ("Duo inner portrait", duoInnerPortrait, nil),
+            ("Duo inner landscape", duoInner, duoFold),
+            ("iPad portrait", padPortrait, nil),
+            ("iPad landscape", padLandscape, nil),
+            ("short Stage Manager window", CGSize(width: 900, height: 480), nil),
+        ]
+        for (name, size, fold) in windows {
+            let scrolling = ChipLayout.resolve(size: size, horizontalSizeClass: .regular,
+                                               fold: fold).scrollingEditorLayout
+            XCTAssertTrue(scrolling.isRegularWidth, "\(name): precondition")
+            XCTAssertTrue(scrolling.presentsOverlaysAsSheets, name)
+            XCTAssertFalse(scrolling.docksInstrumentEditor, name)
+            XCTAssertFalse(scrolling.presentsInstrumentAsPopover,
+                           "\(name): the sound controls must be a sheet")
+            XCTAssertFalse(scrolling.presentsArrangementAsPopover,
+                           "\(name): Arrangement must be a sheet")
+        }
+    }
+
+    /// Default text sizes keep their anchored popovers at regular width (the
+    /// Duo's inner display, an iPad), the docked editor in landscape, and the
+    /// phone and the Duo's outer display keep their sheets.
+    func testFixedEditorKeepsItsPopoversAtRegularWidth() {
+        let duoPortrait = ChipLayout.resolve(size: duoInnerPortrait, horizontalSizeClass: .regular)
+        XCTAssertFalse(duoPortrait.scrollsEditor, "precondition")
+        XCTAssertFalse(duoPortrait.presentsOverlaysAsSheets)
+        XCTAssertTrue(duoPortrait.presentsInstrumentAsPopover)
+        XCTAssertTrue(duoPortrait.presentsArrangementAsPopover)
+
+        let duoLandscape = ChipLayout.resolve(size: duoInner, horizontalSizeClass: .regular,
+                                              fold: duoFold)
+        XCTAssertTrue(duoLandscape.docksInstrumentEditor)
+        XCTAssertFalse(duoLandscape.presentsInstrumentAsPopover)
+        XCTAssertTrue(duoLandscape.presentsArrangementAsPopover)
+
+        let pad = ChipLayout.resolve(size: padPortrait, horizontalSizeClass: .regular)
+        XCTAssertTrue(pad.presentsInstrumentAsPopover)
+        XCTAssertTrue(pad.presentsArrangementAsPopover)
+
+        let phone = ChipLayout.resolve(size: phonePortrait, horizontalSizeClass: .compact)
+        XCTAssertFalse(phone.presentsInstrumentAsPopover)
+        XCTAssertFalse(phone.presentsArrangementAsPopover)
+        XCTAssertFalse(phone.scrollingEditorLayout.presentsArrangementAsPopover)
+    }
+
     func testReviewRequestOnlyFiresForACompletedShare() {
         XCTAssertTrue(ReviewPromptPolicy.shouldRequest(eligible: true, outcome: .completed))
         XCTAssertFalse(ReviewPromptPolicy.shouldRequest(eligible: true, outcome: .canceled))

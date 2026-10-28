@@ -963,8 +963,10 @@ struct ContentView: View {
         // A landscape iPad normally docks the instrument editor beside the
         // grid. This layout deliberately stacks instead, so its
         // descendants must also stop believing that editor is still docked;
-        // the selected track can then open it as a popover.
-        let stackedLayout = layout.withoutDockedInstrumentEditor
+        // the selected track can then open it. ARR and the headers can sit
+        // low in this long column, so Arrangement and the sound controls
+        // come up as sheets rather than popovers squeezed under them.
+        let stackedLayout = layout.scrollingEditorLayout
         return ScrollView {
             VStack(spacing: 0) {
                 chrome(layout)

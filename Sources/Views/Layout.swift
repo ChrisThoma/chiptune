@@ -122,7 +122,11 @@ struct ChipLayout: Equatable {
     /// Anchored to the track header that opened it, keeping the grid visible,
     /// rather than a sheet over the whole editor. The side arrangement docks
     /// the controls instead and needs no popover at all.
-    var presentsInstrumentAsPopover: Bool { isRegularWidth && !usesSideKeyboard }
+    /// The scrolling editor presents a sheet instead (see
+    /// `presentsOverlaysAsSheets`).
+    var presentsInstrumentAsPopover: Bool {
+        isRegularWidth && !usesSideKeyboard && !presentsOverlaysAsSheets
+    }
 
     /// Accessibility Dynamic Type uses one vertically scrolling editor even
     /// in a landscape iPad window. Match the interaction model to that visual
@@ -131,6 +135,27 @@ struct ChipLayout: Equatable {
     var withoutDockedInstrumentEditor: ChipLayout {
         var copy = self
         copy.usesSideKeyboard = false
+        return copy
+    }
+
+    /// Set only for the scrolling editor. There ARR and the track headers
+    /// can sit anywhere down a long column, often near the bottom of the
+    /// window, and a popover with its arrow on top then gets only the sliver
+    /// below its anchor: its header (Edit, Done) and most of its controls
+    /// were cut off and couldn't be scrolled to. A sheet always gets the
+    /// screen, so the editor presents Arrangement and the sound controls as
+    /// sheets whenever it scrolls.
+    var presentsOverlaysAsSheets = false
+
+    /// Anchored to ARR at regular width, unless the editor scrolls (see
+    /// `presentsOverlaysAsSheets`). At compact width it is a sheet anyway.
+    var presentsArrangementAsPopover: Bool { isRegularWidth && !presentsOverlaysAsSheets }
+
+    /// The layout the scrolling editor hands its descendants: stacked, with
+    /// no docked sound controls, and its overlays as sheets.
+    var scrollingEditorLayout: ChipLayout {
+        var copy = withoutDockedInstrumentEditor
+        copy.presentsOverlaysAsSheets = true
         return copy
     }
 

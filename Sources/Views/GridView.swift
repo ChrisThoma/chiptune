@@ -786,12 +786,27 @@ private struct TrackHeader: View {
         // A popover at regular width, anchored here so the controls sit beside
         // the track they change and the grid stays visible behind them. On a
         // phone this adapts back to the sheet it has always been.
-        .popover(isPresented: $showingEditor, attachmentAnchor: .rect(.bounds),
+        .popover(isPresented: editorPresented(asSheet: false), attachmentAnchor: .rect(.bounds),
                  arrowEdge: .top) {
             InstrumentEditor(studio: studio, index: index,
                              popover: layout.presentsInstrumentAsPopover)
                 .presentationCompactAdaptation(.sheet)
         }
+        // The scrolling editor can put this header near the bottom of the
+        // window, where a popover hung under it showed only its title strip,
+        // so there it is a sheet. A binding each: two presenters on one flag
+        // fight over it.
+        .sheet(isPresented: editorPresented(asSheet: true)) {
+            InstrumentEditor(studio: studio, index: index, popover: false)
+        }
+    }
+
+    /// `showingEditor` seen by one presenter only: the sheet in the
+    /// scrolling editor, the popover (a sheet at compact width) elsewhere.
+    private func editorPresented(asSheet: Bool) -> Binding<Bool> {
+        let mine = layout.presentsOverlaysAsSheets == asSheet
+        return Binding(get: { mine && showingEditor },
+                       set: { showingEditor = $0 })
     }
 
     private func muteButton(muted: Bool, name: String) -> some View {
