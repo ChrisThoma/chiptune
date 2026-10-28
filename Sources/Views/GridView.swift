@@ -178,9 +178,10 @@ struct GridView: View {
     private var gutterWidth: CGFloat { layout.gridGutterWidth }
     private let addColumnWidth: CGFloat = ChipLayout.addColumnWidth
 
-    /// Reorder mode, entered by a long press on a track header. Local to the
-    /// grid: nothing outside it cares, and switching songs ends it.
-    @State private var reordering = false
+    /// Reorder mode, entered by a long press on a track header. Held by the
+    /// studio so a rebuilt grid (a Duo pose change) keeps it; switching songs
+    /// ends it.
+    private var reordering: Bool { studio.reorderingTracks }
     /// The header under the finger while a reorder drag is live.
     @State private var drag: HeaderDrag?
     /// How far the grid is scrolled sideways; the step labels counter it.
@@ -260,13 +261,13 @@ struct GridView: View {
     private func beginReordering() {
         guard studio.song.canReorderTracks, !reordering else { return }
         Haptics.reorderBegan()
-        withAnimation(.snappy(duration: 0.25)) { reordering = true }
+        withAnimation(.snappy(duration: 0.25)) { studio.beginReorderingTracks() }
     }
 
     private func endReordering() {
         guard reordering else { return }
         withAnimation(.snappy(duration: 0.25)) {
-            reordering = false
+            studio.endReorderingTracks()
             drag = nil
         }
     }

@@ -44,6 +44,9 @@ final class Studio {
     /// arrow, so the grid can tell those from the taps, reorder drags and
     /// playback that move the selection too and keep their own scrolling.
     private(set) var revealRequest = RevealRequest()
+    /// Track reorder mode. Held here, not in the grid's own `@State`, so a pose
+    /// change on a folding display that rebuilds the grid does not end it.
+    private(set) var reorderingTracks = false
     /// Index into `song.patterns` — the pattern the grid is editing.
     var selectedPattern: Int = 0
     /// PATT loops the pattern being edited; SONG follows the arrangement.
@@ -1228,6 +1231,13 @@ final class Studio {
         saveNow()
     }
 
+    func beginReorderingTracks() {
+        guard song.canReorderTracks else { return }
+        reorderingTracks = true
+    }
+
+    func endReorderingTracks() { reorderingTracks = false }
+
     func open(_ other: Song) {
         stop()
         // Bail before replacing `song` if the outgoing save failed, so the
@@ -1239,6 +1249,7 @@ final class Studio {
         var s = other
         s.normalize()
         song = s
+        reorderingTracks = false
         selectedPattern = 0
         songMode = false
         pushAll()
