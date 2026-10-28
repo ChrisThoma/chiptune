@@ -2,29 +2,43 @@
 
 Bundle ID: `dev.individuation.chiptune`
 Scheme: `Chiptune` | Project: `Chiptune.xcodeproj` | Deployment target: iOS 17.0
-Target: iPad (two sizes: iPad mini and 13-inch iPad Pro). iPhone behavior is out of scope for this map. iPhone-only facts are kept below only where they describe shared model, state or limits.
+Target: iPhone Duo (iOS 27.1 simulator; outer display when closed, inner display when partly or fully open). Plain iPhone and iPad behavior is out of scope for this map. iPad facts are kept below where the Duo's inner display (regular width) shares them, and as intentional-behavior notes.
 
 Chiptune is an offline NES-style step sequencer. Its model is Song -> Patterns -> Tracks -> Steps, with a separate arrangement controlling full-song playback.
 
 ## Simulators
 
-Reuse these; never duplicate them.
+Reuse these; never duplicate them. Drive them only with `devicehubctl` (tree, tap, longpress, touch, drag, pose, rotate, split) plus `xcrun simctl` for install, launch, openurl, screenshot and privacy; idb and the ios-simulator MCP `ui_*` tools do not work on a Duo.
 
-| Slot | Name | UDID | Runtime/device |
-|---|---|---|---|
-| SIM-A | BugHunt-Chiptune-iPad-A | `364E182C-E581-4112-A332-5AFA806DD2F3` | iOS 26.5, iPad mini (A17 Pro), 744x1133 pt portrait |
-| SIM-B | BugHunt-Chiptune-iPad-B | `64697D11-B8FB-46BE-9BCF-BCCC33A6F4B7` | iOS 27.0, iPad Pro 13-inch (M5), 1032x1376 pt portrait |
-| SIM-DUO | Chiptune Duo | `7817D2F6-2F9E-4B5A-AC10-E77CC6028674` | iOS 27.1, iPhone Duo (the only Duo we test on; no device) |
+| Slot | Name | UDID | Runtime/device | Home pose |
+|---|---|---|---|---|
+| DUO-A | BugHunt-Chiptune-Duo-A | `8B579C74-1F61-4519-86EC-AAE9B757CA97` | iOS 27.1, iPhone Duo | closed |
+| DUO-B | BugHunt-Chiptune-Duo-B | `1CDF6C9C-412C-424E-ACF3-8E2AB6EEE837` | iOS 27.1, iPhone Duo | open |
+
+Not this target, never drive them: BugHunt-Chiptune-iPad-A/-B, BugHunt-Chiptune-iPhone-A/-B, and `Chiptune Duo` (7817D2F6, used by the Duo marketing video pipeline).
 
 iPhone Duo, measured as the editor's GeometryReader sees it (safe area applied; the status bar is a vertical 84pt strip on the trailing side of both displays):
 
 - Outer display (closed): 382x644, compact, `.phone`. iPhone stays portrait-only there.
 - Inner display (open or partly folded) rotates to all four orientations. Landscape: 867x635 or 951x553, regular, side layout split at the fold (`ChipLayout.resolve(..., fold:)`): grid to x 455.5, fold 455.5-495.5, then docked sound controls with the keys under them (iPad keeps keys on top). Portrait: 669x835, stacked pad; the horizontal fold falls across scrolling grid rows by design.
-- The fold (`.division` reserved region) is reported flat and folded, `isActive` only when folded, in the GeometryReader's local space. simctl can't fold or rotate; capture with `simctl io <UDID> screenshot --display=1` (outer) or `--display=3` (inner).
+- The fold (`.division` reserved region) is reported flat and folded, `isActive` only when folded, in the GeometryReader's local space.
+- A pose change moves the app between displays, so the size class flips compact <-> regular and the layout switches between `.phone`, stacked `.pad` and the docked side layout. Presentation styles follow the size class (sheet at compact, popover at regular).
+- `ContentView` has two editor trees: `editor(layout)` and `scrollingEditor(layout)`, picked by `layout.scrollsEditor` (fewer than 4 grid rows left after fixed chrome). Fixed editor chrome heights: phone 430, side 285, stacked pad 525; closed, open, partial and inner portrait all leave at least 4 rows, so on the Duo only a Split View half that resolves regular width (or accessibility Dynamic Type) can swap trees. A swap rebuilds the chrome and drops view-local state (pattern rename sheet, pattern clear/delete dialogs, tempo alert, track-sound popover); ContentView-owned flags (Export, Arrangement, Songs) survive. `editor()` is one tree on purpose so an export in progress survives a rotation.
+- A portrait (horizontal) fold is ignored by `foldSplit`. `keyboardTop` and the docked column frame use global space; the fold uses local space. GridView's reorder mode and sideways scroll live in the shared `editor()` tree.
+- The Export panel's `onDisappear` cancels an in-flight render (`ExportFlow.afterPanelDisappeared`). The panel is a popover at regular width and adapts to a sheet at compact width.
+- `ScenePhasePolicy` saves on any non-active phase and stops audio only on `.background`; nothing handles scene disconnect. The fold rect counts only when it is flat in `.includeInactive`, so the hinge angle alone does not change layout.
+- Split View on the inner display settles only at 50/50; Chiptune works in either half (cell edit, Play/Stop, song menu, Undo checked 2026-10-27). Open it with `devicehubctl <UDID> --display inner split Chiptune com.apple.Preferences`. A divider release below 0.18 or above 0.8 of the width closes the split.
 
-iPhone simulators (`BugHunt-Chiptune-iPhone-A` / `-B`) belong to the iPhone target; do not drive them.
+Pose and rotation commands (the Mac must be unlocked; a locked screen hides DeviceHub's windows):
 
-Deployment target is iOS 17.0 but the only installed runtimes are iOS 26.5 and 27.0, so minimum-OS behavior is `unsupported` on this machine: a fix that relies on an iOS 18+ API cannot be checked for iOS 17 users here.
+```sh
+devicehubctl <UDID> pose closed|partial|open
+devicehubctl <UDID> rotate [times]          # inner display only; 90 degrees right each time
+xcrun simctl io <UDID> screenshot --display=1 out.png   # outer, live when closed
+xcrun simctl io <UDID> screenshot --display=3 in.png    # inner, live when partial/open; landscape-shaped file
+```
+
+The display that is not live captures black. Wait about 3 s after a pose change before a screenshot. A devicehubctl press lands up to about 2.5 s after it is issued.
 
 Environment baseline per sim: locale en_US, appearance dark (app forces dark), content size large, no status-bar override. Assert before wave 1 and after every worker, reading the values from the simulator, never from the host:
 
@@ -36,7 +50,7 @@ xcrun simctl spawn <UDID> defaults read -g AppleLocale   # en_US; a "does not ex
 
 Repository notes report an iOS 26 Simulator dimming artifact on 13-inch iPad sheets; treat sheet-dimming oddities on SIM-B as a tooling lead until reproduced on SIM-A.
 
-Orientation on iPad: `xcrun simctl` has no rotate command and this Xcode has no Simulator.app; use the `ios-simulator`/idb server's orientation support if present, otherwise mark landscape `unsupported` for that worker. Split View/Stage Manager is not automatable here.
+Pose baseline: DUO-A closed, DUO-B open with the inner display in its default landscape orientation. Read the pose back by which display's screenshot is not black. Restore the home pose (and rotation) after every worker.
 
 ## Build, Install, Launch, Reset
 
@@ -171,17 +185,19 @@ Conditions are recorded in each journey's `tested` field after use. They are not
 
 | Condition | Stage |
 |---|---|
-| iPad mini (iOS 26.5) and iPad Pro 13-inch (iOS 27.0) (no iOS 17 runtime installed) | representative target coverage across core journeys |
-| iPad portrait vs landscape (docked instrument editor) | representative iPad branches where rotation is automatable |
-| iPad Split View / Stage Manager narrow widths | changed-environment escalation; not automatable here |
-| status-bar extremes (top safe area) | applicable Track B layout branch |
-| forced dark appearance | representative Track B states |
+| closed (outer display, compact, portrait only) | core: every core journey |
+| open (inner display, regular, landscape side layout split at the fold) | core: every core journey |
+| pose change mid-task (closed to open and back; state survives) | core: every core journey once |
+| partly open (inner display, fold active) | representative branches |
+| inner display portrait (rotate) | representative branches; stacked pad layout |
+| Split View 50/50 on the inner display | once |
 | realistic long names and maximum app-valid data | core journey depth |
-| pseudo-localization | Track B compatibility escalation |
-| RTL locale | changed-environment escalation |
-| accessibility Dynamic Type/contrast/motion settings | accessibility-specific presentation escalation |
-| VoiceOver semantics/focus | accessibility-specific Track A escalation |
-| physical-device audio interruption, route, latency, and timing | hardware-only follow-up; simulator cannot certify |
+| status-bar extremes | Track B escalation |
+| pseudo-localization | Track B escalation |
+| RTL locale | unsupported for real users (no Arabic localization) |
+| accessibility Dynamic Type/contrast/motion settings | accessibility-specific escalation |
+| VoiceOver semantics/focus | accessibility-specific escalation |
+| physical-device hinge, audio route and timing | hardware-only; no Duo device available |
 
 ## Product Intent And Exclusions
 
@@ -202,6 +218,7 @@ Conditions are recorded in each journey's `tested` field after use. They are not
 - `Tests/Fixtures/golden-demo.wav`: deterministic DSP golden output.
 - `AppStore/make_song.py`: five-song visual/library fixture.
 - Generated large-state fixtures (git-ignored, regenerate with `python3 .qa/hunt-2026-10-03/fixtures/gen_fixtures.py`): `bpm300_longname.chipsong` (300 BPM, 33-character name, 3 patterns), `ten_patterns.chipsong`, `plays129.chipsong` (S1-S8 at 16 repeats plus S9 once), `plays128.chipsong` (S1-S8 at 16 repeats; S9 defined but unused), `one_track.chipsong`, `eight_tracks.chipsong` (track 3 muted). Deliver each with `xcrun simctl openurl <UDID> "file:///abs/path/<file>.chipsong"`. Shape: plain JSON with `id, name, tempo, modified, tracks, patterns, arrangement`; `tempo` is the BPM key; `modified` is seconds since 2001-01-01; each pattern's `rows` holds one 64-entry list per track regardless of `length`; arrangement entries are `{id, patternID, repeats}`.
+- `.qa/hunt-2026-10-28/fixtures/long_render.chipsong` (git-ignored): "Long Render", the starter pattern at 40 BPM, one section x16, 96 s per pass, so a Video export takes long enough (tens of seconds) to act on mid-render. Deliver with `xcrun simctl openurl`, then relaunch with `-shotExport YES` (the last song reopens).
 - There is extensive hosted unit coverage but no XCUITest or snapshot-test target.
 
 ```sh
@@ -211,6 +228,21 @@ xcodebuild test -project Chiptune.xcodeproj -scheme Chiptune -destination "id=<U
 The unit-test host intentionally suppresses creation of the real app `Studio`, so hosted tests do not exercise the normal launch UI or CoreAudio startup path.
 
 ## Tooling Caveats
+
+- Duo (both sims): `devicehubctl tree` has no coordinates; tap by label or identifier. `devicehubctl` cannot type, pick a segment of a segmented control, or step a stepper (each is one adjustable element). Setting a text field through accessibility shows text the app never receives, so text entry (song title, pattern rename, track rename, BPM Set, library rename) is blocked unless a fixture or import carries the text; report it blocked rather than faking it. `touch`/`drag` take fractions of the saved screenshot of the live display, unrotated; after `rotate`, screenshot to confirm where a touch lands.
+- Duo recordings: simctl records one display at a time; a display-3 recording carries rotation -90 and ffmpeg autorotates on decode. Screenshots can take 2-8 s while recording.
+- Duo: the open inner grid shows about 6 rows in landscape.
+- Duo: `devicehubctl tap "Cancel export"` finds nothing (the tree lists "Exporting video"); touch the red button instead. A starter-song video renders in about 3 s, shorter than devicehubctl's press latency; use the long_render fixture for anything mid-render.
+- Duo: `devicehubctl longpress "<row label>"` lands on the wrong Songs row on the outer display (the offset grows down the list; Duplicate acted on the row above). Use `devicehubctl touch <x> <y> 1.2` with fractions read off a screenshot. Labels for longpress must be the full tree label.
+- Duo: on BugHunt-Chiptune-Duo-B, `devicehubctl split` (both `Chiptune com.apple.Preferences` and `Settings dev.individuation.chiptune`) failed with "Long-pressing ... didn't open its menu" and left the Home Screen in jiggle mode (press Home to leave it); on the Chiptune Duo sim it worked on 2026-10-27 with `--display inner`. A second try with `--display inner`, the icon on Home Screen page 2 of 2, printed `Long-pressing "Chiptune" didn't open its menu.` again. `devicehubctl longpress "Pulse 1"` in the open pose can hit the docked sound panel's heading; touch the header instead.
+- Duo: after `rotate` (inner portrait), `devicehubctl touch x y` lands at (1-y, x) of the saved screenshot; send (py, 1-px) instead. "New song" in the Songs Add menu is not in the tree; touch it (about 0.63, 0.30 on the outer display).
+- The StoreKit rating prompt ("Enjoying Chiptune?") can appear after an export and hides the `devicehubctl tree` until dismissed with Not Now. Close in the Songs and Arrangement sheets is not in the tree; touch it.
+- Duo: `devicehubctl tap "Increase STEPS"`/`"Decrease STEPS"` work by label (step 4, about 4-6 s per call). A pattern chip's menu opens only with `touch` held about 1.3 s on the chip, not `longpress "Pattern X"`. The starter song has one pattern (A), so the last-pattern state needs no fixture.
+- Duo: in Arrangement, Edit, Done and the red delete minus are not in the `devicehubctl tree`, menu items are only partly listed, and the repeats stepper reads value nan; reach them with `touch`.
+- Duo: the first inner-display screenshot after a pose change can be a stale frame (two shots 6 s apart came back byte-identical while playback was running); take a second shot before calling anything frozen.
+- A Duo pose change is not a background: playback continues and the transport stays truthful across open, closed and partial.
+- Never use SimulatorKit's legacy IndigoHID touch messages; one crashed backboardd in the simulator.
+- The idb-based caveats below apply to the iPad and iPhone sims, not to a Duo.
 
 - First `simctl launch` on a freshly booted sim can hang indefinitely (seen on SIM-B); shutdown and reboot fixes it. macOS has no `timeout` binary, so background the call. Screenshot-verify the frontmost app after launch.
 - Earlier workers leave imported test songs and edited starter songs behind. Start each finder from the clean-state reset above (starter song) or from the seeded five-song library, and say which in the prompt; never rely on a leftover song as a fixture.
