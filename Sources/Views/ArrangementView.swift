@@ -51,6 +51,7 @@ struct ArrangementView: View {
     /// as compact whatever the window behind it is.
     var regularWidth = false
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// The one source of truth for edit mode. The system `EditButton` read its
     /// own copy of the environment, which went stale after a reorder rebuilt
     /// the rows, so the pill and the rows disagreed.
@@ -181,28 +182,48 @@ struct ArrangementView: View {
         // Spacer and the compact repeat label recover that without touching
         // the Menu's or Stepper's tappable size; the name scales before it
         // would ever truncate.
-        return HStack(spacing: 6) {
-            leading(ArrangementRowLeading.content(position: position, playing: playing))
-
-            // The Spacer shares the Menu's slot so it costs no HStack gap of
-            // its own, without widening the Menu's tappable label.
-            HStack(spacing: 0) {
-                patternMenu(position: position, section: section, pattern: pattern, playing: playing)
-                Spacer(minLength: 0)
+        let leadingView = leading(ArrangementRowLeading.content(position: position, playing: playing))
+        // The Spacer shares the Menu's slot so it costs no HStack gap of
+        // its own, without widening the Menu's tappable label.
+        let menuView = HStack(spacing: 0) {
+            patternMenu(position: position, section: section, pattern: pattern, playing: playing)
+            Spacer(minLength: 0)
+        }
+        .layoutPriority(1)
+        let repeatsText = Text("×\(section.repeats)")
+            .font(.subheadline.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .fixedSize()
+            .accessibilityHidden(true)
+        let stepper = PlainStepper(value: Binding(get: { section.repeats },
+                                                  set: { studio.setSection(section.id, repeats: $0) }),
+                                   range: 1...SongSection.maxRepeats,
+                                   accessibilityLabel: RepeatsAccessibility.label(position: position),
+                                   accessibilityValue: RepeatsAccessibility.value(section.repeats))
+        return Group {
+            switch ArrangementRowLayout.choose(for: dynamicTypeSize) {
+            case .oneLine:
+                HStack(spacing: 6) {
+                    leadingView
+                    menuView
+                    repeatsText
+                    stepper
+                }
+            case .twoLines:
+                // Accessibility sizes: the pattern letter, number and count
+                // each get a full line's width instead of sharing one.
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        leadingView
+                        menuView
+                    }
+                    HStack(spacing: 6) {
+                        Spacer(minLength: 0)
+                        repeatsText
+                        stepper
+                    }
+                }
             }
-            .layoutPriority(1)
-
-            Text("×\(section.repeats)")
-                .font(.subheadline.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .fixedSize()
-                .accessibilityHidden(true)
-
-            PlainStepper(value: Binding(get: { section.repeats },
-                                        set: { studio.setSection(section.id, repeats: $0) }),
-                         range: 1...SongSection.maxRepeats,
-                         accessibilityLabel: RepeatsAccessibility.label(position: position),
-                         accessibilityValue: RepeatsAccessibility.value(section.repeats))
         }
         .contentShape(Rectangle())
         // Attached to the row container, not the Menu or Stepper, so tapping
@@ -258,6 +279,7 @@ struct ArrangementView: View {
                     .accessibilityHidden(true)
             }
         }
-        .frame(width: 18, alignment: .trailing)
+        .frame(minWidth: 18, alignment: .trailing)
+        .fixedSize()
     }
 }
