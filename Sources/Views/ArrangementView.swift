@@ -54,7 +54,13 @@ struct ArrangementView: View {
     /// The one source of truth for edit mode. The system `EditButton` read its
     /// own copy of the environment, which went stale after a reorder rebuilt
     /// the rows, so the pill and the rows disagreed.
-    @State private var editMode: EditMode = .inactive
+    private var editMode: EditMode {
+        get { studio.editingArrangement ? .active : .inactive }
+        nonmutating set { studio.setEditingArrangement(ArrangementEditToggle.isEditing(newValue)) }
+    }
+    private var editModeBinding: Binding<EditMode> {
+        Binding(get: { editMode }, set: { editMode = $0 })
+    }
     private var capacityWarning: String {
         "More than \(Chip.maxChain) plays — sections past that won't sound."
     }
@@ -113,7 +119,7 @@ struct ArrangementView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .environment(\.editMode, $editMode)
+            .environment(\.editMode, editModeBinding)
             .onChange(of: studio.song.exceedsChainCapacity) { exceeded, nowExceeds in
                 guard ArrangementCapacityAnnouncement.shouldAnnounce(
                     previouslyExceeded: exceeded,

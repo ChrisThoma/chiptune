@@ -127,6 +127,11 @@ struct TransportBar: View {
             ArrangementView(studio: studio, regularWidth: layout.isRegularWidth)
                 .presentationCompactAdaptation(.sheet)
         }
+        // Edit mode outlives the sheet/popover swap of a pose change, which
+        // leaves this flag set, but not Arrangement being closed.
+        .onChange(of: showingArrangement) { _, showing in
+            if !showing { studio.setEditingArrangement(false) }
+        }
         .reportsPresentation(.tempoAlert, isPresented: editingTempo, studio: studio)
         .background {
             AlertTextFieldBridge(isPresented: editingTempo,
