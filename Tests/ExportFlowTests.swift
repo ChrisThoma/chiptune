@@ -108,6 +108,23 @@ final class ExportFlowTests: XCTestCase {
         XCTAssertTrue(ExportFlow.afterPanelDisappeared(isExporting: true))
     }
 
+    /// A pose change flips the size class and SwiftUI rebuilds the popover or
+    /// sheet: `onDisappear` fires while the presentation flag is still on and
+    /// a new panel appears. That is not a close, so the render carries on and
+    /// nothing is cancelled or reset.
+    func testPanelRebuiltMidRenderIsNotACloseAndKeepsTheRender() {
+        XCTAssertTrue(ExportFlow.panelRebuiltMidRender(isExporting: true, stillPresented: true))
+        XCTAssertFalse(ExportFlow.afterPanelDisappeared(isExporting: true, stillPresented: true))
+    }
+
+    /// A close by hand (flag already off) mid-render still cancels, and an
+    /// idle panel going away is not a mid-render rebuild.
+    func testPanelClosedByHandMidRenderStillCancels() {
+        XCTAssertFalse(ExportFlow.panelRebuiltMidRender(isExporting: true, stillPresented: false))
+        XCTAssertTrue(ExportFlow.afterPanelDisappeared(isExporting: true, stillPresented: false))
+        XCTAssertFalse(ExportFlow.panelRebuiltMidRender(isExporting: false, stillPresented: true))
+    }
+
     /// The panel disappearing because the render already finished — success or
     /// failure — must not re-cancel a render that isn't running.
     func testPanelDisappearingAfterTheRenderFinishedAsksForNothing() {

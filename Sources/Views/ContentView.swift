@@ -248,8 +248,19 @@ enum ExportFlow {
     /// `onDisappear` is the one place that sees it happen. A render still
     /// going at that moment has to be canceled there too, or its eventual
     /// success or failure lands on a studio nothing is watching anymore.
-    static func afterPanelDisappeared(isExporting: Bool) -> Bool {
-        isExporting
+    ///
+    /// Unless the presentation flag is still on: that is SwiftUI rebuilding
+    /// the popover or sheet under a size-class change (an iPhone Duo pose
+    /// change), which fires `onDisappear` and shows a new panel at once.
+    static func afterPanelDisappeared(isExporting: Bool, stillPresented: Bool = false) -> Bool {
+        isExporting && !stillPresented
+    }
+
+    /// `onDisappear` was a rebuild of the panel, not a close: a render is
+    /// running and the flag that shows the panel never went off. The render,
+    /// the chosen options and the pending share all stay as they are.
+    static func panelRebuiltMidRender(isExporting: Bool, stillPresented: Bool) -> Bool {
+        isExporting && stillPresented
     }
 }
 
@@ -694,7 +705,10 @@ struct ContentView: View {
     /// The export panel has left the screen. If it left behind a rendered
     /// file, this is the first moment UIKit will present anything else.
     private func shareAfterExport() {
-        if ExportFlow.afterPanelDisappeared(isExporting: studio.isExporting) {
+        if ExportFlow.panelRebuiltMidRender(isExporting: studio.isExporting,
+                                            stillPresented: showingExport) { return }
+        if ExportFlow.afterPanelDisappeared(isExporting: studio.isExporting,
+                                            stillPresented: showingExport) {
             studio.cancelExport()
         }
         let step = ExportFlow.afterExportClosed(pendingShare: shareWhenExportCloses)
