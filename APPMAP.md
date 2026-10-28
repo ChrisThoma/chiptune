@@ -229,6 +229,7 @@ The unit-test host intentionally suppresses creation of the real app `Studio`, s
 
 ## Tooling Caveats
 
+- devicehubctl 0.4.0 (f0bddc8, 2026-10-28) changes several caveats below: `type "<text>"` types into a focused field through the on-screen keyboard, so rename, title and BPM entry are now drivable; `pose` waits until the fold lands; `longpress` lands on its target on both displays and after `rotate`; `tree` shows stepper values ("1 time") instead of nan; `tap`/`longpress` fail with a `Label#n` list when several elements share a name. Edit, Done and Close nav-bar buttons are still absent from `tree`; touch them. The older caveats below describe 0.3.x and stay for runs on older builds.
 - Duo (both sims): `devicehubctl tree` has no coordinates; tap by label or identifier. `devicehubctl` cannot type, pick a segment of a segmented control, or step a stepper (each is one adjustable element). Setting a text field through accessibility shows text the app never receives, so text entry (song title, pattern rename, track rename, BPM Set, library rename) is blocked unless a fixture or import carries the text; report it blocked rather than faking it. `touch`/`drag` take fractions of the saved screenshot of the live display, unrotated; after `rotate`, screenshot to confirm where a touch lands.
 - Duo recordings: simctl records one display at a time; a display-3 recording carries rotation -90 and ffmpeg autorotates on decode. Screenshots can take 2-8 s while recording.
 - Duo: the open inner grid shows about 6 rows in landscape.
