@@ -168,6 +168,18 @@ struct PatternBar: View {
                 guard let id = selectedPatternID else { return }
                 proxy.scrollTo(id, anchor: .center)
             }
+            // A Duo pose change swaps the layout (and the bar's width) under
+            // the same ScrollView, so neither `onAppear` nor a selection change
+            // fires and the strip keeps the old pose's offset, which can leave
+            // the selected chip out of view. Follow the selection again once
+            // the new width has been laid out.
+            .onChange(of: layout) { _, _ in
+                guard let id = selectedPatternID else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 150_000_000)
+                    proxy.scrollTo(id, anchor: .center)
+                }
+            }
         }
         // Painted *over* the strip rather than masked out of it. A `.mask` here
         // has to survive the ScrollView's own compositing, and it also can't be
