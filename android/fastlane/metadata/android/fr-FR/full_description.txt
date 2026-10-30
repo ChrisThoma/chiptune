@@ -1,0 +1,36 @@
+Chiptune est un séquenceur pas à pas pour écrire de la musique dans le style des anciennes consoles de jeu. Touchez une note, puis une case de la grille, et le son part sur l'un des quatre canaux de style NES. Chiptune a deux canaux pulse, un canal triangle et un canal de bruit. Chaque canal est synthétisé en direct, sans échantillons.
+
+Les motifs se règlent de 4 à 64 pas et s'enchaînent dans un arrangement. Un morceau peut ainsi passer d'une seule boucle à une chanson complète, avec intro, couplets, refrains, etc.
+
+ÉCRIRE
+• Composez sur une grille de notes, de 4 à 64 pas par motif
+• Réglez votre piste pour couper les notes net ou les laisser résonner
+• Réglez le tempo en saisissant sa valeur ou en l'ajustant cran par cran
+• Annulez facilement n'importe quelle modification
+• Avec un clavier physique, jouez la grille comme dans un tracker, avec des raccourcis Ctrl pour annuler, exporter et plus
+
+SON
+• Deux canaux pulse avec quatre largeurs d'impulsion, du son fin et nasal au carré plein
+• Un canal triangle idéal pour les lignes de basse
+• Un bruit réglable pour les percussions, comme un charleston ou un grondement grave
+• Volume, decay et arpège sur chaque canal, pour qu'un seul canal imite un accord
+• Les sons ont des préréglages de base
+
+ARRANGER
+• Créez des sections avec un motif nommé et un nombre de répétitions
+• Faites tourner un motif en boucle pendant l'édition ou écoutez tout le morceau
+• Ajoutez plusieurs pistes de n'importe quel son quand quatre canaux ne suffisent pas
+• Sur une tablette, les réglages du son sont à côté de la grille
+
+ENREGISTRER ET PARTAGER
+• Les morceaux s'enregistrent automatiquement pendant que vous travaillez, vous ne perdez jamais rien
+• Dupliquez un morceau pour essayer une variante
+• Exportez n'importe quel morceau en fichier WAV, en boucle sans coupure ou avec les dernières notes qui résonnent
+• Exportez en fichier MIDI pour continuer à travailler vos notes dans une autre app de musique
+• Exportez une vidéo de votre morceau en lecture, en grille qui défile ou en cartouche de jeu, à publier sur Instagram, TikTok ou YouTube
+• Partagez un export ou enregistrez-le directement sur votre appareil
+• Envoyez un fichier de morceau à un ami, ou ouvrez-en un depuis Files, Gmail ou Drive
+
+Chiptune fonctionne entièrement hors ligne et ne demande jamais d'abonnement. Pas de compte, pas de pub, pas de suivi.
+
+L'interface de l'app est en anglais.

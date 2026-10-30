@@ -1,0 +1,36 @@
+Chiptune, eski oyun konsollarının tarzında müzik yazmak için bir step sequencer. Bir notaya dokunun, ızgarada bir hücreye dokunun ve dört NES tarzı kanaldan birinden ses gelsin. Chiptune'da iki pulse kanalı, bir triangle ve bir noise kanalı vardır. Her kanal hazır kayıt kullanılmadan anlık olarak sentezlenir.
+
+Pattern'ler 4 ile 64 adım arasında ayarlanabilir ve bir aranjmanda art arda bağlanabilir. Böylece bir parça tek bir döngüden giriş, kıta ve nakaratlarıyla tam bir şarkıya dönüşebilir.
+
+YAZMA
+• Pattern başına 4 ile 64 adımlık bir nota ızgarasında beste yapın
+• Notaları kısa kesin ya da çınlamaya bırakın
+• Tempoyu yazarak girin ya da adım adım değiştirin
+• Her değişikliği kolayca geri alın
+• Fiziksel klavyeyle ızgarayı bir tracker gibi çalın, geri alma, dışa aktarma ve diğer işler için Ctrl kısayollarını kullanın
+
+SES
+• Dört pulse genişliğine sahip iki pulse kanalı, ince ve genizden gelen sesten dolgun kare dalgaya kadar
+• Bas partileri için ideal bir triangle kanalı
+• Hi-hat ya da alçak bir gümbürtü gibi davul sesleri için ayarlanabilir noise
+• Her kanal için ses düzeyi, decay ve arpej ayarları, böylece tek bir kanal akor taklidi yapabilir
+• Seslerle birlikte temel hazır ayarlar gelir
+
+ARANJMAN
+• Adı olan bir pattern ve tekrar sayısıyla bölümler oluşturun
+• Düzenlerken tek bir pattern'i döngüye alın ya da tüm şarkıyı çalın
+• Dört kanal yetmediğinde istediğiniz sesle yeni track'ler ekleyin
+• Tablette ses ayarları ızgaranın yanında durur
+
+KAYDETME VE PAYLAŞMA
+• Şarkılar siz çalışırken otomatik kaydedilir, hiçbir şey kaybolmaz
+• Biraz farklı bir şey denemek için şarkının kopyasını oluşturun
+• Her şarkıyı kesintisiz döngüyle ya da son notalar sönene kadar çalarak WAV dosyası olarak dışa aktarın
+• Notalarınız üzerinde başka bir müzik uygulamasında çalışmaya devam etmek için MIDI dosyası olarak dışa aktarın
+• Şarkınızı kayan bir ızgara ya da oyun kartuşu olarak çalan bir video dışa aktarın ve Instagram, TikTok ya da YouTube'da paylaşın
+• Dışa aktarılan dosyayı paylaşın ya da doğrudan cihazınıza kaydedin
+• Bir arkadaşınıza şarkı dosyası gönderin ya da Files, Gmail veya Drive'dan bir dosya açın
+
+Chiptune tamamen çevrimdışı çalışır ve hiçbir zaman abonelik istemez. Hesap yok, reklam yok, takip yok.
+
+Uygulamanın arayüzü İngilizcedir.

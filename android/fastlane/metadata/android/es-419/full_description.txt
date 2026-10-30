@@ -1,0 +1,36 @@
+Chiptune es un secuenciador por pasos para escribir música al estilo de las consolas antiguas. Toca una nota, toca una casilla de la cuadrícula y sonará en uno de los cuatro canales de estilo NES. Chiptune tiene dos canales de pulso, uno triangular y uno de ruido. Cada canal se sintetiza en vivo, sin muestras.
+
+Los patrones se ajustan de 4 a 64 pasos y se pueden encadenar en un arreglo. Así una pieza pasa de un solo bucle a una canción completa, con intro, estrofas, estribillos, etc.
+
+ESCRIBIR
+• Compón en una cuadrícula de notas con 4 a 64 pasos por patrón
+• Ajusta tu pista para cortar las notas o dejarlas sonar
+• Fija el tempo escribiéndolo o cambiándolo de paso en paso
+• Deshaz cualquier cambio fácilmente
+• Con un teclado físico, toca la cuadrícula como en un tracker, con atajos de Ctrl para deshacer, exportar y más
+
+SONIDO
+• Dos canales de pulso con cuatro anchos de pulso, de un sonido fino y nasal a una onda cuadrada plena
+• Un canal triangular ideal para líneas de bajo
+• Ruido afinable para percusiones, como un hi-hat o un retumbo grave
+• Controles de volumen, decay y arpegio por canal, para que un canal simule un acorde
+• Los sonidos incluyen presets básicos
+
+ORGANIZAR
+• Crea secciones con un patrón con nombre y un número de repeticiones
+• Repite un patrón en bucle mientras editas o reproduce toda la canción
+• Agrega varias pistas de cualquier sonido cuando cuatro canales no alcanzan
+• En una tableta, los controles de sonido están junto a la cuadrícula
+
+GUARDAR Y COMPARTIR
+• Las canciones se guardan solas mientras trabajas, así nunca pierdes nada
+• Duplica una canción para probar algo un poco diferente
+• Exporta cualquier canción como archivo WAV, en bucle continuo o con las últimas notas sonando hasta el final
+• Exporta como archivo MIDI para seguir trabajando tus notas en otra app de música
+• Exporta un video de tu canción sonando, como cuadrícula en movimiento o como cartucho de juego, para publicarlo en Instagram, TikTok o YouTube
+• Comparte una exportación o guárdala directamente en tu dispositivo
+• Envía un archivo de canción a un amigo o abre uno desde Files, Gmail o Drive
+
+Chiptune funciona totalmente sin conexión y nunca te pide una suscripción. Sin cuenta, sin anuncios, sin rastreo.
+
+La interfaz de la app está en inglés.

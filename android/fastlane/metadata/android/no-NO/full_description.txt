@@ -1,0 +1,36 @@
+Chiptune er en step sequencer for å skrive musikk i stilen til gamle spillkonsoller. Trykk på en note, trykk på en rute i rutenettet, så spilles lyd fra en av fire kanaler i NES-stil. Chiptune har to pulskanaler, en trekantkanal og en støykanal. Hver kanal syntetiseres live i stedet for å bruke samplinger.
+
+Mønstre kan ha fra 4 til 64 steg og settes sammen til et arrangement. Slik kan et stykke gå fra én enkelt loop til en hel låt med intro, vers, refreng og så videre.
+
+SKRIV
+• Komponer i et rutenett av noter med 4 til 64 steg per mønster
+• Tilpass sporet slik at noter kuttes kort eller får klinge ut
+• Sett tempoet ved å skrive det inn eller justere det ett steg av gangen
+• Angre enkelt alle endringer
+• Med et fysisk tastatur spiller du rutenettet som en tracker, med Ctrl-snarveier for angre, eksport og mer
+
+LYD
+• To pulskanaler med fire pulsbredder, fra tynn og nasal til full firkantbølge
+• En trekantkanal som passer godt til basslinjer
+• Stembar støy for trommer som en hi-hat eller en dyp rumling
+• Volum, decay og arpeggio per kanal, så én kanal kan etterligne en akkord
+• Lydene har noen enkle forhåndsinnstillinger
+
+ARRANGER
+• Lag deler med et navngitt mønster og et antall repetisjoner
+• Spill ett mønster i loop mens du redigerer, eller spill hele låten
+• Legg til flere spor med hvilken som helst lyd når fire kanaler ikke er nok
+• På et nettbrett står lydinnstillingene ved siden av rutenettet
+
+LAGRE OG DEL
+• Låter lagres automatisk mens du jobber, så du mister aldri noe
+• Dupliser en låt for å prøve noe litt annet
+• Eksporter hvilken som helst låt som WAV-fil med sømløs loop eller med de siste notene som klinger ut
+• Eksporter som MIDI-fil for å jobbe videre med notene i en annen musikkapp
+• Eksporter en video av låten mens den spilles, som et rullende rutenett eller en spillkassett, til Instagram, TikTok eller YouTube
+• Del en eksport eller lagre den rett på enheten
+• Send en låtfil til en venn, eller åpne en fra Files, Gmail eller Drive
+
+Chiptune fungerer helt uten nett og ber aldri om abonnement. Ingen konto, ingen reklame, ingen sporing.
+
+Appen har grensesnitt på engelsk.

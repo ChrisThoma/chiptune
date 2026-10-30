@@ -64,7 +64,7 @@ class Play:
     def __init__(self):
         self.tok = token()
 
-    def call(self, method, url, body=None, data=None, ctype="application/json"):
+    def call(self, method, url, body=None, data=None, ctype="application/json", missing_ok=False):
         if body is not None:
             data = json.dumps(body).encode()
         for attempt in range(5):
@@ -80,6 +80,9 @@ class Play:
                 if e.code in (500, 502, 503, 504) and attempt < 4:
                     time.sleep(2 * (attempt + 1))
                     continue
+                # A language with no listing yet answers 404; to the caller that's an empty listing.
+                if e.code == 404 and missing_ok:
+                    return {}
                 raise SystemExit(f"{method} {url}\n-> {e.code} {err}")
 
 
@@ -116,7 +119,7 @@ def main():
                    "title": read(f"{d}/title.txt"),
                    "shortDescription": read(f"{d}/short_description.txt"),
                    "fullDescription": read(f"{d}/full_description.txt")}
-        have = p.call("GET", f"{e}/listings/{lang}")
+        have = p.call("GET", f"{e}/listings/{lang}", missing_ok=True)
         diff = [k for k in ("title", "shortDescription", "fullDescription") if have.get(k) != listing[k]]
         if diff:
             changed.append(f"{lang} listing: {', '.join(diff)}")
@@ -135,7 +138,7 @@ def main():
                 continue
             if not files:
                 continue
-            have = p.call("GET", f"{e}/listings/{lang}/{kind}").get("images", [])
+            have = p.call("GET", f"{e}/listings/{lang}/{kind}", missing_ok=True).get("images", [])
             changed.append(f"{lang} {kind}: {len(have)} on Play -> {len(files)} local")
             if args.check:
                 continue

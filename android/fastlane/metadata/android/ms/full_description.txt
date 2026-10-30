@@ -1,0 +1,34 @@
+Chiptune ialah step sequencer untuk menulis muzik dalam gaya konsol permainan lama. Ketik sahaja satu nota, kemudian ketik satu sel pada grid, dan bunyi akan dimainkan daripada salah satu daripada empat saluran gaya NES. Chiptune mempunyai dua saluran pulse, satu triangle dan satu noise. Setiap saluran disintesis secara langsung, tanpa sampel.
+
+Corak boleh ditetapkan daripada 4 hingga 64 langkah dan disambungkan menjadi susunan. Dengan itu, sesebuah karya boleh berkembang daripada satu gelung menjadi lagu penuh dengan intro, verse, korus dan sebagainya.
+
+TULIS
+• Gubah pada grid nota dengan 4 hingga 64 langkah bagi setiap corak
+• Laraskan supaya nota dipotong pendek atau dibiarkan berbunyi
+• Tetapkan tempo dengan menaipnya atau melaraskannya selangkah demi selangkah
+• Buat asal sebarang perubahan dengan mudah
+• Dengan papan kekunci fizikal, mainkan grid seperti tracker, dengan pintasan Ctrl untuk buat asal, eksport dan banyak lagi
+
+BUNYI
+• Dua saluran pulse dengan empat lebar denyut, daripada nipis dan sengau hingga gelombang segi empat penuh
+• Saluran triangle yang sesuai untuk garis bass
+• Noise yang nadanya boleh dilaraskan untuk dram seperti hi-hat atau dentuman rendah
+• Kawalan kelantangan, decay dan arpeggio bagi setiap saluran, supaya satu saluran boleh berbunyi seperti kord
+• Bunyi disertakan dengan pratetap asas
+
+SUSUNAN
+• Cipta bahagian dengan corak bernama dan bilangan ulangan
+• Ulang satu corak semasa mengedit atau mainkan seluruh lagu
+• Tambah beberapa trek dengan sebarang bunyi apabila empat saluran tidak mencukupi
+• Pada tablet, kawalan bunyi terletak di sebelah grid
+
+SIMPAN DAN KONGSI
+• Lagu disimpan secara automatik semasa anda bekerja, jadi tiada apa yang hilang
+• Salin lagu untuk mencuba sesuatu yang sedikit berbeza
+• Eksport sebarang lagu sebagai fail WAV dengan gelung lancar atau dengan nota terakhir dibiarkan berbunyi hingga habis
+• Eksport sebagai fail MIDI untuk terus mengusahakan nota anda dalam apl muzik lain
+• Eksport video lagu anda dimainkan, sebagai grid yang menatal atau kartrij permainan, untuk disiarkan di Instagram, TikTok atau YouTube
+• Kongsi fail eksport atau simpan terus ke peranti anda
+• Hantar fail lagu kepada rakan, atau buka fail daripada Files, Gmail atau Drive
+
+Chiptune berfungsi sepenuhnya di luar talian dan tidak pernah meminta langganan. Tiada akaun, tiada iklan, tiada penjejakan. Antara muka apl ini dalam bahasa Inggeris.

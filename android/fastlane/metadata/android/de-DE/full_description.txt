@@ -1,0 +1,36 @@
+Chiptune ist ein Step-Sequencer, mit dem du Musik im Stil alter Spielkonsolen schreibst. Tippe auf eine Note und dann auf ein Feld im Raster, schon spielt einer von vier Kanälen im NES-Stil den Ton. Chiptune hat zwei Pulse-Kanäle, einen Dreieck- und einen Rauschkanal. Jeder Kanal wird live synthetisiert statt aus Samples abgespielt.
+
+Patterns lassen sich von 4 bis 64 Steps einstellen und zu einem Arrangement verketten. So wird aus einem einzelnen Loop ein ganzer Song mit Intro, Strophen, Refrains usw.
+
+SCHREIBEN
+• Komponiere in einem Notenraster mit 4 bis 64 Steps pro Pattern
+• Stelle deine Spur so ein, dass Noten kurz abreißen oder ausklingen
+• Gib das Tempo ein oder ändere es Schritt für Schritt
+• Mach jede Änderung einfach rückgängig
+• Mit einer Hardware-Tastatur spielst du das Raster wie einen Tracker, mit Strg-Kürzeln für Rückgängig, Export und mehr
+
+KLANG
+• Zwei Pulse-Kanäle mit vier Pulsbreiten, von dünn und nasal bis zum vollen Rechteck
+• Ein Dreieck-Kanal, ideal für Basslines
+• Stimmbares Rauschen für Drums wie eine Hi-Hat oder ein tiefes Grollen
+• Lautstärke, Decay und Arpeggio pro Kanal, damit ein einzelner Kanal einen Akkord vortäuschen kann
+• Sounds mit einfachen Presets
+
+ARRANGIEREN
+• Erstelle Abschnitte aus einem benannten Pattern und einer Zahl an Wiederholungen
+• Spiele beim Bearbeiten ein Pattern im Loop oder den ganzen Song
+• Füge mehrere Spuren mit beliebigen Sounds hinzu, wenn vier Kanäle nicht reichen
+• Auf einem Tablet liegen die Klangregler neben dem Raster
+
+SPEICHERN UND TEILEN
+• Songs werden beim Arbeiten automatisch gespeichert, so geht nie etwas verloren
+• Dupliziere einen Song, um eine Variante auszuprobieren
+• Exportiere jeden Song als WAV-Datei, als nahtlosen Loop oder mit ausklingenden letzten Noten
+• Exportiere als MIDI-Datei, um in einer anderen Musik-App an deinen Noten weiterzuarbeiten
+• Exportiere ein Video deines laufenden Songs, als scrollendes Raster oder als Spielmodul, für Instagram, TikTok oder YouTube
+• Teile einen Export oder speichere ihn direkt auf deinem Gerät
+• Schicke eine Songdatei an Freunde oder öffne eine aus Files, Gmail oder Drive
+
+Chiptune funktioniert komplett offline und verlangt nie ein Abo. Kein Konto, keine Werbung, kein Tracking.
+
+Die Oberfläche der App ist auf Englisch.

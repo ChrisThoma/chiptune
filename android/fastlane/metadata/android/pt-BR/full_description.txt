@@ -1,0 +1,36 @@
+O Chiptune é um sequenciador de passos para escrever música no estilo dos consoles antigos. Toque em uma nota, toque em uma casa da grade e ela soa em um dos quatro canais ao estilo do NES. O Chiptune tem dois canais de pulso, um triangular e um de ruído. Cada canal é sintetizado ao vivo, sem samples.
+
+Os padrões vão de 4 a 64 passos e podem ser encadeados em um arranjo. Assim, uma peça passa de um único loop a uma música completa, com introdução, estrofes, refrões etc.
+
+ESCREVER
+• Componha em uma grade de notas com 4 a 64 passos por padrão
+• Ajuste a faixa para cortar as notas ou deixá-las soar
+• Defina o andamento digitando o valor ou ajustando um passo de cada vez
+• Desfaça qualquer alteração com facilidade
+• Com um teclado físico, toque a grade como em um tracker, com atalhos Ctrl para desfazer, exportar e mais
+
+SOM
+• Dois canais de pulso com quatro larguras de pulso, do som fino e nasal à onda quadrada cheia
+• Um canal triangular ideal para linhas de baixo
+• Ruído afinável para percussão, como um chimbal ou um ronco grave
+• Controles de volume, decay e arpejo por canal, para um só canal imitar um acorde
+• Os sons vêm com presets básicos
+
+ARRANJAR
+• Crie seções com um padrão com nome e um número de repetições
+• Repita um padrão em loop enquanto edita ou toque a música inteira
+• Adicione várias faixas de qualquer som quando quatro canais não bastam
+• Em um tablet, os controles de som ficam ao lado da grade
+
+SALVAR E COMPARTILHAR
+• As músicas são salvas automaticamente enquanto você trabalha, então nada se perde
+• Duplique uma música para testar algo um pouco diferente
+• Exporte qualquer música como arquivo WAV, em loop contínuo ou com as últimas notas soando até o fim
+• Exporte como arquivo MIDI para continuar trabalhando nas notas em outro app de música
+• Exporte um vídeo da música tocando, como grade rolando ou cartucho de jogo, para postar no Instagram, TikTok ou YouTube
+• Compartilhe uma exportação ou salve-a diretamente no seu aparelho
+• Envie um arquivo de música para um amigo ou abra um pelo Files, Gmail ou Drive
+
+O Chiptune funciona totalmente offline e nunca pede assinatura. Sem conta, sem anúncios, sem rastreamento.
+
+A interface do app está em inglês.

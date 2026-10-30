@@ -1,0 +1,36 @@
+Chiptune este un secvențiator pas cu pas pentru a compune muzică în stilul vechilor console de jocuri. Atingi o notă, atingi o celulă din grilă și se aude un sunet de pe unul dintre cele patru canale în stil NES. Chiptune are două canale puls, un triunghi și zgomot. Fiecare canal este sintetizat în timp real, fără mostre înregistrate.
+
+Pattern-urile pot avea între 4 și 64 de pași și pot fi legate într-un aranjament. Așa, o piesă poate crește de la o singură buclă la un cântec întreg, cu intro, strofe, refrene și altele.
+
+COMPUNE
+• Compui pe o grilă de note, cu 4 până la 64 de pași pe pattern
+• Alegi dacă notele se opresc scurt sau continuă să răsune
+• Setezi tempoul tastându-l sau ajustându-l pas cu pas
+• Anulezi ușor orice modificare
+• Cu o tastatură fizică, cânți pe grilă ca într-un tracker, cu scurtături Ctrl pentru anulare, export și altele
+
+SUNET
+• Două canale puls cu patru lățimi de puls, de la subțire și nazal la undă pătrată plină
+• Un canal triunghi, ideal pentru linii de bas
+• Zgomot reglabil pentru tobe, de la un hi-hat la un vuiet grav
+• Volum, decay și arpegiu pe fiecare canal, ca un singur canal să poată imita un acord
+• Sunetele vin cu câteva presetări de bază
+
+ARANJAMENT
+• Creezi secțiuni dintr-un pattern cu nume și un număr de repetări
+• Asculți în buclă un singur pattern cât editezi sau redai tot cântecul
+• Adaugi mai multe piste cu orice sunet când patru canale nu ajung
+• Pe tabletă, controalele de sunet stau lângă grilă
+
+SALVARE ȘI PARTAJARE
+• Cântecele se salvează automat în timp ce lucrezi, așa că nu pierzi nimic
+• Duplici un cântec ca să încerci o variantă puțin diferită
+• Exporți orice cântec ca fișier WAV, cu buclă fără întrerupere sau cu ultimele note lăsate să răsune
+• Exporți ca fișier MIDI ca să lucrezi mai departe la note în altă aplicație de muzică
+• Exporți un video cu cântecul tău în redare, ca grilă care derulează sau cartuș de joc, pentru Instagram, TikTok sau YouTube
+• Partajezi un export sau îl salvezi direct pe dispozitiv
+• Trimiți un fișier de cântec unui prieten sau deschizi unul din Files, Gmail sau Drive
+
+Chiptune funcționează complet offline și nu cere niciodată abonament. Fără cont, fără reclame, fără urmărire.
+
+Interfața aplicației este în limba engleză.

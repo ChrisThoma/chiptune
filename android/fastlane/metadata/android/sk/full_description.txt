@@ -1,0 +1,36 @@
+Chiptune je krokový sekvencer na písanie hudby v štýle starých herných konzol. Ťuknite na notu, potom na bunku v mriežke a zaznie zvuk z jedného zo štyroch kanálov v štýle NES. Chiptune má dva pulzné kanály, trojuholníkový kanál a šumový kanál. Každý kanál sa syntetizuje naživo, nepoužíva sample.
+
+Patterny môžu mať 4 až 64 krokov a dajú sa spájať do aranžmánu. Skladba tak môže prerásť z jednej slučky na celú pesničku s introm, slohami, refrénmi a podobne.
+
+PÍSANIE
+• Skladajte v mriežke nôt so 4 až 64 krokmi na pattern
+• Nastavte stopu tak, aby noty boli krátko odseknuté alebo doznievali
+• Tempo zadajte číslom alebo ho posúvajte po krokoch
+• Akúkoľvek zmenu ľahko vrátite späť
+• S hardvérovou klávesnicou hráte na mriežke ako v trackeri a skratky s Ctrl slúžia na vrátenie zmien, export a ďalšie
+
+ZVUK
+• Dva pulzné kanály so štyrmi šírkami pulzu, od tenkého a nosového zvuku po plnú obdĺžnikovú vlnu
+• Trojuholníkový kanál, ideálny na basové linky
+• Laditeľný šum na bicie, napríklad hi-hat alebo hlboké dunenie
+• Hlasitosť, doznievanie a arpeggio pre každý kanál, takže jeden kanál môže napodobniť akord
+• Zvuky majú niekoľko základných predvolieb
+
+ARANŽMÁN
+• Vytvárajte sekcie s pomenovaným patternom a počtom opakovaní
+• Pri úpravách prehrávajte jeden pattern v slučke alebo pustite celú skladbu
+• Keď štyri kanály nestačia, pridajte ďalšie stopy s ľubovoľným zvukom
+• Na tablete sú ovládacie prvky zvuku vedľa mriežky
+
+UKLADANIE A ZDIEĽANIE
+• Skladby sa počas práce ukladajú samy, takže nič nestratíte
+• Duplikujte skladbu a skúste niečo trochu inak
+• Exportujte akúkoľvek skladbu ako súbor WAV s plynulou slučkou alebo s doznievajúcimi poslednými notami
+• Exportujte ako súbor MIDI a pokračujte v práci s notami v inej hudobnej aplikácii
+• Exportujte video prehrávanej skladby ako posúvajúcu sa mriežku alebo hernú kazetu a zverejnite ho na Instagrame, TikToku alebo YouTube
+• Zdieľajte export alebo ho uložte priamo do zariadenia
+• Pošlite súbor so skladbou kamarátovi alebo nejaký otvorte z aplikácií Files, Gmail či Drive
+
+Chiptune funguje úplne offline a nikdy nežiada predplatné. Žiadny účet, žiadne reklamy, žiadne sledovanie.
+
+Rozhranie aplikácie je v angličtine.

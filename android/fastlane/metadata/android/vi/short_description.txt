@@ -1,0 +1,1 @@
+Viết nhạc game 8 bit: chạm để đặt nốt lên lưới và nối chúng thành một bài hát.

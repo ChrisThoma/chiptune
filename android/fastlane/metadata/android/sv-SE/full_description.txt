@@ -1,0 +1,36 @@
+Chiptune är en step sequencer för att skriva musik i samma stil som gamla spelkonsoler. Tryck på en ton, tryck på en ruta i rutnätet, så spelas ljud från en av fyra kanaler i NES-stil. Chiptune har två pulskanaler, en triangelkanal och en bruskanal. Varje kanal syntetiseras live i stället för att samplas.
+
+Mönster kan vara från 4 till 64 steg och kedjas ihop till ett arrangemang. Så kan ett stycke gå från en enda loop till en hel låt med intro, verser, refränger och så vidare.
+
+SKRIV
+• Komponera i ett rutnät av toner med 4 till 64 steg per mönster
+• Anpassa spåret så att toner klipps av kort eller får klinga ut
+• Ställ in tempot genom att skriva det eller justera det ett steg i taget
+• Ångra enkelt alla ändringar
+• Med ett fysiskt tangentbord spelar du rutnätet som en tracker, med Ctrl-kortkommandon för ångra, export med mera
+
+LJUD
+• Två pulskanaler med fyra pulsbredder, från tunt och nasalt till full fyrkantsvåg
+• En triangelkanal som passar bra för baslinjer
+• Stämbart brus för trummor som en hi-hat eller ett lågt muller
+• Volym, decay och arpeggio per kanal, så att en kanal kan låtsas spela ett ackord
+• Ljuden har några enkla förinställningar
+
+ARRANGERA
+• Skapa delar med ett namngivet mönster och ett antal upprepningar
+• Loopa ett mönster medan du redigerar eller spela hela låten
+• Lägg till fler spår med valfritt ljud när fyra kanaler inte räcker
+• På en surfplatta ligger ljudinställningarna bredvid rutnätet
+
+SPARA OCH DELA
+• Låtar sparas automatiskt medan du arbetar, så du förlorar aldrig något
+• Duplicera en låt för att prova något lite annorlunda
+• Exportera valfri låt som WAV-fil med en sömlös loop eller där de sista tonerna får klinga ut
+• Exportera som MIDI-fil för att arbeta vidare med tonerna i en annan musikapp
+• Exportera en video där låten spelas, som ett rullande rutnät eller en spelkassett, att lägga upp på Instagram, TikTok eller YouTube
+• Dela en export eller spara den direkt på enheten
+• Skicka en låtfil till en vän eller öppna en från Files, Gmail eller Drive
+
+Chiptune fungerar helt offline och kräver aldrig någon prenumeration. Inget konto, ingen reklam, ingen spårning.
+
+Appens gränssnitt är på engelska.

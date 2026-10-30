@@ -1,0 +1,36 @@
+A Chiptune egy lépésszekvenszer, amellyel a régi játékkonzolok stílusában írhatsz zenét. Koppints egy hangra, majd a rács egy cellájára, és megszólal a négy NES-stílusú csatorna egyike. A Chiptune-ban két pulzuscsatorna, egy háromszögcsatorna és egy zajcsatorna van. Minden csatorna hangja élőben szintetizált, nem felvett sample.
+
+A patternek hossza 4 és 64 lépés között állítható, és dalszerkezetté fűzhetők. Így egy darab egyetlen loopból teljes dallá nőhet introval, versszakokkal, refrénekkel és így tovább.
+
+ÍRÁS
+• Komponálj egy hangrácson, patternenként 4 és 64 közötti lépéssel
+• Állítsd be a sávot, hogy a hangok röviden elhalljanak vagy kicsengjenek
+• Add meg a tempót begépelve, vagy állítsd lépésenként
+• Bármely változtatást könnyen visszavonhatsz
+• Fizikai billentyűzettel úgy játszhatsz a rácson, mint egy trackerben, Ctrl-billentyűparancsokkal a visszavonáshoz, exportáláshoz és máshoz
+
+HANG
+• Két pulzuscsatorna négy impulzusszélességgel, a vékony, orrhangú hangzástól a telt négyszögjelig
+• Háromszögcsatorna, ami ideális basszusvonalakhoz
+• Hangolható zaj dobokhoz, például hi-hathez vagy mély dübörgéshez
+• Hangerő, lecsengés és arpeggio csatornánként, így egy csatorna akkordot is utánozhat
+• A hangokhoz néhány alap előbeállítás tartozik
+
+ELRENDEZÉS
+• Hozz létre szakaszokat egy elnevezett patternnel és ismétlésszámmal
+• Szerkesztés közben ismételtess egy patternt, vagy játszd le az egész dalt
+• Adj hozzá több sávot bármilyen hanggal, ha négy csatorna nem elég
+• Táblagépen a hangbeállítások a rács mellett vannak
+
+MENTÉS ÉS MEGOSZTÁS
+• A dalok munka közben automatikusan mentődnek, így semmi sem vész el
+• Duplikálj egy dalt, hogy kipróbálj valami kicsit mást
+• Exportálj bármely dalt WAV-fájlként, hézagmentes loopként vagy kicsengő utolsó hangokkal
+• Exportálj MIDI-fájlként, hogy egy másik zenei alkalmazásban dolgozz tovább a hangokon
+• Exportálj videót a lejátszott dalról, gördülő rácsként vagy játékkazettaként, és tedd közzé az Instagramon, a TikTokon vagy a YouTube-on
+• Oszd meg az exportot, vagy mentsd közvetlenül az eszközre
+• Küldj el egy dalfájlt egy barátodnak, vagy nyiss meg egyet a Files, a Gmail vagy a Drive alkalmazásból
+
+A Chiptune teljesen offline működik, és soha nem kér előfizetést. Nincs fiók, nincs reklám, nincs követés.
+
+Az alkalmazás felülete angol nyelvű.

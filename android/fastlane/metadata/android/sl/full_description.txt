@@ -1,0 +1,36 @@
+Chiptune je koračni sekvencer za pisanje glasbe v slogu starih igralnih konzol. Tapnite noto, tapnite celico v mreži in zaigra zvok enega od štirih kanalov v slogu NES. Chiptune ima dva pulzna kanala, trikotnega in šum. Vsak kanal se sintetizira v živo, brez posnetih vzorcev zvoka.
+
+Vzorce (patterns) lahko nastavite od 4 do 64 korakov in jih povežete v aranžma. Tako skladba zraste iz ene same zanke v celo pesem z uvodom, kiticami, refreni in drugim.
+
+PISANJE
+• Komponirajte na mreži not s 4 do 64 koraki na vzorec
+• Note skrajšajte ali jih pustite zveneti
+• Tempo vpišite ali ga spreminjajte korak za korakom
+• Vsako spremembo preprosto razveljavite
+• S fizično tipkovnico igrajte po mreži kot v trackerju, z bližnjicami Ctrl za razveljavitev, izvoz in drugo
+
+ZVOK
+• Dva pulzna kanala s štirimi širinami pulza, od tankega in nosljajočega do polnega kvadratnega vala
+• Trikotni kanal, kot nalašč za basovske linije
+• Nastavljiv šum za bobne, od hi-hata do globokega bobnenja
+• Glasnost, upad in arpeggio za vsak kanal, da lahko en kanal posnema akord
+• Zvoki imajo nekaj osnovnih prednastavitev
+
+ARANŽMA
+• Ustvarite odseke iz poimenovanega vzorca in števila ponovitev
+• Med urejanjem vrtite en vzorec v zanki ali predvajajte celo pesem
+• Dodajte več sledi s poljubnim zvokom, ko štirje kanali niso dovolj
+• Na tabličnem računalniku so kontrolniki zvoka ob mreži
+
+SHRANJEVANJE IN DELJENJE
+• Pesmi se med delom samodejno shranjujejo, zato nič ne izgubite
+• Podvojite pesem, da preizkusite nekaj malo drugačnega
+• Izvozite katero koli pesem kot datoteko WAV z neprekinjeno zanko ali z zadnjimi notami, ki izzvenijo
+• Izvozite kot datoteko MIDI in nadaljujte delo z notami v drugi glasbeni aplikaciji
+• Izvozite video pesmi med predvajanjem, kot drsečo mrežo ali kot igralno kaseto, za objavo v omrežjih Instagram, TikTok ali YouTube
+• Delite izvoz ali ga shranite neposredno v napravo
+• Pošljite datoteko pesmi prijatelju ali jo odprite iz aplikacij Files, Gmail ali Drive
+
+Chiptune deluje povsem brez povezave in nikoli ne zahteva naročnine. Brez računa, brez oglasov, brez sledenja.
+
+Vmesnik aplikacije je v angleščini.

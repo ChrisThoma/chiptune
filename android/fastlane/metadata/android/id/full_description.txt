@@ -1,0 +1,34 @@
+Chiptune adalah step sequencer untuk menulis musik dengan gaya konsol game lama. Cukup ketuk sebuah not, lalu ketuk sel di grid, dan suaranya akan diputar dari salah satu dari empat kanal bergaya NES. Chiptune punya dua kanal pulse, satu triangle, dan satu noise. Setiap kanal disintesis langsung, tanpa sampel.
+
+Pola bisa diatur dari 4 sampai 64 langkah dan dirangkai menjadi aransemen. Dengan begitu, sebuah karya bisa berkembang dari satu loop menjadi lagu utuh dengan intro, verse, chorus, dan lainnya.
+
+MENULIS
+• Menulis di grid not dengan 4 sampai 64 langkah per pola
+• Atur agar not berhenti singkat atau dibiarkan berbunyi
+• Atur tempo dengan mengetik angkanya atau menggesernya satu langkah demi satu langkah
+• Urungkan perubahan apa pun dengan mudah
+• Dengan keyboard fisik, mainkan grid seperti tracker, dengan pintasan Ctrl untuk urungkan, ekspor, dan lainnya
+
+SUARA
+• Dua kanal pulse dengan empat lebar pulsa, dari tipis dan sengau sampai kotak penuh
+• Kanal triangle yang pas untuk bassline
+• Noise yang nadanya bisa diatur untuk drum seperti hi-hat atau gemuruh rendah
+• Kontrol volume, decay, dan arpeggio per kanal, sehingga satu kanal bisa terdengar seperti akor
+• Suara dilengkapi preset dasar
+
+ARANSEMEN
+• Buat bagian dengan pola bernama dan jumlah pengulangan
+• Ulang satu pola saat mengedit atau putar seluruh lagu
+• Tambahkan beberapa track dengan suara apa pun saat empat kanal tidak cukup
+• Di tablet, kontrol suara ada di samping grid
+
+SIMPAN DAN BAGIKAN
+• Lagu tersimpan otomatis saat kamu bekerja, jadi tidak ada yang hilang
+• Duplikat lagu untuk mencoba sesuatu yang sedikit berbeda
+• Ekspor lagu apa pun sebagai file WAV dengan loop mulus atau dengan not terakhir dibiarkan berbunyi sampai habis
+• Ekspor sebagai file MIDI untuk melanjutkan not di aplikasi musik lain
+• Ekspor video lagu yang sedang diputar, sebagai grid bergulir atau kartrid game, untuk diunggah ke Instagram, TikTok, atau YouTube
+• Bagikan hasil ekspor atau simpan langsung ke perangkat
+• Kirim file lagu ke teman, atau buka dari Files, Gmail, atau Drive
+
+Chiptune berfungsi sepenuhnya offline dan tidak pernah meminta langganan. Tanpa akun, tanpa iklan, tanpa pelacakan. Antarmuka aplikasi ini dalam bahasa Inggris.

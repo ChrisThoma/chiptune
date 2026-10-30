@@ -1,0 +1,36 @@
+Chiptune on askelsekvensseri, jolla kirjoitetaan musiikkia vanhojen pelikonsolien tyyliin. Napauta nuottia ja sitten ruutua ruudukossa, niin kuulet äänen yhdeltä neljästä NES-tyylisestä kanavasta. Chiptunessa on kaksi pulssikanavaa, kolmiokanava ja kohinakanava. Jokainen kanava syntetisoidaan reaaliajassa, ei samplena.
+
+Kuvion pituudeksi voi valita 4 ja 64 askeleen väliltä, ja kuviot voi ketjuttaa sovitukseksi. Näin kappale voi kasvaa yhdestä luupista kokonaiseksi biisiksi, jossa on intro, säkeistöt, kertosäkeet ja niin edelleen.
+
+KIRJOITA
+• Sävellä nuottiruudukossa, jossa kuvion pituus on 4 ja 64 askeleen välillä
+• Muokkaa raitaa niin, että nuotit katkeavat lyhyesti tai saavat soida
+• Aseta tempo kirjoittamalla se tai säätämällä sitä askel kerrallaan
+• Peru mikä tahansa muutos helposti
+• Fyysisellä näppäimistöllä soitat ruudukkoa kuin trackeria, ja Ctrl-pikanäppäimillä voit perua, viedä ja paljon muuta
+
+ÄÄNI
+• Kaksi pulssikanavaa ja neljä pulssinleveyttä, ohuesta ja nasaalista täyteen kanttiaaltoon
+• Kolmiokanava, joka sopii hyvin bassolinjoihin
+• Viritettävä kohina rumpuihin, kuten hi-hatiin tai matalaan jyrinään
+• Äänenvoimakkuus, decay ja arpeggio jokaiselle kanavalle, joten yksi kanava voi matkia sointua
+• Äänissä on muutama perusesiasetus
+
+SOVITA
+• Luo osia, joissa on nimetty kuvio ja toistojen määrä
+• Toista yhtä kuviota luuppina muokatessasi tai soita koko kappale
+• Lisää raitoja millä tahansa äänellä, kun neljä kanavaa ei riitä
+• Tabletilla ääniasetukset ovat ruudukon vieressä
+
+TALLENNA JA JAA
+• Kappaleet tallentuvat automaattisesti työskennellessäsi, joten mitään ei katoa
+• Monista kappale ja kokeile jotain hieman erilaista
+• Vie mikä tahansa kappale WAV-tiedostoksi saumattomana luuppina tai niin, että viimeiset nuotit soivat loppuun
+• Vie MIDI-tiedostoksi ja jatka nuottien työstämistä toisessa musiikkisovelluksessa
+• Vie video soivasta kappaleesta vierivänä ruudukkona tai pelikasettina ja julkaise se Instagramissa, TikTokissa tai YouTubessa
+• Jaa vienti tai tallenna se suoraan laitteeseen
+• Lähetä kappaletiedosto kaverille tai avaa sellainen Files-, Gmail- tai Drive-sovelluksesta
+
+Chiptune toimii täysin ilman verkkoyhteyttä eikä koskaan pyydä tilausta. Ei tiliä, ei mainoksia, ei seurantaa.
+
+Sovelluksen käyttöliittymä on englanninkielinen.

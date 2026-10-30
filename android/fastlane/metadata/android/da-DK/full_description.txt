@@ -1,0 +1,36 @@
+Chiptune er en step sequencer til at skrive musik i samme stil som gamle spillekonsoller. Tryk på en node, tryk på en celle i gitteret, så spiller den lyd fra en af fire kanaler i NES-stil. Chiptune har to pulskanaler, en trekantkanal og en støjkanal. Hver kanal syntetiseres live i stedet for at bruge samples.
+
+Mønstre kan sættes fra 4 til 64 trin og kædes sammen til et arrangement. Så kan et stykke gå fra et enkelt loop til en hel sang med intro, vers, omkvæd og så videre.
+
+SKRIV
+• Komponer i et gitter af noder med 4 til 64 trin pr. mønster
+• Tilpas dit spor, så noder klippes kort eller får lov at klinge ud
+• Indstil tempoet ved at skrive det eller justere det et trin ad gangen
+• Fortryd nemt alle ændringer
+• Med et fysisk tastatur spiller du gitteret som en tracker, med Ctrl-genveje til fortryd, eksport og mere
+
+LYD
+• To pulskanaler med fire pulsbredder, fra tynd og nasal til fuld firkantbølge
+• En trekantkanal, der passer godt til baslinjer
+• Støj, der kan stemmes, til trommer som en hi-hat eller en dyb rumlen
+• Volumen, decay og arpeggio pr. kanal, så én kanal kan efterligne en akkord
+• Lydene har nogle enkle forudindstillinger
+
+ARRANGER
+• Opret sektioner med et navngivet mønster og et antal gentagelser
+• Afspil ét mønster i loop, mens du redigerer, eller afspil hele sangen
+• Tilføj flere spor med en hvilken som helst lyd, når fire kanaler ikke er nok
+• På en tablet står lydindstillingerne ved siden af gitteret
+
+GEM OG DEL
+• Sange gemmes automatisk, mens du arbejder, så du aldrig mister noget
+• Dupliker en sang for at prøve noget lidt andet
+• Eksporter en hvilken som helst sang som WAV-fil med et sømløst loop eller hvor de sidste noder klinger ud
+• Eksporter som MIDI-fil for at arbejde videre med noderne i en anden musikapp
+• Eksporter en video af sangen, mens den spiller, som et rullende gitter eller en spillekassette, til Instagram, TikTok eller YouTube
+• Del en eksport, eller gem den direkte på din enhed
+• Send en sangfil til en ven, eller åbn en fra Files, Gmail eller Drive
+
+Chiptune virker helt offline og beder aldrig om et abonnement. Ingen konto, ingen reklamer, ingen sporing.
+
+Appens brugerflade er på engelsk.

@@ -1,0 +1,36 @@
+Chiptune és un seqüenciador per passos per escriure música amb l'estil de les consoles de videojocs antigues. Toca una nota, toca una cel·la de la graella i sonarà un dels quatre canals d'estil NES. Chiptune té dos canals de pols, un de triangle i un de soroll. Cada canal es sintetitza en directe, sense mostres gravades.
+
+Els patrons es poden configurar de 4 a 64 passos i encadenar en un arranjament. Així una peça pot passar d'un sol bucle a una cançó sencera amb introducció, estrofes, tornades i el que calgui.
+
+ESCRIURE
+• Compon en una graella de notes de 4 a 64 passos per patró
+• Talla les notes curtes o deixa-les ressonar
+• Escriu el tempo o canvia'l pas a pas
+• Desfés qualsevol canvi fàcilment
+• Amb un teclat físic, toca la graella com en un tracker, amb dreceres Ctrl per desfer, exportar i més
+
+SO
+• Dos canals de pols amb quatre amplades de pols, d'un so prim i nasal fins a una ona quadrada plena
+• Un canal de triangle ideal per a línies de baix
+• Soroll ajustable per a la bateria, des d'un hi-hat fins a un retruny greu
+• Controls de volum, decaïment i arpegi per canal, perquè un sol canal pugui imitar un acord
+• Els sons inclouen uns quants presets bàsics
+
+ARRANJAMENT
+• Crea seccions amb un patró amb nom i un nombre de repeticions
+• Repeteix un patró en bucle mentre l'edites o reprodueix tota la cançó
+• Afegeix més pistes amb qualsevol so quan no n'hi ha prou amb quatre canals
+• A la tauleta, els controls de so són al costat de la graella
+
+DESAR I COMPARTIR
+• Les cançons es desen automàticament mentre treballes, així no perds res
+• Duplica una cançó per provar alguna cosa una mica diferent
+• Exporta qualsevol cançó com a fitxer WAV amb un bucle continu o deixant ressonar les últimes notes
+• Exporta com a fitxer MIDI per continuar treballant les notes en una altra app de música
+• Exporta un vídeo de la cançó sonant, com una graella que es desplaça o un cartutx de joc, per publicar-lo a Instagram, TikTok o YouTube
+• Comparteix una exportació o desa-la directament al dispositiu
+• Envia un fitxer de cançó a un amic o obre'n un des de Files, Gmail o Drive
+
+Chiptune funciona completament sense connexió i mai no demana cap subscripció. Sense compte, sense anuncis, sense seguiment.
+
+La interfície de l'aplicació és en anglès.

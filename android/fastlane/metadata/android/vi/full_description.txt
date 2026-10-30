@@ -1,0 +1,34 @@
+Chiptune là một step sequencer để viết nhạc theo phong cách các máy chơi game cũ. Chỉ cần chạm một nốt, rồi chạm một ô trên lưới, âm thanh sẽ phát ra từ một trong bốn kênh kiểu NES. Chiptune có hai kênh pulse, một kênh triangle và một kênh noise. Mỗi kênh được tổng hợp trực tiếp, không dùng sample.
+
+Pattern có thể đặt từ 4 đến 64 bước và nối lại thành bố cục bài. Nhờ vậy một bản nhạc có thể đi từ một vòng lặp đơn đến cả bài hoàn chỉnh có intro, verse, điệp khúc và nhiều phần khác.
+
+VIẾT NHẠC
+• Soạn nhạc trên lưới nốt với 4 đến 64 bước mỗi pattern
+• Tùy chỉnh để nốt ngắt sớm hoặc ngân dài
+• Đặt tempo bằng cách nhập số hoặc chỉnh từng bước một
+• Dễ dàng hoàn tác mọi thay đổi
+• Với bàn phím rời, chơi lưới như một tracker, có phím tắt Ctrl để hoàn tác, xuất file và nhiều thao tác khác
+
+ÂM THANH
+• Hai kênh pulse với bốn độ rộng xung, từ mỏng và nghẹt mũi đến sóng vuông đầy đặn
+• Kênh triangle rất hợp cho bassline
+• Noise chỉnh được cao độ cho tiếng trống như hi-hat hay tiếng rền trầm
+• Chỉnh âm lượng, decay và arpeggio cho từng kênh, để một kênh có thể giả lập hợp âm
+• Âm thanh có sẵn các preset cơ bản
+
+SẮP XẾP
+• Tạo các đoạn với một pattern có tên và số lần lặp
+• Lặp một pattern khi chỉnh sửa hoặc phát cả bài
+• Thêm nhiều track với bất kỳ âm thanh nào khi bốn kênh không đủ
+• Trên máy tính bảng, phần chỉnh âm thanh nằm cạnh lưới
+
+LƯU VÀ CHIA SẺ
+• Bài hát tự động lưu khi bạn làm việc nên bạn không bao giờ mất gì
+• Nhân bản bài hát để thử một hướng hơi khác
+• Xuất bài hát thành file WAV với vòng lặp liền mạch hoặc để các nốt cuối ngân hết
+• Xuất file MIDI để tiếp tục chỉnh nốt trong một app nhạc khác
+• Xuất video bài hát đang phát, dạng lưới cuộn hoặc băng game, để đăng lên Instagram, TikTok hoặc YouTube
+• Chia sẻ file đã xuất hoặc lưu thẳng vào thiết bị
+• Gửi file bài hát cho bạn bè, hoặc mở file từ Files, Gmail hoặc Drive
+
+Chiptune hoạt động hoàn toàn ngoại tuyến và không bao giờ yêu cầu đăng ký gói. Không cần tài khoản, không quảng cáo, không theo dõi. Giao diện của ứng dụng bằng tiếng Anh.

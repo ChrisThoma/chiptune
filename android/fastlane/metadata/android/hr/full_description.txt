@@ -1,0 +1,36 @@
+Chiptune je step sekvencer za pisanje glazbe u stilu starih konzola za igre. Dodirnite notu, dodirnite polje u mreži i začut će se zvuk s jednog od četiri kanala u NES stilu. Chiptune ima dva pulse kanala, triangle i noise. Svaki se kanal sintetizira uživo, bez snimljenih uzoraka.
+
+Patterni se mogu podesiti od 4 do 64 koraka i povezati u aranžman. Tako skladba može narasti od jedne petlje do cijele pjesme s uvodom, strofama, refrenima i ostalim.
+
+PISANJE
+• Skladajte na mreži nota s 4 do 64 koraka po patternu
+• Skratite note ili ih pustite da odzvanjaju
+• Upišite tempo ili ga mijenjajte korak po korak
+• Lako poništite svaku promjenu
+• S fizičkom tipkovnicom svirajte po mreži kao u trackeru, uz Ctrl prečace za poništavanje, izvoz i drugo
+
+ZVUK
+• Dva pulse kanala s četiri širine impulsa, od tankog i nazalnog do punog kvadratnog vala
+• Triangle kanal, idealan za bas linije
+• Podesivi šum za bubnjeve, od hi-hata do dubokog tutnjanja
+• Glasnoća, decay i arpeggio za svaki kanal, tako da jedan kanal može oponašati akord
+• Zvukovi dolaze s osnovnim presetima
+
+ARANŽMAN
+• Napravite dijelove od imenovanog patterna i broja ponavljanja
+• Vrtite jedan pattern u petlji dok ga uređujete ili pustite cijelu pjesmu
+• Dodajte više traka s bilo kojim zvukom kad četiri kanala nisu dovoljna
+• Na tabletu su kontrole zvuka pokraj mreže
+
+SPREMANJE I DIJELJENJE
+• Pjesme se spremaju automatski dok radite, pa ništa ne gubite
+• Duplicirajte pjesmu da isprobate nešto malo drukčije
+• Izvezite bilo koju pjesmu kao WAV datoteku s neprekinutom petljom ili s posljednjim notama koje odzvanjaju
+• Izvezite kao MIDI datoteku i nastavite raditi na notama u drugoj glazbenoj aplikaciji
+• Izvezite video pjesme dok svira, kao mrežu koja se pomiče ili kao kasetu za konzolu, za objavu na mrežama Instagram, TikTok ili YouTube
+• Podijelite izvoz ili ga spremite izravno na uređaj
+• Pošaljite datoteku pjesme prijatelju ili otvorite jednu iz aplikacija Files, Gmail ili Drive
+
+Chiptune radi potpuno izvanmrežno i nikad ne traži pretplatu. Bez računa, bez oglasa, bez praćenja.
+
+Sučelje aplikacije je na engleskom jeziku.

@@ -1,0 +1,36 @@
+Chiptune is een step sequencer om muziek te schrijven in de stijl van oude spelcomputers. Tik op een noot, tik op een vakje in het raster en je hoort het geluid van een van de vier kanalen in NES-stijl. Chiptune heeft twee pulse-kanalen, een triangle-kanaal en een noise-kanaal. Elk kanaal wordt live gesynthetiseerd, niet gesampled.
+
+Patronen zijn in te stellen van 4 tot 64 stappen en kun je achter elkaar zetten tot een arrangement. Zo groeit een stuk van één loop uit tot een volledig nummer met intro's, coupletten, refreinen enzovoort.
+
+SCHRIJVEN
+• Componeer op een notenraster met 4 tot 64 stappen per patroon
+• Stel je track zo in dat noten kort afbreken of doorklinken
+• Stel het tempo in door het te typen of stap voor stap bij te stellen
+• Maak elke wijziging eenvoudig ongedaan
+• Speel met een hardwaretoetsenbord het raster als een tracker, met Ctrl-sneltoetsen voor ongedaan maken, exporteren en meer
+
+GELUID
+• Twee pulse-kanalen met vier pulsbreedtes, van dun en nasaal tot een volle blokgolf
+• Een triangle-kanaal, ideaal voor baslijnen
+• Stembare noise voor drums zoals een hi-hat of een laag gerommel
+• Volume, decay en arpeggio per kanaal, zodat één kanaal een akkoord kan nabootsen
+• Geluiden hebben een paar basispresets
+
+ARRANGEREN
+• Maak secties met een patroon met naam en een aantal herhalingen
+• Herhaal één patroon tijdens het bewerken of speel het hele nummer af
+• Voeg meer tracks toe met elk geluid als vier kanalen niet genoeg zijn
+• Op een tablet staan de geluidsinstellingen naast het raster
+
+BEWAREN EN DELEN
+• Nummers worden automatisch bewaard terwijl je werkt, zodat je nooit iets kwijtraakt
+• Dupliceer een nummer om iets net anders te proberen
+• Exporteer elk nummer als WAV-bestand met een naadloze loop of met uitklinkende laatste noten
+• Exporteer als MIDI-bestand om in een andere muziekapp verder te werken aan je noten
+• Exporteer een video van je nummer terwijl het speelt, als scrollend raster of als spelcartridge, om op Instagram, TikTok of YouTube te zetten
+• Deel een export of bewaar hem direct op je apparaat
+• Stuur een nummerbestand naar een vriend, of open er een uit Files, Gmail of Drive
+
+Chiptune werkt volledig offline en vraagt nooit om een abonnement. Geen account, geen advertenties, geen tracking.
+
+De app is in het Engels.

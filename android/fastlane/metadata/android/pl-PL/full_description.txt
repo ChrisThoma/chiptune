@@ -1,0 +1,36 @@
+Chiptune to sekwencer krokowy do pisania muzyki w stylu starych konsol do gier. Wystarczy stuknąć nutę, potem komórkę siatki, a zabrzmi dźwięk jednego z czterech kanałów w stylu NES. Chiptune ma dwa kanały pulse, kanał trójkątny i kanał szumu. Każdy kanał jest syntezowany na żywo, a nie odtwarzany z sampli.
+
+Patterny mają od 4 do 64 kroków i można je łączyć w aranżację. Dzięki temu utwór może urosnąć z jednej pętli do pełnej piosenki ze wstępem, zwrotkami, refrenami i tak dalej.
+
+PISANIE
+• Komponuj na siatce nut, od 4 do 64 kroków na pattern
+• Ustaw ścieżkę tak, by nuty urywały się krótko albo wybrzmiewały
+• Ustaw tempo, wpisując je lub zmieniając krok po kroku
+• Łatwo cofnij każdą zmianę
+• Z fizyczną klawiaturą grasz na siatce jak w trackerze, a skróty Ctrl służą do cofania, eksportu i nie tylko
+
+DŹWIĘK
+• Dwa kanały pulse z czterema szerokościami impulsu, od cienkiego, nosowego brzmienia po pełną falę prostokątną
+• Kanał trójkątny, idealny do linii basu
+• Strojony szum do perkusji, na przykład hi-hatu albo niskiego dudnienia
+• Głośność, wybrzmiewanie (decay) i arpeggio dla każdego kanału, więc jeden kanał może udawać akord
+• Dźwięki mają kilka podstawowych presetów
+
+ARANŻACJA
+• Twórz sekcje z nazwanym patternem i liczbą powtórzeń
+• Zapętl jeden pattern podczas edycji albo odtwórz cały utwór
+• Dodaj więcej ścieżek z dowolnym dźwiękiem, gdy cztery kanały nie wystarczają
+• Na tablecie ustawienia dźwięku są obok siatki
+
+ZAPIS I UDOSTĘPNIANIE
+• Utwory zapisują się automatycznie w trakcie pracy, więc nic nie przepadnie
+• Duplikuj utwór, żeby wypróbować coś trochę innego
+• Eksportuj dowolny utwór jako plik WAV z płynną pętlą albo z wybrzmiewającymi ostatnimi nutami
+• Eksportuj jako plik MIDI, by dalej pracować nad nutami w innej aplikacji muzycznej
+• Eksportuj wideo z odtwarzanym utworem, jako przewijaną siatkę albo kartridż z grą, do publikacji na Instagramie, TikToku lub YouTube
+• Udostępnij eksport albo zapisz go od razu na urządzeniu
+• Wyślij plik utworu znajomemu albo otwórz go z aplikacji Files, Gmail lub Drive
+
+Chiptune działa w pełni offline i nigdy nie wymaga subskrypcji. Bez konta, bez reklam, bez śledzenia.
+
+Interfejs aplikacji jest w języku angielskim.

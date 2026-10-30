@@ -1,0 +1,36 @@
+Chiptune è uno step sequencer per scrivere musica nello stile delle vecchie console da gioco. Tocca una nota, poi una cella della griglia, e sentirai il suono di uno dei quattro canali in stile NES. Chiptune ha due canali pulse, un canale triangolare e un canale di rumore. Ogni canale è sintetizzato dal vivo, non campionato.
+
+I pattern si possono impostare da 4 a 64 passi e unire in un arrangiamento. Così un brano passa da un semplice loop a una canzone completa con intro, strofe, ritornelli e altro.
+
+SCRIVI
+• Componi su una griglia di note da 4 a 64 passi per pattern
+• Personalizza la traccia per troncare le note o lasciarle risuonare
+• Imposta il tempo digitandolo o regolandolo un passo alla volta
+• Annulla facilmente qualsiasi modifica
+• Con una tastiera fisica, suona la griglia come in un tracker, con scorciatoie Ctrl per annullare, esportare e altro
+
+SUONO
+• Due canali pulse con quattro larghezze d'impulso, da un suono sottile e nasale a un'onda quadra piena
+• Un canale triangolare ideale per le linee di basso
+• Rumore accordabile per percussioni come un charleston o un rombo basso
+• Controlli di volume, decadimento e arpeggio per ogni canale, così un solo canale può simulare un accordo
+• I suoni includono alcuni preset di base
+
+ARRANGIA
+• Crea sezioni con un pattern con nome e un numero di ripetizioni
+• Ripeti un pattern mentre lo modifichi o riproduci l'intera canzone
+• Aggiungi più tracce di qualsiasi suono quando quattro canali non bastano
+• Su tablet, i controlli del suono stanno accanto alla griglia
+
+SALVA E CONDIVIDI
+• Le canzoni si salvano da sole mentre lavori, così non perdi mai nulla
+• Duplica una canzone per provare qualcosa di leggermente diverso
+• Esporta qualsiasi canzone come file WAV con un loop senza stacchi o con le ultime note che sfumano
+• Esporta come file MIDI per continuare a lavorare sulle note in un'altra app musicale
+• Esporta un video della canzone in riproduzione, come griglia che scorre o come cartuccia di gioco, da pubblicare su Instagram, TikTok o YouTube
+• Condividi un'esportazione o salvala direttamente sul dispositivo
+• Invia il file di una canzone a un amico, o aprine uno da Files, Gmail o Drive
+
+Chiptune funziona completamente offline e non chiede mai un abbonamento. Nessun account, nessuna pubblicità, nessun tracciamento.
+
+L'interfaccia dell'app è in inglese.
