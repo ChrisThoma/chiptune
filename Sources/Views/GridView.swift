@@ -811,9 +811,7 @@ private struct TrackHeader: View {
 
     private func muteButton(muted: Bool, name: String) -> some View {
         Button {
-            studio.checkpoint()
-            studio.song.tracks[index].muted.toggle()
-            studio.pushInstrument(index)
+            studio.toggleMute(track: index)
         } label: {
             Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                 .symbolFont(13)

@@ -435,20 +435,12 @@ struct InstrumentEditor: View {
         instrument(\.sustain, default: false, kind: .sustain(index))
     }
 
-    private func instrument<T>(_ keyPath: WritableKeyPath<Instrument, T>,
-                               default fallback: T,
-                               kind: Studio.CheckpointKind) -> Binding<T> {
+    private func instrument<T: Equatable>(_ keyPath: WritableKeyPath<Instrument, T>,
+                                          default fallback: T,
+                                          kind: Studio.CheckpointKind) -> Binding<T> {
         Binding(
             get: { studio.song.tracks[safe: index]?.instrument[keyPath: keyPath] ?? fallback },
-            set: { newValue in
-                guard studio.song.tracks.indices.contains(index) else { return }
-                // Before the write, so undo restores the sound as it was.
-                // Coalesced: a slider drag is a stream of writes and should be
-                // one undo, not one per pixel.
-                studio.checkpoint(coalescing: true, kind: kind)
-                studio.song.tracks[index].instrument[keyPath: keyPath] = newValue
-                studio.pushInstrument(index)
-            })
+            set: { studio.setInstrument(keyPath, to: $0, track: index, kind: kind) })
     }
 
     private var pulseWidthAccessibilityValue: String {

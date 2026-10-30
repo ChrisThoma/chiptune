@@ -827,6 +827,25 @@ final class Studio {
         engine.core.setInstrument(track.instrument, kind: track.kind, track: index, muted: track.muted)
     }
 
+    func toggleMute(track index: Int) {
+        guard song.tracks.indices.contains(index) else { return }
+        checkpoint()
+        song.tracks[index].muted.toggle()
+        pushInstrument(index)
+    }
+
+    func setInstrument<T: Equatable>(_ keyPath: WritableKeyPath<Instrument, T>, to value: T,
+                                     track index: Int, kind: CheckpointKind) {
+        guard song.tracks.indices.contains(index),
+              song.tracks[index].instrument[keyPath: keyPath] != value else { return }
+        // Before the write, so undo restores the sound as it was.
+        // Coalesced: a slider drag is a stream of writes and should be
+        // one undo, not one per pixel.
+        checkpoint(coalescing: true, kind: kind)
+        song.tracks[index].instrument[keyPath: keyPath] = value
+        pushInstrument(index)
+    }
+
     // MARK: Patterns
 
     /// True while SONG-mode playback should drag the grid along with the

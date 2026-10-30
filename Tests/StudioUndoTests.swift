@@ -430,6 +430,56 @@ final class StudioUndoTests: XCTestCase {
         XCTAssertEqual(countUndoSteps(), 1, "pushing state to the core is not an edit")
     }
 
+    // MARK: Track sound
+
+    func testMuteIsOneUndoStep() {
+        studio.toggleMute(track: 1)
+        XCTAssertTrue(studio.song.tracks[1].muted)
+
+        studio.undo()
+
+        XCTAssertFalse(studio.song.tracks[1].muted)
+        XCTAssertFalse(studio.canUndo)
+    }
+
+    /// A slider drag is a stream of writes and should come back with one Undo.
+    func testAnInstrumentDragIsOneUndoStep() {
+        studio.undoCoalescingWindow = 60
+        let original = studio.song.tracks[0].instrument.volume
+
+        for v in [0.3, 0.25, 0.2] {
+            studio.setInstrument(\.volume, to: v, track: 0, kind: .volume(0))
+        }
+        XCTAssertEqual(studio.song.tracks[0].instrument.volume, 0.2)
+
+        studio.undo()
+
+        XCTAssertEqual(studio.song.tracks[0].instrument.volume, original)
+        XCTAssertFalse(studio.canUndo)
+    }
+
+    /// The instrument controls checkpointed before looking at the value, so a
+    /// write of the value already set left a phantom Undo step and threw away
+    /// Redo, the bug track renames and note writes were already fixed for.
+    func testWritingTheSameInstrumentValueIsNotAnEdit() {
+        let other = (studio.song.tracks[0].instrument.duty + 1) % Instrument.dutyLabels.count
+        studio.setInstrument(\.duty, to: other, track: 0, kind: .duty(0))
+        studio.undo()
+        XCTAssertTrue(studio.canRedo)
+
+        let current = studio.song.tracks[0].instrument.duty
+        studio.setInstrument(\.duty, to: current, track: 0, kind: .duty(0))
+
+        XCTAssertTrue(studio.canRedo, "a write that changes nothing must not wipe Redo")
+        XCTAssertFalse(studio.canUndo, "a write that changes nothing must not add an Undo step")
+    }
+
+    func testInstrumentWritesToAMissingTrackAreIgnored() {
+        studio.setInstrument(\.volume, to: 0.1, track: 99, kind: .volume(99))
+        studio.toggleMute(track: 99)
+        XCTAssertFalse(studio.canUndo)
+    }
+
     private func countUndoSteps() -> Int {
         // Non-destructive: walk back, then walk forward again.
         var depth = 0
