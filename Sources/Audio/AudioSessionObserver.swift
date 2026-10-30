@@ -28,25 +28,34 @@ final class AudioSessionObserver {
     /// notification itself — the real one comes from the shared
     /// `AVAudioSession`, which a test has no way to make emit these.
     ///
-    /// `queue: nil` means handlers run synchronously on whichever thread
-    /// posted. The system posts these on the main thread, and a test posting
-    /// from the main thread gets the callback before `post` returns, so
-    /// assertions need no waiting.
+    /// `queue: nil` means handlers run on whichever thread posted. A post on
+    /// the main thread is handled before `post` returns, so a test posting
+    /// from the main thread needs no waiting. Nothing promises the system
+    /// posts these on the main thread, though, and the callbacks change state
+    /// the UI observes, so a post from anywhere else hops to main first.
     init(center: NotificationCenter = .default) {
         self.center = center
 
         tokens.append(center.addObserver(forName: AVAudioSession.interruptionNotification,
                                          object: nil, queue: nil) { [weak self] note in
-            self?.handleInterruption(note)
+            Self.onMain { self?.handleInterruption(note) }
         })
         tokens.append(center.addObserver(forName: AVAudioSession.routeChangeNotification,
                                          object: nil, queue: nil) { [weak self] note in
-            self?.handleRouteChange(note)
+            Self.onMain { self?.handleRouteChange(note) }
         })
         tokens.append(center.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification,
                                          object: nil, queue: nil) { [weak self] _ in
-            self?.onMediaServicesReset?()
+            Self.onMain { self?.onMediaServicesReset?() }
         })
+    }
+
+    private static func onMain(_ work: @escaping () -> Void) {
+        if Thread.isMainThread {
+            work()
+        } else {
+            DispatchQueue.main.async(execute: work)
+        }
     }
 
     deinit {

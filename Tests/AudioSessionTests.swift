@@ -91,6 +91,21 @@ final class AudioSessionObserverTests: XCTestCase {
         XCTAssertEqual(reset, 1)
     }
 
+    /// The handlers stop playback and rebuild the engine on `Studio`, which the
+    /// UI observes, so they have to run on the main thread whichever thread
+    /// the notification was posted from.
+    func testCallbacksFromABackgroundPostRunOnTheMainThread() {
+        let fired = expectation(description: "interruption reported")
+        observer.onInterruptionBegan = {
+            XCTAssertTrue(Thread.isMainThread)
+            fired.fulfill()
+        }
+
+        DispatchQueue.global().async { self.postInterruption(.began) }
+
+        wait(for: [fired], timeout: 2)
+    }
+
     func testObserversAreRemovedWhenTheObserverGoesAway() {
         var fired = 0
         observer.onInterruptionBegan = { fired += 1 }
