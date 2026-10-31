@@ -489,6 +489,19 @@ struct ChipLayout: Equatable {
     /// spent scrolling past the chrome to a grid that has room.
     static let minimumGridRows = 4
 
+    /// The grid's height in the scrolling editor, where the keys are pinned
+    /// under a scroll view that holds the chrome, grid and divider.
+    /// `available` is the window's height and `viewport` that scroll view's.
+    ///
+    /// Most of the window, with a 360pt floor so a short window still shows a
+    /// grid worth scrolling to. But never taller than the viewport: the grid
+    /// scrolls its own steps, and a grid taller than the space it's seen
+    /// through leaves rows that only the outer scroll can reach, so the two
+    /// fight over every vertical drag.
+    static func scrollingGridHeight(available: CGFloat, viewport: CGFloat) -> CGFloat {
+        min(viewport, max(360, available * 0.55))
+    }
+
     /// Everything in the fixed editor that isn't grid rows: the chrome, the
     /// track headers with the gap under them, and either the keys under the
     /// grid or the side arrangement's bottom inset.

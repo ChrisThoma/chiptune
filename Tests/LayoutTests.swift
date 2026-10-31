@@ -844,4 +844,22 @@ final class LayoutTests: XCTestCase {
     func testWhiteKeysInTheFoldColumnAreAtLeast40pt() {
         XCTAssertGreaterThanOrEqual(ChipLayout.whiteKeyWidth(columnWidth: 371.5, octaves: 1), 40)
     }
+
+    /// The scrolling editor's grid keeps its 360pt floor when the space above
+    /// the pinned keys has room for it.
+    func testScrollingGridKeepsItsFloorWhenTheViewportAllows() {
+        XCTAssertEqual(ChipLayout.scrollingGridHeight(available: 500, viewport: 400), 360)
+    }
+
+    /// Never taller than the space above the pinned keys, floor or not, or
+    /// the grid's own scrolling fights the editor's.
+    func testScrollingGridIsNeverTallerThanTheViewport() {
+        XCTAssertEqual(ChipLayout.scrollingGridHeight(available: 500, viewport: 250), 250)
+        XCTAssertEqual(ChipLayout.scrollingGridHeight(available: 1400, viewport: 600), 600)
+    }
+
+    /// Between the floor and the viewport it takes 0.55 of the window.
+    func testScrollingGridTakesMostOfATallWindow() {
+        XCTAssertEqual(ChipLayout.scrollingGridHeight(available: 1000, viewport: 800), 550)
+    }
 }

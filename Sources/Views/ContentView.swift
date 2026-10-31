@@ -385,6 +385,10 @@ struct ContentView: View {
     /// Top of the on-screen keyboard in global space, or the bottom of the
     /// safe area while there is none.
     @State private var keyboardTop: CGFloat = .greatestFiniteMagnitude
+    /// Height of the scrolling editor's scroll view, the space above its
+    /// pinned keys. Nil until it's been measured, which happens on the first
+    /// layout pass, so the grid's height falls back to the window's until then.
+    @State private var scrollingViewportHeight: CGFloat?
 
     /// Fixed for the life of the process — the bundle can't change under a
     /// running app — so it's read once rather than per menu open.
@@ -955,9 +959,15 @@ struct ContentView: View {
 
     /// Accessibility text makes the chrome several rows tall, and a short
     /// Stage Manager window leaves the fixed editor's chrome and keys no room
-    /// for a grid (see `ChipLayout.scrollsEditor`). Either way, give the whole
-    /// editor a vertical escape hatch instead of squeezing the grid and piano
-    /// into whatever sliver remains below it.
+    /// for a grid (see `ChipLayout.scrollsEditor`). Either way, give the
+    /// chrome, grid and divider a vertical escape hatch instead of squeezing
+    /// the grid into whatever sliver remains between them and the piano.
+    ///
+    /// The keys stay pinned under the scroll view rather than scrolling with
+    /// it. At the end of a long column they started off-screen, and someone
+    /// who didn't think to scroll never found them. Pinned, they cost the
+    /// scroll view their height, so the grid is capped to what's left (see
+    /// `ChipLayout.scrollingGridHeight`).
     private func scrollingEditor(_ layout: ChipLayout,
                                  availableHeight: CGFloat) -> some View {
         // A landscape iPad normally docks the instrument editor beside the
@@ -967,20 +977,29 @@ struct ContentView: View {
         // low in this long column, so Arrangement and the sound controls
         // come up as sheets rather than popovers squeezed under them.
         let stackedLayout = layout.scrollingEditorLayout
-        return ScrollView {
-            VStack(spacing: 0) {
-                chrome(layout)
-                editorGrid
-                    .frame(height: max(360, availableHeight * 0.55))
-                Rectangle()
-                    .fill(Theme.grid.opacity(0.5))
-                    .frame(height: 1)
-                    .padding(.top, 10)
-                    .padding(.horizontal, 14)
-                editorKeyboard
-                    .padding(.top, 10)
+        let gridHeight = ChipLayout.scrollingGridHeight(
+            available: availableHeight,
+            viewport: scrollingViewportHeight ?? availableHeight)
+        return VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: 0) {
+                    chrome(layout)
+                    editorGrid
+                        .frame(height: gridHeight)
+                    Rectangle()
+                        .fill(Theme.grid.opacity(0.5))
+                        .frame(height: 1)
+                        .padding(.top, 10)
+                        .padding(.horizontal, 14)
+                }
+                .modifier(EditorColumn(layout: stackedLayout))
             }
-            .modifier(EditorColumn(layout: stackedLayout))
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                if height > 0 { scrollingViewportHeight = height }
+            }
+            editorKeyboard
+                .padding(.top, 10)
+                .modifier(EditorColumn(layout: stackedLayout))
         }
         .environment(\.chipLayout, stackedLayout)
     }
