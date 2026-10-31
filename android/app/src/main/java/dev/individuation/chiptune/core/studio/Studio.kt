@@ -68,6 +68,8 @@ class Studio(
     /** Where [renderer] writes, so a launch can sweep old exports and a
      * deleted song's can go with it. Null leaves the folder alone. */
     private val exportDirectory: File? = null,
+    /** The example songs a launch adds to the library once each. Null adds none. */
+    private val samples: SampleSongs? = null,
 ) {
     /** A point the editor can be put back to. The selection travels with the
      * song: `pushAll` clamps both indices into the current song, so they can't
@@ -112,6 +114,8 @@ class Studio(
         val restored = store.loadLast()
         mutableState = MutableStateFlow(StudioState(song = restored ?: seededDemo()))
         state = mutableState.asStateFlow()
+        // Samples first, so a first launch's demo saves last and sorts first.
+        samples?.seed(store, launchLibrary, open = restored)
         if (restored == null) save(song)
         noteUnreadable(launchLibrary)
         pushAll()

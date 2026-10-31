@@ -10,6 +10,7 @@ import dev.individuation.chiptune.core.audio.ExportRenderer
 import dev.individuation.chiptune.core.store.FileSongStore
 import dev.individuation.chiptune.core.studio.AppPhase
 import dev.individuation.chiptune.core.studio.ReviewPromptTracker
+import dev.individuation.chiptune.core.studio.SampleSongs
 import dev.individuation.chiptune.core.studio.ScenePhasePolicy
 import dev.individuation.chiptune.core.studio.SongShareWriter
 import dev.individuation.chiptune.core.studio.Studio
@@ -17,6 +18,7 @@ import dev.individuation.chiptune.platform.AndroidAudioOutput
 import dev.individuation.chiptune.platform.AndroidScheduler
 import dev.individuation.chiptune.platform.AudioOutputEvents
 import dev.individuation.chiptune.platform.AudioRate
+import dev.individuation.chiptune.platform.BundledSamples
 import dev.individuation.chiptune.platform.IncomingImports
 import dev.individuation.chiptune.platform.ScreenOnExportKeepAlive
 import dev.individuation.chiptune.platform.ShareRoots
@@ -33,7 +35,7 @@ import java.util.concurrent.Executors
  *
  * Who builds what, all on the main thread, inside [buildStudio]:
  * native rate -> [ChipCore] at that rate -> [AndroidAudioOutput] around it ->
- * prefs, [FileSongStore], [SongShareWriter], the export renderer (with the
+ * prefs, [FileSongStore], [SampleSongs] (from the assets), [SongShareWriter], the export renderer (with the
  * MediaCodec [Mp4Writer] for videos) and its
  * single-thread executor, [AndroidScheduler] -> [Studio] (which reads the
  * library and the last song from disk) -> the output's events wired to the
@@ -88,6 +90,7 @@ class ChiptuneApp : Application() {
             core = core,
             keepAlive = exportKeepAlive,
             exportDirectory = exportDir,
+            samples = SampleSongs(prefs) { BundledSamples.read(assets) },
         )
         output.events = object : AudioOutputEvents {
             override fun onAudioFocusLost() = built.onAudioFocusLost()

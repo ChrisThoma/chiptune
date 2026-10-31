@@ -53,3 +53,8 @@ extension XCTestCase {
         return temp
     }
 }
+
+extension SampleSongs {
+    /// No samples, for tests that assert a library's exact contents.
+    static let none = SampleSongs(urls: [])
+}

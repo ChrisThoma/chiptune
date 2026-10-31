@@ -130,6 +130,8 @@ class StudioHarness(
     renderer: ((ExportRequest) -> ExportResult)? = null,
     keepAlive: ExportKeepAlive = ExportKeepAlive.None,
     val exportDir: File = Files.createTempDirectory("chiptune-export-").toFile(),
+    /** The bundled sample files this launch sees; null means no samples. */
+    samples: List<ByteArray>? = null,
 ) {
     val scheduler = ManualScheduler()
     val audio = FakeAudioOutput()
@@ -145,6 +147,7 @@ class StudioHarness(
         shareWriter = SongShareWriter(shareDir),
         keepAlive = keepAlive,
         exportDirectory = exportDir,
+        samples = samples?.let { files -> SampleSongs(temp.prefs) { files } },
     )
 
     /** Waits for everything queued on the export executor so far. */

@@ -52,7 +52,8 @@ final class UnreadableSongTests: XCTestCase {
         let temp = makeTempStore()
         temp.save(Song(name: "Fine"), makeCurrent: true)
         _ = try plantCorrupt(in: temp)
-        let studio = Studio(store: temp.store, autosaveEnabled: false)
+        // No samples: this asserts the library's exact contents.
+        let studio = Studio(store: temp.store, autosaveEnabled: false, samples: .none)
         addTeardownBlock { @MainActor in studio.invalidateTimers() }
         XCTAssertNotNil(studio.unreadableSongsNotice)
 

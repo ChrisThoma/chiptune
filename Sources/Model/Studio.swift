@@ -140,7 +140,8 @@ final class Studio {
          // bare static-method reference isn't itself `@Sendable`, and the
          // implicit conversion is a warning.
          renderer: @escaping @Sendable (ExportRequest) async -> ExportResult = { await Export.render($0) },
-         keepAlive: ExportKeepAlive = SystemExportKeepAlive()) {
+         keepAlive: ExportKeepAlive = SystemExportKeepAlive(),
+         samples: SampleSongs = .bundled) {
         self.store = store
         self.keepAlive = keepAlive
         self.autosaveEnabled = autosaveEnabled
@@ -151,9 +152,18 @@ final class Studio {
         let launchLibrary = store.loadLibrary()
         if let restored = store.loadLast() {
             song = restored
+            // Samples this library hasn't had yet. They're stamped newer than
+            // its songs, so if the open song was only ever found as the newest
+            // file, it's remembered now to keep it the one that reopens.
+            if samples.seed(into: store) > 0, store.currentID() != restored.id {
+                store.setCurrent(restored.id)
+            }
         } else {
             song = Song(name: Song.defaultName)
             seedDemo()
+            // Before First Loop's save, which stamps it newest: it stays the
+            // open song and the top of the library.
+            samples.seed(into: store)
             save(song)
         }
         noteUnreadable(launchLibrary)

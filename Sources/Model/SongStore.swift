@@ -7,6 +7,7 @@ struct SongStore {
 
     private let currentKey = "currentSongID"
     private let reportedUnreadableKey = "reportedUnreadableSongFiles"
+    private let seededSamplesKey = "seededSampleSongIDs"
 
     /// Where songs live and where "which song was open" is remembered. Both are
     /// injectable so a test can point at a temp directory and its own defaults
@@ -43,9 +44,11 @@ struct SongStore {
     /// Throws rather than failing quietly. Autosave is the app's entire
     /// persistence story — there is no Save button to try again with — so a
     /// write that fails and says nothing is the failure mode that loses work.
-    func save(_ song: Song, makeCurrent: Bool = false) throws {
+    /// - Parameter modified: the date to stamp. Only sample seeding passes one,
+    ///   to place the samples below First Loop in the library.
+    func save(_ song: Song, makeCurrent: Bool = false, modified: Date = Date()) throws {
         var song = song
-        song.modified = Date()
+        song.modified = modified
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
         let data = try encoder.encode(song)
@@ -68,6 +71,31 @@ struct SongStore {
         if defaults.string(forKey: currentKey) == song.id.uuidString {
             defaults.removeObject(forKey: currentKey)
         }
+    }
+
+    /// Whether a file for `id` is in the library, readable or not.
+    func exists(id: UUID) -> Bool {
+        FileManager.default.fileExists(atPath: url(for: id).path)
+    }
+
+    /// The song recorded to reopen on launch, if any.
+    func currentID() -> UUID? {
+        defaults.string(forKey: currentKey).flatMap(UUID.init(uuidString:))
+    }
+
+    /// Records `id` as the song to reopen on launch, without touching its file.
+    func setCurrent(_ id: UUID) {
+        defaults.set(id.uuidString, forKey: currentKey)
+    }
+
+    /// The bundled samples this library has already been given (see
+    /// `SampleSongs.seed`), so a deleted one never comes back.
+    func seededSampleIDs() -> Set<UUID> {
+        Set((defaults.stringArray(forKey: seededSamplesKey) ?? []).compactMap(UUID.init(uuidString:)))
+    }
+
+    func setSeededSampleIDs(_ ids: Set<UUID>) {
+        defaults.set(ids.map(\.uuidString).sorted(), forKey: seededSamplesKey)
     }
 
     func load(id: UUID) -> Song? {

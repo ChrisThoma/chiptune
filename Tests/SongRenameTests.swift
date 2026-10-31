@@ -16,7 +16,8 @@ final class SongRenameTests: XCTestCase {
     override func setUp() {
         super.setUp()
         temp = makeTempStore()
-        studio = Studio(store: temp.store, autosaveEnabled: false)
+        // No samples: the delete test counts the library.
+        studio = Studio(store: temp.store, autosaveEnabled: false, samples: .none)
     }
 
     override func tearDown() {

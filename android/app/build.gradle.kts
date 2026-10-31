@@ -133,6 +133,12 @@ android {
         // and read in place, so both platforms test against the same bytes.
         getByName("test") {
             resources.directories.add("../../Tests/Fixtures")
+            resources.directories.add("../../Sources/Resources/Samples")
+        }
+        // The sample songs ship from the folder iOS bundles, so there is one
+        // copy of each file. They land at the APK's assets root.
+        getByName("main") {
+            assets.directories.add("../../Sources/Resources/Samples")
         }
     }
     packaging {
