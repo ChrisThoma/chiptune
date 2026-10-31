@@ -138,6 +138,18 @@ data class ChipLayout(
         else -> TransportForm.STACKED
     }
 
+    /** The height the transport adds over its one-row form at a chrome
+     * [width]: a tray and the 8 dp gap in `TransportBar` per extra row.
+     * Standard text only, as [chromeHeight] is. */
+    fun transportExtraHeight(width: Double): Double {
+        val extraRows = when (transportForm(width)) {
+            TransportForm.ROW -> 0
+            TransportForm.TWO_ROWS -> 1
+            TransportForm.STACKED -> 2
+        }
+        return extraRows * (trayHeight + TRANSPORT_ROW_GAP)
+    }
+
     /** PATT and SONG segments, the hairline and ARR. */
     private val transportModeTrayWidth: Double
         get() = patternSegmentWidth * 2 + TRAY_DIVIDER_WIDTH + arrButtonWidth
@@ -183,6 +195,8 @@ data class ChipLayout(
         const val PLAY_BUTTON_WIDTH = 56.0
         const val STEPPER_READOUT_MIN_WIDTH = 38.0
         const val TRANSPORT_TRAY_GAP = 0.0
+        /** The gap between the transport's rows once it wraps. */
+        const val TRANSPORT_ROW_GAP = 8.0
         /** `TrayDivider.width`. */
         const val TRAY_DIVIDER_WIDTH = 1.0
 
@@ -254,6 +268,27 @@ data class ChipLayout(
 
         /** Total window width at which the side arrangement becomes possible. */
         val MINIMUM_SIDE_BY_SIDE_WIDTH: Double = SIDE_KEYBOARD_WIDTH + MINIMUM_SIDE_GRID_WIDTH
+
+        /** The narrowest the grid side of a narrow split may be (iOS
+         * `minimumFoldGridWidth`): the gutter, four tracks at the *phone's*
+         * column floor, the "+", the 12 dp of padding and the 2 dp gaps
+         * between the six items. A folding phone's inner screen is two
+         * phones wide, and four phone-width columns are what the phone has
+         * always shown. Comes to 384. */
+        val MINIMUM_FOLD_GRID_WIDTH: Double =
+            PAD.gridGutterWidth + 4 * PHONE.gridMinColumnWidth + ADD_COLUMN_WIDTH + 12 + 5 * 2
+
+        /** The narrowest the key column of a narrow split may be (iOS
+         * `minimumFoldColumnWidth`): eight white keys at 40 dp, their seven
+         * gaps and the keyboard's 20 dp of inset. 40 rather than 44, because
+         * the alternative is keys scrolled off the bottom of the screen.
+         * Comes to 354. */
+        val MINIMUM_FOLD_COLUMN_WIDTH: Double =
+            8 * 40 + 7 * WHITE_KEY_SPACING + 2 * KEYBOARD_HORIZONTAL_PADDING
+
+        /** Total window width at which the narrow split becomes possible: both
+         * minimums and the 1 dp hairline between them. Comes to 739. */
+        val MINIMUM_NARROW_SIDE_BY_SIDE_WIDTH: Double = MINIMUM_FOLD_GRID_WIDTH + 1 + MINIMUM_FOLD_COLUMN_WIDTH
 
         /** Width of one white key in a side column of [octaves] octaves. */
         fun whiteKeyWidth(columnWidth: Double, octaves: Int): Double =
@@ -328,8 +363,9 @@ object LayoutResolver {
     }
 
     private fun arrangedPad(size: WindowSize): ChipLayout {
-        val side = size.width > size.height && size.width >= ChipLayout.MINIMUM_SIDE_BY_SIDE_WIDTH
+        val side = size.width > size.height && size.width >= ChipLayout.MINIMUM_NARROW_SIDE_BY_SIDE_WIDTH
         if (!side) return ChipLayout.PAD
+        if (size.width < ChipLayout.MINIMUM_SIDE_BY_SIDE_WIDTH) return narrowSplit(size)
         val column = ChipLayout.sideColumn(size.width)
         return ChipLayout.PAD.copy(
             usesSideKeyboard = true,
@@ -338,6 +374,38 @@ object LayoutResolver {
             sideColumnWidth = column.width,
             keyboardOctaves = column.octaves,
         )
+    }
+
+    /**
+     * The side arrangement in a landscape window too narrow for the 400 dp
+     * column beside four pad-width tracks: a folding phone's inner screen.
+     * Stacked, its height ran out and the keys scrolled off the bottom.
+     * iOS splits an iPhone Duo at its fold (`foldSplit`); Android doesn't
+     * read the fold, so this splits by width alone, giving the column up to
+     * 400 dp and the grid the rest.
+     */
+    private fun narrowSplit(size: WindowSize): ChipLayout {
+        val column = minOf(ChipLayout.SIDE_KEYBOARD_WIDTH, size.width - 1 - ChipLayout.MINIMUM_FOLD_GRID_WIDTH)
+        val gridWidth = size.width - column - 1
+        var layout = ChipLayout.PAD.copy(
+            usesSideKeyboard = true,
+            keyboardMaxWidth = Double.POSITIVE_INFINITY,
+            keyboardHeight = 220.0,
+            sideColumnWidth = column,
+            keyboardOctaves = 1,
+        )
+        // The pad's 104 dp floor would push four tracks into sideways scroll
+        // here. Lower it to what four tracks actually get, floored to a whole
+        // dp so rounding can't tip the row over, between the phone's floor
+        // and the pad's.
+        val reserved = layout.gridRowWidth(0.0, 4, true)
+        val fits = Math.floor((gridWidth - reserved) / 4)
+        layout = layout.copy(
+            gridMinColumnWidth = minOf(ChipLayout.PAD.gridMinColumnWidth, maxOf(ChipLayout.PHONE.gridMinColumnWidth, fits)),
+        )
+        // Under 415 dp the one-row transport wraps. Its extra row is height
+        // the grid doesn't get, so [resolve] must count it.
+        return layout.copy(chromeHeight = layout.chromeHeight + layout.transportExtraHeight(gridWidth))
     }
 }
 
@@ -384,6 +452,10 @@ object EditorChrome {
 
     fun patternBarStacks(fontScale: Float): Boolean = TextScale.isAccessibilitySize(fontScale)
 
-    /** The scrolling editor's grid: 55% of the window, never under 360. */
-    fun scrollingGridHeight(availableHeight: Double): Double = maxOf(360.0, availableHeight * 0.55)
+    /** The scrolling editor's grid: 55% of the window, never under 360, and
+     * never taller than [viewportHeight], the scroll area above the pinned
+     * keys. A grid taller than that would scroll inside the outer scroll,
+     * and the two fight over every drag. */
+    fun scrollingGridHeight(availableHeight: Double, viewportHeight: Double): Double =
+        minOf(viewportHeight, maxOf(360.0, availableHeight * 0.55))
 }

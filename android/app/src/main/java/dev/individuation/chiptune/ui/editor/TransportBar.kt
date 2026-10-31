@@ -71,14 +71,14 @@ fun TransportBar(editor: Editor, chromeWidth: Double) {
                 Spacer(Modifier.weight(1f).widthIn(min = ChipLayout.TRANSPORT_TRAY_GAP.dpValue()))
                 TempoStepper(editor, trayHeight, stretched = false)
             }
-            TransportForm.TWO_ROWS -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            TransportForm.TWO_ROWS -> Column(verticalArrangement = Arrangement.spacedBy(ChipLayout.TRANSPORT_ROW_GAP.dpValue())) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(spacing)) {
                     PlayButton(editor, trayHeight, fillsRow = false)
                     ModeTray(editor, trayHeight, stretched = false)
                 }
                 TempoStepper(editor, trayHeight, stretched = true)
             }
-            TransportForm.STACKED -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            TransportForm.STACKED -> Column(verticalArrangement = Arrangement.spacedBy(ChipLayout.TRANSPORT_ROW_GAP.dpValue())) {
                 PlayButton(editor, trayHeight, fillsRow = true)
                 ModeTray(editor, trayHeight, stretched = true)
                 TempoStepper(editor, trayHeight, stretched = true)

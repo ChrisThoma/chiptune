@@ -225,16 +225,23 @@ private fun DockedInstrumentEditor(editor: Editor, modifier: Modifier) {
     }
 }
 
-/** Large text, or a window too short for the fixed editor: everything
- * scrolls, and the grid gets a floor of its own. */
+/** Large text, or a window too short for the fixed editor: the chrome and
+ * grid scroll, and the grid gets a floor of its own. The keys stay pinned
+ * under the scroll area; at the end of a long scroll they were easy to
+ * never find. */
 @Composable
 private fun ScrollingEditor(editor: Editor, layout: ChipLayout, size: WindowSize) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        Chrome(editor, layout, size.width)
-        GridView(
-            editor,
-            Modifier.fillMaxWidth().height(EditorChrome.scrollingGridHeight(size.height).dpValue()).endsRenameOnTouch(editor.rename),
-        )
+    Column(Modifier.fillMaxSize()) {
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+            val gridHeight = EditorChrome.scrollingGridHeight(size.height, maxHeight.value.toDouble())
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                Chrome(editor, layout, size.width)
+                GridView(
+                    editor,
+                    Modifier.fillMaxWidth().height(gridHeight.dpValue()).endsRenameOnTouch(editor.rename),
+                )
+            }
+        }
         KeysDivider()
         KeyboardView(editor, Modifier.padding(top = 10.dp).endsRenameOnTouch(editor.rename))
     }

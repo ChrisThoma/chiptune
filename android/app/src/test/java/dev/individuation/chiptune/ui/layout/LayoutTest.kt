@@ -95,8 +95,14 @@ class LayoutTest {
         while (width <= 2400.0) {
             val layout = resolve(width, 800.0, SizeClass.REGULAR)
             if (layout.usesSideKeyboard) {
-                assertTrue("$width window squeezes the grid",
-                    width - layout.sideColumnWidth >= ChipLayout.MINIMUM_SIDE_GRID_WIDTH)
+                // Under the full side-by-side width the narrow split holds the
+                // grid to the fold minimum instead, past the hairline.
+                val minimum = if (width >= ChipLayout.MINIMUM_SIDE_BY_SIDE_WIDTH) {
+                    ChipLayout.MINIMUM_SIDE_GRID_WIDTH
+                } else {
+                    ChipLayout.MINIMUM_FOLD_GRID_WIDTH + 1
+                }
+                assertTrue("$width window squeezes the grid", width - layout.sideColumnWidth >= minimum)
             }
             width += 1.0
         }
@@ -113,10 +119,15 @@ class LayoutTest {
         assertEquals(1, narrow.octaves)
     }
 
+    /** Just under the full side-by-side width the narrow split takes over
+     * with the same 400 dp column; under the fold minimums it stacks. */
     @Test fun shortWideWindowStacksRatherThanSqueezingTheGrid() {
-        val squat = WindowSize(ChipLayout.MINIMUM_SIDE_BY_SIDE_WIDTH - 1, 700.0)
+        val squat = WindowSize(ChipLayout.MINIMUM_FOLD_GRID_WIDTH + ChipLayout.MINIMUM_FOLD_COLUMN_WIDTH, 700.0)
         assertTrue("This case only matters while the proportions say split", squat.width > squat.height)
         assertFalse(resolve(squat, SizeClass.REGULAR).usesSideKeyboard)
+        val narrow = resolve(ChipLayout.MINIMUM_SIDE_BY_SIDE_WIDTH - 1, 700.0, SizeClass.REGULAR)
+        assertTrue(narrow.usesSideKeyboard)
+        assertEquals(ChipLayout.SIDE_KEYBOARD_WIDTH, narrow.sideColumnWidth, 0.0)
         val wideEnough = WindowSize(ChipLayout.MINIMUM_SIDE_BY_SIDE_WIDTH, 700.0)
         assertTrue(resolve(wideEnough, SizeClass.REGULAR).usesSideKeyboard)
     }
@@ -143,7 +154,9 @@ class LayoutTest {
     }
 
     @Test fun shortWindowsScrollTheEditorRatherThanStarveTheGrid() {
-        for (size in listOf(WindowSize(900.0, 600.0), WindowSize(1000.0, 500.0),
+        // 900x600 used to be here; it now takes the narrow split, which
+        // leaves its grid four rows (aFoldInnerScreenInLandscape... covers it).
+        for (size in listOf(WindowSize(1000.0, 500.0),
             WindowSize(1200.0, 400.0), WindowSize(700.0, 520.0))) {
             val layout = resolve(size, SizeClass.REGULAR)
             assertTrue("$size", layout.scrollsEditor)
@@ -201,6 +214,112 @@ class LayoutTest {
     @Test fun theGridKeepsItsMinimumOnAThirteenInch() {
         val layout = resolve(1366.0, 1024.0, SizeClass.REGULAR)
         assertTrue(1366 - layout.sideColumnWidth >= ChipLayout.MINIMUM_SIDE_GRID_WIDTH)
+    }
+
+    // MARK: Narrow side arrangement (folding phones)
+
+    /** A Galaxy Fold's inner screen in landscape, after the bars. An
+     * estimate, not a measurement. */
+    private val foldLandscape = WindowSize(820.0, 620.0)
+
+    /** What any split must keep: a column wide enough for 40 dp keys, and
+     * four tracks plus the "+" across the grid without sideways scroll. */
+    private fun assertSplitHolds(size: WindowSize, layout: ChipLayout) {
+        val label = "${size.width}x${size.height}"
+        assertTrue("$label column ${layout.sideColumnWidth}",
+            layout.sideColumnWidth >= ChipLayout.MINIMUM_FOLD_COLUMN_WIDTH)
+        assertTrue("$label keys", ChipLayout.whiteKeyWidth(layout.sideColumnWidth, layout.keyboardOctaves) >= 40.0)
+        val gridWidth = size.width - layout.sideColumnWidth - 1
+        val column = layout.gridColumnWidth(gridWidth, 4, true)
+        assertTrue("$label track column $column", column >= layout.gridMinColumnWidth)
+        assertTrue("$label four tracks scroll sideways in $gridWidth",
+            layout.gridRowWidth(column, 4, true) <= gridWidth)
+    }
+
+    @Test fun theFoldMinimumsMatchIOS() {
+        assertEquals(384.0, ChipLayout.MINIMUM_FOLD_GRID_WIDTH, 0.0)
+        assertEquals(354.0, ChipLayout.MINIMUM_FOLD_COLUMN_WIDTH, 0.0)
+    }
+
+    @Test fun aFoldInnerScreenInLandscapeSplitsRatherThanScrollingTheKeysAway() {
+        val layout = resolve(foldLandscape, SizeClass.REGULAR)
+        assertTrue(layout.usesSideKeyboard)
+        assertFalse(layout.scrollsEditor)
+        assertEquals(1, layout.keyboardOctaves)
+        assertEquals(220.0, layout.keyboardHeight, 0.0)
+        assertSplitHolds(foldLandscape, layout)
+    }
+
+    @Test fun everyNarrowLandscapeSplitKeepsItsKeysAndFourTracks() {
+        var width = 739.0
+        while (width < ChipLayout.MINIMUM_SIDE_BY_SIDE_WIDTH) {
+            var height = 400.0
+            while (height < width) {
+                val size = WindowSize(width, height)
+                val layout = resolve(size, SizeClass.REGULAR)
+                if (layout.usesSideKeyboard) {
+                    assertSplitHolds(size, layout)
+                } else {
+                    assertTrue("${width}x$height neither splits nor scrolls", layout.scrollsEditor)
+                }
+                height += 10.0
+            }
+            // Tall enough for the grid's four rows, every width here splits.
+            assertTrue("$width x 600 should split", resolve(width, 600.0, SizeClass.REGULAR).usesSideKeyboard)
+            width += 1.0
+        }
+    }
+
+    @Test fun belowTheFoldMinimumsTheEditorStillScrolls() {
+        val narrowest = ChipLayout.MINIMUM_FOLD_GRID_WIDTH + 1 + ChipLayout.MINIMUM_FOLD_COLUMN_WIDTH
+        assertEquals(739.0, narrowest, 0.0)
+        assertFalse(resolve(narrowest - 1, 600.0, SizeClass.REGULAR).usesSideKeyboard)
+        val short = resolve(700.0, 520.0, SizeClass.REGULAR)
+        assertTrue(short.scrollsEditor)
+        assertFalse(short.usesSideKeyboard)
+    }
+
+    /** At its narrowest the grid column can't fit the one-row transport; the
+     * second row it wraps to counts against the grid's height. */
+    @Test fun aWrappedTransportCountsAgainstTheGrid() {
+        val layout = resolve(739.0, 700.0, SizeClass.REGULAR)
+        assertTrue("precondition", layout.usesSideKeyboard)
+        assertEquals(TransportForm.TWO_ROWS, layout.transportForm(739.0 - layout.sideColumnWidth - 1))
+        assertEquals(ChipLayout.PAD.chromeHeight + ChipLayout.PAD.trayHeight + 8, layout.chromeHeight, 0.0)
+        // 345 of fixed height leaves 4 rows at 561 but not at 560.
+        assertFalse(resolve(739.0, 560.0, SizeClass.REGULAR).usesSideKeyboard)
+        assertTrue(resolve(739.0, 561.0, SizeClass.REGULAR).usesSideKeyboard)
+    }
+
+    @Test fun portraitWindowsNeverSplit() {
+        var width = 600.0
+        while (width <= 1400.0) {
+            var height = width
+            while (height <= 1400.0) {
+                assertFalse("${width}x$height", resolve(width, height, SizeClass.REGULAR).usesSideKeyboard)
+                height += 20.0
+            }
+            width += 10.0
+        }
+    }
+
+    @Test fun wideWindowsSplitExactlyAsBefore() {
+        var width = ChipLayout.MINIMUM_SIDE_BY_SIDE_WIDTH
+        while (width <= 1400.0) {
+            for (height in listOf(600.0, 700.0, 834.0)) {
+                if (height >= width) continue
+                val column = ChipLayout.sideColumn(width)
+                val expected = ChipLayout.PAD.copy(
+                    usesSideKeyboard = true,
+                    keyboardMaxWidth = Double.POSITIVE_INFINITY,
+                    keyboardHeight = 220.0,
+                    sideColumnWidth = column.width,
+                    keyboardOctaves = column.octaves,
+                )
+                assertEquals("${width}x$height", expected, resolve(width, height, SizeClass.REGULAR))
+            }
+            width += 10.0
+        }
     }
 
     // MARK: Grid column width

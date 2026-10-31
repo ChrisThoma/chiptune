@@ -282,10 +282,27 @@ class TextScaleTest {
         assertFalse(EditorChrome.patternBarStacks(1.3f))
     }
 
-    /** The scrolling editor's grid gets a floor of its own. */
+    /** The scrolling editor's grid gets a floor of its own, while the
+     * viewport above the pinned keys has room for it. */
     @Test fun theScrollingGridHasAFloor() {
-        assertEquals(360.0, EditorChrome.scrollingGridHeight(500.0), 0.0)
-        assertEquals(550.0, EditorChrome.scrollingGridHeight(1000.0), 0.0)
+        assertEquals(360.0, EditorChrome.scrollingGridHeight(500.0, 600.0), 0.0)
+        assertEquals(550.0, EditorChrome.scrollingGridHeight(1000.0, 800.0), 0.0)
+    }
+
+    /** A grid taller than the viewport would scroll inside a scroll. */
+    @Test fun theScrollingGridIsNeverTallerThanItsViewport() {
+        assertEquals(300.0, EditorChrome.scrollingGridHeight(1000.0, 300.0), 0.0)
+        assertEquals(200.0, EditorChrome.scrollingGridHeight(500.0, 200.0), 0.0)
+        var available = 200.0
+        while (available <= 1400.0) {
+            var viewport = 100.0
+            while (viewport <= 1400.0) {
+                assertTrue("$available in $viewport",
+                    EditorChrome.scrollingGridHeight(available, viewport) <= viewport)
+                viewport += 50.0
+            }
+            available += 50.0
+        }
     }
 
     @Test fun regularStartsAtSixHundredDp() {
