@@ -8,6 +8,8 @@ TULIS
 • Tetapkan tempo dengan menaipnya atau melaraskannya selangkah demi selangkah
 • Buat asal sebarang perubahan dengan mudah
 • Dengan papan kekunci fizikal, mainkan grid seperti tracker, dengan pintasan Ctrl untuk buat asal, eksport dan banyak lagi
+• Tiga lagu contoh untuk dimainkan dan dikaji cara ia dibina
+• Panduan How it works menerangkan kawalan
 
 BUNYI
 • Dua saluran pulse dengan empat lebar denyut, daripada nipis dan sengau hingga gelombang segi empat penuh

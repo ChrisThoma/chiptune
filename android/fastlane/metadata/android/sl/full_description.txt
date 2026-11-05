@@ -8,6 +8,8 @@ PISANJE
 • Tempo vpišite ali ga spreminjajte korak za korakom
 • Vsako spremembo preprosto razveljavite
 • S fizično tipkovnico igrajte po mreži kot v trackerju, z bližnjicami Ctrl za razveljavitev, izvoz in drugo
+• Trije primeri pesmi, ki jih lahko predvajate in vidite, kako so narejene
+• Vodnik »How it works« razloži kontrolnike
 
 ZVOK
 • Dva pulzna kanala s štirimi širinami pulza, od tankega in nosljajočega do polnega kvadratnega vala

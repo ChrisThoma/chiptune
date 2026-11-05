@@ -8,6 +8,8 @@ YAZMA
 • Tempoyu yazarak girin ya da adım adım değiştirin
 • Her değişikliği kolayca geri alın
 • Fiziksel klavyeyle ızgarayı bir tracker gibi çalın, geri alma, dışa aktarma ve diğer işler için Ctrl kısayollarını kullanın
+• Çalıp nasıl yapıldığını inceleyebileceğiniz üç örnek şarkı
+• How it works rehberi kontrolleri açıklar
 
 SES
 • Dört pulse genişliğine sahip iki pulse kanalı, ince ve genizden gelen sesten dolgun kare dalgaya kadar

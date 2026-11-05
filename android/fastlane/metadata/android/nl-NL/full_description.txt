@@ -8,6 +8,8 @@ SCHRIJVEN
 • Stel het tempo in door het te typen of stap voor stap bij te stellen
 • Maak elke wijziging eenvoudig ongedaan
 • Speel met een hardwaretoetsenbord het raster als een tracker, met Ctrl-sneltoetsen voor ongedaan maken, exporteren en meer
+• Drie voorbeeldnummers om af te spelen en te ontleden
+• De gids ‘How it works’ legt de bediening uit
 
 GELUID
 • Twee pulse-kanalen met vier pulsbreedtes, van dun en nasaal tot een volle blokgolf

@@ -8,6 +8,8 @@ SKRIV
 • Indstil tempoet ved at skrive det eller justere det et trin ad gangen
 • Fortryd nemt alle ændringer
 • Med et fysisk tastatur spiller du gitteret som en tracker, med Ctrl-genveje til fortryd, eksport og mere
+• Tre eksempelsange, du kan afspille og se, hvordan de er bygget op
+• Guiden ”How it works” forklarer betjeningen
 
 LYD
 • To pulskanaler med fire pulsbredder, fra tynd og nasal til fuld firkantbølge

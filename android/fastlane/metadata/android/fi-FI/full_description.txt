@@ -8,6 +8,8 @@ KIRJOITA
 • Aseta tempo kirjoittamalla se tai säätämällä sitä askel kerrallaan
 • Peru mikä tahansa muutos helposti
 • Fyysisellä näppäimistöllä soitat ruudukkoa kuin trackeria, ja Ctrl-pikanäppäimillä voit perua, viedä ja paljon muuta
+• Kolme esimerkkikappaletta soitettavaksi ja tutkittavaksi
+• Opas ”How it works” selittää säätimet
 
 ÄÄNI
 • Kaksi pulssikanavaa ja neljä pulssinleveyttä, ohuesta ja nasaalista täyteen kanttiaaltoon

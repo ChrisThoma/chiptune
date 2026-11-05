@@ -8,6 +8,8 @@ ESCREVER
 • Defina o andamento escrevendo o valor ou ajustando um passo de cada vez
 • Desfaça qualquer alteração com facilidade
 • Com um teclado físico, toque a grelha como num tracker, com atalhos Ctrl para desfazer, exportar e mais
+• Três músicas de exemplo para tocar e ver como são feitas
+• Um guia «How it works» explica os controlos
 
 SOM
 • Dois canais de pulso com quatro larguras de pulso, do som fino e nasal à onda quadrada cheia

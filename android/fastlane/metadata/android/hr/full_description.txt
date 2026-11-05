@@ -8,6 +8,8 @@ PISANJE
 • Upišite tempo ili ga mijenjajte korak po korak
 • Lako poništite svaku promjenu
 • S fizičkom tipkovnicom svirajte po mreži kao u trackeru, uz Ctrl prečace za poništavanje, izvoz i drugo
+• Tri primjera pjesama koje možete pustiti i istražiti kako su napravljene
+• Vodič „How it works” objašnjava kontrole
 
 ZVUK
 • Dva pulse kanala s četiri širine impulsa, od tankog i nazalnog do punog kvadratnog vala

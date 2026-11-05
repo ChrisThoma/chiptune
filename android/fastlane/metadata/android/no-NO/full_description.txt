@@ -8,6 +8,8 @@ SKRIV
 • Sett tempoet ved å skrive det inn eller justere det ett steg av gangen
 • Angre enkelt alle endringer
 • Med et fysisk tastatur spiller du rutenettet som en tracker, med Ctrl-snarveier for angre, eksport og mer
+• Tre eksempellåter du kan spille av for å se hvordan de er bygd opp
+• Veiledningen «How it works» forklarer kontrollene
 
 LYD
 • To pulskanaler med fire pulsbredder, fra tynn og nasal til full firkantbølge

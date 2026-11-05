@@ -8,6 +8,8 @@ WRITE
 • Set the tempo by typing it or nudging it a step at a time
 • Easily undo any changes
 • With a hardware keyboard, play the grid like a tracker, with Ctrl shortcuts for undo, export and more
+• Three sample songs to play and take apart
+• A How it works guide explains the controls
 
 SOUND
 • Two pulse channels with four pulse widths, from thin and nasal to full square

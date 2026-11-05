@@ -8,6 +8,8 @@ ESCRIURE
 • Escriu el tempo o canvia'l pas a pas
 • Desfés qualsevol canvi fàcilment
 • Amb un teclat físic, toca la graella com en un tracker, amb dreceres Ctrl per desfer, exportar i més
+• Tres cançons d'exemple per reproduir i veure com estan fetes
+• Una guia «How it works» explica els controls
 
 SO
 • Dos canals de pols amb quatre amplades de pols, d'un so prim i nasal fins a una ona quadrada plena

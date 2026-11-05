@@ -8,6 +8,8 @@ PISANIE
 • Ustaw tempo, wpisując je lub zmieniając krok po kroku
 • Łatwo cofnij każdą zmianę
 • Z fizyczną klawiaturą grasz na siatce jak w trackerze, a skróty Ctrl służą do cofania, eksportu i nie tylko
+• Trzy przykładowe utwory do odtworzenia i sprawdzenia, jak są zbudowane
+• Przewodnik „How it works” objaśnia sterowanie
 
 DŹWIĘK
 • Dwa kanały pulse z czterema szerokościami impulsu, od cienkiego, nosowego brzmienia po pełną falę prostokątną

@@ -8,6 +8,8 @@ SKRIV
 • Ställ in tempot genom att skriva det eller justera det ett steg i taget
 • Ångra enkelt alla ändringar
 • Med ett fysiskt tangentbord spelar du rutnätet som en tracker, med Ctrl-kortkommandon för ångra, export med mera
+• Tre exempellåtar att spela upp och se hur de är uppbyggda
+• Guiden ”How it works” förklarar kontrollerna
 
 LJUD
 • Två pulskanaler med fyra pulsbredder, från tunt och nasalt till full fyrkantsvåg

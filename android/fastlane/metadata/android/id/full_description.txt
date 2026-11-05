@@ -8,6 +8,8 @@ MENULIS
 • Atur tempo dengan mengetik angkanya atau menggesernya satu langkah demi satu langkah
 • Urungkan perubahan apa pun dengan mudah
 • Dengan keyboard fisik, mainkan grid seperti tracker, dengan pintasan Ctrl untuk urungkan, ekspor, dan lainnya
+• Tiga lagu contoh untuk diputar dan dipelajari cara pembuatannya
+• Panduan How it works menjelaskan kontrolnya
 
 SUARA
 • Dua kanal pulse dengan empat lebar pulsa, dari tipis dan sengau sampai kotak penuh

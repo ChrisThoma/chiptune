@@ -8,6 +8,8 @@ VIẾT NHẠC
 • Đặt tempo bằng cách nhập số hoặc chỉnh từng bước một
 • Dễ dàng hoàn tác mọi thay đổi
 • Với bàn phím rời, chơi lưới như một tracker, có phím tắt Ctrl để hoàn tác, xuất file và nhiều thao tác khác
+• Ba bài hát mẫu để phát và xem cách chúng được viết
+• Hướng dẫn How it works giải thích các nút điều khiển
 
 ÂM THANH
 • Hai kênh pulse với bốn độ rộng xung, từ mỏng và nghẹt mũi đến sóng vuông đầy đặn

@@ -8,6 +8,8 @@ ESCRIBIR
 • Fija el tempo escribiéndolo o cambiándolo de paso en paso
 • Deshaz cualquier cambio fácilmente
 • Con un teclado físico, toca la cuadrícula como en un tracker, con atajos de Ctrl para deshacer, exportar y más
+• Tres canciones de ejemplo para reproducir y ver cómo están hechas
+• Una guía “How it works” explica los controles
 
 SONIDO
 • Dos canales de pulso con cuatro anchos de pulso, de un sonido fino y nasal a una onda cuadrada plena

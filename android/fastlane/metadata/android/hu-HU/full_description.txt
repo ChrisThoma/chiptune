@@ -8,6 +8,8 @@ A patternek hossza 4 és 64 lépés között állítható, és dalszerkezetté f
 • Add meg a tempót begépelve, vagy állítsd lépésenként
 • Bármely változtatást könnyen visszavonhatsz
 • Fizikai billentyűzettel úgy játszhatsz a rácson, mint egy trackerben, Ctrl-billentyűparancsokkal a visszavonáshoz, exportáláshoz és máshoz
+• Három példadal, amelyeket lejátszhatsz, és megnézheted, hogyan épülnek fel
+• A „How it works” útmutató elmagyarázza a vezérlőket
 
 HANG
 • Két pulzuscsatorna négy impulzusszélességgel, a vékony, orrhangú hangzástól a telt négyszögjelig

@@ -8,6 +8,8 @@ PSANÍ
 • Tempo zadejte číslem nebo ho posouvejte po krocích
 • Jakoukoli změnu snadno vrátíte zpět
 • S hardwarovou klávesnicí hrajete na mřížku jako v trackeru a zkratky s Ctrl slouží k vrácení změn, exportu a dalšímu
+• Tři ukázkové skladby, které si můžete přehrát a prozkoumat
+• Průvodce „How it works“ vysvětluje ovládání
 
 ZVUK
 • Dva pulzní kanály se čtyřmi šířkami pulzu, od tenkého a nosového zvuku po plnou obdélníkovou vlnu

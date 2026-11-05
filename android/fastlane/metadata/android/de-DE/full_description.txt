@@ -8,6 +8,8 @@ SCHREIBEN
 • Gib das Tempo ein oder ändere es Schritt für Schritt
 • Mach jede Änderung einfach rückgängig
 • Mit einer Hardware-Tastatur spielst du das Raster wie einen Tracker, mit Strg-Kürzeln für Rückgängig, Export und mehr
+• Drei Beispielsongs: abspielen und ansehen, wie sie gebaut sind
+• Die Anleitung „How it works“ erklärt die Bedienelemente
 
 KLANG
 • Zwei Pulse-Kanäle mit vier Pulsbreiten, von dünn und nasal bis zum vollen Rechteck

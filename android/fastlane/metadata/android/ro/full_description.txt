@@ -8,6 +8,8 @@ COMPUNE
 • Setezi tempoul tastându-l sau ajustându-l pas cu pas
 • Anulezi ușor orice modificare
 • Cu o tastatură fizică, cânți pe grilă ca într-un tracker, cu scurtături Ctrl pentru anulare, export și altele
+• Trei cântece de exemplu pe care le redai și vezi cum sunt construite
+• Un ghid „How it works” explică comenzile
 
 SUNET
 • Două canale puls cu patru lățimi de puls, de la subțire și nazal la undă pătrată plină

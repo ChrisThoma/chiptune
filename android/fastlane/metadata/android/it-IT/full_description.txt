@@ -8,6 +8,8 @@ SCRIVI
 • Imposta il tempo digitandolo o regolandolo un passo alla volta
 • Annulla facilmente qualsiasi modifica
 • Con una tastiera fisica, suona la griglia come in un tracker, con scorciatoie Ctrl per annullare, esportare e altro
+• Tre canzoni di esempio da riprodurre per scoprire come sono fatte
+• Una guida «How it works» spiega i controlli
 
 SUONO
 • Due canali pulse con quattro larghezze d'impulso, da un suono sottile e nasale a un'onda quadra piena

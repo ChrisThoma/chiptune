@@ -8,6 +8,8 @@ Les motifs se règlent de 4 à 64 pas et s'enchaînent dans un arrangement. Un m
 • Réglez le tempo en saisissant sa valeur ou en l'ajustant cran par cran
 • Annulez facilement n'importe quelle modification
 • Avec un clavier physique, jouez la grille comme dans un tracker, avec des raccourcis Ctrl pour annuler, exporter et plus
+• Trois morceaux d'exemple à écouter et à décortiquer
+• Un guide « How it works » explique les commandes
 
 SON
 • Deux canaux pulse avec quatre largeurs d'impulsion, du son fin et nasal au carré plein
