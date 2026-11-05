@@ -48,6 +48,7 @@ struct InstrumentEditor: View {
     /// dropped; a local draft lets `onChange` clip the display like the
     /// pattern rename sheet does.
     @State private var nameDraft = ""
+    @State private var showingGuide = false
 
     private var kind: ChannelKind { studio.song.tracks[safe: index]?.kind ?? .pulse1 }
     private var accent: Color { Theme.color(for: kind) }
@@ -106,10 +107,19 @@ struct InstrumentEditor: View {
                     .navigationTitle(studio.song.fullLabel(for: index))
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
+                        ToolbarItem(placement: .principal) {
+                            HStack(spacing: 0) {
+                                Text(studio.song.fullLabel(for: index))
+                                    .font(.headline)
+                                    .lineLimit(1)
+                                HelpGuideButton { showingGuide = true }
+                            }
+                        }
                         ToolbarItem(placement: .confirmationAction) {
                             Button("Done") { dismiss() }.tint(accent)
                         }
                     }
+                    .helpGuide(isPresented: $showingGuide, start: .sound, studio: studio)
             } else {
                 Color.clear.onAppear { dismiss() }
             }
@@ -142,6 +152,11 @@ struct InstrumentEditor: View {
                 // VoiceOver reaches this column only after every grid cell
                 // and the keyboard; as a heading, the rotor jumps straight here.
                 .accessibilityAddTraits(.isHeader)
+                .overlay(alignment: .trailing) {
+                    HelpGuideButton { showingGuide = true }
+                        .padding(.trailing, 12)
+                }
+                .helpGuide(isPresented: $showingGuide, start: .sound, studio: studio)
 
                 editor
             }

@@ -348,6 +348,7 @@ struct ContentView: View {
     @State private var showingExport = false
     @State private var showingImporter = false
     @State private var showingKeyboardHelp = false
+    @State private var showingGuide = false
     /// Kept live by `GCKeyboardDidConnect`/`DidDisconnect` below, rather than
     /// read once, because a keyboard can arrive or leave without the view
     /// re-appearing. See `KeyboardShortcutsMenuVisibility`.
@@ -704,6 +705,7 @@ struct ContentView: View {
         showingArrangement = false
         showingExport = false
         showingKeyboardHelp = false
+        showingGuide = false
         pendingClearPatternIndex = nil
     }
 
@@ -1176,6 +1178,11 @@ struct ContentView: View {
                         Label("Keyboard shortcuts", systemImage: "keyboard")
                     }
                 }
+                Button {
+                    showingGuide = true
+                } label: {
+                    Label("How it works", systemImage: "questionmark.circle")
+                }
                 Link(destination: URL(string: "https://individuation.dev/contact/")!) {
                     Label("Contact support", systemImage: "envelope")
                 }
@@ -1209,6 +1216,7 @@ struct ContentView: View {
             .popover(isPresented: $showingKeyboardHelp) {
                 KeyboardHelpView()
             }
+            .helpGuide(isPresented: $showingGuide, start: nil, studio: studio)
         }
     }
 }

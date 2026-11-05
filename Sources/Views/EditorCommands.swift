@@ -113,6 +113,9 @@ struct SongBoundPresenters: Equatable {
         /// Docked beside the grid the editor is not the popover the grid
         /// reports as `.trackSound`, so it reports these itself.
         case trackClear, trackDelete
+        /// The guide holds no song state, but it covers the editor from places
+        /// nothing else reports, such as the docked sound panel.
+        case guide
     }
 
     private var active: Set<Surface> = []

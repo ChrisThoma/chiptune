@@ -52,6 +52,7 @@ struct ArrangementView: View {
     var regularWidth = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var showingGuide = false
     /// The one source of truth for edit mode. The system `EditButton` read its
     /// own copy of the environment, which went stale after a reorder rebuilt
     /// the rows, so the pill and the rows disagreed.
@@ -137,10 +138,17 @@ struct ArrangementView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) { editPill }
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: 0) {
+                        Text("Arrangement").font(.headline).lineLimit(1)
+                        HelpGuideButton { showingGuide = true }
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
             }
+            .helpGuide(isPresented: $showingGuide, start: .arrangement, studio: studio)
         }
         .compactSheetDetents(!regularWidth)
         // Regular width means this arrived as a popover, which has no detents
