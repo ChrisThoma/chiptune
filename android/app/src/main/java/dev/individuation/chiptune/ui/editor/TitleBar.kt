@@ -171,7 +171,7 @@ private fun HistoryButton(icon: ImageVector, label: String, enabled: Boolean, wi
 
 /** The ellipsis.circle.fill glyph: a filled disc with three dots knocked out. */
 @Composable
-private fun EllipsisCircle(size: Float) {
+internal fun EllipsisCircle(size: Float) {
     Box(
         Modifier.size((size * 1.1f).dp).background(ChipColors.text, CircleShape),
         contentAlignment = Alignment.Center,

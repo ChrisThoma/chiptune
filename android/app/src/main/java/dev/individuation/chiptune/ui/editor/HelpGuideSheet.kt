@@ -21,14 +21,12 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
-import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -114,23 +112,27 @@ private fun GuideTerm(entry: HelpGuide.Entry, modifier: Modifier) {
             .padding(horizontal = 4.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center,
     ) {
-        val icon = entry.icon?.vector
+        val icon = entry.icon
         if (icon != null) {
-            Icon(icon, contentDescription = null, tint = ChipColors.text, modifier = Modifier.size(16.dp))
+            GuideGlyph(icon)
         } else {
             Text(entry.term, style = chipFont(11f, FontWeight.Bold), color = ChipColors.text, textAlign = TextAlign.Center)
         }
     }
 }
 
-private val HelpGuide.Icon.vector: ImageVector
-    get() = when (this) {
+/** The same glyph the control itself wears. */
+@Composable
+private fun GuideGlyph(icon: HelpGuide.Icon) {
+    val vector = when (icon) {
         HelpGuide.Icon.PLAY -> Icons.Filled.PlayArrow
         HelpGuide.Icon.MUTE -> Icons.AutoMirrored.Filled.VolumeUp
         HelpGuide.Icon.SONGS -> Icons.AutoMirrored.Filled.QueueMusic
         HelpGuide.Icon.UNDO -> Icons.AutoMirrored.Filled.Undo
-        HelpGuide.Icon.MENU -> Icons.Filled.MoreHoriz
+        HelpGuide.Icon.MENU -> return EllipsisCircle(15f)
     }
+    Icon(vector, contentDescription = null, tint = ChipColors.text, modifier = Modifier.size(16.dp))
+}
 
 /** Wide enough for "Add section" on one line at the default text size. */
 private const val TERM_WIDTH = 98

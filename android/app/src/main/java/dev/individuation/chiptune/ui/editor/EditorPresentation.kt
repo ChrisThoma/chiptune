@@ -54,8 +54,8 @@ sealed interface Presented {
     /** The hardware-key list (Phase 6). */
     data object KeyboardHelp : Presented
 
-    /** "How it works", open at [start]. [returnTo] is the sheet it replaced:
-     * only one surface is up at a time, so Done brings that sheet back. */
+    /** "How it works", open at [start], over [returnTo], the sheet its (?) sits
+     * on. That sheet stays up beneath it, so Done lands on it just as it was. */
     data class Guide(val start: HelpGuide.SectionId?, val returnTo: Presented = None) : Presented
 
     /** The pattern rename sheet, for the pattern at [pattern] when it opened. */
@@ -75,6 +75,9 @@ sealed interface Presented {
 
     /** What's on screen once this closes. */
     val afterClosing: Presented get() = if (this is Guide) returnTo else None
+
+    /** The surface drawn beneath the guide, or this one when no guide is up. */
+    val base: Presented get() = if (this is Guide) returnTo else this
 
     /** The song-bound presenter this reports into `Studio`, if any: these hold
      * an index or a value read from the song, so song-changing chords wait. */
@@ -138,8 +141,8 @@ class EditorPresentationState internal constructor(
         return true
     }
 
-    /** Opens the guide at [start]. Unlike [open] it may replace a sheet, the
-     * one a (?) sits on, and closing the guide brings that sheet back. */
+    /** Opens the guide at [start]. Unlike [open] it may go over a sheet, the one
+     * a (?) sits on, which stays up beneath it until the guide closes. */
     fun openGuide(start: HelpGuide.SectionId?) {
         if (current == Presented.None && !EditorPresentation.canOpen(anyPresented)) return
         current = current.openingGuide(start)

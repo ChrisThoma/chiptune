@@ -274,7 +274,9 @@ private fun PresentedSurfaceHost(editor: Editor) {
     val presentation = editor.presentation
     val layout = LocalChipLayout.current
     fun container(kind: SurfaceKind) = SurfaceContainers.container(kind, layout)
-    when (val current = presentation.current) {
+    // The base keeps its place in the composition while a guide is over it, so
+    // Arrangement's Edit mode and the Sound sheet's scroll survive the trip.
+    when (val current = presentation.current.base) {
         Presented.None -> Unit
         Presented.Songs -> {
             val close = { presentation.close(Presented.Songs) }
@@ -305,7 +307,8 @@ private fun PresentedSurfaceHost(editor: Editor) {
             when (container(SurfaceKind.INSTRUMENT_EDITOR)) {
                 // A rotation into the side layout docks the sound settings;
                 // leaving the popover up as well would show them twice.
-                SurfaceContainer.DOCKED -> LaunchedEffect(current) { close() }
+                // Under a guide, close waits: it only takes the top surface.
+                SurfaceContainer.DOCKED -> LaunchedEffect(current, presentation.current) { close() }
                 SurfaceContainer.POPOVER, SurfaceContainer.DIALOG ->
                     ChipPopover(editor, PopoverAnchor.Track(current.track), SurfaceKind.INSTRUMENT_EDITOR, close) {
                         InstrumentEditorPanel(editor, current.track, close, current.showSound)
@@ -322,17 +325,17 @@ private fun PresentedSurfaceHost(editor: Editor) {
                 KeyboardHelpSheet(close)
             }
         }
-        is Presented.Guide -> {
-            val close = { presentation.close(current) }
-            if (container(SurfaceKind.GUIDE) == SurfaceContainer.DIALOG) {
-                ChipCenteredDialog(close) { HelpGuidePanel(current.start, close) }
-            } else {
-                HelpGuideSheet(current.start, close)
-            }
-        }
+        is Presented.Guide -> Unit // Drawn below, over its base.
         is Presented.PatternRename -> PatternRenameSheet(editor, current.pattern) { presentation.close(current) }
         is Presented.ClearPattern -> ClearPatternDialog(editor, current.pattern) { presentation.close(current) }
         is Presented.DeletePattern -> DeletePatternDialog(editor, current.pattern) { presentation.close(current) }
         Presented.Tempo -> TempoDialog(editor) { presentation.close(Presented.Tempo) }
+    }
+    val guide = presentation.current as? Presented.Guide ?: return
+    val close = { presentation.close(guide) }
+    if (container(SurfaceKind.GUIDE) == SurfaceContainer.DIALOG) {
+        ChipCenteredDialog(close) { HelpGuidePanel(guide.start, close) }
+    } else {
+        HelpGuideSheet(guide.start, close)
     }
 }
