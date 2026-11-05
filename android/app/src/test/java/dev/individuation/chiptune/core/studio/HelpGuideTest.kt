@@ -67,4 +67,21 @@ class HelpGuideTest {
         assertTrue(allEntries.isNotEmpty())
         for (entry in allEntries) assertTrue(entry.text, entry.text.endsWith("."))
     }
+
+    @Test fun holdGesturesCantBeMistakenForTheHoldSwitch() {
+        val all = HelpGuide.sections.flatMap { it.entries }
+        assertTrue(all.any { it.term == "Hold a step" })
+        assertTrue(all.any { it.term == "Hold a track" })
+        assertEquals(1, all.count { it.term == "Hold" })
+    }
+
+    @Test fun trackIsDefinedBeforeTheChannels() {
+        val tracks = HelpGuide.sections.first { it.id == HelpGuide.SectionId.TRACKS }
+        assertEquals("Track", tracks.entries.first().term)
+    }
+
+    @Test fun presetNamesTheRowYouTap() {
+        val sound = HelpGuide.sections.first { it.id == HelpGuide.SectionId.SOUND }
+        assertTrue(sound.entries.first { it.term == "Preset" }.text.startsWith("Tap Sound"))
+    }
 }

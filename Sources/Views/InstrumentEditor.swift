@@ -185,7 +185,7 @@ struct InstrumentEditor: View {
                     .accessibilityLabel("Sound preset")
                     .accessibilityValue(presetName)
 
-                    Text("A starting point. Every control below stays yours to move.")
+                    Text("A starting point. Change it with the controls below.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

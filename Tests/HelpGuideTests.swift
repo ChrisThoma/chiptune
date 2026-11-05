@@ -71,4 +71,31 @@ final class HelpGuideTests: XCTestCase {
             XCTAssertTrue(entry.text.hasSuffix("."), entry.text)
         }
     }
+
+    func testHoldGesturesCantBeMistakenForTheHoldSwitch() {
+        XCTAssertTrue(terms(.notes).contains("Hold a step"))
+        XCTAssertTrue(terms(.tracks).contains("Hold a track"))
+        XCTAssertEqual(allEntries.filter { $0.term == "Hold" }.count, 1)
+        XCTAssertFalse(text("Hold", in: .sound).isEmpty)
+    }
+
+    func testTrackIsDefinedBeforeTheChannels() {
+        XCTAssertEqual(terms(.tracks).first, "Track")
+    }
+
+    func testPresetNamesTheRowYouTap() {
+        XCTAssertTrue(text("Preset", in: .sound).hasPrefix("Tap Sound"))
+    }
+
+    func testDecaySaysHoldTurnsItOff() {
+        XCTAssertTrue(text("Decay", in: .sound).contains("off while Hold is on"))
+    }
+
+    func testChannelSaysTheSoundResets() {
+        XCTAssertTrue(text("Channel", in: .sound).contains("default"))
+    }
+
+    func testMuteSaysItReachesExports() {
+        XCTAssertTrue(text("Mute", in: .tracks).contains("exports"))
+    }
 }
