@@ -322,6 +322,14 @@ private fun PresentedSurfaceHost(editor: Editor) {
                 KeyboardHelpSheet(close)
             }
         }
+        is Presented.Guide -> {
+            val close = { presentation.close(current) }
+            if (container(SurfaceKind.GUIDE) == SurfaceContainer.DIALOG) {
+                ChipCenteredDialog(close) { HelpGuidePanel(current.start, close) }
+            } else {
+                HelpGuideSheet(current.start, close)
+            }
+        }
         is Presented.PatternRename -> PatternRenameSheet(editor, current.pattern) { presentation.close(current) }
         is Presented.ClearPattern -> ClearPatternDialog(editor, current.pattern) { presentation.close(current) }
         is Presented.DeletePattern -> DeletePatternDialog(editor, current.pattern) { presentation.close(current) }

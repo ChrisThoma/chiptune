@@ -14,6 +14,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.NoteAdd
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.automirrored.filled.Redo
@@ -236,6 +237,7 @@ private fun SongMenu(editor: Editor) {
             if (KeyboardShortcutsMenuVisibility.visible(keyboardConnected, hardwareKeyboardInUse)) {
                 MenuRow("Keyboard shortcuts", Icons.Filled.Keyboard) { pick { editor.presentation.open(Presented.KeyboardHelp) } }
             }
+            MenuRow("How it works", Icons.AutoMirrored.Outlined.HelpOutline) { pick { editor.presentation.openGuide(null) } }
             MenuRow("Contact support", Icons.Filled.Email) { pick { editor.effects.openUrl(EditorEffects.SUPPORT_URL) } }
             MenuRow("Privacy policy", Icons.Filled.PrivacyTip) { pick { editor.effects.openUrl(EditorEffects.PRIVACY_URL) } }
             if (buildStamp.lines.isNotEmpty()) {

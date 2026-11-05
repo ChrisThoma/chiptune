@@ -54,6 +54,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.individuation.chiptune.core.studio.HelpGuide
+import dev.individuation.chiptune.ui.editor.HelpGuideButton
 import dev.individuation.chiptune.core.model.ChannelKind
 import dev.individuation.chiptune.core.model.Instrument
 import dev.individuation.chiptune.core.model.InstrumentPreset
@@ -117,6 +119,7 @@ fun InstrumentEditorPanel(editor: Editor, track: Int, onDismiss: () -> Unit, sho
         SheetBar(
             title = label,
             trailing = { BarPill("Done", onDismiss, color = ChipColors.channel(kind), bold = true) },
+            titleAccessory = { HelpGuideButton { editor.presentation.openGuide(HelpGuide.SectionId.SOUND) } },
         )
         InstrumentEditorBody(editor, track, docked = false, onDismiss = onDismiss, showSound = showSound)
     }
@@ -166,19 +169,23 @@ fun InstrumentEditorBody(
         Modifier.fillMaxWidth().verticalScroll(scroll).padding(horizontal = 16.dp).navigationBarsPadding(),
     ) {
         if (docked) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(start = 4.dp, bottom = 6.dp)
-                    .clearAndSetSemantics {
-                        contentDescription = InstrumentEditorCopy.dockedHeading(label)
-                        heading()
-                    },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Icon(Icons.Filled.Tune, contentDescription = null, tint = accent, modifier = Modifier.size(13.dp))
-                Text(label.uppercase(), style = chipFont(11f, FontWeight.Bold), color = accent, maxLines = 1)
+            Box(Modifier.fillMaxWidth().padding(bottom = 6.dp), contentAlignment = Alignment.CenterStart) {
+                Row(
+                    Modifier
+                        .padding(start = 4.dp, end = 44.dp)
+                        .clearAndSetSemantics {
+                            contentDescription = InstrumentEditorCopy.dockedHeading(label)
+                            heading()
+                        },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(Icons.Filled.Tune, contentDescription = null, tint = accent, modifier = Modifier.size(13.dp))
+                    Text(label.uppercase(), style = chipFont(11f, FontWeight.Bold), color = accent, maxLines = 1)
+                }
+                Box(Modifier.align(Alignment.CenterEnd)) {
+                    HelpGuideButton { editor.presentation.openGuide(HelpGuide.SectionId.SOUND) }
+                }
             }
         }
 

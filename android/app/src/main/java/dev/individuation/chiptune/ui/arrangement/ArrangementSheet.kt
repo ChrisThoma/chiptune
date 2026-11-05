@@ -68,6 +68,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.individuation.chiptune.core.studio.HelpGuide
+import dev.individuation.chiptune.ui.editor.HelpGuideButton
 import dev.individuation.chiptune.core.model.ArrangementReorder
 import dev.individuation.chiptune.core.model.ArrangementRowLeading
 import dev.individuation.chiptune.core.model.RepeatsAccessibility
@@ -124,6 +126,7 @@ fun ArrangementPanel(editor: Editor, onDismiss: () -> Unit) {
                 }
             },
             trailing = { BarPill("Done", onDismiss) },
+            titleAccessory = { HelpGuideButton { editor.presentation.openGuide(HelpGuide.SectionId.ARRANGEMENT) } },
         )
         ArrangementList(editor, editing)
     }

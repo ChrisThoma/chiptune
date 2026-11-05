@@ -7,7 +7,7 @@ package dev.individuation.chiptune.ui.layout
  */
 
 /** The screens that change container with the window. */
-enum class SurfaceKind { SONGS, ARRANGEMENT, EXPORT, INSTRUMENT_EDITOR, KEYBOARD_HELP }
+enum class SurfaceKind { SONGS, ARRANGEMENT, EXPORT, INSTRUMENT_EDITOR, KEYBOARD_HELP, GUIDE }
 
 enum class SurfaceContainer {
     /** A bottom sheet: every screen on a phone. */
@@ -33,7 +33,7 @@ object SurfaceContainers {
 
     fun container(kind: SurfaceKind, layout: ChipLayout): SurfaceContainer = when {
         !layout.isRegularWidth -> SurfaceContainer.SHEET
-        kind == SurfaceKind.SONGS -> SurfaceContainer.DIALOG
+        kind == SurfaceKind.SONGS || kind == SurfaceKind.GUIDE -> SurfaceContainer.DIALOG
         kind == SurfaceKind.INSTRUMENT_EDITOR && layout.docksInstrumentEditor -> SurfaceContainer.DOCKED
         else -> SurfaceContainer.POPOVER
     }

@@ -130,4 +130,8 @@ class SurfacePresentationTest {
         assertEquals((800.0 - 420.0) / 2, p.x, 0.0)
         assertEquals((1232.0 - 520.0) / 2, p.y, 0.0)
     }
+
+    @Test fun theGuideIsACentredDialogAtRegularWidth() {
+        assertEquals(SurfaceContainer.DIALOG, SurfaceContainers.container(SurfaceKind.GUIDE, portraitPad))
+    }
 }

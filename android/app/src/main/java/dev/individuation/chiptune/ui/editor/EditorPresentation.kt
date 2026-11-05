@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import dev.individuation.chiptune.core.studio.EditorPresentation
 import dev.individuation.chiptune.core.studio.SongBoundPresenters
+import dev.individuation.chiptune.core.studio.HelpGuide
 import dev.individuation.chiptune.core.studio.SongLibraryPresentation
 import dev.individuation.chiptune.core.studio.Studio
 import dev.individuation.chiptune.core.studio.StudioState
@@ -53,6 +54,10 @@ sealed interface Presented {
     /** The hardware-key list (Phase 6). */
     data object KeyboardHelp : Presented
 
+    /** "How it works", open at [start]. [returnTo] is the sheet it replaced:
+     * only one surface is up at a time, so Done brings that sheet back. */
+    data class Guide(val start: HelpGuide.SectionId?, val returnTo: Presented = None) : Presented
+
     /** The pattern rename sheet, for the pattern at [pattern] when it opened. */
     data class PatternRename(val pattern: Int) : Presented
 
@@ -66,6 +71,11 @@ sealed interface Presented {
     /** The tap-to-type tempo dialog. */
     data object Tempo : Presented
 
+    fun openingGuide(start: HelpGuide.SectionId?): Guide = Guide(start, this)
+
+    /** What's on screen once this closes. */
+    val afterClosing: Presented get() = if (this is Guide) returnTo else None
+
     /** The song-bound presenter this reports into `Studio`, if any: these hold
      * an index or a value read from the song, so song-changing chords wait. */
     val songBoundSurface: SongBoundPresenters.Surface?
@@ -75,6 +85,7 @@ sealed interface Presented {
             is DeletePattern -> SongBoundPresenters.Surface.PATTERN_DELETE
             Tempo -> SongBoundPresenters.Surface.TEMPO_ALERT
             is InstrumentEditor -> SongBoundPresenters.Surface.TRACK_SOUND
+            is Guide -> returnTo.songBoundSurface
             else -> null
         }
 }
@@ -127,6 +138,13 @@ class EditorPresentationState internal constructor(
         return true
     }
 
+    /** Opens the guide at [start]. Unlike [open] it may replace a sheet, the
+     * one a (?) sits on, and closing the guide brings that sheet back. */
+    fun openGuide(start: HelpGuide.SectionId?) {
+        if (current == Presented.None && !EditorPresentation.canOpen(anyPresented)) return
+        current = current.openingGuide(start)
+    }
+
     /** The Songs entrance: saves before it opens, so the list shows the name
      * as typed, and stays shut when the save fails (storageError says why). */
     fun openSongs(endRenaming: () -> Unit): Boolean {
@@ -145,7 +163,7 @@ class EditorPresentationState internal constructor(
     /** Closes [surface] only if it is still the one up (a late callback from
      * a sheet that has already been replaced must not close its successor). */
     fun close(surface: Presented) {
-        if (current == surface) current = Presented.None
+        if (current == surface) current = surface.afterClosing
     }
 
     /** Escape / Ctrl+. and a song change: everything closes, and an export
