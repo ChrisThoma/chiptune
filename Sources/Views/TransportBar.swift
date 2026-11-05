@@ -237,7 +237,7 @@ struct TransportBar: View {
             modeToggle(stretched: stretched)
             TrayDivider()
             Button { showingArrangement = true } label: {
-                Text("ARR")
+                Text(ControlLabel.arrangement)
                     .chipFont(11, weight: .semibold)
                     .foregroundStyle(Theme.text)
                     .frame(width: stretched ? nil : layout.arrButtonWidth,
@@ -274,8 +274,8 @@ struct TransportBar: View {
     /// the arrangement from the top.
     private func modeToggle(stretched: Bool) -> some View {
         HStack(spacing: 0) {
-            segment("PATT", on: !studio.songMode, stretched: stretched) { studio.setSongMode(false) }
-            segment("SONG", on: studio.songMode, stretched: stretched) { studio.setSongMode(true) }
+            segment(ControlLabel.patt, on: !studio.songMode, stretched: stretched) { studio.setSongMode(false) }
+            segment(ControlLabel.song, on: studio.songMode, stretched: stretched) { studio.setSongMode(true) }
         }
         .frame(maxWidth: stretched ? .infinity : nil)
     }
@@ -298,7 +298,7 @@ struct TransportBar: View {
         }
         .buttonStyle(.plain)
         .hoverEffect(.highlight)
-        .accessibilityLabel(title == "PATT" ? "Pattern" : "Song")
+        .accessibilityLabel(title == ControlLabel.patt ? "Pattern" : "Song")
         .accessibilityAddTraits(on ? [.isSelected] : [])
     }
 }

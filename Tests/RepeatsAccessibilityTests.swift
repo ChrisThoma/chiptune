@@ -3,8 +3,8 @@ import XCTest
 
 final class RepeatsAccessibilityTests: XCTestCase {
     func testLabelNamesTheOneBasedSection() {
-        XCTAssertEqual(RepeatsAccessibility.label(position: 0), "Section 1 repeats")
-        XCTAssertEqual(RepeatsAccessibility.label(position: 2), "Section 3 repeats")
+        XCTAssertEqual(RepeatsAccessibility.label(position: 0), "Section 1 plays")
+        XCTAssertEqual(RepeatsAccessibility.label(position: 2), "Section 3 plays")
     }
 
     func testLabelsDifferAcrossRows() {

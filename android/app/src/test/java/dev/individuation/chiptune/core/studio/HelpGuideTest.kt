@@ -81,7 +81,40 @@ class HelpGuideTest {
     }
 
     @Test fun presetNamesTheRowYouTap() {
-        val sound = HelpGuide.sections.first { it.id == HelpGuide.SectionId.SOUND }
-        assertTrue(sound.entries.first { it.term == "Preset" }.text.startsWith("Tap Sound"))
+        assertTrue(text("Preset", HelpGuide.SectionId.SOUND).startsWith("Tap ${ControlLabel.PRESET_ROW} "))
+    }
+
+    @Test fun decaySaysHoldTurnsItOff() {
+        assertTrue(
+            text(ControlLabel.DECAY, HelpGuide.SectionId.SOUND)
+                .contains("off while ${ControlLabel.HOLD_SWITCH} is on"),
+        )
+    }
+
+    @Test fun channelSaysTheSoundResets() {
+        assertTrue(text("Channel", HelpGuide.SectionId.SOUND).contains("resets"))
+    }
+
+    @Test fun muteSaysItReachesExports() {
+        assertTrue(text("Mute", HelpGuide.SectionId.TRACKS).contains("exports"))
+    }
+
+    /** These read the same constants the controls draw. */
+    @Test fun theGuideQuotesTheLabelsOnTheControls() {
+        val playing = terms(HelpGuide.SectionId.PLAYING)
+        assertTrue(playing.containsAll(listOf(ControlLabel.PATT, ControlLabel.SONG, ControlLabel.ARRANGEMENT)))
+        assertTrue(terms(HelpGuide.SectionId.NOTES).contains(ControlLabel.REST))
+        val sound = terms(HelpGuide.SectionId.SOUND)
+        assertTrue(sound.containsAll(listOf(ControlLabel.VOLUME, ControlLabel.HOLD_SWITCH, ControlLabel.DECAY)))
+        val song = text(ControlLabel.SONG, HelpGuide.SectionId.ARRANGEMENT)
+        assertTrue(song.contains("tap ${ControlLabel.SONG} "))
+        assertTrue(song.contains(ControlLabel.PATT))
+        assertTrue(text("Hold a track", HelpGuide.SectionId.TRACKS).endsWith("tap ${ControlLabel.REORDER_DONE}."))
+        assertTrue(text("Preset", HelpGuide.SectionId.SOUND).contains(ControlLabel.VOLUME))
+    }
+
+    @Test fun tracksSaysTheGesturesLiveOnTheName() {
+        assertTrue(text("Tap", HelpGuide.SectionId.TRACKS).startsWith("Tap a track's name"))
+        assertTrue(text("Hold a track", HelpGuide.SectionId.TRACKS).contains("hold a name"))
     }
 }

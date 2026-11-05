@@ -348,7 +348,7 @@ object InstrumentEditorCopy {
         ArpShape("5th", "Fifth", listOf(0, 7)),
     )
 
-    const val PRESET_CAPTION = "A starting point. Change it with the controls below."
+    const val PRESET_CAPTION = "A ready-made sound to start from."
     const val CHANNEL_CAPTION = "Switching waveform keeps this track's notes and loads the new channel's default sound."
     const val ARPEGGIO_CAPTION = "Cycles through the chord tones fast enough to sound like one voice \u2014 " +
         "the classic way to fake a chord on a single channel."

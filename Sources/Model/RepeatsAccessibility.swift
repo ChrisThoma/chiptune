@@ -5,7 +5,7 @@ import Foundation
 /// "Section N") so four steppers are not four identical "Repeats".
 enum RepeatsAccessibility {
     static func label(position: Int) -> String {
-        "Section \(position + 1) repeats"
+        "Section \(position + 1) plays"
     }
 
     static func value(_ repeats: Int) -> String {

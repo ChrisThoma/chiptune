@@ -281,14 +281,14 @@ struct GridView: View {
                 .symbolFont(14)
                 .foregroundStyle(Theme.dim)
                 .accessibilityHidden(true)
-            Text("Drag a track to move it")
+            Text("Drag a track's name to move it")
                 .font(.subheadline)
                 .foregroundStyle(Theme.text)
             Spacer(minLength: 8)
             Button {
                 endReordering()
             } label: {
-                Text("Done")
+                Text(ControlLabel.reorderDone)
                     .chipFont(14)
                     .foregroundStyle(Theme.onLight)
                     .padding(.horizontal, 16)

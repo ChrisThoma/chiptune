@@ -84,18 +84,39 @@ final class HelpGuideTests: XCTestCase {
     }
 
     func testPresetNamesTheRowYouTap() {
-        XCTAssertTrue(text("Preset", in: .sound).hasPrefix("Tap Sound"))
+        XCTAssertTrue(text("Preset", in: .sound).hasPrefix("Tap \(ControlLabel.presetRow) "))
     }
 
     func testDecaySaysHoldTurnsItOff() {
-        XCTAssertTrue(text("Decay", in: .sound).contains("off while Hold is on"))
+        XCTAssertTrue(text(ControlLabel.decay, in: .sound)
+            .contains("off while \(ControlLabel.holdSwitch) is on"))
     }
 
     func testChannelSaysTheSoundResets() {
-        XCTAssertTrue(text("Channel", in: .sound).contains("default"))
+        XCTAssertTrue(text("Channel", in: .sound).contains("resets"))
     }
 
     func testMuteSaysItReachesExports() {
         XCTAssertTrue(text("Mute", in: .tracks).contains("exports"))
+    }
+
+    /// These read the same constants the controls draw.
+    func testTheGuideQuotesTheLabelsOnTheControls() {
+        XCTAssertTrue(terms(.playing).contains(ControlLabel.patt))
+        XCTAssertTrue(terms(.playing).contains(ControlLabel.song))
+        XCTAssertTrue(terms(.playing).contains(ControlLabel.arrangement))
+        XCTAssertTrue(terms(.notes).contains(ControlLabel.rest))
+        XCTAssertTrue(terms(.sound).contains(ControlLabel.volume))
+        XCTAssertTrue(terms(.sound).contains(ControlLabel.holdSwitch))
+        XCTAssertTrue(terms(.sound).contains(ControlLabel.decay))
+        XCTAssertTrue(text(ControlLabel.song, in: .arrangement).contains("tap \(ControlLabel.song) "))
+        XCTAssertTrue(text(ControlLabel.song, in: .arrangement).contains(ControlLabel.patt))
+        XCTAssertTrue(text("Hold a track", in: .tracks).hasSuffix("tap \(ControlLabel.reorderDone)."))
+        XCTAssertTrue(text("Preset", in: .sound).contains(ControlLabel.volume))
+    }
+
+    func testTracksSaysTheGesturesLiveOnTheName() {
+        XCTAssertTrue(text("Tap", in: .tracks).hasPrefix("Tap a track's name"))
+        XCTAssertTrue(text("Hold a track", in: .tracks).contains("hold a name"))
     }
 }

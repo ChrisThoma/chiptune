@@ -84,7 +84,7 @@ sealed class ArrangementRowLeading {
 
 /** Screen-reader words for an arrangement row's repeats stepper. */
 object RepeatsAccessibility {
-    fun label(position: Int): String = "Section ${position + 1} repeats"
+    fun label(position: Int): String = "Section ${position + 1} plays"
 
     fun value(repeats: Int): String = if (repeats == 1) "1 time" else "$repeats times"
 }

@@ -100,6 +100,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import dev.individuation.chiptune.core.studio.ControlLabel
 import dev.individuation.chiptune.core.model.ChannelKind
 import dev.individuation.chiptune.core.model.Chip
 import dev.individuation.chiptune.core.model.NoteName
@@ -916,7 +917,7 @@ private fun ReorderBar(onDone: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(Modifier.semantics { hideFromAccessibility() }) { SymbolIcon(Icons.Filled.SwapHoriz, 14f, ChipColors.dim) }
-        Text("Drag a track to move it", style = MaterialTheme.typography.bodyMedium, color = ChipColors.text, modifier = Modifier.weight(1f))
+        Text("Drag a track's name to move it", style = MaterialTheme.typography.bodyMedium, color = ChipColors.text, modifier = Modifier.weight(1f))
         Box(
             Modifier
                 .heightIn(min = 36.dp)
@@ -926,7 +927,7 @@ private fun ReorderBar(onDone: () -> Unit) {
                 .padding(horizontal = 16.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Text("Done", style = chipFont(14f), color = ChipColors.onLight)
+            Text(ControlLabel.REORDER_DONE, style = chipFont(14f), color = ChipColors.onLight)
         }
     }
 }

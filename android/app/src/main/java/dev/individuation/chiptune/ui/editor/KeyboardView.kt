@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.individuation.chiptune.core.studio.ControlLabel
 import dev.individuation.chiptune.core.model.NoteName
 import dev.individuation.chiptune.core.studio.Studio
 import dev.individuation.chiptune.ui.layout.ChipLayout
@@ -119,7 +120,7 @@ private fun KeyboardControls(editor: Editor) {
                 onClick(if (armed) "Disarms, back to the note you had" else "Writes a rest") { studio.toggleNoteOff(); true }
             },
         ) { fg ->
-            Text("REST", style = chipFont(12f), color = fg, maxLines = 1)
+            Text(ControlLabel.REST, style = chipFont(12f), color = fg, maxLines = 1)
         }
     }
 }

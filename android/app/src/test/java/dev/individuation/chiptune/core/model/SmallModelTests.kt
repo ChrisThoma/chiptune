@@ -204,8 +204,8 @@ class ArrangementRowLeadingTest {
 /** Port of `RepeatsAccessibilityTests.swift`. */
 class RepeatsAccessibilityTest {
     @Test fun labelNamesTheOneBasedSection() {
-        assertEquals("Section 1 repeats", RepeatsAccessibility.label(0))
-        assertEquals("Section 3 repeats", RepeatsAccessibility.label(2))
+        assertEquals("Section 1 plays", RepeatsAccessibility.label(0))
+        assertEquals("Section 3 plays", RepeatsAccessibility.label(2))
     }
 
     @Test fun labelsDifferAcrossRows() = assertEquals(4, (0 until 4).map { RepeatsAccessibility.label(it) }.toSet().size)

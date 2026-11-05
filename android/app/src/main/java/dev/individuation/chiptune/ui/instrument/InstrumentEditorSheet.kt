@@ -54,6 +54,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.individuation.chiptune.core.studio.ControlLabel
 import dev.individuation.chiptune.core.studio.HelpGuide
 import dev.individuation.chiptune.ui.editor.HelpGuideButton
 import dev.individuation.chiptune.core.model.ChannelKind
@@ -208,7 +209,7 @@ fun InstrumentEditorBody(
 
         FormSection(header = "Level", footer = InstrumentEditorCopy.levelFooter(instrument.sustain)) {
             FormSlider(
-                title = "Volume",
+                title = ControlLabel.VOLUME,
                 value = instrument.volume,
                 range = InstrumentEditorCopy.VOLUME_RANGE,
                 display = Format::percent,
@@ -216,10 +217,10 @@ fun InstrumentEditorBody(
                 onChange = { studio.setVolume(track, it) },
             )
             FormSeparator()
-            FormSwitch("Hold", instrument.sustain, accent) { studio.setSustain(track, it) }
+            FormSwitch(ControlLabel.HOLD_SWITCH, instrument.sustain, accent) { studio.setSustain(track, it) }
             FormSeparator()
             FormSlider(
-                title = "Decay",
+                title = ControlLabel.DECAY,
                 value = instrument.decay,
                 range = InstrumentEditorCopy.DECAY_RANGE,
                 display = InstrumentEditorCopy::decay,
@@ -324,7 +325,7 @@ private fun PresetSection(kind: ChannelKind, instrument: Instrument, apply: (Ins
                         onClick { open = true; true }
                     },
             ) {
-                Text("Sound", color = FormColors.tint, fontSize = 17.sp, modifier = Modifier.weight(1f))
+                Text(ControlLabel.PRESET_ROW, color = FormColors.tint, fontSize = 17.sp, modifier = Modifier.weight(1f))
                 Text(name, color = ChipColors.dim, fontSize = 17.sp)
                 Icon(Icons.Filled.UnfoldMore, contentDescription = null, tint = ChipColors.dim, modifier = Modifier.size(16.dp))
             }

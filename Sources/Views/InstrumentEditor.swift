@@ -173,7 +173,7 @@ struct InstrumentEditor: View {
                         }
                     } label: {
                         HStack {
-                            Text("Sound")
+                            Text(ControlLabel.presetRow)
                             Spacer()
                             Text(presetName)
                                 .foregroundStyle(.secondary)
@@ -185,7 +185,7 @@ struct InstrumentEditor: View {
                     .accessibilityLabel("Sound preset")
                     .accessibilityValue(presetName)
 
-                    Text("A starting point. Change it with the controls below.")
+                    Text("A ready-made sound to start from.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -252,7 +252,7 @@ struct InstrumentEditor: View {
                 }
 
                 Section {
-                    slider(title: "Volume",
+                    slider(title: ControlLabel.volume,
                            value: instrument(\.volume, default: 0.5, kind: .volume(index)),
                            range: 0...1,
                            display: Format.percent)
@@ -270,13 +270,13 @@ struct InstrumentEditor: View {
                     // nearby to explain it, so this simultaneous tap gesture
                     // guarantees a quick tap flips the switch regardless of
                     // the underlying UIKit recognition issue.
-                    Toggle("Hold", isOn: holdBinding)
+                    Toggle(ControlLabel.holdSwitch, isOn: holdBinding)
                         .tint(accent)
                         .simultaneousGesture(
                             TapGesture().onEnded { holdBinding.wrappedValue.toggle() }
                         )
 
-                    slider(title: "Decay",
+                    slider(title: ControlLabel.decay,
                            value: instrument(\.decay, default: 0.3, kind: .decay(index)),
                            range: 0.03...4.0,
                            display: { String(format: "%.2fs", $0) })

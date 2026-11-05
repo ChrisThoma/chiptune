@@ -692,7 +692,7 @@ class InstrumentEditorCopyTest {
     }
 
     @Test fun captionsAreWordForWord() {
-        assertEquals("A starting point. Change it with the controls below.", InstrumentEditorCopy.PRESET_CAPTION)
+        assertEquals("A ready-made sound to start from.", InstrumentEditorCopy.PRESET_CAPTION)
         assertEquals(
             "Switching waveform keeps this track's notes and loads the new channel's default sound.",
             InstrumentEditorCopy.CHANNEL_CAPTION,

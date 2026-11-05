@@ -147,7 +147,7 @@ struct KeyboardView: View {
             Button {
                 studio.toggleNoteOff()
             } label: {
-                Text("REST").chipFont(12)
+                Text(ControlLabel.rest).chipFont(12)
                     .lineLimit(1)
                     .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             }

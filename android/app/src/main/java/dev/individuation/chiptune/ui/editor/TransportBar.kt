@@ -44,6 +44,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.individuation.chiptune.core.studio.ControlLabel
 import dev.individuation.chiptune.core.model.Chip
 import dev.individuation.chiptune.ui.layout.ChipLayout
 import dev.individuation.chiptune.ui.layout.EditorChrome
@@ -125,8 +126,8 @@ private fun ModeTray(editor: Editor, height: Dp, stretched: Boolean) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val segment = if (stretched) Modifier.weight(1f) else Modifier.width(layout.patternSegmentWidth.dpValue())
-        Segment("PATT", "Pattern", on = !songMode, modifier = segment, height = height) { editor.studio.setSongMode(false) }
-        Segment("SONG", "Song", on = songMode, modifier = segment, height = height) { editor.studio.setSongMode(true) }
+        Segment(ControlLabel.PATT, "Pattern", on = !songMode, modifier = segment, height = height) { editor.studio.setSongMode(false) }
+        Segment(ControlLabel.SONG, "Song", on = songMode, modifier = segment, height = height) { editor.studio.setSongMode(true) }
         TrayDivider()
         Box(
             (if (stretched) Modifier.weight(1f) else Modifier.width(layout.arrButtonWidth.dpValue()))
@@ -136,7 +137,7 @@ private fun ModeTray(editor: Editor, height: Dp, stretched: Boolean) {
                 .semantics { contentDescription = "Arrangement" },
             contentAlignment = Alignment.Center,
         ) {
-            Text("ARR", style = chipFont(11f), color = ChipColors.text, maxLines = 1)
+            Text(ControlLabel.ARRANGEMENT, style = chipFont(11f), color = ChipColors.text, maxLines = 1)
         }
     }
 }
