@@ -1,4 +1,4 @@
-Chiptune is a step sequencer for writing music in a style of old game consoles. Simply tap a note, tap a cell in the grid, and it will play sounds from one of four NES-style channels. Chiptune has two pulses, a triangle and noise. Each channel is synthesized live rather than sampled.
+Chiptune is a retro 8-bit music maker and step sequencer for writing songs in the style of old game consoles. Simply tap a note, tap a cell in the grid, and it will play sounds from one of four NES-style channels. Chiptune has two pulses, a triangle and noise. Each channel is synthesized live rather than sampled.
 
 Patterns are customizable from 4 to 64 steps and can be chained into an arrangement. This lets a piece go from just a single loop into a full song with intros, verses, choruses, etc.
 
