@@ -27,8 +27,12 @@ an intro, a verse and a chorus rather than a single loop. `PATT` auditions the
 pattern you're editing; `SONG` plays the whole arrangement.
 
 Songs save as you work and the app reopens the last one you edited, with undo
-and redo throughout. The library holds everything you've written. A song can
-also be shared as a song file and imported on another device.
+and redo throughout. The library holds everything you've written, and three
+sample songs to play and take apart. A song can also be shared as a song file
+and imported on another device.
+
+The keys stay on screen when the editor scrolls. A How it works guide in the
+menu explains the controls, with a (?) on the Arrangement and Sound sheets.
 
 ## Exporting
 
