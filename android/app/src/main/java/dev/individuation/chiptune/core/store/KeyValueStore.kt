@@ -3,7 +3,7 @@ package dev.individuation.chiptune.core.store
 /**
  * The handful of small values the app remembers between launches: which song
  * was open, which unreadable files the user has been told about, and the
- * review prompt's export counts. iOS keeps these in `UserDefaults`; the app
+ * review prompt's new-song count. iOS keeps these in `UserDefaults`; the app
  * backs this with SharedPreferences (Phase 4), the tests with
  * [InMemoryKeyValueStore].
  */

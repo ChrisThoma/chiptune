@@ -9,13 +9,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import dev.individuation.chiptune.ChiptuneApp
-import dev.individuation.chiptune.core.store.InMemoryKeyValueStore
 import dev.individuation.chiptune.core.studio.ExportFlow
-import dev.individuation.chiptune.core.studio.ReviewPromptTracker
-import dev.individuation.chiptune.core.studio.ShareOutcome
 import dev.individuation.chiptune.ui.editor.Editor
 import dev.individuation.chiptune.ui.editor.EditorEffects
 import dev.individuation.chiptune.ui.editor.Presented
@@ -26,16 +21,12 @@ import java.io.File
 /**
  * From a finished render to the share step (iOS ContentView's
  * `onChange(of: completedExportAttempt)` and `shareAfterExport()`): a success haptic, the
- * export counted for the review prompt, the export panel taken down, and
+ * the export panel taken down, and
  * once it has gone, [Presented.ExportResult]. Lives in the editor, not the
  * sheet, because the sheet is what goes away first.
  */
 @Composable
 fun ExportResultHost(editor: Editor) {
-    val context = LocalContext.current
-    val tracker = remember(context) {
-        (context.applicationContext as? ChiptuneApp)?.reviewPrompt ?: ReviewPromptTracker(InMemoryKeyValueStore())
-    }
     val flow = remember { PendingShare() }
     val presentation = editor.presentation
 
@@ -52,7 +43,6 @@ fun ExportResultHost(editor: Editor) {
             if (last == null) return@collect
             val file = ExportFlow.finishedExport(last, completed, latest) ?: return@collect
             editor.haptics.exportSucceeded()
-            tracker.exportSucceeded()
             val step = ExportFlow.afterRender(file, exportPresented = presentation.current == Presented.Export)
             flow.file = file
             flow.title = title.orEmpty()
@@ -89,41 +79,26 @@ private class PendingShare {
 
 /**
  * "Exported \u201CX\u201D": Share... or Save to device. Android's stand-in for the
- * iOS share sheet that follows an export; the review prompt hangs off the
- * share as it does there.
+ * iOS share sheet that follows an export.
  */
 @Composable
 fun ExportResultDialog(editor: Editor, file: File, title: String, onDismiss: () -> Unit) {
-    val context = LocalContext.current
-    val tracker = remember(context) {
-        (context.applicationContext as? ChiptuneApp)?.reviewPrompt ?: ReviewPromptTracker(InMemoryKeyValueStore())
-    }
-    fun closeWithoutSharing() {
-        // Like closing iOS's share sheet untouched: the milestone isn't spent.
-        tracker.shareDismissed(ShareOutcome.CANCELED)
-        onDismiss()
-    }
     AlertDialog(
-        onDismissRequest = ::closeWithoutSharing,
+        onDismissRequest = onDismiss,
         containerColor = ChipColors.panelHigh,
         title = { Text(ExportCopy.resultTitle(title)) },
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = {
-                    // Phase 7's save reports nothing back; it doesn't spend the milestone.
-                    tracker.shareDismissed(ShareOutcome.CANCELED)
                     onDismiss()
                     editor.effects.saveToDevice(file, file.name, EditorEffects.mimeTypeFor(file), title)
                 }) { Text("Save to device", color = ChipColors.text) }
                 TextButton(onClick = {
                     onDismiss()
-                    editor.effects.shareFile(file, EditorEffects.mimeTypeFor(file)) { handedOff ->
-                        val outcome = if (handedOff) ShareOutcome.COMPLETED else ShareOutcome.CANCELED
-                        if (tracker.shareDismissed(outcome)) editor.effects.requestReview()
-                    }
+                    editor.effects.shareFile(file, EditorEffects.mimeTypeFor(file))
                 }) { Text("Share\u2026", color = ChipColors.accentGreen) }
             }
         },
-        dismissButton = { TextButton(onClick = ::closeWithoutSharing) { Text("Close", color = ChipColors.dim) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Close", color = ChipColors.dim) } },
     )
 }

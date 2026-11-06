@@ -99,6 +99,8 @@ data class StudioState(
     val exportProgress: Double = 0.0,
     /** Monotonic: bumped as each export finishes, whatever its outcome. */
     val completedExportAttempt: Int = 0,
+    /** Goes up each time a new song makes a review request due. */
+    val reviewRequestAttempt: Int = 0,
     /** Export failed (null when canceled: canceling is not failing). */
     val exportError: String? = null,
     /** Audio wouldn't start. */

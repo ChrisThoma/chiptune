@@ -542,46 +542,9 @@ final class LayoutTests: XCTestCase {
         XCTAssertFalse(phone.scrollingEditorLayout.presentsArrangementAsPopover)
     }
 
-    func testReviewRequestOnlyFiresForACompletedShare() {
-        XCTAssertTrue(ReviewPromptPolicy.shouldRequest(eligible: true, outcome: .completed))
-        XCTAssertFalse(ReviewPromptPolicy.shouldRequest(eligible: true, outcome: .canceled))
-        XCTAssertFalse(ReviewPromptPolicy.shouldRequest(eligible: true, outcome: .failed))
-        XCTAssertFalse(ReviewPromptPolicy.shouldRequest(eligible: false, outcome: .completed))
-    }
-
-    /// A canceled or failed share must not spend the milestone: the user
-    /// keeps their eligibility for the next share that actually completes.
-    func testCancelingOrFailingAShareLeavesTheMilestoneUnadvanced() {
-        let canceled = ReviewPromptPolicy.afterShareDismiss(
-            eligible: true, outcome: .canceled, successfulExports: 5, lastRequestExportCount: 0)
-        XCTAssertFalse(canceled.shouldRequestReview)
-        XCTAssertEqual(canceled.lastRequestExportCount, 0, "a canceled share must not spend the milestone")
-
-        let failed = ReviewPromptPolicy.afterShareDismiss(
-            eligible: true, outcome: .failed, successfulExports: 5, lastRequestExportCount: 0)
-        XCTAssertFalse(failed.shouldRequestReview)
-        XCTAssertEqual(failed.lastRequestExportCount, 0, "a failed share must not spend the milestone")
-
-        let completed = ReviewPromptPolicy.afterShareDismiss(
-            eligible: true, outcome: .completed, successfulExports: 5, lastRequestExportCount: 0)
-        XCTAssertTrue(completed.shouldRequestReview)
-        XCTAssertEqual(completed.lastRequestExportCount, 5, "a completed share spends the milestone")
-
-        let ineligible = ReviewPromptPolicy.afterShareDismiss(
-            eligible: false, outcome: .completed, successfulExports: 5, lastRequestExportCount: 2)
-        XCTAssertFalse(ineligible.shouldRequestReview)
-        XCTAssertEqual(ineligible.lastRequestExportCount, 2, "not due at all, so nothing to advance")
-    }
-
-    func testReviewRequestRetriesAtALaterExportMilestone() {
-        XCTAssertFalse(ReviewPromptPolicy.isDue(successfulExports: 2,
-                                                lastRequestExportCount: 0))
-        XCTAssertTrue(ReviewPromptPolicy.isDue(successfulExports: 3,
-                                               lastRequestExportCount: 0))
-        XCTAssertFalse(ReviewPromptPolicy.isDue(successfulExports: 12,
-                                                lastRequestExportCount: 3))
-        XCTAssertTrue(ReviewPromptPolicy.isDue(successfulExports: 13,
-                                               lastRequestExportCount: 3))
+    func testReviewRequestIsDueOnEveryThirdNewSong() {
+        let due = (0...9).filter { ReviewPromptPolicy.isDue(newSongsMade: $0) }
+        XCTAssertEqual(due, [3, 6, 9])
     }
 
     func testCapacityWarningAnnouncesOnlyOnThresholdCrossing() {

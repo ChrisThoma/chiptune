@@ -3,7 +3,6 @@ package dev.individuation.chiptune.ui.layout
 import dev.individuation.chiptune.core.audio.ExportOptions
 import dev.individuation.chiptune.core.model.Song
 import dev.individuation.chiptune.core.studio.ReviewPromptPolicy
-import dev.individuation.chiptune.core.studio.ShareOutcome
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -439,33 +438,8 @@ class LayoutTest {
 
     // MARK: Review prompt (in LayoutTests on iOS too)
 
-    @Test fun reviewRequestOnlyFiresForACompletedShare() {
-        assertTrue(ReviewPromptPolicy.shouldRequest(true, ShareOutcome.COMPLETED))
-        assertFalse(ReviewPromptPolicy.shouldRequest(true, ShareOutcome.CANCELED))
-        assertFalse(ReviewPromptPolicy.shouldRequest(true, ShareOutcome.FAILED))
-        assertFalse(ReviewPromptPolicy.shouldRequest(false, ShareOutcome.COMPLETED))
-    }
-
-    @Test fun cancelingOrFailingAShareLeavesTheMilestoneUnadvanced() {
-        val canceled = ReviewPromptPolicy.afterShareDismiss(true, ShareOutcome.CANCELED, 5, 0)
-        assertFalse(canceled.shouldRequestReview)
-        assertEquals(0, canceled.lastRequestExportCount)
-        val failed = ReviewPromptPolicy.afterShareDismiss(true, ShareOutcome.FAILED, 5, 0)
-        assertFalse(failed.shouldRequestReview)
-        assertEquals(0, failed.lastRequestExportCount)
-        val completed = ReviewPromptPolicy.afterShareDismiss(true, ShareOutcome.COMPLETED, 5, 0)
-        assertTrue(completed.shouldRequestReview)
-        assertEquals(5, completed.lastRequestExportCount)
-        val ineligible = ReviewPromptPolicy.afterShareDismiss(false, ShareOutcome.COMPLETED, 5, 2)
-        assertFalse(ineligible.shouldRequestReview)
-        assertEquals(2, ineligible.lastRequestExportCount)
-    }
-
-    @Test fun reviewRequestRetriesAtALaterExportMilestone() {
-        assertFalse(ReviewPromptPolicy.isDue(2, 0))
-        assertTrue(ReviewPromptPolicy.isDue(3, 0))
-        assertFalse(ReviewPromptPolicy.isDue(12, 3))
-        assertTrue(ReviewPromptPolicy.isDue(13, 3))
+    @Test fun reviewRequestIsDueOnEveryThirdNewSong() {
+        assertEquals(listOf(3, 6, 9), (0..9).filter { ReviewPromptPolicy.isDue(it) })
     }
 
     @Test fun capacityWarningAnnouncesOnlyOnThresholdCrossing() {

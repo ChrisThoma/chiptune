@@ -61,9 +61,8 @@ interface EditorEffects {
      * failure alert names; the file name is a sanitised form of it. */
     fun saveToDevice(file: File, suggestedName: String, mimeType: String, songTitle: String)
 
-    /** The review prompt, once a share after a milestone export went through
-     * (`ReviewPromptTracker.shareDismissed` said so): Play's in-app review
-     * flow, which decides itself whether anything shows. */
+    /** The review prompt, on every third new song: Play's in-app review flow,
+     * which decides itself whether anything shows. */
     fun requestReview()
 
     /** Puts [text] on the clipboard (the build stamp row). */

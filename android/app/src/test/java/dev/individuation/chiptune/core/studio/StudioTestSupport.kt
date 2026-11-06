@@ -148,6 +148,7 @@ class StudioHarness(
         keepAlive = keepAlive,
         exportDirectory = exportDir,
         samples = samples?.let { files -> SampleSongs(temp.prefs) { files } },
+        reviewPrompt = ReviewPromptTracker(temp.prefs),
     )
 
     /** Waits for everything queued on the export executor so far. */

@@ -59,7 +59,7 @@ class ChiptuneApp : Application() {
     var studio: Studio? = null
         private set
 
-    /** The review prompt's export counts, kept with the app's other prefs. */
+    /** The review prompt's new-song count, kept with the app's other prefs. */
     val reviewPrompt: ReviewPromptTracker by lazy { ReviewPromptTracker(SharedPrefsKeyValueStore(this)) }
 
     override fun onCreate() {
@@ -91,6 +91,7 @@ class ChiptuneApp : Application() {
             keepAlive = exportKeepAlive,
             exportDirectory = exportDir,
             samples = SampleSongs(prefs) { BundledSamples.read(assets) },
+            reviewPrompt = reviewPrompt,
         )
         output.events = object : AudioOutputEvents {
             override fun onAudioFocusLost() = built.onAudioFocusLost()

@@ -81,6 +81,8 @@ final class Studio {
     /// Monotonic completion token for views that must observe even an export
     /// which starts and finishes between two SwiftUI render passes.
     var completedExportAttempt = 0
+    /// Goes up each time a new song makes a review request due.
+    private(set) var reviewRequestAttempt = 0
     /// The last export to finish ended because it was canceled. Read with
     /// `completedExportAttempt`, so VoiceOver hears "Export canceled" only
     /// once the render has actually stopped.
@@ -1261,7 +1263,11 @@ final class Studio {
         song = Song(name: Song.defaultName)
         selectedPattern = 0
         pushAll()
-        saveNow()
+        // The only path that counts: First Loop, the samples, duplicates and
+        // imports never come through here.
+        if saveNow(), ReviewPromptPolicy.isDue(newSongsMade: store.countNewSong()) {
+            reviewRequestAttempt += 1
+        }
     }
 
     func beginReorderingTracks() {

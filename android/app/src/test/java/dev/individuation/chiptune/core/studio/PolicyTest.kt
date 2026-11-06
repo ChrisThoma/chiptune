@@ -45,53 +45,17 @@ class PolicyTest {
 
     // MARK: Review prompt
 
-    @Test fun reviewRequestOnlyFiresForACompletedShare() {
-        assertTrue(ReviewPromptPolicy.shouldRequest(true, ShareOutcome.COMPLETED))
-        assertFalse(ReviewPromptPolicy.shouldRequest(true, ShareOutcome.CANCELED))
-        assertFalse(ReviewPromptPolicy.shouldRequest(true, ShareOutcome.FAILED))
-        assertFalse(ReviewPromptPolicy.shouldRequest(false, ShareOutcome.COMPLETED))
+    @Test fun reviewRequestIsDueOnEveryThirdNewSong() {
+        assertEquals(listOf(3, 6, 9), (0..9).filter { ReviewPromptPolicy.isDue(it) })
     }
 
-    @Test fun cancelingOrFailingAShareLeavesTheMilestoneUnadvanced() {
-        val canceled = ReviewPromptPolicy.afterShareDismiss(true, ShareOutcome.CANCELED, 5, 0)
-        assertFalse(canceled.shouldRequestReview)
-        assertEquals(0, canceled.lastRequestExportCount)
-        val failed = ReviewPromptPolicy.afterShareDismiss(true, ShareOutcome.FAILED, 5, 0)
-        assertFalse(failed.shouldRequestReview)
-        assertEquals(0, failed.lastRequestExportCount)
-        val completed = ReviewPromptPolicy.afterShareDismiss(true, ShareOutcome.COMPLETED, 5, 0)
-        assertTrue(completed.shouldRequestReview)
-        assertEquals(5, completed.lastRequestExportCount)
-        val ineligible = ReviewPromptPolicy.afterShareDismiss(false, ShareOutcome.COMPLETED, 5, 2)
-        assertFalse(ineligible.shouldRequestReview)
-        assertEquals(2, ineligible.lastRequestExportCount)
-    }
-
-    @Test fun reviewRequestRetriesAtALaterExportMilestone() {
-        assertFalse(ReviewPromptPolicy.isDue(2, 0))
-        assertTrue(ReviewPromptPolicy.isDue(3, 0))
-        assertFalse(ReviewPromptPolicy.isDue(12, 3))
-        assertTrue(ReviewPromptPolicy.isDue(13, 3))
-        assertFalse("a count that went backwards is not due", ReviewPromptPolicy.isDue(4, 13))
-    }
-
-    @Test fun theTrackerPersistsCountsAndSpendsOnlyCompletedShares() {
+    @Test fun theTrackerKeepsItsCountAcrossLaunches() {
         val prefs = InMemoryKeyValueStore()
         val tracker = ReviewPromptTracker(prefs)
-        assertFalse(tracker.exportSucceeded())
-        assertFalse(tracker.exportSucceeded())
-        assertTrue("third export is due", tracker.exportSucceeded())
-        assertFalse("canceled share spends nothing", tracker.shareDismissed(ShareOutcome.CANCELED))
-        assertEquals(0, prefs.getInt(ReviewPromptTracker.LAST_REQUEST_KEY))
-        assertTrue(ReviewPromptTracker(prefs).exportSucceeded())
-        assertEquals(4, prefs.getInt(ReviewPromptTracker.SUCCESSFUL_EXPORTS_KEY))
-        val again = ReviewPromptTracker(prefs)
-        assertTrue(again.exportSucceeded())
-        assertTrue(again.shareDismissed(ShareOutcome.COMPLETED))
-        assertEquals(5, prefs.getInt(ReviewPromptTracker.LAST_REQUEST_KEY))
-        assertFalse(again.shareDismissed(ShareOutcome.COMPLETED))
-        repeat(9) { assertFalse(again.exportSucceeded()) }
-        assertTrue(again.exportSucceeded())
+        assertFalse(tracker.newSongMade())
+        assertFalse(tracker.newSongMade())
+        assertTrue("a relaunch carries on from two", ReviewPromptTracker(prefs).newSongMade())
+        assertEquals(3, prefs.getInt(ReviewPromptTracker.NEW_SONGS_KEY))
     }
 
     // MARK: Editor presentation

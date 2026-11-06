@@ -39,70 +39,28 @@ object ScenePhasePolicy {
     fun stopsEngine(entering: AppPhase): Boolean = entering == AppPhase.BACKGROUND
 }
 
-/** What became of the share sheet the review prompt is gated behind. */
+/** What became of a share sheet. */
 enum class ShareOutcome { COMPLETED, CANCELED, FAILED }
 
-/** When to ask for a review: at the third successful export, then every ten
- * after the last ask, and only once a share actually went somewhere. */
+/** When to ask for a review: on every third new song the user starts. */
 object ReviewPromptPolicy {
-    const val FIRST_REQUEST_EXPORT_COUNT = 3
-    const val RETRY_INTERVAL = 10
+    const val NEW_SONGS_PER_REQUEST = 3
 
-    data class AfterDismiss(val shouldRequestReview: Boolean, val lastRequestExportCount: Int)
-
-    fun isDue(successfulExports: Int, lastRequestExportCount: Int): Boolean {
-        if (successfulExports < FIRST_REQUEST_EXPORT_COUNT) return false
-        if (lastRequestExportCount <= 0) return true
-        if (successfulExports < lastRequestExportCount) return false
-        return successfulExports - lastRequestExportCount >= RETRY_INTERVAL
-    }
-
-    fun shouldRequest(eligible: Boolean, outcome: ShareOutcome): Boolean =
-        eligible && outcome == ShareOutcome.COMPLETED
-
-    /** A skipped request leaves the count alone, so a canceled share doesn't
-     * spend the milestone. */
-    fun afterShareDismiss(
-        eligible: Boolean,
-        outcome: ShareOutcome,
-        successfulExports: Int,
-        lastRequestExportCount: Int,
-    ): AfterDismiss {
-        if (!shouldRequest(eligible, outcome)) return AfterDismiss(false, lastRequestExportCount)
-        return AfterDismiss(true, successfulExports)
-    }
+    fun isDue(newSongsMade: Int): Boolean =
+        newSongsMade > 0 && newSongsMade % NEW_SONGS_PER_REQUEST == 0
 }
 
-/**
- * The review prompt's state, persisted the way iOS's `@AppStorage` keeps it.
- * Call [exportSucceeded] when a WAV export publishes its file and
- * [shareDismissed] when the share sheet that followed closes; ask the store
- * for a review when the latter returns true.
- */
+/** The review prompt's count, persisted the way iOS's defaults keep it. */
 class ReviewPromptTracker(private val prefs: KeyValueStore) {
-    private var reviewAfterSharing = false
-
-    /** Counts the export; returns whether the share that follows is eligible. */
-    fun exportSucceeded(): Boolean {
-        val count = prefs.getInt(SUCCESSFUL_EXPORTS_KEY) + 1
-        prefs.putInt(SUCCESSFUL_EXPORTS_KEY, count)
-        reviewAfterSharing = ReviewPromptPolicy.isDue(count, prefs.getInt(LAST_REQUEST_KEY))
-        return reviewAfterSharing
-    }
-
-    /** Whether to request a review now. */
-    fun shareDismissed(outcome: ShareOutcome): Boolean {
-        val result = ReviewPromptPolicy.afterShareDismiss(
-            reviewAfterSharing, outcome, prefs.getInt(SUCCESSFUL_EXPORTS_KEY), prefs.getInt(LAST_REQUEST_KEY),
-        )
-        reviewAfterSharing = false
-        prefs.putInt(LAST_REQUEST_KEY, result.lastRequestExportCount)
-        return result.shouldRequestReview
+    /** Counts a new song; returns whether to ask for a review. */
+    fun newSongMade(): Boolean {
+        val count = prefs.getInt(NEW_SONGS_KEY) + 1
+        prefs.putInt(NEW_SONGS_KEY, count)
+        return ReviewPromptPolicy.isDue(count)
     }
 
     companion object {
-        const val SUCCESSFUL_EXPORTS_KEY = "successfulExportCount"
-        const val LAST_REQUEST_KEY = "lastReviewRequestExportCount"
+        const val NEW_SONGS_KEY = "newSongsMade"
     }
 }
 

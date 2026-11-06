@@ -70,6 +70,7 @@ class Studio(
     private val exportDirectory: File? = null,
     /** The example songs a launch adds to the library once each. Null adds none. */
     private val samples: SampleSongs? = null,
+    private val reviewPrompt: ReviewPromptTracker? = null,
 ) {
     /** A point the editor can be put back to. The selection travels with the
      * song: `pushAll` clamps both indices into the current song, so they can't
@@ -221,6 +222,7 @@ class Studio(
     val exportProgress: Double get() = mutableState.value.exportProgress
 
     val completedExportAttempt: Int get() = mutableState.value.completedExportAttempt
+    val reviewRequestAttempt: Int get() = mutableState.value.reviewRequestAttempt
 
     var exportError: String?
         get() = mutableState.value.exportError
@@ -1100,7 +1102,11 @@ class Studio(
         song = Song.create(Song.DEFAULT_NAME)
         selectedPattern = 0
         pushAll()
-        saveNow()
+        // The only path that counts: First Loop, the samples, duplicates and
+        // imports never come through here.
+        if (saveNow() && reviewPrompt?.newSongMade() == true) {
+            update { it.copy(reviewRequestAttempt = it.reviewRequestAttempt + 1) }
+        }
     }
 
     fun open(other: Song) {

@@ -32,6 +32,7 @@ struct ChiptuneApp: App {
                 Theme.background.ignoresSafeArea()
                 if let studio {
                     ContentView(studio: studio)
+                        .modifier(ReviewRequests(studio: studio))
                         .transition(.opacity)
                 } else {
                     SplashView()

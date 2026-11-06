@@ -78,6 +78,66 @@ class StudioSampleSongsTest {
         assertEquals("the samples don't take over the launch", "Newest", launch(temp).studio.song.name)
     }
 
+    // MARK: Review prompt
+
+    @Test fun everyThirdNewSongAsksForAReview() {
+        val studio = launch().studio
+        repeat(2) { studio.newSong() }
+        assertEquals(0, studio.reviewRequestAttempt)
+        studio.newSong()
+        assertEquals(1, studio.reviewRequestAttempt)
+        repeat(2) { studio.newSong() }
+        assertEquals(1, studio.reviewRequestAttempt)
+        studio.newSong()
+        assertEquals(2, studio.reviewRequestAttempt)
+    }
+
+    @Test fun theNewSongCountSurvivesARelaunch() {
+        val first = launch()
+        repeat(2) { first.studio.newSong() }
+        val relaunched = launch(first.temp).studio
+        assertEquals("a launch isn't a request", 0, relaunched.reviewRequestAttempt)
+        relaunched.newSong()
+        assertEquals(1, relaunched.reviewRequestAttempt)
+    }
+
+    /** Only a song the user starts counts: not First Loop, the samples, a
+     * duplicate (of a sample or anything else) or an import. */
+    @Test fun includedDuplicatedAndImportedSongsDoNotCountTowardAReview() {
+        val harness = launch()
+        val studio = harness.studio
+        assertTrue("First Loop and the samples are there", harness.temp.store.loadLibrary().songs.size >= 4)
+
+        studio.duplicateSong()
+        studio.duplicate(sampleSongs[0])
+        studio.duplicateSong()
+        assertTrue(studio.importSong(files[1]))
+
+        assertEquals(0, studio.reviewRequestAttempt)
+        repeat(2) { studio.newSong() }
+        assertEquals("only two songs were started", 0, studio.reviewRequestAttempt)
+        studio.newSong()
+        assertEquals(1, studio.reviewRequestAttempt)
+    }
+
+    /** A save failure leaves the old song on screen, so nothing was made. */
+    @Test fun aNewSongThatFailsToSaveIsNotCounted() {
+        val harness = launch()
+        val studio = harness.studio
+        repeat(2) { studio.newSong() }
+        studio.edit { it.copy(name = "Stuck") }
+        harness.temp.directory.setWritable(false)
+        try {
+            studio.newSong()
+        } finally {
+            harness.temp.directory.setWritable(true)
+        }
+        assertEquals("Stuck", studio.song.name)
+        assertEquals(0, studio.reviewRequestAttempt)
+        studio.newSong()
+        assertEquals(1, studio.reviewRequestAttempt)
+    }
+
     @Test fun aDeletedSampleIsNotSeededAgain() {
         val temp = TempStore()
         val h = launch(temp)

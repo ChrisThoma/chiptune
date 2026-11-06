@@ -8,6 +8,7 @@ struct SongStore {
     private let currentKey = "currentSongID"
     private let reportedUnreadableKey = "reportedUnreadableSongFiles"
     private let seededSamplesKey = "seededSampleSongIDs"
+    private let newSongsKey = "newSongsMade"
 
     /// Where songs live and where "which song was open" is remembered. Both are
     /// injectable so a test can point at a temp directory and its own defaults
@@ -120,6 +121,14 @@ struct SongStore {
     /// rather than failing the whole load; use `loadLibrary()` to learn which.
     func loadAll() -> [Song] { loadLibrary().songs }
 
+    /// Counts a song the user started; returns how many so far. Kept with
+    /// the store's other defaults, for the review prompt.
+    func countNewSong() -> Int {
+        let count = defaults.integer(forKey: newSongsKey) + 1
+        defaults.set(count, forKey: newSongsKey)
+        return count
+    }
+
     /// The songs that loaded plus the files that did not. Unreadable files are
     /// only reported, never deleted, renamed or rewritten: the data may still
     /// be recoverable outside the app.
@@ -170,6 +179,15 @@ struct SongStore {
 
 /// What a library load found: the songs, newest first, and the file names that
 /// could not be read.
+/// When to ask for a review: on every third new song the user starts.
+enum ReviewPromptPolicy {
+    static let newSongsPerRequest = 3
+
+    static func isDue(newSongsMade: Int) -> Bool {
+        newSongsMade > 0 && newSongsMade.isMultiple(of: newSongsPerRequest)
+    }
+}
+
 struct SongLibrary {
     var songs: [Song]
     var unreadable: [String]

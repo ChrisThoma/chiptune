@@ -62,6 +62,7 @@ import dev.individuation.chiptune.ui.layout.WindowSize
 import dev.individuation.chiptune.ui.songs.SongListPanel
 import dev.individuation.chiptune.ui.songs.SongListSheet
 import dev.individuation.chiptune.ui.theme.ChipColors
+import kotlinx.coroutines.flow.drop
 
 /**
  * The editor (port of `ContentView`): title, transport and pattern rows, the
@@ -130,6 +131,12 @@ fun EditorScreen(
                 studio.shareFile = null
             }
         }
+    }
+
+    // A new song made a review request due. Dropping the first value leaves a
+    // recreated screen from asking again; Play decides whether anything shows.
+    LaunchedEffect(editor) {
+        snapshotFlow { ui.value.reviewRequestAttempt }.drop(1).collect { editor.effects.requestReview() }
     }
 
     // Debug screenshot launches open the screen the shoot asked for.

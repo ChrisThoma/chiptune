@@ -680,6 +680,74 @@ final class StudioEditingTests: XCTestCase {
         assertCoreMatchesModel("after newSong")
     }
 
+    func testEveryThirdNewSongAsksForAReview() {
+        studio.newSong()
+        studio.newSong()
+        XCTAssertEqual(studio.reviewRequestAttempt, 0)
+        studio.newSong()
+        XCTAssertEqual(studio.reviewRequestAttempt, 1)
+        studio.newSong()
+        studio.newSong()
+        XCTAssertEqual(studio.reviewRequestAttempt, 1)
+        studio.newSong()
+        XCTAssertEqual(studio.reviewRequestAttempt, 2)
+    }
+
+    /// Relaunching mustn't start the count over.
+    func testTheNewSongCountSurvivesARelaunch() {
+        studio.newSong()
+        studio.newSong()
+        let relaunched = Studio(store: temp.store, autosaveEnabled: false)
+        addTeardownBlock { @MainActor in relaunched.invalidateTimers() }
+        XCTAssertEqual(relaunched.reviewRequestAttempt, 0, "a launch isn't a request")
+        relaunched.newSong()
+        XCTAssertEqual(relaunched.reviewRequestAttempt, 1)
+    }
+
+    /// Only a song the user starts counts: not First Loop, the samples, a
+    /// duplicate (of a sample or anything else) or an import.
+    func testIncludedDuplicatedAndImportedSongsDoNotCountTowardAReview() throws {
+        let sampleDir = temp.directory.appendingPathComponent("samples-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: sampleDir, withIntermediateDirectories: true)
+        var urls: [URL] = []
+        for name in ["One", "Two", "Three"] {
+            let url = sampleDir.appendingPathComponent("\(name).chipsong")
+            try JSONEncoder().encode(Song(name: name)).write(to: url)
+            urls.append(url)
+        }
+        let fresh = makeTempStore()
+        let library = Studio(store: fresh.store, autosaveEnabled: false, samples: SampleSongs(urls: urls))
+        addTeardownBlock { @MainActor in library.invalidateTimers() }
+        XCTAssertGreaterThanOrEqual(fresh.store.loadLibrary().songs.count, 4, "First Loop and the samples are there")
+
+        library.duplicateSong()
+        library.duplicate(Song(name: "Sample copy"))
+        library.duplicateSong()
+        XCTAssertTrue(library.importSong(decoded: Song(name: "Imported")))
+
+        XCTAssertEqual(library.reviewRequestAttempt, 0)
+        library.newSong()
+        library.newSong()
+        XCTAssertEqual(library.reviewRequestAttempt, 0, "only two songs were started")
+        library.newSong()
+        XCTAssertEqual(library.reviewRequestAttempt, 1)
+    }
+
+    /// A save failure leaves the old song on screen, so nothing was made.
+    func testANewSongThatFailsToSaveIsNotCounted() throws {
+        studio.newSong()
+        studio.newSong()
+        let fm = FileManager.default
+        try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: temp.directory.path)
+        studio.song.name = "Stuck"
+        studio.newSong()
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: temp.directory.path)
+        XCTAssertEqual(studio.song.name, "Stuck")
+        XCTAssertEqual(studio.reviewRequestAttempt, 0)
+        studio.newSong()
+        XCTAssertEqual(studio.reviewRequestAttempt, 1)
+    }
+
     func testDuplicateSongIsAnIndependentCopy() {
         studio.setNote(track: 0, step: 0, note: 60)
         let original = studio.song.id
