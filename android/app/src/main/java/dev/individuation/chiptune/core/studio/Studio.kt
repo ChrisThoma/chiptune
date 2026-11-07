@@ -345,10 +345,19 @@ class Studio(
     private fun save(song: Song, makeCurrent: Boolean = true): Boolean = try {
         store.save(song, makeCurrent)
         storageError = null
+        countForReview(song)
         true
     } catch (e: Exception) {
         storageError = WriteFailureMessage.save(song.name, e)
         false
+    }
+
+    /** A song the user started counts the first time it's saved with notes, so
+     * the prompt comes after an autosave's quiet moment, not under a tap. */
+    private fun countForReview(song: Song) {
+        if (song.hasNotesAnywhere && reviewPrompt?.newSongHasNotes(song.id) == true) {
+            update { it.copy(reviewRequestAttempt = it.reviewRequestAttempt + 1) }
+        }
     }
 
     // MARK: Undo
@@ -1104,9 +1113,8 @@ class Studio(
         pushAll()
         // The only path that counts: First Loop, the samples, duplicates and
         // imports never come through here.
-        if (saveNow() && reviewPrompt?.newSongMade() == true) {
-            update { it.copy(reviewRequestAttempt = it.reviewRequestAttempt + 1) }
-        }
+        reviewPrompt?.newSongStarted(song.id)
+        saveNow()
     }
 
     fun open(other: Song) {

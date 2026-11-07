@@ -52,10 +52,22 @@ class PolicyTest {
     @Test fun theTrackerKeepsItsCountAcrossLaunches() {
         val prefs = InMemoryKeyValueStore()
         val tracker = ReviewPromptTracker(prefs)
-        assertFalse(tracker.newSongMade())
-        assertFalse(tracker.newSongMade())
-        assertTrue("a relaunch carries on from two", ReviewPromptTracker(prefs).newSongMade())
+        val songs = List(3) { UUID.randomUUID() }
+        songs.forEach(tracker::newSongStarted)
+        assertFalse(tracker.newSongHasNotes(songs[0]))
+        assertFalse(tracker.newSongHasNotes(songs[1]))
+        assertTrue("a relaunch carries on from two", ReviewPromptTracker(prefs).newSongHasNotes(songs[2]))
         assertEquals(3, prefs.getInt(ReviewPromptTracker.NEW_SONGS_KEY))
+    }
+
+    @Test fun theTrackerCountsOnlyStartedSongsAndOnlyOnce() {
+        val prefs = InMemoryKeyValueStore()
+        val tracker = ReviewPromptTracker(prefs)
+        val song = UUID.randomUUID()
+        assertFalse(tracker.newSongHasNotes(song))
+        tracker.newSongStarted(song)
+        repeat(3) { tracker.newSongHasNotes(song) }
+        assertEquals(1, prefs.getInt(ReviewPromptTracker.NEW_SONGS_KEY))
     }
 
     // MARK: Editor presentation

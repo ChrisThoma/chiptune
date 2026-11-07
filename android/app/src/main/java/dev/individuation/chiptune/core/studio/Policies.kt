@@ -42,7 +42,7 @@ object ScenePhasePolicy {
 /** What became of a share sheet. */
 enum class ShareOutcome { COMPLETED, CANCELED, FAILED }
 
-/** When to ask for a review: on every third new song the user starts. */
+/** When to ask for a review: on every third new song the user puts notes in. */
 object ReviewPromptPolicy {
     const val NEW_SONGS_PER_REQUEST = 3
 
@@ -52,8 +52,17 @@ object ReviewPromptPolicy {
 
 /** The review prompt's count, persisted the way iOS's defaults keep it. */
 class ReviewPromptTracker(private val prefs: KeyValueStore) {
-    /** Counts a new song; returns whether to ask for a review. */
-    fun newSongMade(): Boolean {
+    /** Remembers a song the user started, until it has notes to count. */
+    fun newSongStarted(id: UUID) {
+        val waiting = prefs.getStringList(UNCOUNTED_KEY).orEmpty()
+        prefs.putStringList(UNCOUNTED_KEY, waiting + id.toString())
+    }
+
+    /** Counts a remembered song, once; returns whether to ask for a review. */
+    fun newSongHasNotes(id: UUID): Boolean {
+        val waiting = prefs.getStringList(UNCOUNTED_KEY).orEmpty()
+        if (id.toString() !in waiting) return false
+        prefs.putStringList(UNCOUNTED_KEY, waiting - id.toString())
         val count = prefs.getInt(NEW_SONGS_KEY) + 1
         prefs.putInt(NEW_SONGS_KEY, count)
         return ReviewPromptPolicy.isDue(count)
@@ -61,6 +70,7 @@ class ReviewPromptTracker(private val prefs: KeyValueStore) {
 
     companion object {
         const val NEW_SONGS_KEY = "newSongsMade"
+        const val UNCOUNTED_KEY = "uncountedNewSongs"
     }
 }
 

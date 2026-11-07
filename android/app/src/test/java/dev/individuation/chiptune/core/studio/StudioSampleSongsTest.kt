@@ -1,5 +1,6 @@
 package dev.individuation.chiptune.core.studio
 
+import dev.individuation.chiptune.core.model.Chip
 import dev.individuation.chiptune.core.model.Song
 import dev.individuation.chiptune.core.model.SongDocument
 import java.util.UUID
@@ -80,24 +81,74 @@ class StudioSampleSongsTest {
 
     // MARK: Review prompt
 
-    @Test fun everyThirdNewSongAsksForAReview() {
+    /** Starts a new song and puts a note in it, as far as the review count
+     * goes: the count happens when the note reaches the disk. */
+    private fun makeSong(studio: Studio) {
+        studio.newSong()
+        studio.setNote(0, 0, 60)
+        assertTrue(studio.saveNow())
+    }
+
+    @Test fun everyThirdNewSongWithNotesAsksForAReview() {
         val studio = launch().studio
-        repeat(2) { studio.newSong() }
+        repeat(2) { makeSong(studio) }
         assertEquals(0, studio.reviewRequestAttempt)
-        studio.newSong()
+        makeSong(studio)
         assertEquals(1, studio.reviewRequestAttempt)
-        repeat(2) { studio.newSong() }
+        repeat(2) { makeSong(studio) }
         assertEquals(1, studio.reviewRequestAttempt)
-        studio.newSong()
+        makeSong(studio)
         assertEquals(2, studio.reviewRequestAttempt)
+    }
+
+    @Test fun blankNewSongsDoNotCountTowardAReview() {
+        val studio = launch().studio
+        repeat(9) { studio.newSong() }
+        assertEquals(0, studio.reviewRequestAttempt)
+    }
+
+    /** A note-off makes no sound, so it isn't a note for this count. */
+    @Test fun aSongWithOnlyNoteOffsDoesNotCount() {
+        val studio = launch().studio
+        repeat(3) {
+            studio.newSong()
+            studio.setNote(0, 0, Chip.NOTE_OFF)
+            assertTrue(studio.saveNow())
+        }
+        assertEquals(0, studio.reviewRequestAttempt)
+    }
+
+    @Test fun aSongCountsOnceHoweverOftenItIsSaved() {
+        val studio = launch().studio
+        repeat(2) { makeSong(studio) }
+        studio.setNote(0, 1, 62)
+        assertTrue(studio.saveNow())
+        assertTrue(studio.saveNow())
+        assertEquals(0, studio.reviewRequestAttempt)
+    }
+
+    /** Notes can arrive after going elsewhere and coming back, or after a relaunch. */
+    @Test fun aBlankSongCountsWhenItGetsNotesLater() {
+        val first = launch()
+        repeat(2) { makeSong(first.studio) }
+        first.studio.newSong()
+        val blank = first.studio.song
+        first.studio.newSong()
+
+        val relaunched = launch(first.temp).studio
+        assertEquals("a launch isn't a request", 0, relaunched.reviewRequestAttempt)
+        relaunched.open(first.temp.store.load(blank.id)!!)
+        relaunched.setNote(0, 0, 60)
+        assertTrue(relaunched.saveNow())
+        assertEquals(1, relaunched.reviewRequestAttempt)
     }
 
     @Test fun theNewSongCountSurvivesARelaunch() {
         val first = launch()
-        repeat(2) { first.studio.newSong() }
+        repeat(2) { makeSong(first.studio) }
         val relaunched = launch(first.temp).studio
         assertEquals("a launch isn't a request", 0, relaunched.reviewRequestAttempt)
-        relaunched.newSong()
+        makeSong(relaunched)
         assertEquals(1, relaunched.reviewRequestAttempt)
     }
 
@@ -113,28 +164,33 @@ class StudioSampleSongsTest {
         studio.duplicateSong()
         assertTrue(studio.importSong(files[1]))
 
+        // First Loop and the samples open with notes in them, and editing one
+        // isn't making a song.
+        studio.setNote(0, 0, 60)
+        assertTrue(studio.saveNow())
+
         assertEquals(0, studio.reviewRequestAttempt)
-        repeat(2) { studio.newSong() }
+        repeat(2) { makeSong(studio) }
         assertEquals("only two songs were started", 0, studio.reviewRequestAttempt)
-        studio.newSong()
+        makeSong(studio)
         assertEquals(1, studio.reviewRequestAttempt)
     }
 
-    /** A save failure leaves the old song on screen, so nothing was made. */
-    @Test fun aNewSongThatFailsToSaveIsNotCounted() {
+    /** The count follows the disk: a note that failed to save isn't there yet. */
+    @Test fun aSongThatFailsToSaveIsNotCounted() {
         val harness = launch()
         val studio = harness.studio
-        repeat(2) { studio.newSong() }
-        studio.edit { it.copy(name = "Stuck") }
+        repeat(2) { makeSong(studio) }
+        studio.newSong()
+        studio.setNote(0, 0, 60)
         harness.temp.directory.setWritable(false)
         try {
-            studio.newSong()
+            assertFalse(studio.saveNow())
         } finally {
             harness.temp.directory.setWritable(true)
         }
-        assertEquals("Stuck", studio.song.name)
         assertEquals(0, studio.reviewRequestAttempt)
-        studio.newSong()
+        assertTrue(studio.saveNow())
         assertEquals(1, studio.reviewRequestAttempt)
     }
 

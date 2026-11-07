@@ -680,27 +680,92 @@ final class StudioEditingTests: XCTestCase {
         assertCoreMatchesModel("after newSong")
     }
 
-    func testEveryThirdNewSongAsksForAReview() {
+    /// Starts a new song and puts a note in it, as far as the review count
+    /// goes: the count happens when the note reaches the disk.
+    private func makeSong(in studio: Studio) {
         studio.newSong()
-        studio.newSong()
+        studio.setNote(track: 0, step: 0, note: 60)
+        XCTAssertTrue(studio.saveNow())
+    }
+
+    func testEveryThirdNewSongWithNotesAsksForAReview() {
+        makeSong(in: studio)
+        makeSong(in: studio)
         XCTAssertEqual(studio.reviewRequestAttempt, 0)
-        studio.newSong()
+        makeSong(in: studio)
         XCTAssertEqual(studio.reviewRequestAttempt, 1)
-        studio.newSong()
-        studio.newSong()
+        makeSong(in: studio)
+        makeSong(in: studio)
         XCTAssertEqual(studio.reviewRequestAttempt, 1)
-        studio.newSong()
+        makeSong(in: studio)
         XCTAssertEqual(studio.reviewRequestAttempt, 2)
+    }
+
+    func testBlankNewSongsDoNotCountTowardAReview() {
+        for _ in 0..<9 { studio.newSong() }
+        XCTAssertEqual(studio.reviewRequestAttempt, 0)
+    }
+
+    /// A note-off makes no sound, so it isn't a note for this count.
+    func testASongWithOnlyNoteOffsDoesNotCount() {
+        for _ in 0..<3 {
+            studio.newSong()
+            studio.setNote(track: 0, step: 0, note: Chip.noteOff)
+            XCTAssertTrue(studio.saveNow())
+        }
+        XCTAssertEqual(studio.reviewRequestAttempt, 0)
+    }
+
+    func testASongCountsOnceHoweverOftenItIsSaved() {
+        makeSong(in: studio)
+        makeSong(in: studio)
+        studio.setNote(track: 0, step: 1, note: 62)
+        XCTAssertTrue(studio.saveNow())
+        XCTAssertTrue(studio.saveNow())
+        XCTAssertEqual(studio.reviewRequestAttempt, 0)
+    }
+
+    /// Notes can arrive after going elsewhere and coming back, or after a relaunch.
+    func testABlankSongCountsWhenItGetsNotesLater() throws {
+        makeSong(in: studio)
+        makeSong(in: studio)
+        studio.newSong()
+        let blank = studio.song
+        studio.newSong()
+
+        let relaunched = Studio(store: temp.store, autosaveEnabled: false)
+        addTeardownBlock { @MainActor in relaunched.invalidateTimers() }
+        XCTAssertEqual(relaunched.reviewRequestAttempt, 0, "a launch isn't a request")
+        relaunched.open(try XCTUnwrap(temp.store.load(id: blank.id)))
+        relaunched.setNote(track: 0, step: 0, note: 60)
+        XCTAssertTrue(relaunched.saveNow())
+        XCTAssertEqual(relaunched.reviewRequestAttempt, 1)
+    }
+
+    /// In the app the third note reaches the disk through the autosave timer,
+    /// so that path has to ask too, not just `saveNow`.
+    func testAnAutosaveCanAskForAReview() {
+        let fresh = makeTempStore()
+        let live = Studio(store: fresh.store, autosaveEnabled: true)
+        addTeardownBlock { @MainActor in live.invalidateTimers() }
+        live.autosaveInterval = 0.05
+        makeSong(in: live)
+        makeSong(in: live)
+        live.newSong()
+        live.setNote(track: 0, step: 0, note: 60)
+        XCTAssertEqual(live.reviewRequestAttempt, 0, "not until the autosave fires")
+        let asked = expectation(for: NSPredicate { _, _ in live.reviewRequestAttempt == 1 }, evaluatedWith: nil)
+        wait(for: [asked], timeout: 5)
     }
 
     /// Relaunching mustn't start the count over.
     func testTheNewSongCountSurvivesARelaunch() {
-        studio.newSong()
-        studio.newSong()
+        makeSong(in: studio)
+        makeSong(in: studio)
         let relaunched = Studio(store: temp.store, autosaveEnabled: false)
         addTeardownBlock { @MainActor in relaunched.invalidateTimers() }
         XCTAssertEqual(relaunched.reviewRequestAttempt, 0, "a launch isn't a request")
-        relaunched.newSong()
+        makeSong(in: relaunched)
         XCTAssertEqual(relaunched.reviewRequestAttempt, 1)
     }
 
@@ -725,26 +790,31 @@ final class StudioEditingTests: XCTestCase {
         library.duplicateSong()
         XCTAssertTrue(library.importSong(decoded: Song(name: "Imported")))
 
+        // First Loop and the samples open with notes in them, and editing one
+        // isn't making a song.
+        library.setNote(track: 0, step: 0, note: 60)
+        XCTAssertTrue(library.saveNow())
+
         XCTAssertEqual(library.reviewRequestAttempt, 0)
-        library.newSong()
-        library.newSong()
+        makeSong(in: library)
+        makeSong(in: library)
         XCTAssertEqual(library.reviewRequestAttempt, 0, "only two songs were started")
-        library.newSong()
+        makeSong(in: library)
         XCTAssertEqual(library.reviewRequestAttempt, 1)
     }
 
-    /// A save failure leaves the old song on screen, so nothing was made.
-    func testANewSongThatFailsToSaveIsNotCounted() throws {
+    /// The count follows the disk: a note that failed to save isn't there yet.
+    func testASongThatFailsToSaveIsNotCounted() throws {
+        makeSong(in: studio)
+        makeSong(in: studio)
         studio.newSong()
-        studio.newSong()
+        studio.setNote(track: 0, step: 0, note: 60)
         let fm = FileManager.default
         try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: temp.directory.path)
-        studio.song.name = "Stuck"
-        studio.newSong()
+        XCTAssertFalse(studio.saveNow())
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: temp.directory.path)
-        XCTAssertEqual(studio.song.name, "Stuck")
         XCTAssertEqual(studio.reviewRequestAttempt, 0)
-        studio.newSong()
+        XCTAssertTrue(studio.saveNow())
         XCTAssertEqual(studio.reviewRequestAttempt, 1)
     }
 

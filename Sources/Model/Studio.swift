@@ -251,11 +251,20 @@ final class Studio {
         do {
             try store.save(song, makeCurrent: makeCurrent)
             storageError = nil
+            countForReview(song)
             return true
         } catch {
             storageError = WriteFailureMessage.save(name: song.name, error: error)
             return false
         }
+    }
+
+    /// A song the user started counts the first time it's saved with notes, so
+    /// the prompt comes after an autosave's quiet moment, not under a tap.
+    private func countForReview(_ song: Song) {
+        guard song.hasNotesAnywhere, let made = store.countNewSong(song.id),
+              ReviewPromptPolicy.isDue(newSongsMade: made) else { return }
+        reviewRequestAttempt += 1
     }
 
     // MARK: Undo
@@ -1265,9 +1274,8 @@ final class Studio {
         pushAll()
         // The only path that counts: First Loop, the samples, duplicates and
         // imports never come through here.
-        if saveNow(), ReviewPromptPolicy.isDue(newSongsMade: store.countNewSong()) {
-            reviewRequestAttempt += 1
-        }
+        store.rememberNewSong(song.id)
+        saveNow()
     }
 
     func beginReorderingTracks() {

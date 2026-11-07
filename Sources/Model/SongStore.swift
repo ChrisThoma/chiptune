@@ -9,6 +9,7 @@ struct SongStore {
     private let reportedUnreadableKey = "reportedUnreadableSongFiles"
     private let seededSamplesKey = "seededSampleSongIDs"
     private let newSongsKey = "newSongsMade"
+    private let uncountedNewSongsKey = "uncountedNewSongs"
 
     /// Where songs live and where "which song was open" is remembered. Both are
     /// injectable so a test can point at a temp directory and its own defaults
@@ -121,9 +122,20 @@ struct SongStore {
     /// rather than failing the whole load; use `loadLibrary()` to learn which.
     func loadAll() -> [Song] { loadLibrary().songs }
 
-    /// Counts a song the user started; returns how many so far. Kept with
-    /// the store's other defaults, for the review prompt.
-    func countNewSong() -> Int {
+    /// Remembers a song the user started, until it has notes to count.
+    func rememberNewSong(_ id: UUID) {
+        let waiting = defaults.stringArray(forKey: uncountedNewSongsKey) ?? []
+        defaults.set(waiting + [id.uuidString], forKey: uncountedNewSongsKey)
+    }
+
+    /// Counts a remembered song, once; returns how many so far, or nil if this
+    /// song isn't waiting to be counted. Kept with the store's other defaults,
+    /// for the review prompt.
+    func countNewSong(_ id: UUID) -> Int? {
+        var waiting = defaults.stringArray(forKey: uncountedNewSongsKey) ?? []
+        guard let index = waiting.firstIndex(of: id.uuidString) else { return nil }
+        waiting.remove(at: index)
+        defaults.set(waiting, forKey: uncountedNewSongsKey)
         let count = defaults.integer(forKey: newSongsKey) + 1
         defaults.set(count, forKey: newSongsKey)
         return count
