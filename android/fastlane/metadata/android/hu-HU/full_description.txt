@@ -1,4 +1,4 @@
-A Chiptune egy lépésszekvenszer, amellyel a régi játékkonzolok stílusában írhatsz zenét. Koppints egy hangra, majd a rács egy cellájára, és megszólal a négy NES-stílusú csatorna egyike. A Chiptune-ban két pulzuscsatorna, egy háromszögcsatorna és egy zajcsatorna van. Minden csatorna hangja élőben szintetizált, nem felvett sample.
+A Chiptune egy retró 8 bites zenekészítő és lépésszekvenszer, amellyel a régi játékkonzolok stílusában írhatsz dalokat. Koppints egy hangra, majd a rács egy cellájára, és megszólal a négy NES-stílusú csatorna egyike. A Chiptune-ban két pulzuscsatorna, egy háromszögcsatorna és egy zajcsatorna van. Minden csatorna hangja élőben szintetizált, nem felvett sample.
 
 A patternek hossza 4 és 64 lépés között állítható, és dalszerkezetté fűzhetők. Így egy darab egyetlen loopból teljes dallá nőhet introval, versszakokkal, refrénekkel és így tovább.
 

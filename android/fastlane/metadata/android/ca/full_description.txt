@@ -1,4 +1,4 @@
-Chiptune és un seqüenciador per passos per escriure música amb l'estil de les consoles de videojocs antigues. Toca una nota, toca una cel·la de la graella i sonarà un dels quatre canals d'estil NES. Chiptune té dos canals de pols, un de triangle i un de soroll. Cada canal es sintetitza en directe, sense mostres gravades.
+Chiptune és un creador de música retro de 8 bits i un seqüenciador per passos per escriure cançons amb l'estil de les consoles de videojocs antigues. Toca una nota, toca una cel·la de la graella i sonarà un dels quatre canals d'estil NES. Chiptune té dos canals de pols, un de triangle i un de soroll. Cada canal es sintetitza en directe, sense mostres gravades.
 
 Els patrons es poden configurar de 4 a 64 passos i encadenar en un arranjament. Així una peça pot passar d'un sol bucle a una cançó sencera amb introducció, estrofes, tornades i el que calgui.
 

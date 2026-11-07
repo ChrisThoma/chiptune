@@ -1,4 +1,4 @@
-Chiptune on askelsekvensseri, jolla kirjoitetaan musiikkia vanhojen pelikonsolien tyyliin. Napauta nuottia ja sitten ruutua ruudukossa, niin kuulet äänen yhdeltä neljästä NES-tyylisestä kanavasta. Chiptunessa on kaksi pulssikanavaa, kolmiokanava ja kohinakanava. Jokainen kanava syntetisoidaan reaaliajassa, ei samplena.
+Chiptune on retrohenkinen 8-bittisen musiikin tekijä ja askelsekvensseri, jolla kirjoitetaan kappaleita vanhojen pelikonsolien tyyliin. Napauta nuottia ja sitten ruutua ruudukossa, niin kuulet äänen yhdeltä neljästä NES-tyylisestä kanavasta. Chiptunessa on kaksi pulssikanavaa, kolmiokanava ja kohinakanava. Jokainen kanava syntetisoidaan reaaliajassa, ei samplena.
 
 Kuvion pituudeksi voi valita 4 ja 64 askeleen väliltä, ja kuviot voi ketjuttaa sovitukseksi. Näin kappale voi kasvaa yhdestä luupista kokonaiseksi biisiksi, jossa on intro, säkeistöt, kertosäkeet ja niin edelleen.
 

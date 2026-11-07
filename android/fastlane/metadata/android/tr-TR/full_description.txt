@@ -1,4 +1,4 @@
-Chiptune, eski oyun konsollarının tarzında müzik yazmak için bir step sequencer. Bir notaya dokunun, ızgarada bir hücreye dokunun ve dört NES tarzı kanaldan birinden ses gelsin. Chiptune'da iki pulse kanalı, bir triangle ve bir noise kanalı vardır. Her kanal hazır kayıt kullanılmadan anlık olarak sentezlenir.
+Chiptune, eski oyun konsollarının tarzında şarkılar yazmak için retro bir 8-bit müzik yapıcı ve step sequencer. Bir notaya dokunun, ızgarada bir hücreye dokunun ve dört NES tarzı kanaldan birinden ses gelsin. Chiptune'da iki pulse kanalı, bir triangle ve bir noise kanalı vardır. Her kanal hazır kayıt kullanılmadan anlık olarak sentezlenir.
 
 Pattern'ler 4 ile 64 adım arasında ayarlanabilir ve bir aranjmanda art arda bağlanabilir. Böylece bir parça tek bir döngüden giriş, kıta ve nakaratlarıyla tam bir şarkıya dönüşebilir.
 

@@ -1,4 +1,4 @@
-Chiptune je step sekvencer za pisanje glazbe u stilu starih konzola za igre. Dodirnite notu, dodirnite polje u mreži i začut će se zvuk s jednog od četiri kanala u NES stilu. Chiptune ima dva pulse kanala, triangle i noise. Svaki se kanal sintetizira uživo, bez snimljenih uzoraka.
+Chiptune je retro alat za stvaranje 8-bitne glazbe i step sekvencer za pisanje pjesama u stilu starih konzola za igre. Dodirnite notu, dodirnite polje u mreži i začut će se zvuk s jednog od četiri kanala u NES stilu. Chiptune ima dva pulse kanala, triangle i noise. Svaki se kanal sintetizira uživo, bez snimljenih uzoraka.
 
 Patterni se mogu podesiti od 4 do 64 koraka i povezati u aranžman. Tako skladba može narasti od jedne petlje do cijele pjesme s uvodom, strofama, refrenima i ostalim.
 

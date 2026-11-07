@@ -1,4 +1,4 @@
-Chiptune adalah step sequencer untuk menulis musik dengan gaya konsol game lama. Cukup ketuk sebuah not, lalu ketuk sel di grid, dan suaranya akan diputar dari salah satu dari empat kanal bergaya NES. Chiptune punya dua kanal pulse, satu triangle, dan satu noise. Setiap kanal disintesis langsung, tanpa sampel.
+Chiptune adalah pembuat musik retro 8-bit sekaligus step sequencer untuk menulis lagu dengan gaya konsol game lama. Cukup ketuk sebuah not, lalu ketuk sel di grid, dan suaranya akan diputar dari salah satu dari empat kanal bergaya NES. Chiptune punya dua kanal pulse, satu triangle, dan satu noise. Setiap kanal disintesis langsung, tanpa sampel.
 
 Pola bisa diatur dari 4 sampai 64 langkah dan dirangkai menjadi aransemen. Dengan begitu, sebuah karya bisa berkembang dari satu loop menjadi lagu utuh dengan intro, verse, chorus, dan lainnya.
 

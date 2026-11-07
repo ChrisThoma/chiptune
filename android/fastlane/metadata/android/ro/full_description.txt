@@ -1,4 +1,4 @@
-Chiptune este un secvențiator pas cu pas pentru a compune muzică în stilul vechilor console de jocuri. Atingi o notă, atingi o celulă din grilă și se aude un sunet de pe unul dintre cele patru canale în stil NES. Chiptune are două canale puls, un triunghi și zgomot. Fiecare canal este sintetizat în timp real, fără mostre înregistrate.
+Chiptune este un creator de muzică retro pe 8 biți și un secvențiator pas cu pas pentru a compune piese în stilul vechilor console de jocuri. Atingi o notă, atingi o celulă din grilă și se aude un sunet de pe unul dintre cele patru canale în stil NES. Chiptune are două canale puls, un triunghi și zgomot. Fiecare canal este sintetizat în timp real, fără mostre înregistrate.
 
 Pattern-urile pot avea între 4 și 64 de pași și pot fi legate într-un aranjament. Așa, o piesă poate crește de la o singură buclă la un cântec întreg, cu intro, strofe, refrene și altele.
 

@@ -1,4 +1,4 @@
-Chiptune je krokový sekvencer na písanie hudby v štýle starých herných konzol. Ťuknite na notu, potom na bunku v mriežke a zaznie zvuk z jedného zo štyroch kanálov v štýle NES. Chiptune má dva pulzné kanály, trojuholníkový kanál a šumový kanál. Každý kanál sa syntetizuje naživo, nepoužíva sample.
+Chiptune je retro tvorca 8-bitovej hudby a krokový sekvencer na písanie skladieb v štýle starých herných konzol. Ťuknite na notu, potom na bunku v mriežke a zaznie zvuk z jedného zo štyroch kanálov v štýle NES. Chiptune má dva pulzné kanály, trojuholníkový kanál a šumový kanál. Každý kanál sa syntetizuje naživo, nepoužíva sample.
 
 Patterny môžu mať 4 až 64 krokov a dajú sa spájať do aranžmánu. Skladba tak môže prerásť z jednej slučky na celú pesničku s introm, slohami, refrénmi a podobne.
 

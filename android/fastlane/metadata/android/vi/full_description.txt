@@ -1,4 +1,4 @@
-Chiptune là một step sequencer để viết nhạc theo phong cách các máy chơi game cũ. Chỉ cần chạm một nốt, rồi chạm một ô trên lưới, âm thanh sẽ phát ra từ một trong bốn kênh kiểu NES. Chiptune có hai kênh pulse, một kênh triangle và một kênh noise. Mỗi kênh được tổng hợp trực tiếp, không dùng sample.
+Chiptune là ứng dụng làm nhạc 8-bit retro và step sequencer để viết bài hát theo phong cách các máy chơi game cũ. Chỉ cần chạm một nốt, rồi chạm một ô trên lưới, âm thanh sẽ phát ra từ một trong bốn kênh kiểu NES. Chiptune có hai kênh pulse, một kênh triangle và một kênh noise. Mỗi kênh được tổng hợp trực tiếp, không dùng sample.
 
 Pattern có thể đặt từ 4 đến 64 bước và nối lại thành bố cục bài. Nhờ vậy một bản nhạc có thể đi từ một vòng lặp đơn đến cả bài hoàn chỉnh có intro, verse, điệp khúc và nhiều phần khác.
 

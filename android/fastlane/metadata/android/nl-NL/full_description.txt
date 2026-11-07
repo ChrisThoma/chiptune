@@ -1,4 +1,4 @@
-Chiptune is een step sequencer om muziek te schrijven in de stijl van oude spelcomputers. Tik op een noot, tik op een vakje in het raster en je hoort het geluid van een van de vier kanalen in NES-stijl. Chiptune heeft twee pulse-kanalen, een triangle-kanaal en een noise-kanaal. Elk kanaal wordt live gesynthetiseerd, niet gesampled.
+Chiptune is een retro 8-bit muziekmaker en step sequencer om nummers te schrijven in de stijl van oude spelcomputers. Tik op een noot, tik op een vakje in het raster en je hoort het geluid van een van de vier kanalen in NES-stijl. Chiptune heeft twee pulse-kanalen, een triangle-kanaal en een noise-kanaal. Elk kanaal wordt live gesynthetiseerd, niet gesampled.
 
 Patronen zijn in te stellen van 4 tot 64 stappen en kun je achter elkaar zetten tot een arrangement. Zo groeit een stuk van één loop uit tot een volledig nummer met intro's, coupletten, refreinen enzovoort.
 

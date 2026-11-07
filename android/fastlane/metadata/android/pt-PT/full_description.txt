@@ -1,4 +1,4 @@
-O Chiptune é um sequenciador de passos para escrever música no estilo das consolas antigas. Toque numa nota, toque numa célula da grelha e ela soa num dos quatro canais ao estilo do NES. O Chiptune tem dois canais de pulso, um triangular e um de ruído. Cada canal é sintetizado em tempo real, sem samples.
+O Chiptune é um criador de música retro de 8 bits e sequenciador de passos para escrever músicas no estilo das consolas antigas. Toque numa nota, toque numa célula da grelha e ela soa num dos quatro canais ao estilo do NES. O Chiptune tem dois canais de pulso, um triangular e um de ruído. Cada canal é sintetizado em tempo real, sem samples.
 
 Os padrões vão de 4 a 64 passos e podem ser encadeados num arranjo. Assim, uma peça passa de um único loop a uma música completa, com introdução, estrofes, refrões etc.
 

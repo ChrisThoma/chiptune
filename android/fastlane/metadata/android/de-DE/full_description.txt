@@ -1,4 +1,4 @@
-Chiptune ist ein Step-Sequencer, mit dem du Musik im Stil alter Spielkonsolen schreibst. Tippe auf eine Note und dann auf ein Feld im Raster, schon spielt einer von vier Kanälen im NES-Stil den Ton. Chiptune hat zwei Pulse-Kanäle, einen Dreieck- und einen Rauschkanal. Jeder Kanal wird live synthetisiert statt aus Samples abgespielt.
+Chiptune ist ein Retro-8-Bit-Musikmaker und Step-Sequencer, mit dem du Songs im Stil alter Spielkonsolen schreibst. Tippe auf eine Note und dann auf ein Feld im Raster, schon spielt einer von vier Kanälen im NES-Stil den Ton. Chiptune hat zwei Pulse-Kanäle, einen Dreieck- und einen Rauschkanal. Jeder Kanal wird live synthetisiert statt aus Samples abgespielt.
 
 Patterns lassen sich von 4 bis 64 Steps einstellen und zu einem Arrangement verketten. So wird aus einem einzelnen Loop ein ganzer Song mit Intro, Strophen, Refrains usw.
 
