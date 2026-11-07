@@ -54,17 +54,21 @@ class PolicyTest {
         val tracker = ReviewPromptTracker(prefs)
         val songs = List(3) { UUID.randomUUID() }
         songs.forEach(tracker::newSongStarted)
-        assertFalse(tracker.newSongHasNotes(songs[0]))
-        assertFalse(tracker.newSongHasNotes(songs[1]))
-        assertTrue("a relaunch carries on from two", ReviewPromptTracker(prefs).newSongHasNotes(songs[2]))
-        assertEquals(3, prefs.getInt(ReviewPromptTracker.NEW_SONGS_KEY))
+        tracker.newSongHasNotes(songs[0])
+        tracker.newSongHasNotes(songs[1])
+        assertFalse(tracker.takeOwedRequest())
+        ReviewPromptTracker(prefs).newSongHasNotes(songs[2])
+        assertEquals("a relaunch carries on from two", 3, prefs.getInt(ReviewPromptTracker.NEW_SONGS_KEY))
+        assertTrue(ReviewPromptTracker(prefs).takeOwedRequest())
+        assertFalse("taken once", tracker.takeOwedRequest())
     }
 
     @Test fun theTrackerCountsOnlyStartedSongsAndOnlyOnce() {
         val prefs = InMemoryKeyValueStore()
         val tracker = ReviewPromptTracker(prefs)
         val song = UUID.randomUUID()
-        assertFalse(tracker.newSongHasNotes(song))
+        tracker.newSongHasNotes(song)
+        assertEquals(0, prefs.getInt(ReviewPromptTracker.NEW_SONGS_KEY))
         tracker.newSongStarted(song)
         repeat(3) { tracker.newSongHasNotes(song) }
         assertEquals(1, prefs.getInt(ReviewPromptTracker.NEW_SONGS_KEY))

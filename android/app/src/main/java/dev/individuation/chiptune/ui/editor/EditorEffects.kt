@@ -12,6 +12,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
@@ -48,7 +49,7 @@ interface EditorEffects {
     /** A `.chipsong` (`application/json`), a WAV (`audio/wav`) or a MIDI file (`audio/midi`) to share,
      * through a FileProvider with the MIME type set explicitly. [onFinished]
      * runs once with true when a share target was picked, false when the
-     * chooser was backed out of or couldn't open; the review prompt reads it. */
+     * chooser was backed out of or couldn't open. */
     fun shareFile(file: File, mimeType: String, onFinished: (Boolean) -> Unit = {})
 
     /** Opens a web link in the browser. */
@@ -103,6 +104,8 @@ class ActivityResultKeys(private val processId: String) {
 }
 
 /** The app's [EditorEffects]. */
+private const val TAG = "ChiptuneReview"
+
 class AndroidEditorEffects(private val context: Context) : EditorEffects {
     private val activity: ComponentActivity? =
         generateSequence(context) { (it as? ContextWrapper)?.baseContext }.filterIsInstance<ComponentActivity>().firstOrNull()
@@ -219,8 +222,15 @@ class AndroidEditorEffects(private val context: Context) : EditorEffects {
         val host: Activity = activity ?: return
         val manager = ReviewManagerFactory.create(context)
         manager.requestReviewFlow().addOnCompleteListener { request ->
-            // Play decides whether anything shows; with no Play it never completes.
-            if (request.isSuccessful) manager.launchReviewFlow(host, request.result)
+            if (!request.isSuccessful) {
+                Log.w(TAG, "Review request failed", request.exception)
+                return@addOnCompleteListener
+            }
+            // The rotation or exit this async gap allows leaves nothing to show on.
+            if (host.isFinishing || host.isDestroyed) return@addOnCompleteListener
+            // Play decides whether anything shows; the result's text says if it won't.
+            Log.i(TAG, "Launching review flow: ${request.result}")
+            manager.launchReviewFlow(host, request.result)
         }
     }
 

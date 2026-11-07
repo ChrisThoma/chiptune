@@ -10,6 +10,7 @@ struct SongStore {
     private let seededSamplesKey = "seededSampleSongIDs"
     private let newSongsKey = "newSongsMade"
     private let uncountedNewSongsKey = "uncountedNewSongs"
+    private let reviewOwedKey = "reviewOwed"
 
     /// Where songs live and where "which song was open" is remembered. Both are
     /// injectable so a test can point at a temp directory and its own defaults
@@ -139,6 +140,24 @@ struct SongStore {
         let count = defaults.integer(forKey: newSongsKey) + 1
         defaults.set(count, forKey: newSongsKey)
         return count
+    }
+
+    /// Drops a deleted song from the waiting list: its file can come back as an
+    /// import, which never counts.
+    func forgetNewSong(_ id: UUID) {
+        let waiting = defaults.stringArray(forKey: uncountedNewSongsKey) ?? []
+        defaults.set(waiting.filter { $0 != id.uuidString }, forKey: uncountedNewSongsKey)
+    }
+
+    /// Notes that a review request is due, for the next time playback stops.
+    /// On disk, so a kill before then doesn't lose it.
+    func markReviewOwed() { defaults.set(true, forKey: reviewOwedKey) }
+
+    /// Whether a review request is due, clearing it.
+    func takeReviewOwed() -> Bool {
+        guard defaults.bool(forKey: reviewOwedKey) else { return false }
+        defaults.set(false, forKey: reviewOwedKey)
+        return true
     }
 
     /// The songs that loaded plus the files that did not. Unreadable files are

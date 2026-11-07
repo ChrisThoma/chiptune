@@ -89,21 +89,58 @@ class StudioSampleSongsTest {
         assertTrue(studio.saveNow())
     }
 
-    @Test fun everyThirdNewSongWithNotesAsksForAReview() {
+    /** The transport's Stop, which is the moment a due request is made. */
+    private fun playAndStop(studio: Studio) {
+        studio.play()
+        assertTrue("the test engine should start", studio.isPlaying)
+        studio.togglePlay()
+    }
+
+    @Test fun everyThirdNewSongWithNotesAsksWhenPlaybackStops() {
         val studio = launch().studio
         repeat(2) { makeSong(studio) }
+        playAndStop(studio)
         assertEquals(0, studio.reviewRequestAttempt)
         makeSong(studio)
+        assertEquals("not until playback stops", 0, studio.reviewRequestAttempt)
+        playAndStop(studio)
         assertEquals(1, studio.reviewRequestAttempt)
+        playAndStop(studio)
+        assertEquals("one song, one request", 1, studio.reviewRequestAttempt)
         repeat(2) { makeSong(studio) }
+        playAndStop(studio)
         assertEquals(1, studio.reviewRequestAttempt)
         makeSong(studio)
+        playAndStop(studio)
         assertEquals(2, studio.reviewRequestAttempt)
+    }
+
+    /** Leaving the app, opening a song and audio focus all stop playback
+     * without the user doing it, and may have nothing on screen to ask over. */
+    @Test fun onlyTheTransportStopAsks() {
+        val studio = launch().studio
+        repeat(3) { makeSong(studio) }
+        studio.play()
+        studio.stop()
+        assertEquals(0, studio.reviewRequestAttempt)
+        playAndStop(studio)
+        assertEquals("still owed", 1, studio.reviewRequestAttempt)
+    }
+
+    /** The app can be killed between the third song and the next Stop. */
+    @Test fun anOwedRequestSurvivesARelaunch() {
+        val first = launch()
+        repeat(3) { makeSong(first.studio) }
+        val relaunched = launch(first.temp).studio
+        assertEquals("a launch isn't a request", 0, relaunched.reviewRequestAttempt)
+        playAndStop(relaunched)
+        assertEquals(1, relaunched.reviewRequestAttempt)
     }
 
     @Test fun blankNewSongsDoNotCountTowardAReview() {
         val studio = launch().studio
         repeat(9) { studio.newSong() }
+        playAndStop(studio)
         assertEquals(0, studio.reviewRequestAttempt)
     }
 
@@ -115,6 +152,7 @@ class StudioSampleSongsTest {
             studio.setNote(0, 0, Chip.NOTE_OFF)
             assertTrue(studio.saveNow())
         }
+        playAndStop(studio)
         assertEquals(0, studio.reviewRequestAttempt)
     }
 
@@ -124,6 +162,7 @@ class StudioSampleSongsTest {
         studio.setNote(0, 1, 62)
         assertTrue(studio.saveNow())
         assertTrue(studio.saveNow())
+        playAndStop(studio)
         assertEquals(0, studio.reviewRequestAttempt)
     }
 
@@ -136,10 +175,10 @@ class StudioSampleSongsTest {
         first.studio.newSong()
 
         val relaunched = launch(first.temp).studio
-        assertEquals("a launch isn't a request", 0, relaunched.reviewRequestAttempt)
         relaunched.open(first.temp.store.load(blank.id)!!)
         relaunched.setNote(0, 0, 60)
         assertTrue(relaunched.saveNow())
+        playAndStop(relaunched)
         assertEquals(1, relaunched.reviewRequestAttempt)
     }
 
@@ -147,9 +186,25 @@ class StudioSampleSongsTest {
         val first = launch()
         repeat(2) { makeSong(first.studio) }
         val relaunched = launch(first.temp).studio
-        assertEquals("a launch isn't a request", 0, relaunched.reviewRequestAttempt)
         makeSong(relaunched)
+        playAndStop(relaunched)
         assertEquals(1, relaunched.reviewRequestAttempt)
+    }
+
+    /** A deleted song is gone from the count: its file can come back as an import. */
+    @Test fun aDeletedBlankSongDoesNotCountIfItComesBackAsAnImport() {
+        val studio = launch().studio
+        repeat(2) { makeSong(studio) }
+        studio.newSong()
+        val blank = studio.song
+        val file = SongDocument.encodeToBytes(blank)
+        studio.delete(blank)
+        assertTrue(studio.importSong(file))
+        studio.setNote(0, 0, 60)
+        assertTrue(studio.saveNow())
+        assertEquals("the import kept its id", blank.id, studio.song.id)
+        playAndStop(studio)
+        assertEquals(0, studio.reviewRequestAttempt)
     }
 
     /** Only a song the user starts counts: not First Loop, the samples, a
@@ -171,8 +226,10 @@ class StudioSampleSongsTest {
 
         assertEquals(0, studio.reviewRequestAttempt)
         repeat(2) { makeSong(studio) }
+        playAndStop(studio)
         assertEquals("only two songs were started", 0, studio.reviewRequestAttempt)
         makeSong(studio)
+        playAndStop(studio)
         assertEquals(1, studio.reviewRequestAttempt)
     }
 
@@ -189,8 +246,10 @@ class StudioSampleSongsTest {
         } finally {
             harness.temp.directory.setWritable(true)
         }
+        playAndStop(studio)
         assertEquals(0, studio.reviewRequestAttempt)
         assertTrue(studio.saveNow())
+        playAndStop(studio)
         assertEquals(1, studio.reviewRequestAttempt)
     }
 

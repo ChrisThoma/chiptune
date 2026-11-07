@@ -176,7 +176,7 @@ dependencies {
     // dexopt got round to it. 1.4 writes the profile there too. Compose now
     // brings 1.4 itself; this keeps that floor if it ever stops.
     implementation(libs.androidx.profileinstaller)
-    // In-app review: asked for after a milestone export is shared. A no-op without Play.
+    // In-app review: asked for on Stop after every third new song. A no-op without Play.
     implementation(libs.play.review)
     // play-services-basement, under review 2.0.2 (the newest), asks for
     // fragment 1.1.0, and nothing else here asks for a newer one. Play Console

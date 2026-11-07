@@ -133,7 +133,7 @@ fun EditorScreen(
         }
     }
 
-    // A new song made a review request due. Dropping the first value leaves a
+    // Stopping playback made a review request. Dropping the first value leaves a
     // recreated screen from asking again; Play decides whether anything shows.
     LaunchedEffect(editor) {
         snapshotFlow { ui.value.reviewRequestAttempt }.drop(1).collect { editor.effects.requestReview() }

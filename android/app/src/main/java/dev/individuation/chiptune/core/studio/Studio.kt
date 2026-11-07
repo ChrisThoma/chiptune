@@ -352,12 +352,10 @@ class Studio(
         false
     }
 
-    /** A song the user started counts the first time it's saved with notes, so
-     * the prompt comes after an autosave's quiet moment, not under a tap. */
+    /** A song the user started counts the first time it's saved with notes. A
+     * due request waits for the transport's Stop in [togglePlay]. */
     private fun countForReview(song: Song) {
-        if (song.hasNotesAnywhere && reviewPrompt?.newSongHasNotes(song.id) == true) {
-            update { it.copy(reviewRequestAttempt = it.reviewRequestAttempt + 1) }
-        }
+        if (song.hasNotesAnywhere) reviewPrompt?.newSongHasNotes(song.id)
     }
 
     // MARK: Undo
@@ -422,7 +420,15 @@ class Studio(
 
     // MARK: Transport
 
-    fun togglePlay() = if (isPlaying) stop() else play()
+    fun togglePlay() {
+        if (!isPlaying) return play()
+        stop()
+        // Only here, not in stop(): leaving the app, opening a song and audio
+        // focus stop playback too, with no one listening for a prompt.
+        if (reviewPrompt?.takeOwedRequest() == true) {
+            update { it.copy(reviewRequestAttempt = it.reviewRequestAttempt + 1) }
+        }
+    }
 
     fun play() {
         // A PLAY button that lights up over silence is worse than an error.
@@ -1184,6 +1190,7 @@ class Studio(
             deleteError = DeleteFailureMessage.song(other.name, e)
             return
         }
+        reviewPrompt?.forgetNewSong(other.id)
         exportDirectory?.let { dir -> onExportThread { ExportFiles.removeSong(dir, other.id) } }
         // Deleting the song on screen: move off it, or the next autosave
         // writes it straight back.

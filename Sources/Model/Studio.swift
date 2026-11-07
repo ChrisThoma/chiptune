@@ -259,12 +259,12 @@ final class Studio {
         }
     }
 
-    /// A song the user started counts the first time it's saved with notes, so
-    /// the prompt comes after an autosave's quiet moment, not under a tap.
+    /// A song the user started counts the first time it's saved with notes. A
+    /// due request waits for the transport's Stop in `togglePlay`.
     private func countForReview(_ song: Song) {
         guard song.hasNotesAnywhere, let made = store.countNewSong(song.id),
               ReviewPromptPolicy.isDue(newSongsMade: made) else { return }
-        reviewRequestAttempt += 1
+        store.markReviewOwed()
     }
 
     // MARK: Undo
@@ -429,7 +429,11 @@ final class Studio {
     // MARK: Transport
 
     func togglePlay() {
-        isPlaying ? stop() : play()
+        guard isPlaying else { return play() }
+        stop()
+        // Only here, not in `stop()`: leaving the app, opening a song and an
+        // interruption stop playback too, with no one listening for a prompt.
+        if store.takeReviewOwed() { reviewRequestAttempt += 1 }
     }
 
     func play() {
@@ -1379,6 +1383,7 @@ final class Studio {
             deleteError = DeleteFailureMessage.song(name: other.name, error: error)
             return
         }
+        store.forgetNewSong(other.id)
         // Its exports would otherwise sit in tmp with nothing left to
         // replace them. Not while one is on offer or rendering, possibly in
         // another window: the launch sweep takes those.

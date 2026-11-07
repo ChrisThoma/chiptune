@@ -42,7 +42,7 @@ object ScenePhasePolicy {
 /** What became of a share sheet. */
 enum class ShareOutcome { COMPLETED, CANCELED, FAILED }
 
-/** When to ask for a review: on every third new song the user puts notes in. */
+/** When a review is due: on every third new song the user puts notes in. */
 object ReviewPromptPolicy {
     const val NEW_SONGS_PER_REQUEST = 3
 
@@ -58,19 +58,35 @@ class ReviewPromptTracker(private val prefs: KeyValueStore) {
         prefs.putStringList(UNCOUNTED_KEY, waiting + id.toString())
     }
 
-    /** Counts a remembered song, once; returns whether to ask for a review. */
-    fun newSongHasNotes(id: UUID): Boolean {
+    /** Drops a deleted song from the waiting list: its file can come back as an
+     * import, which never counts. */
+    fun forgetNewSong(id: UUID) {
         val waiting = prefs.getStringList(UNCOUNTED_KEY).orEmpty()
-        if (id.toString() !in waiting) return false
+        prefs.putStringList(UNCOUNTED_KEY, waiting - id.toString())
+    }
+
+    /** Counts a remembered song, once. A due request is kept in [prefs] for the
+     * next time playback stops, so a kill before then doesn't lose it. */
+    fun newSongHasNotes(id: UUID) {
+        val waiting = prefs.getStringList(UNCOUNTED_KEY).orEmpty()
+        if (id.toString() !in waiting) return
         prefs.putStringList(UNCOUNTED_KEY, waiting - id.toString())
         val count = prefs.getInt(NEW_SONGS_KEY) + 1
         prefs.putInt(NEW_SONGS_KEY, count)
-        return ReviewPromptPolicy.isDue(count)
+        if (ReviewPromptPolicy.isDue(count)) prefs.putInt(OWED_KEY, 1)
+    }
+
+    /** Whether a review request is due, clearing it. */
+    fun takeOwedRequest(): Boolean {
+        if (prefs.getInt(OWED_KEY) == 0) return false
+        prefs.putInt(OWED_KEY, 0)
+        return true
     }
 
     companion object {
         const val NEW_SONGS_KEY = "newSongsMade"
         const val UNCOUNTED_KEY = "uncountedNewSongs"
+        const val OWED_KEY = "reviewOwed"
     }
 }
 

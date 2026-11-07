@@ -688,21 +688,56 @@ final class StudioEditingTests: XCTestCase {
         XCTAssertTrue(studio.saveNow())
     }
 
-    func testEveryThirdNewSongWithNotesAsksForAReview() {
+    /// The transport's Stop, which is the moment a due request is made.
+    private func playAndStop(_ studio: Studio) {
+        studio.isPlaying = true
+        studio.togglePlay()
+    }
+
+    func testEveryThirdNewSongWithNotesAsksWhenPlaybackStops() {
         makeSong(in: studio)
         makeSong(in: studio)
+        playAndStop(studio)
         XCTAssertEqual(studio.reviewRequestAttempt, 0)
         makeSong(in: studio)
+        XCTAssertEqual(studio.reviewRequestAttempt, 0, "not until playback stops")
+        playAndStop(studio)
+        XCTAssertEqual(studio.reviewRequestAttempt, 1)
+        playAndStop(studio)
+        XCTAssertEqual(studio.reviewRequestAttempt, 1, "one song, one request")
+        makeSong(in: studio)
+        makeSong(in: studio)
+        playAndStop(studio)
         XCTAssertEqual(studio.reviewRequestAttempt, 1)
         makeSong(in: studio)
-        makeSong(in: studio)
-        XCTAssertEqual(studio.reviewRequestAttempt, 1)
-        makeSong(in: studio)
+        playAndStop(studio)
         XCTAssertEqual(studio.reviewRequestAttempt, 2)
+    }
+
+    /// Leaving the app, opening a song and an interruption all stop playback
+    /// without the user doing it, and may have nothing on screen to ask over.
+    func testOnlyTheTransportStopAsks() {
+        for _ in 0..<3 { makeSong(in: studio) }
+        studio.isPlaying = true
+        studio.stop()
+        XCTAssertEqual(studio.reviewRequestAttempt, 0)
+        playAndStop(studio)
+        XCTAssertEqual(studio.reviewRequestAttempt, 1, "still owed")
+    }
+
+    /// The app can be killed between the third song and the next Stop.
+    func testAnOwedRequestSurvivesARelaunch() {
+        for _ in 0..<3 { makeSong(in: studio) }
+        let relaunched = Studio(store: temp.store, autosaveEnabled: false)
+        addTeardownBlock { @MainActor in relaunched.invalidateTimers() }
+        XCTAssertEqual(relaunched.reviewRequestAttempt, 0, "a launch isn't a request")
+        playAndStop(relaunched)
+        XCTAssertEqual(relaunched.reviewRequestAttempt, 1)
     }
 
     func testBlankNewSongsDoNotCountTowardAReview() {
         for _ in 0..<9 { studio.newSong() }
+        playAndStop(studio)
         XCTAssertEqual(studio.reviewRequestAttempt, 0)
     }
 
@@ -713,6 +748,7 @@ final class StudioEditingTests: XCTestCase {
             studio.setNote(track: 0, step: 0, note: Chip.noteOff)
             XCTAssertTrue(studio.saveNow())
         }
+        playAndStop(studio)
         XCTAssertEqual(studio.reviewRequestAttempt, 0)
     }
 
@@ -722,6 +758,7 @@ final class StudioEditingTests: XCTestCase {
         studio.setNote(track: 0, step: 1, note: 62)
         XCTAssertTrue(studio.saveNow())
         XCTAssertTrue(studio.saveNow())
+        playAndStop(studio)
         XCTAssertEqual(studio.reviewRequestAttempt, 0)
     }
 
@@ -735,16 +772,16 @@ final class StudioEditingTests: XCTestCase {
 
         let relaunched = Studio(store: temp.store, autosaveEnabled: false)
         addTeardownBlock { @MainActor in relaunched.invalidateTimers() }
-        XCTAssertEqual(relaunched.reviewRequestAttempt, 0, "a launch isn't a request")
         relaunched.open(try XCTUnwrap(temp.store.load(id: blank.id)))
         relaunched.setNote(track: 0, step: 0, note: 60)
         XCTAssertTrue(relaunched.saveNow())
+        playAndStop(relaunched)
         XCTAssertEqual(relaunched.reviewRequestAttempt, 1)
     }
 
     /// In the app the third note reaches the disk through the autosave timer,
-    /// so that path has to ask too, not just `saveNow`.
-    func testAnAutosaveCanAskForAReview() {
+    /// so that path has to count too, not just `saveNow`.
+    func testAnAutosaveCountsTowardAReview() {
         let fresh = makeTempStore()
         let live = Studio(store: fresh.store, autosaveEnabled: true)
         addTeardownBlock { @MainActor in live.invalidateTimers() }
@@ -753,9 +790,9 @@ final class StudioEditingTests: XCTestCase {
         makeSong(in: live)
         live.newSong()
         live.setNote(track: 0, step: 0, note: 60)
-        XCTAssertEqual(live.reviewRequestAttempt, 0, "not until the autosave fires")
-        let asked = expectation(for: NSPredicate { _, _ in live.reviewRequestAttempt == 1 }, evaluatedWith: nil)
-        wait(for: [asked], timeout: 5)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        playAndStop(live)
+        XCTAssertEqual(live.reviewRequestAttempt, 1)
     }
 
     /// Relaunching mustn't start the count over.
@@ -764,9 +801,24 @@ final class StudioEditingTests: XCTestCase {
         makeSong(in: studio)
         let relaunched = Studio(store: temp.store, autosaveEnabled: false)
         addTeardownBlock { @MainActor in relaunched.invalidateTimers() }
-        XCTAssertEqual(relaunched.reviewRequestAttempt, 0, "a launch isn't a request")
         makeSong(in: relaunched)
+        playAndStop(relaunched)
         XCTAssertEqual(relaunched.reviewRequestAttempt, 1)
+    }
+
+    /// A deleted song is gone from the count: its file can come back as an import.
+    func testADeletedBlankSongDoesNotCountIfItComesBackAsAnImport() {
+        makeSong(in: studio)
+        makeSong(in: studio)
+        studio.newSong()
+        let blank = studio.song
+        studio.delete(blank)
+        XCTAssertTrue(studio.importSong(decoded: blank))
+        studio.setNote(track: 0, step: 0, note: 60)
+        XCTAssertTrue(studio.saveNow())
+        XCTAssertEqual(studio.song.id, blank.id, "the import kept its id")
+        playAndStop(studio)
+        XCTAssertEqual(studio.reviewRequestAttempt, 0)
     }
 
     /// Only a song the user starts counts: not First Loop, the samples, a
@@ -798,8 +850,10 @@ final class StudioEditingTests: XCTestCase {
         XCTAssertEqual(library.reviewRequestAttempt, 0)
         makeSong(in: library)
         makeSong(in: library)
+        playAndStop(library)
         XCTAssertEqual(library.reviewRequestAttempt, 0, "only two songs were started")
         makeSong(in: library)
+        playAndStop(library)
         XCTAssertEqual(library.reviewRequestAttempt, 1)
     }
 
@@ -813,8 +867,10 @@ final class StudioEditingTests: XCTestCase {
         try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: temp.directory.path)
         XCTAssertFalse(studio.saveNow())
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: temp.directory.path)
+        playAndStop(studio)
         XCTAssertEqual(studio.reviewRequestAttempt, 0)
         XCTAssertTrue(studio.saveNow())
+        playAndStop(studio)
         XCTAssertEqual(studio.reviewRequestAttempt, 1)
     }
 
