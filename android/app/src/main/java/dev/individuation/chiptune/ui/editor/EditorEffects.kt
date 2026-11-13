@@ -73,6 +73,9 @@ interface EditorEffects {
         const val SONG_MIME = "application/json"
         const val SUPPORT_URL = "https://individuation.dev/contact/"
 
+        /** "Rate Chiptune": the Play app opens its own listing for this link. */
+        const val RATE_URL = "https://play.google.com/store/apps/details?id=dev.individuation.chiptune"
+
         /** Play wants the listing's privacy policy reachable inside the app too. */
         const val PRIVACY_URL = "https://individuation.dev/projects/chiptune/privacy.html"
 

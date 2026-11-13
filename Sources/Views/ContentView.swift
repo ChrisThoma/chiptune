@@ -1134,6 +1134,9 @@ struct ContentView: View {
                 } label: {
                     Label("How it works", systemImage: "questionmark.circle")
                 }
+                Link(destination: StoreLinks.writeReview) {
+                    Label("Rate Chiptune", systemImage: "star")
+                }
                 Link(destination: URL(string: "https://individuation.dev/contact/")!) {
                     Label("Contact support", systemImage: "envelope")
                 }

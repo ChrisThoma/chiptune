@@ -11,4 +11,7 @@ class EditorEffectsLinksTest {
 
     @Test fun supportIsTheContactPage() =
         assertEquals("https://individuation.dev/contact/", EditorEffects.SUPPORT_URL)
+
+    @Test fun rateOpensThisAppsPlayListing() =
+        assertEquals("https://play.google.com/store/apps/details?id=dev.individuation.chiptune", EditorEffects.RATE_URL)
 }
