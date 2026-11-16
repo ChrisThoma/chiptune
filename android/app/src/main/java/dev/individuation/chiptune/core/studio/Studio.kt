@@ -937,6 +937,24 @@ class Studio(
         pushInstrument(index)
     }
 
+    /** A tap on a preset chip: puts the sound on the track, then plays a note
+     * of it so you hear what you picked without writing anything.
+     *
+     * The preview runs even when the preset is already the track's sound
+     * (re-tapping the lit chip is how you hear it again), while [applyPreset]
+     * keeps that re-tap from becoming an Undo step. Held presets need nothing
+     * extra: the core gives a sustaining audition its own short lifetime.
+     *
+     * Returns whether a note was played; a muted track takes the sound
+     * silently, for the reason [previewNote] gives. */
+    fun pickPreset(preset: InstrumentPreset, index: Int): Boolean {
+        if (index !in song.tracks.indices) return false
+        applyPreset(preset, index)
+        val note = previewNote(index) ?: return false
+        audition(note, index)
+        return true
+    }
+
     fun setSection(id: UUID, patternID: UUID) {
         val i = song.arrangement.indexOfFirst { it.id == id }
         if (i < 0 || song.arrangement[i].patternID == patternID) return

@@ -348,7 +348,6 @@ object InstrumentEditorCopy {
         ArpShape("5th", "Fifth", listOf(0, 7)),
     )
 
-    const val PRESET_CAPTION = "A ready-made sound to start from."
     const val CHANNEL_CAPTION = "Switching waveform keeps this track's notes and loads the new channel's default sound."
     const val ARPEGGIO_CAPTION = "Cycles through the chord tones fast enough to sound like one voice \u2014 " +
         "the classic way to fake a chord on a single channel."
@@ -357,9 +356,18 @@ object InstrumentEditorCopy {
     val VOLUME_RANGE = 0.0..1.0
     val DECAY_RANGE = 0.03..4.0
 
-    /** "Custom" once the sound has been edited away from every preset. */
-    fun presetName(instrument: Instrument?, kind: ChannelKind): String =
-        instrument?.let { InstrumentPreset.matching(it, kind)?.name } ?: "Custom"
+    /** The preset the sound still is, or null once it's been edited away from
+     * every one: then no chip lights and the caption says "Custom sound". */
+    fun currentPreset(instrument: Instrument?, kind: ChannelKind): InstrumentPreset? =
+        instrument?.let { InstrumentPreset.matching(it, kind) }
+
+    /** The one caption under the preset chips, word for word with iOS. */
+    fun presetCaption(instrument: Instrument?, kind: ChannelKind): String =
+        if (currentPreset(instrument, kind) == null) {
+            "Custom sound. Tap a preset to hear it and start over from it."
+        } else {
+            "Ready-made sounds to start from. Tap one to hear it."
+        }
 
     fun nameFooter(draft: String): String {
         val max = Track.MAX_NAME_LENGTH

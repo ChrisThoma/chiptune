@@ -80,8 +80,17 @@ class HelpGuideTest {
         assertEquals("Track", tracks.entries.first().term)
     }
 
-    @Test fun presetNamesTheRowYouTap() {
-        assertTrue(text("Preset", HelpGuide.SectionId.SOUND).startsWith("Tap ${ControlLabel.PRESET_ROW} "))
+    /** The presets are a row of chips under the Preset heading, and tapping
+     * one plays it, so the guide names the heading and says you'll hear it. */
+    @Test fun presetNamesTheSectionAndSaysTappingPlaysIt() {
+        val preset = text("Preset", HelpGuide.SectionId.SOUND)
+        assertTrue(preset, preset.contains("under ${ControlLabel.PRESET_SECTION}"))
+        assertTrue(preset, preset.contains("hear"))
+        assertEquals("Preset", ControlLabel.PRESET_SECTION)
+        assertEquals(
+            "Tap a ready-made sound under Preset to hear it and use it on this track. The choices change with the Channel. Adjust it with Volume, Decay and the other controls.",
+            preset,
+        )
     }
 
     @Test fun decaySaysHoldTurnsItOff() {

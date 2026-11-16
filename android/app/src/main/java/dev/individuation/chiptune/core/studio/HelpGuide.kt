@@ -8,7 +8,7 @@ object ControlLabel {
     const val SONG = "SONG"
     const val ARRANGEMENT = "ARR"
     const val REST = "REST"
-    const val PRESET_ROW = "Sound"
+    const val PRESET_SECTION = "Preset"
     const val VOLUME = "Volume"
     const val HOLD_SWITCH = "Hold"
     const val DECAY = "Decay"
@@ -85,7 +85,7 @@ object HelpGuide {
         Section(
             SectionId.SOUND, "Sound",
             listOf(
-                Entry("Preset", "Tap Sound to pick a ready-made sound for this track. The list changes with the Channel. Adjust it with Volume, Decay and the other controls."),
+                Entry("Preset", "Tap a ready-made sound under Preset to hear it and use it on this track. The choices change with the Channel. Adjust it with Volume, Decay and the other controls."),
                 Entry("Channel", "The type of sound this track makes: Pulse 1, Pulse 2, Triangle or Noise. Changing it keeps your notes but resets the track's sound settings."),
                 Entry("Volume", "How loud the track is."),
                 Entry("Hold", "Keeps a note sounding until the next note on the track, or a rest."),

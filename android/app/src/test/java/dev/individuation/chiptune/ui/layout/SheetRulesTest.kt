@@ -641,11 +641,29 @@ class InstrumentEditorCopyTest {
         assertEquals(0, InstrumentEditorCopy.arpeggioIndex(listOf(0, 5)))
     }
 
-    @Test fun presetNameIsCustomOnceEdited() {
+    /** No chip lights once the sound is edited away from every preset. */
+    @Test fun currentPresetIsNullOnceEdited() {
         val lead = InstrumentPreset.presetsFor(ChannelKind.PULSE1)[0]
-        assertEquals("Lead", InstrumentEditorCopy.presetName(lead.instrument, ChannelKind.PULSE1))
-        assertEquals("Custom", InstrumentEditorCopy.presetName(lead.instrument.copy(volume = 0.1), ChannelKind.PULSE1))
-        assertEquals("Custom", InstrumentEditorCopy.presetName(null, ChannelKind.PULSE1))
+        assertEquals(lead, InstrumentEditorCopy.currentPreset(lead.instrument, ChannelKind.PULSE1))
+        assertNull(InstrumentEditorCopy.currentPreset(lead.instrument.copy(volume = 0.1), ChannelKind.PULSE1))
+        assertNull(InstrumentEditorCopy.currentPreset(null, ChannelKind.PULSE1))
+    }
+
+    /** One caption under the chips, word for word with iOS, saying a tap plays it. */
+    @Test fun presetCaptionSaysCustomWhenNoChipIsLit() {
+        val lead = InstrumentPreset.presetsFor(ChannelKind.PULSE1)[0]
+        assertEquals(
+            "Ready-made sounds to start from. Tap one to hear it.",
+            InstrumentEditorCopy.presetCaption(lead.instrument, ChannelKind.PULSE1),
+        )
+        assertEquals(
+            "Custom sound. Tap a preset to hear it and start over from it.",
+            InstrumentEditorCopy.presetCaption(lead.instrument.copy(volume = 0.1), ChannelKind.PULSE1),
+        )
+        assertEquals(
+            "Custom sound. Tap a preset to hear it and start over from it.",
+            InstrumentEditorCopy.presetCaption(null, ChannelKind.PULSE1),
+        )
     }
 
     @Test fun nameFooterCountsGraphemes() {
@@ -692,7 +710,6 @@ class InstrumentEditorCopyTest {
     }
 
     @Test fun captionsAreWordForWord() {
-        assertEquals("A ready-made sound to start from.", InstrumentEditorCopy.PRESET_CAPTION)
         assertEquals(
             "Switching waveform keeps this track's notes and loads the new channel's default sound.",
             InstrumentEditorCopy.CHANNEL_CAPTION,
@@ -704,7 +721,7 @@ class InstrumentEditorCopyTest {
     }
 
     @Test fun defaultInstrumentsMatchTheirKindsFirstPreset() =
-        assertEquals("Bass", InstrumentEditorCopy.presetName(Instrument.defaultFor(ChannelKind.TRIANGLE), ChannelKind.TRIANGLE))
+        assertEquals("Bass", InstrumentEditorCopy.currentPreset(Instrument.defaultFor(ChannelKind.TRIANGLE), ChannelKind.TRIANGLE)?.name)
 }
 
 /** The sheet's Export button and the renderer agree on which videos are over

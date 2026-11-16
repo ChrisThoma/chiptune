@@ -2,6 +2,15 @@ package dev.individuation.chiptune.ui.instrument
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import dev.individuation.chiptune.ui.theme.ChipRadii
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.Box
@@ -20,9 +29,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.UnfoldMore
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -47,8 +53,8 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -190,7 +196,7 @@ fun InstrumentEditorBody(
             }
         }
 
-        PresetSection(kind, instrument) { studio.applyPreset(it, track) }
+        PresetSection(kind, instrument) { studio.pickPreset(it, track) }
 
         NameSection(editor, track, kind)
 
@@ -309,45 +315,65 @@ fun InstrumentEditorBody(
     }
 }
 
+/** The presets as a wrapping row of chips rather than a menu: every sound is
+ * one tap away and the tap plays it, so trying them is a matter of tapping
+ * along the row. They wrap because the same panel is a phone sheet and a
+ * narrow docked column. Styled after the pattern chips, in the track's own
+ * color: the lit one is filled, the rest are outlined. No chip lights once
+ * the sound is edited away from every preset; the caption says so. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PresetSection(kind: ChannelKind, instrument: Instrument, apply: (InstrumentPreset) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    val name = InstrumentEditorCopy.presetName(instrument, kind)
-    FormSection(header = "Preset") {
-        Box {
-            FormRow(
-                Modifier
-                    .plainClickable { open = true }
-                    .clearAndSetSemantics {
-                        contentDescription = "Sound preset"
-                        stateDescription = name
-                        role = Role.DropdownList
-                        onClick { open = true; true }
-                    },
-            ) {
-                Text(ControlLabel.PRESET_ROW, color = FormColors.tint, fontSize = 17.sp, modifier = Modifier.weight(1f))
-                Text(name, color = ChipColors.dim, fontSize = 17.sp)
-                Icon(Icons.Filled.UnfoldMore, contentDescription = null, tint = ChipColors.dim, modifier = Modifier.size(16.dp))
-            }
-            DropdownMenu(
-                expanded = open,
-                onDismissRequest = { open = false },
-                containerColor = ChipColors.panelHigh,
-                modifier = Modifier.width(240.dp),
-            ) {
-                InstrumentPreset.presetsFor(kind).forEach { preset ->
-                    DropdownMenuItem(
-                        text = { Text(preset.name, color = ChipColors.text, style = MaterialTheme.typography.bodyLarge) },
-                        onClick = {
-                            open = false
-                            apply(preset)
-                        },
-                    )
-                }
+private fun PresetSection(kind: ChannelKind, instrument: Instrument, pick: (InstrumentPreset) -> Unit) {
+    val accent = ChipColors.channel(kind)
+    val current = InstrumentEditorCopy.currentPreset(instrument, kind)
+    FormSection(header = ControlLabel.PRESET_SECTION) {
+        FlowRow(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .semantics { contentDescription = "Sound preset" },
+            // Each chip's pill is inset 4dp inside its 48dp target, so the
+            // lines need no gap of their own to sit 8dp apart.
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            InstrumentPreset.presetsFor(kind).forEach { preset ->
+                PresetChip(preset, selected = preset == current, accent = accent) { pick(preset) }
             }
         }
         FormSeparator()
-        FormCaption(InstrumentEditorCopy.PRESET_CAPTION)
+        FormCaption(InstrumentEditorCopy.presetCaption(instrument, kind))
+    }
+}
+
+/** One preset chip: the 48dp target is the whole chip, the pill sits inside it. */
+@Composable
+private fun PresetChip(preset: InstrumentPreset, selected: Boolean, accent: Color, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(ChipRadii.inner)
+    Box(
+        Modifier
+            .heightIn(min = 48.dp)
+            .plainClickable(onClick = onClick)
+            .clearAndSetSemantics {
+                contentDescription = preset.name
+                role = Role.Button
+                this.selected = selected
+                onClick(label = "play it and use it on this track") { onClick(); true }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier.matchParentSize().padding(vertical = 4.dp).clip(shape)
+                .background(if (selected) accent else ChipColors.panelHigh)
+                .then(if (selected) Modifier else Modifier.border(1.dp, accent.copy(alpha = 0.6f), shape)),
+        )
+        Text(
+            preset.name,
+            style = chipFont(13f, if (selected) FontWeight.Bold else FontWeight.SemiBold),
+            color = if (selected) ChipColors.onLight else ChipColors.text,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.padding(horizontal = 12.dp),
+        )
     }
 }
 
