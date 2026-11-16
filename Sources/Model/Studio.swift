@@ -1139,6 +1139,28 @@ final class Studio {
         pushInstrument(index)
     }
 
+    /// A tap on a preset chip: puts the sound on the track, then plays a note
+    /// of it so you hear what you picked without writing anything.
+    ///
+    /// The preview runs even when the preset is already the track's sound —
+    /// re-tapping the lit chip is how you hear it again — while
+    /// `applyPreset` keeps that re-tap from becoming an Undo step.
+    ///
+    /// Held presets ("Pad (holds)", "Drone (holds)") need nothing extra: the
+    /// core gives a sustaining audition its own short lifetime, as it does for
+    /// the keyboard and the track headers.
+    ///
+    /// Reports whether a note was played; a muted track takes the sound
+    /// silently, for the reason `previewNote(forTrack:)` gives.
+    @discardableResult
+    func pickPreset(_ preset: InstrumentPreset, for index: Int) -> Bool {
+        guard song.tracks.indices.contains(index) else { return false }
+        applyPreset(preset, to: index)
+        guard let note = previewNote(forTrack: index) else { return false }
+        audition(note, on: index)
+        return true
+    }
+
     func setSection(_ id: UUID, patternID: UUID) {
         guard let i = song.arrangement.firstIndex(where: { $0.id == id }),
               song.arrangement[i].patternID != patternID else { return }

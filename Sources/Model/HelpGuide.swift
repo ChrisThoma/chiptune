@@ -8,7 +8,7 @@ enum ControlLabel {
     static let song = "SONG"
     static let arrangement = "ARR"
     static let rest = "REST"
-    static let presetRow = "Sound"
+    static let presetSection = "Preset"
     static let volume = "Volume"
     static let holdSwitch = "Hold"
     static let decay = "Decay"
@@ -73,7 +73,7 @@ enum HelpGuide {
             Entry(term: "+", text: "Adds a track, up to 8."),
         ]),
         Section(id: .sound, title: "Sound", entries: [
-            Entry(term: "Preset", text: "Tap Sound to pick a ready-made sound for this track. The list changes with the Channel. Adjust it with Volume, Decay and the other controls."),
+            Entry(term: "Preset", text: "Tap a ready-made sound under Preset to hear it and use it on this track. The choices change with the Channel. Adjust it with Volume, Decay and the other controls."),
             Entry(term: "Channel", text: "The type of sound this track makes: Pulse 1, Pulse 2, Triangle or Noise. Changing it keeps your notes but resets the track's sound settings."),
             Entry(term: "Volume", text: "How loud the track is."),
             Entry(term: "Hold", text: "Keeps a note sounding until the next note on the track, or a rest."),

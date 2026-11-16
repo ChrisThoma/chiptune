@@ -83,8 +83,12 @@ final class HelpGuideTests: XCTestCase {
         XCTAssertEqual(terms(.tracks).first, "Track")
     }
 
-    func testPresetNamesTheRowYouTap() {
-        XCTAssertTrue(text("Preset", in: .sound).hasPrefix("Tap \(ControlLabel.presetRow) "))
+    /// The presets are a row of chips under the Preset heading, and tapping
+    /// one plays it, so the guide names the heading and says you'll hear it.
+    func testPresetNamesTheSectionAndSaysTappingPlaysIt() {
+        let preset = text("Preset", in: .sound)
+        XCTAssertTrue(preset.contains("under \(ControlLabel.presetSection)"), preset)
+        XCTAssertTrue(preset.contains("hear"), preset)
     }
 
     func testDecaySaysHoldTurnsItOff() {

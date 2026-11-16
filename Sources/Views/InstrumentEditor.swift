@@ -54,17 +54,55 @@ struct InstrumentEditor: View {
     private var accent: Color { Theme.color(for: kind) }
     private var held: Bool { studio.song.tracks[safe: index]?.instrument.sustain ?? false }
 
-    /// "Custom" once the sound has been edited away from every preset, which is
-    /// the honest answer — the sliders below are the truth, not the menu.
-    private var presetName: String {
-        guard let instrument = studio.song.tracks[safe: index]?.instrument else { return "Custom" }
-        return InstrumentPreset.matching(instrument, kind: kind)?.name ?? "Custom"
+    /// The preset the sound still is, or nil once it's been edited away from
+    /// every one — then no chip lights and the row says "Custom", which is the
+    /// honest answer: the sliders below are the truth, not the chips.
+    private var currentPreset: InstrumentPreset? {
+        guard let instrument = studio.song.tracks[safe: index]?.instrument else { return nil }
+        return InstrumentPreset.matching(instrument, kind: kind)
     }
 
-    /// Replaces the whole instrument, and deliberately leaves the track's name
-    /// alone — picking "Snare" shouldn't rename a track someone called Drums.
-    private func apply(_ preset: InstrumentPreset) {
-        studio.applyPreset(preset, to: index)
+    /// Replaces the whole instrument and plays a note of it, and deliberately
+    /// leaves the track's name alone — picking "Snare" shouldn't rename a
+    /// track someone called Drums.
+    private func pick(_ preset: InstrumentPreset) {
+        studio.pickPreset(preset, for: index)
+    }
+
+    /// One preset in the chip row. Styled after the pattern chips above the
+    /// grid, but in the track's own color: the lit one is filled, the rest are
+    /// outlined. The button is the full 44 pt row; the pill sits inside it.
+    private func presetChip(_ preset: InstrumentPreset, selected: Bool) -> some View {
+        Button {
+            pick(preset)
+        } label: {
+            Text(preset.name)
+                .chipFont(13, weight: selected ? .bold : .semibold)
+                .foregroundStyle(selected ? Theme.onLight : Theme.text)
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 44)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.innerRadius)
+                        .fill(selected ? accent : Theme.panelHigh)
+                        .overlay {
+                            if !selected {
+                                RoundedRectangle(cornerRadius: Theme.innerRadius)
+                                    .strokeBorder(accent.opacity(0.6), lineWidth: 1)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                )
+                .contentShape(Rectangle())
+        }
+        // Plain, not the Form default: a Form row with several default-styled
+        // buttons fires all of them on any tap in the row.
+        .buttonStyle(.plain)
+        .hoverEffect(.highlight)
+        .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: Theme.innerRadius))
+        .accessibilityLabel(preset.name)
+        .accessibilityHint("Plays it and uses it on this track.")
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
     /// Preset arpeggio shapes; empty offsets mean the note plays straight.
@@ -166,26 +204,22 @@ struct InstrumentEditor: View {
     private var editor: some View {
         ScrollViewReader { proxy in
             Form {
-                Section("Preset") {
-                    Menu {
+                Section(ControlLabel.presetSection) {
+                    // Chips rather than a menu: every sound is one tap away and
+                    // the tap plays it, so trying them is a matter of tapping
+                    // along the row. They wrap because the same panel is a
+                    // phone sheet and a narrow docked column.
+                    FlowLayout(spacing: 8, lineSpacing: 0) {
                         ForEach(InstrumentPreset.presets(for: kind)) { preset in
-                            Button(preset.name) { apply(preset) }
-                        }
-                    } label: {
-                        HStack {
-                            Text(ControlLabel.presetRow)
-                            Spacer()
-                            Text(presetName)
-                                .foregroundStyle(.secondary)
-                            Image(systemName: "chevron.up.chevron.down")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            presetChip(preset, selected: preset == currentPreset)
                         }
                     }
+                    .accessibilityElement(children: .contain)
                     .accessibilityLabel("Sound preset")
-                    .accessibilityValue(presetName)
 
-                    Text("A ready-made sound to start from.")
+                    Text(currentPreset == nil
+                         ? "Custom sound. Tap a preset to hear it and start over from it."
+                         : "Ready-made sounds to start from. Tap one to hear it.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

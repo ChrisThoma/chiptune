@@ -276,7 +276,7 @@ struct KeyCatcher: UIViewRepresentable {
 
         // This view holds first responder all session, so whatever iOS shows
         // for the first responder it shows for this view. On iOS 27.1 opening
-        // any menu (the song menu, a Sound preset) raised the full software
+        // any menu (the song menu, the old Sound preset menu) raised the full software
         // keyboard over the app with this view as first responder and no
         // text field focused. An empty input view gives the system nothing
         // to show. Hardware presses come through `pressesBegan` and don't
