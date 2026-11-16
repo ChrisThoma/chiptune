@@ -33,6 +33,8 @@ and imported on another device.
 
 The keys stay on screen when the editor scrolls. A How it works guide in the
 menu explains the controls, with a (?) on the Arrangement and Sound sheets.
+Rate Chiptune, in the same menu, opens the App Store's review page on iOS and
+the Play listing on Android.
 
 ## Exporting
 
