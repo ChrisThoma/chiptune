@@ -1,0 +1,201 @@
+# shots.yaml for Chiptune. Imported from AppStore/compose/shots.tsv (+ shots.<locale>.tsv) to match the
+# compose.sh sets in AppStore/screenshots-store. Per-slide accent = the shots.tsv accent column
+# (Theme.swift channel colours). `|` marks where a CJK/Thai headline may break.
+# capture: set CHIPTUNE_IPHONE_UDID / CHIPTUNE_IPAD_UDID / CHIPTUNE_DUO_UDID and build the app first (see AppStore/shoot.sh).
+
+name: Chiptune
+theme: ink
+style:
+  bg: "linear-gradient(180deg, #1A1A29 0%, #121220 55%, #0D0D17 100%)"
+  text: "#E0E6F5"
+  sub: "#80859E"
+  accent: "#FF5973"
+  outlineColour: "#0B0B10"
+  bezel: "#0B0B10"
+  font: '"SF Mono", "Hiragino Sans", Thonburi, monospace'
+  fontWeight: 700
+  sublineWeight: 400
+fontFiles: [/System/Applications/Utilities/Terminal.app/Contents/Resources/Fonts]
+headlineSize: 7.3
+sublineSize: 0.48
+headlineTracking: 0
+headlineMaxLines: 2
+sublineMaxLines: 1
+wrap: greedy
+captionMargin: [0.0909, 0.0758]
+frameStyle: outline
+outlineWidth: 12
+device:
+  duo-inner: { headlineSize: 4.2, captionMargin: [0.0491, 0.0491], hinge: false, scale: 1.04 }
+  ipad13-landscape: { headlineSize: 4.1, captionMargin: [0.0509, 0.0509], scale: 1.04 }
+asc:
+  app: 6794059658
+play: android/fastlane/metadata/android
+# the Play set is the raw capture, no frame or caption, at the size shoot.sh uses
+plainDevices: [android-phone]
+sizes: { android-phone: [1080, 2160] }
+locales:
+  - en-US
+  - de-DE
+  - ja
+  - ru
+  - th
+  - uk
+devices:
+  - iphone69
+  - duo-inner
+  - ipad13-landscape
+  - android-phone
+raw:
+  iphone69: AppStore/screenshots/iphone-6.9/{id}.png
+  duo-inner: AppStore/screenshots/iphone-duo/{id}.png
+  ipad13-landscape: AppStore/screenshots/ipad-13/{id}.png
+  android-phone: android/screenshots/phone/{id}.png   # android/Tools/play/shoot.sh writes here
+capture:
+  - AppStore/shoot.sh "${CHIPTUNE_IPHONE_UDID:?set CHIPTUNE_IPHONE_UDID}" iphone-6.9
+  - SHOT_DISPLAY=3 AppStore/shoot.sh "${CHIPTUNE_DUO_UDID:?set CHIPTUNE_DUO_UDID}" iphone-duo landscape
+  - AppStore/shoot.sh "${CHIPTUNE_IPAD_UDID:?set CHIPTUNE_IPAD_UDID}" ipad-13 landscape
+out: build/shots/{locale}/{device}/{n}-{id}.png
+caption: top
+align: left
+slides:
+  - id: 1-grid
+    headline:
+      en-US: Write music that sounds like retro games
+      de-DE: Schreibe Musik, die wie Retro-Spiele klingt
+      ja: レトロゲームのような|音楽を作る
+      ru: Пишите музыку, как в ретроиграх
+      th: แต่งเพลงเสียงเกมย้อนยุค
+      uk: Пишіть музику, як у ретроіграх
+    subline:
+      en-US: Tap notes into a grid, one channel per column
+      de-DE: Tippe Noten in ein Raster, ein Kanal pro Spalte
+      ja: グリッドに音符をタップ、1列に1チャンネル
+      ru: Расставляйте ноты на сетке, один канал на столбец
+      th: แตะโน้ตลงในตาราง หนึ่งแชนแนลต่อหนึ่งคอลัมน์
+      uk: Розставляйте ноти на сітці, один канал на стовпець
+    accent: "#FF5973"
+  - id: 2-playing
+    headline:
+      en-US: Real 8-bit sound
+      de-DE: Echter 8-Bit-Sound
+      ja: 本物の8bitサウンド
+      ru: Настоящий 8-битный звук
+      th: เสียง 8 bit ของแท้
+      uk: Справжній 8-бітний звук
+    subline:
+      en-US: Made from the same waveforms the NES used
+      de-DE: Aus denselben Wellenformen, die das NES nutzte
+      ja: NESと同じ波形で作られた音
+      ru: Те же формы волны, что у NES
+      th: สร้างจากรูปคลื่นแบบเดียวกับที่ NES ใช้
+      uk: З тих самих форм хвилі, які використовувала NES
+    accent: "#4CD9FF"
+  - id: 3-editor
+    headline:
+      en-US: Shape every sound
+      de-DE: Gestalte jeden Sound
+      ja: すべての音を調整
+      ru: Настраивайте каждый звук
+      th: ปรับแต่ง|ทุกเสียง
+      uk: Налаштовуйте кожен звук
+    subline:
+      en-US: Change the tone, decay and arpeggio of each channel
+      de-DE: Ändere Klang, Decay und Arpeggio jedes Kanals
+      ja: チャンネルごとに音色、ディケイ、アルペジオを変更
+      ru: Меняйте тембр, затухание и арпеджио каждого канала
+      th: เปลี่ยนโทนเสียง ดีเคย์ และอาร์เปจจิโอของแต่ละแชนแนล
+      uk: Змінюйте тембр, згасання й арпеджіо кожного каналу
+    devices:
+      - iphone69
+      - android-phone
+    accent: "#FFC740"
+  - id: 3-arrangement
+    headline:
+      en-US: Turn loops into full songs
+      de-DE: Mach aus Loops ganze Songs
+      ja: ループを|1曲に仕上げる
+      ru: Превращайте циклы в целые песни
+      th: เปลี่ยนลูปให้เป็น|เพลงเต็ม
+      uk: Перетворюйте цикли на цілі пісні
+    subline:
+      en-US: Chain patterns into an intro, verse and chorus
+      de-DE: Verkette Patterns zu Intro, Strophe und Refrain
+      ja: パターンをつないでイントロ、Aメロ、サビに
+      ru: Собирайте паттерны во вступление, куплет и припев
+      th: ต่อแพทเทิร์นเป็นอินโทร ท่อนร้อง และท่อนฮุก
+      uk: Збирайте патерни у вступ, куплет і приспів
+    devices:
+      - duo-inner
+      - ipad13-landscape
+    accent: "#B28CFF"
+  - id: 4-arrangement
+    headline:
+      en-US: Turn loops into full songs
+      de-DE: Mach aus Loops ganze Songs
+      ja: ループを|1曲に仕上げる
+      ru: Превращайте циклы в целые песни
+      th: เปลี่ยนลูปให้เป็น|เพลงเต็ม
+      uk: Перетворюйте цикли на цілі пісні
+    subline:
+      en-US: Chain patterns into an intro, verse and chorus
+      de-DE: Verkette Patterns zu Intro, Strophe und Refrain
+      ja: パターンをつないでイントロ、Aメロ、サビに
+      ru: Собирайте паттерны во вступление, куплет и припев
+      th: ต่อแพทเทิร์นเป็นอินโทร ท่อนร้อง และท่อนฮุก
+      uk: Збирайте патерни у вступ, куплет і приспів
+    devices:
+      - iphone69
+      - android-phone
+    accent: "#B28CFF"
+  - id: 4-pattern
+    headline:
+      en-US: Patterns of any length
+      de-DE: Patterns in jeder Länge
+      ja: 自由な長さの|パターン
+      ru: Паттерны любой длины
+      th: แพทเทิร์น|ยาวเท่าไหร่ก็ได้
+      uk: Патерни будь-якої довжини
+    subline:
+      en-US: From 4 to 64 steps each
+      de-DE: Von 4 bis 64 Steps pro Pattern
+      ja: 1パターン4から64ステップ
+      ru: От 4 до 64 шагов в каждом
+      th: ตั้งแต่ 4 ถึง 64 สเต็ปต่อแพทเทิร์น
+      uk: Від 4 до 64 кроків у кожному
+    devices:
+      - duo-inner
+      - ipad13-landscape
+    accent: "#FFC740"
+  - id: 5-export
+    headline:
+      en-US: Share what you make
+      de-DE: Teile deine Songs
+      ja: 作った曲を共有
+      ru: Делитесь тем, что создали
+      th: แชร์สิ่ง|ที่คุณสร้าง
+      uk: Діліться тим, що створили
+    subline:
+      en-US: Export any song as a WAV, MIDI or video file
+      de-DE: Exportiere jeden Song als WAV-, MIDI- oder Videodatei
+      ja: どの曲もWAV、MIDI、動画ファイルで書き出し
+      ru: Экспортируйте любую песню в WAV, MIDI или видео
+      th: ส่งออกเพลงใดก็ได้เป็นไฟล์ WAV, MIDI หรือวิดีโอ
+      uk: Експортуйте будь-яку пісню у WAV, MIDI чи відео
+    accent: "#66F299"
+  - id: 6-library
+    headline:
+      en-US: All your songs in one place
+      de-DE: Alle deine Songs an einem Ort
+      ja: すべての曲を|1か所に
+      ru: Все ваши песни в одном месте
+      th: เพลงทั้งหมด|อยู่ในที่เดียว
+      uk: Усі ваші пісні в одному місці
+    subline:
+      en-US: Everything saves as you work
+      de-DE: Alles wird automatisch gespeichert
+      ja: 作業中はすべて自動で保存
+      ru: Всё сохраняется во время работы
+      th: ทุกอย่างบันทึกอัตโนมัติระหว่างทำงาน
+      uk: Усе зберігається під час роботи
+    accent: "#4CD9FF"
