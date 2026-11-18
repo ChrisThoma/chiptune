@@ -5,9 +5,10 @@
 #
 # Seeds the same songs the iOS shoot uses (AppStore/make_song.py) into a
 # freshly cleared debug install, then opens each screen through the debug-only
-# ScreenshotMode extras. Output goes to the fastlane supply layout:
-# phoneScreenshots/ or tenInchScreenshots/ under
-# android/fastlane/metadata/android/en-US/images/.
+# ScreenshotMode extras. Output goes to the raw capture folders
+# android/screenshots/phone/ or android/screenshots/tablet/. `shots play`
+# (shots.yaml) copies the phone set into the fastlane supply layout; captures
+# never go straight into the Play folder, which shots play rewrites.
 #
 # WxH overrides the display size for the run (`wm size`) so the shots meet
 # Play's aspect rules: a phone's long side at most twice the short, a tablet
@@ -20,12 +21,12 @@ REPO=$(cd "$HERE/../../.." && pwd)
 ADB=${ADB:-$HOME/Library/Android/sdk/platform-tools/adb}
 PKG=dev.individuation.chiptune
 APK=$REPO/android/app/build/outputs/apk/debug/app-debug.apk
-IMG=$REPO/android/fastlane/metadata/android/en-US/images
+RAW=$REPO/android/screenshots
 a() { "$ADB" -s "$SERIAL" "$@"; }
 
 case $KIND in
-  phone)  SIZE=${3:-1080x2160} OUT=$IMG/phoneScreenshots ;;
-  tablet) SIZE=${3:-2560x1440} OUT=$IMG/tenInchScreenshots ;;
+  phone)  SIZE=${3:-1080x2160} OUT=$RAW/phone ;;
+  tablet) SIZE=${3:-2560x1440} OUT=$RAW/tablet ;;
   *) echo "kind is phone or tablet" >&2; exit 2 ;;
 esac
 rm -rf "$OUT"; mkdir -p "$OUT"
