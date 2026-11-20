@@ -70,7 +70,7 @@ class HelpGuideTest {
 
     @Test fun holdGesturesCantBeMistakenForTheHoldSwitch() {
         val all = HelpGuide.sections.flatMap { it.entries }
-        assertTrue(all.any { it.term == "Hold a step" })
+        assertTrue(all.any { it.term == "Hold a note" })
         assertTrue(all.any { it.term == "Hold a track" })
         assertEquals(1, all.count { it.term == "Hold" })
     }
@@ -130,8 +130,8 @@ class HelpGuideTest {
     /** Same words as iOS: hold a note for the menu; MIDI plays effects plain. */
     @Test fun effectsAreExplainedNextToHoldAStep() {
         val terms = terms(HelpGuide.SectionId.NOTES)
-        assertEquals(terms.indexOf("Hold a step") + 1, terms.indexOf("Effects"))
-        assertEquals("Opens a menu where you can play its note or pick an effect.", text("Hold a step", HelpGuide.SectionId.NOTES))
+        assertEquals(terms.indexOf("Hold a note") + 1, terms.indexOf("Effects"))
+        assertEquals("Opens a menu where you can play it or pick an effect.", text("Hold a note", HelpGuide.SectionId.NOTES))
         val effects = text("Effects", HelpGuide.SectionId.NOTES)
         for (word in listOf("slide", "vibrato", "glide", "bend", "Hold a note", "MIDI")) assertTrue(word, word in effects)
     }

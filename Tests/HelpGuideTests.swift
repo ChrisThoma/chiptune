@@ -73,7 +73,7 @@ final class HelpGuideTests: XCTestCase {
     }
 
     func testHoldGesturesCantBeMistakenForTheHoldSwitch() {
-        XCTAssertTrue(terms(.notes).contains("Hold a step"))
+        XCTAssertTrue(terms(.notes).contains("Hold a note"))
         XCTAssertTrue(terms(.tracks).contains("Hold a track"))
         XCTAssertEqual(allEntries.filter { $0.term == "Hold" }.count, 1)
         XCTAssertFalse(text("Hold", in: .sound).isEmpty)
