@@ -94,8 +94,12 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         @JvmField var effect = FX_NONE
         /** Samples since the effect started: the effect's clock. */
         @JvmField var effectTimer = 0
-        /** Samples in one step when the effect started; slides, glides and
-         * bends keep this timing even if the tempo changes under them. */
+        /** The 60 Hz frame [fxOffset] was computed for; -1 forces a recompute. */
+        @JvmField var fxFrame = -1
+        /** The effect's pitch offset in semitones, held between ticks. */
+        @JvmField var fxOffset = 0.0
+        /** Samples in one step when the effect started; a glide's length and
+         * vibrato's delay keep this timing even if the tempo changes under them. */
         @JvmField var fxStep = 1.0
         /** Where a glide starts, in semitones from its target. */
         @JvmField var glideFrom = 0.0
@@ -200,6 +204,13 @@ class ChipCore(val sampleRate: Double = 44100.0) {
      * alias past Nyquist or stall at 0 Hz. */
     private val minFrequency = noteFrequency[0]
     private val maxFrequency = noteFrequency[127]
+    /** Samples in one 60 Hz tracker frame: effects move on these ticks. */
+    private val tickSamples: Double = sampleRate / 60.0
+    /** LFSR clock rates of the NES noise periods, fastest first, and the
+     * geometric midpoints between neighbours, so quantizing a clock to the
+     * nearest rate in log distance is a scan with no allocation or log. */
+    private val noiseRates = DoubleArray(NOISE_PERIODS.size) { NES_CPU_HZ / NOISE_PERIODS[it] }
+    private val noiseRateSplits = DoubleArray(NOISE_PERIODS.size - 1) { Math.sqrt(noiseRates[it] * noiseRates[it + 1]) }
     private val arpRatio = DoubleArray(2 * Instrument.MAX_ARPEGGIO_SEMITONES + 1) {
         StrictMath.pow(2.0, (it - Instrument.MAX_ARPEGGIO_SEMITONES).toDouble() / 12.0)
     }
@@ -225,6 +236,13 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         if (pattern < 0 || pattern >= Chip.MAX_PATTERNS || track < 0 || track >= Chip.MAX_TRACKS ||
             step < 0 || step >= Chip.MAX_STEPS) return NoteEffect.NONE
         return NoteEffect.fromCode(effects[cell(pattern, track, step)].toInt())
+    }
+
+    /** The frequency [track]'s oscillator used for the last sample rendered,
+     * for the effect tests; a racy read like the playhead. */
+    internal fun voiceFrequency(track: Int): Double {
+        if (track < 0 || track >= Chip.MAX_TRACKS) return 0.0
+        return voices[track].inc * sampleRate
     }
 
     /** Cuts a voice the sequencer has no way to stop (an erased sustaining note). */
@@ -430,12 +448,14 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         // A glide with nothing ringing to glide from is a plain note.
         v.effect = if (effect == FX_GLIDE) FX_NONE else effect
         v.effectTimer = 0
+        v.fxFrame = -1
+        v.fxOffset = 0.0
         v.glideFrom = 0.0
         v.arpSemis = 0
         v.pendingEffect = FX_NONE
         if (v.effect != FX_NONE) {
             v.fxStep = currentStepSamples()
-            applyPitch(v)
+            updateEffect(v, kind)
         }
         v.env = 0.0
         v.attack = attackSamples
@@ -457,7 +477,7 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         val v = voices[track]
         val ringing = v.active && v.env > 0.002
         if (effect == FX_GLIDE && ringing && v.declick == 0 && !v.releasing) {
-            glide(v, note)
+            glide(v, paramKind[track], note)
         } else if (ringing) {
             // Still ringing: fade it out first and start the new note from the
             // far side of the fade.
@@ -475,15 +495,16 @@ class ChipCore(val sampleRate: Double = 44100.0) {
     }
 
     /** Moves a ringing voice to [note] without a fade, a phase reset or a new
-     * attack: the pitch slides there from the frequency sounding now,
-     * arpeggio and effect included, and the arpeggio starts over. */
-    private fun glide(v: VoiceState, note: Int) {
-        val sounding = v.inc * sampleRate
+     * attack: the pitch slides there from the old note's own pitch, its
+     * effect included but not its arpeggio, and the arpeggio starts over. */
+    private fun glide(v: VoiceState, kind: Int, note: Int) {
+        val oldBase = v.baseFreq
         v.baseFreq = noteFrequency[note]
         v.note = note
-        v.glideFrom = if (sounding > 0.0) 12.0 * (Math.log(sounding / v.baseFreq) / LN2) else 0.0
+        v.glideFrom = 12.0 * (Math.log(oldBase / v.baseFreq) / LN2) + v.fxOffset
         v.effect = FX_GLIDE
         v.effectTimer = 0
+        v.fxFrame = -1
         v.fxStep = currentStepSamples()
         v.arpSemis = 0
         v.arpIndex = 0
@@ -492,7 +513,7 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         v.pendingPreview = 0
         v.pendingEffect = FX_NONE
         v.previewSamples = 0
-        applyPitch(v)
+        updateEffect(v, kind)
     }
 
     private fun triggerStep(pat: Int, step: Int, tracks: Int) {
@@ -533,6 +554,7 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         val sustain = paramSustain[c]
         val muted = paramMuted[c]
         val arpCount = paramArpCount[c]
+        var arpChanged = false
 
         // Arpeggio: step through the offsets at ~50 Hz for the "fake chord" trill.
         // The first offset is not applied until the first wrap.
@@ -551,13 +573,16 @@ class ChipCore(val sampleRate: Double = 44100.0) {
                 }
                 v.inc = (v.baseFreq * ratio) / sampleRate
                 v.arpSemis = semis
+                arpChanged = true
             }
         }
 
         // Only a note with an effect recomputes its increment here, so a
         // plain note keeps the exact arithmetic above.
+        // The effect's offset moves on 60 Hz ticks and holds between them;
+        // an arpeggio change in between rebuilds the pitch with the held offset.
         if (v.effect != FX_NONE) {
-            applyPitch(v)
+            if (!updateEffect(v, kind) && arpChanged) applyPitch(v, kind)
             if (v.effectTimer < Int.MAX_VALUE) v.effectTimer += 1
         }
 
@@ -624,30 +649,79 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         return out
     }
 
-    /** The effect's pitch offset in semitones at the voice's effect clock
-     * (Swift's `effectSemitones`). Glide and bend in hold at 0 once done. */
-    private fun effectSemitones(v: VoiceState): Double {
-        val t = v.effectTimer.toDouble()
+    /** Recomputes the effect's offset and the pitch when the voice's effect
+     * clock has crossed into a new 60 Hz frame. Returns whether it did. */
+    private fun updateEffect(v: VoiceState, kind: Int): Boolean {
+        val frame = (v.effectTimer.toDouble() / tickSamples).toInt()
+        if (frame == v.fxFrame) return false
+        v.fxFrame = frame
+        v.fxOffset = effectSemitones(v, kind, frame)
+        applyPitch(v, kind)
+        return true
+    }
+
+    /** The effect's pitch offset in semitones at 60 Hz frame [frame] of its
+     * clock (Swift's `effectSemitones`), tracker style:
+     *
+     * - Slides move the NES period register, `P0 = CPU / (k * baseFreq)`, by
+     *   a fixed number of units per frame and hold at 8 / 2047, so they sweep
+     *   fast up high and slowly down low, at any tempo. A note already past
+     *   the limit in the slide's direction holds where it is.
+     * - Glide reaches its note in half the step it started in; bend in in
+     *   three frames; vibrato waits a step, then ramps in over three frames. */
+    private fun effectSemitones(v: VoiceState, kind: Int, frame: Int): Double {
+        val n = frame.toDouble()
         return when (v.effect) {
-            FX_SLIDE_UP -> minOf(SLIDE_SEMITONES_PER_STEP * t / v.fxStep, SLIDE_MAX_SEMITONES)
-            FX_SLIDE_DOWN -> -minOf(SLIDE_SEMITONES_PER_STEP * t / v.fxStep, SLIDE_MAX_SEMITONES)
-            FX_VIBRATO -> VIBRATO_DEPTH_SEMITONES * Math.sin(2.0 * Math.PI * VIBRATO_RATE_HZ * t / sampleRate)
-            FX_GLIDE -> v.glideFrom * maxOf(0.0, 1.0 - t / (v.fxStep * GLIDE_STEPS))
-            FX_BEND_IN -> -BEND_IN_SEMITONES * maxOf(0.0, 1.0 - t / (v.fxStep * BEND_IN_STEPS))
+            FX_SLIDE_UP -> {
+                val p0 = periodOf(v.baseFreq, kind)
+                val p = swiftMax(p0 - SLIDE_UP_UNITS_PER_FRAME * n, swiftMin(p0, PERIOD_MIN))
+                12.0 * (Math.log(p0 / p) / LN2)
+            }
+            FX_SLIDE_DOWN -> {
+                val p0 = periodOf(v.baseFreq, kind)
+                val p = swiftMin(p0 + SLIDE_DOWN_UNITS_PER_FRAME * n, swiftMax(p0, PERIOD_MAX))
+                12.0 * (Math.log(p0 / p) / LN2)
+            }
+            FX_VIBRATO -> {
+                val after = n * tickSamples - v.fxStep * VIBRATO_DELAY_STEPS
+                if (after < 0.0) {
+                    0.0
+                } else {
+                    val ramp = swiftMin(1.0, after / (VIBRATO_RAMP_FRAMES * tickSamples))
+                    VIBRATO_SEMITONES * ramp * Math.sin(2.0 * Math.PI * VIBRATO_HERTZ * after / sampleRate)
+                }
+            }
+            FX_GLIDE -> v.glideFrom * swiftMax(0.0, 1.0 - n * tickSamples / (v.fxStep * GLIDE_STEPS))
+            FX_BEND_IN -> -BEND_IN_SEMITONES * swiftMax(0.0, 1.0 - n / BEND_IN_FRAMES)
             else -> 0.0
         }
     }
 
+    /** The NES period register value for [freq] on a channel of [kind]:
+     * the triangle's sequencer is twice as long as the pulse's. */
+    private fun periodOf(freq: Double, kind: Int): Double =
+        NES_CPU_HZ / ((if (kind == TRIANGLE) 32.0 else 16.0) * freq)
+
     /** Rebuilds [VoiceState.inc] from the base pitch, the arpeggio offset and
-     * the effect's: `baseFreq * 2^((arp + fx) / 12)`, clamped to the note
-     * range. Only voices with an effect come here; a plain note keeps the
-     * original arithmetic, bit for bit. `Math.pow`/`Math.sin` are intrinsics
-     * and allocate nothing on the render thread. */
-    private fun applyPitch(v: VoiceState) {
-        var freq = v.baseFreq * Math.pow(2.0, (v.arpSemis.toDouble() + effectSemitones(v)) / 12.0)
+     * the held effect offset: `baseFreq * 2^((arp + fx) / 12)`, clamped to the
+     * note range, then on noise snapped to the nearest NES noise rate. Only
+     * voices with an effect come here; a plain note keeps the original
+     * arithmetic, bit for bit. `Math.pow`/`Math.log`/`Math.sin` are
+     * intrinsics and allocate nothing on the render thread. */
+    private fun applyPitch(v: VoiceState, kind: Int) {
+        var freq = v.baseFreq * Math.pow(2.0, (v.arpSemis.toDouble() + v.fxOffset) / 12.0)
         if (freq < minFrequency) freq = minFrequency
         if (freq > maxFrequency) freq = maxFrequency
+        if (kind == NOISE) freq = quantizedNoiseClock(freq * 8.0) / 8.0
         v.inc = freq / sampleRate
+    }
+
+    /** The NES noise rate nearest [clock] in log distance. */
+    private fun quantizedNoiseClock(clock: Double): Double {
+        for (i in noiseRateSplits.indices) {
+            if (clock >= noiseRateSplits[i]) return noiseRates[i]
+        }
+        return noiseRates[noiseRates.size - 1]
     }
 
     /** Samples in one step at the current tempo: an effect takes its timing
@@ -766,20 +840,32 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         val FX_GLIDE = NoteEffect.GLIDE.code
         val FX_BEND_IN = NoteEffect.BEND_IN.code
 
-        /** Slides move this far each step after the attack... */
-        const val SLIDE_SEMITONES_PER_STEP = 12.0
-        /** ...and stop this far from the written note. */
-        const val SLIDE_MAX_SEMITONES = 24.0
+        /** The NES CPU clock (NTSC), which the period registers divide. */
+        const val NES_CPU_HZ = 1789773.0
+        /** Slides move the period this many units each 60 Hz frame. */
+        const val SLIDE_UP_UNITS_PER_FRAME = 16.0
+        const val SLIDE_DOWN_UNITS_PER_FRAME = 64.0
+        /** The period register's range: a slide holds at either end. */
+        const val PERIOD_MIN = 8.0
+        const val PERIOD_MAX = 2047.0
+        /** NTSC noise periods, shortest (fastest clock) first. */
+        val NOISE_PERIODS = doubleArrayOf(
+            4.0, 8.0, 16.0, 32.0, 64.0, 96.0, 128.0, 160.0, 202.0, 254.0, 380.0, 508.0, 762.0, 1016.0, 2034.0, 4068.0,
+        )
         /** Vibrato swings this far either side of the note... */
-        const val VIBRATO_DEPTH_SEMITONES = 0.4
-        /** ...this many times a second. */
-        const val VIBRATO_RATE_HZ = 6.0
+        const val VIBRATO_SEMITONES = 0.4
+        /** ...this many times a second... */
+        const val VIBRATO_HERTZ = 6.0
+        /** ...after holding still for this many steps, then ramping to full
+         * depth over this many frames. */
+        const val VIBRATO_DELAY_STEPS = 1.0
+        const val VIBRATO_RAMP_FRAMES = 3.0
         /** A glide reaches its note in this many steps. */
         const val GLIDE_STEPS = 0.5
         /** A bend in starts this far below its note... */
         const val BEND_IN_SEMITONES = 2.0
-        /** ...and reaches it in this many steps. */
-        const val BEND_IN_STEPS = 0.25
+        /** ...and reaches it in this many frames. */
+        const val BEND_IN_FRAMES = 3.0
         val LN2: Double = Math.log(2.0)
         val TRIANGLE = ChannelKind.TRIANGLE.rawValue
 

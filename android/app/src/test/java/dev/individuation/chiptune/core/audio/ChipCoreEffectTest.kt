@@ -11,6 +11,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.log2
 
 /** Twin of the Swift effect engine tests (`ChipCoreVoiceTests` style): each
  * pitch effect measured off the rendered audio by zero-crossing frequency. */
@@ -38,39 +40,112 @@ class ChipCoreEffectTest {
         assertTrue("$message: expected ratio $expected, got $actual", abs(actual / expected - 1.0) < tolerance)
     }
 
-    // MARK: Slides
+    // MARK: Probes
 
-    @Test fun slideUpDoublesThePitchOverOneStep() {
-        val base = NoteName.frequency(60)
-        val samples = render(fxSong(60, NoteEffect.SLIDE_UP), 2.0)
-        assertRatio("at the step end", 2.0, f(samples, step - 300, step + 300) / base, 0.04)
-        // Rising all the way: each later window is higher.
-        val windows = (0 until 6).map { k -> f(samples, 200 + k * 800, 200 + k * 800 + 600) }
-        for (k in 1 until windows.size) assertTrue("slide up fell at window $k: $windows", windows[k] > windows[k - 1])
+    /** A fresh core playing [song] from the top. */
+    private fun started(song: Song): ChipCore {
+        val core = ChipCore(sampleRate)
+        core.load(song.normalized())
+        core.setSongMode(false)
+        core.start()
+        return core
     }
 
-    /** The effect clock starts with the note, attack included, as in Swift. */
-    @Test fun slideUpFollowsTwelveSemitonesPerStep() {
-        val base = NoteName.frequency(60)
-        val samples = render(fxSong(60, NoteEffect.SLIDE_UP), 1.5)
-        for (center in listOf(1000, 2000, 3000, 4000, 5000, 7000)) {
-            val semis = 12.0 * center.toDouble() / step.toDouble()
-            val expected = Math.pow(2.0, semis / 12.0)
-            assertRatio("at sample $center", expected, f(samples, center - 250, center + 250) / base, 0.006)
+    /** The oscillator frequency of track 0 for each of the next [frames]
+     * samples, rendered one at a time: `trace[i]` is what sample i used. */
+    private fun trace(core: ChipCore, frames: Int): DoubleArray {
+        val buf = FloatArray(1)
+        return DoubleArray(frames) {
+            core.render(1, buf)
+            core.voiceFrequency(0)
         }
     }
 
-    @Test fun slideUpStopsAtTwentyFourSemitones() {
-        val base = NoteName.frequency(48)
-        val samples = render(fxSong(48, NoteEffect.SLIDE_UP), 4.0)
-        assertRatio("after the cap", 4.0, f(samples, 3 * step, 4 * step) / base, 0.01)
+    private fun trace(song: Song, frames: Int): DoubleArray = trace(started(song), frames)
+
+    /** The first sample of 60 Hz frame [frame]. */
+    private fun tick(frame: Int): Int = frame * TICK
+
+    /** The spec's slide, in semitones from the written note, at [frame]: the
+     * NES period moves 16 units a frame up or 64 down and holds at 8 / 2047. */
+    private fun slideSemis(note: Int, kind: ChannelKind, up: Boolean, frame: Int): Double {
+        val k = if (kind == ChannelKind.TRIANGLE) 32.0 else 16.0
+        val p0 = CPU / (k * NoteName.frequency(note))
+        val p = if (up) maxOf(p0 - 16.0 * frame, minOf(p0, 8.0)) else minOf(p0 + 64.0 * frame, maxOf(p0, 2047.0))
+        return 12.0 * log2(p0 / p)
     }
 
-    @Test fun slideDownHalvesThePitchOverOneStepAndStopsAtTwentyFour() {
-        val base = NoteName.frequency(72)
-        val samples = render(fxSong(72, NoteEffect.SLIDE_DOWN), 4.0)
-        assertRatio("at the step end", 0.5, f(samples, step - 400, step + 400) / base, 0.04)
-        assertRatio("after the cap", 0.25, f(samples, 3 * step, 4 * step) / base, 0.01)
+    // MARK: Slides
+
+    @Test fun slideDownOnTriangleFollowsThePeriodAndIgnoresTempo() {
+        val p0 = CPU / (32.0 * NoteName.frequency(48))
+        val expected = 12.0 * log2(p0 / (p0 + 384.0))
+        val at = tick(6) + 300
+        val readings = listOf(80.0, 180.0).map { bpm ->
+            val song = TestSongs.singleNote(ChannelKind.TRIANGLE, 48, tempo = bpm, sustain = true)
+                .withPattern(0) { it.withEffect(0, 0, NoteEffect.SLIDE_DOWN) }
+            trace(song, at + 1)[at]
+        }
+        for (f in readings) {
+            assertEquals("six frames in", expected, PitchMeter.semitones(f / NoteName.frequency(48)), 0.1)
+        }
+        assertEquals("80 and 180 BPM slide alike", readings[0], readings[1], 0.0)
+    }
+
+    @Test fun slidePitchHoldsWithinATickAndMovesAtTheBoundary() {
+        val freqs = trace(fxSong(60, NoteEffect.SLIDE_UP), tick(21))
+        for (frame in 0 until 20) {
+            val held = freqs[tick(frame)]
+            for (i in tick(frame) until tick(frame + 1)) {
+                assertEquals("frame $frame moved at sample $i", held, freqs[i], 0.0)
+            }
+            assertTrue("no step at frame ${frame + 1}", freqs[tick(frame + 1)] > held)
+            assertEquals("frame $frame off the period model", slideSemis(60, ChannelKind.PULSE1, true, frame),
+                PitchMeter.semitones(held / NoteName.frequency(60)), 1e-9)
+        }
+    }
+
+    /** The probe is what sounds: a held frame measured off the audio. */
+    @Test fun slideUpSoundsAtThePeriodPitch() {
+        val samples = render(fxSong(60, NoteEffect.SLIDE_UP), 2.0)
+        for (frame in listOf(2, 6, 10)) {
+            val expected = Math.pow(2.0, slideSemis(60, ChannelKind.PULSE1, true, frame) / 12.0)
+            assertRatio("frame $frame", expected,
+                f(samples, tick(frame) + 40, tick(frame + 1) - 40) / NoteName.frequency(60), 0.01)
+        }
+    }
+
+    @Test fun slidesHoldAtThePeriodLimits() {
+        // Triangle 48 (P0 ~428) reaches 2047 after ~26 frames of +64.
+        val tri = { note: Int, fx: NoteEffect ->
+            TestSongs.singleNote(ChannelKind.TRIANGLE, note, tempo = tempo, sustain = true)
+                .withPattern(0) { it.withEffect(0, 0, fx) }
+        }
+        val down = trace(tri(48, NoteEffect.SLIDE_DOWN), tick(80) + 1)
+        for (frame in listOf(30, 50, 80)) {
+            assertEquals("held at period 2047, frame $frame", CPU / (32.0 * 2047.0), down[tick(frame)], 1e-6)
+        }
+        // Triangle 60 (P0 ~214) reaches 8 after ~13 frames of -16.
+        val up = trace(tri(60, NoteEffect.SLIDE_UP), tick(60) + 1)
+        for (frame in listOf(20, 40, 60)) {
+            assertEquals("held at period 8, frame $frame", CPU / (32.0 * 8.0), up[tick(frame)], 1e-6)
+        }
+    }
+
+    /** No 24-semitone cap any more: a long slide down keeps going to 2047. */
+    @Test fun slideDownPassesTheOldTwoOctaveCap() {
+        val freqs = trace(fxSong(72, NoteEffect.SLIDE_DOWN), tick(40) + 1)
+        val semis = PitchMeter.semitones(freqs[tick(40)] / NoteName.frequency(72))
+        assertEquals(slideSemis(72, ChannelKind.PULSE1, false, 40), semis, 1e-9)
+        assertTrue("slide stopped at $semis", semis < -24.0)
+    }
+
+    /** A note whose period is already past the limit in the slide's
+     * direction holds where it is instead of jumping to the limit. */
+    @Test fun aNoteAlreadyPastThePeriodLimitDoesNotJump() {
+        // Pulse MIDI 20: P0 ~4310, past 2047.
+        val freqs = trace(fxSong(20, NoteEffect.SLIDE_DOWN), tick(10))
+        for (i in freqs.indices) assertEquals("moved at $i", NoteName.frequency(20), freqs[i], 1e-9)
     }
 
     @Test fun aSlideIsClampedToTheNoteRange() {
@@ -88,22 +163,54 @@ class ChipCoreEffectTest {
         assertTrue(!sameBits(samples, render(fxSong(60, NoteEffect.NONE, kind = ChannelKind.NOISE), 3.0)))
     }
 
+    // MARK: Noise
+
+    @Test fun noiseWithAnEffectClocksOnlyAtNesNoiseRates() {
+        val rates = NOISE_PERIODS.map { CPU / it }
+        for (fx in listOf(NoteEffect.SLIDE_DOWN, NoteEffect.SLIDE_UP, NoteEffect.VIBRATO, NoteEffect.BEND_IN)) {
+            val freqs = trace(fxSong(60, fx, kind = ChannelKind.NOISE), 3 * step)
+            val seen = HashSet<Double>()
+            for ((i, f) in freqs.withIndex()) {
+                val clock = 8.0 * f
+                assertTrue("$fx sample $i: clock $clock is not an NES noise rate",
+                    rates.any { abs(clock / it - 1.0) < 1e-9 })
+                seen.add(clock)
+            }
+            if (fx == NoteEffect.SLIDE_DOWN) assertTrue("slide down never changed rate: $seen", seen.size >= 3)
+        }
+    }
+
+    @Test fun plainNoiseKeepsItsUnquantizedClock() {
+        val freqs = trace(fxSong(60, NoteEffect.NONE, kind = ChannelKind.NOISE), 2 * step)
+        for (i in freqs.indices) assertEquals("sample $i", NoteName.frequency(60), freqs[i], 0.0)
+    }
+
     // MARK: Vibrato
 
-    @Test fun vibratoWobblesAroundThePitch() {
+    @Test fun vibratoWaitsOneStepThenWobbles() {
+        val base = NoteName.frequency(69)
+        val freqs = trace(fxSong(69, NoteEffect.VIBRATO), sampleRate.toInt())
+        for (i in 0 until step) assertEquals("wobbled during the first step at $i", base, freqs[i], 0.0)
+        val semis = (step until freqs.size).map { PitchMeter.semitones(freqs[it] / base) }
+        assertEquals("highest", 0.4, semis.max(), 0.03)
+        assertEquals("lowest", -0.4, semis.min(), 0.03)
+        // Ramps in: the first post-delay frames stay under full depth.
+        val firstWobble = (step until step + 3 * TICK).maxOf { abs(PitchMeter.semitones(freqs[it] / base)) }
+        assertTrue("no ramp: $firstWobble", firstWobble < 0.4)
+        val signChanges = (1 until semis.size).count { (semis[it] > 0) != (semis[it - 1] > 0) && semis[it] != 0.0 }
+        assertTrue("vibrato rate off: $signChanges sign changes", signChanges in 8..12)
+    }
+
+    @Test fun vibratoWobblesAroundThePitchAfterItsDelay() {
         val base = NoteName.frequency(69)
         val samples = render(fxSong(69, NoteEffect.VIBRATO), 8.0) // one second
-        // Eight cycles (~18 ms) per reading: smooths the pulse's edge jitter,
-        // and a tenth of a 6 Hz wobble barely dents its peaks.
-        val cycles = PitchMeter.cycles(samples, 2000, samples.size, span = 8)
+        assertRatio("on pitch during the delay", 1.0, f(samples, 1500, step - 100) / base, 0.003)
+        val cycles = PitchMeter.cycles(samples, step + 3 * TICK, samples.size, span = 8)
         val semis = cycles.map { PitchMeter.semitones(it.second / base) }
         val mean = cycles.sumOf { it.second } / cycles.size
         assertRatio("mean pitch", 1.0, mean / base, 0.01)
-        assertEquals("highest", 0.4, semis.max(), 0.08)
-        assertEquals("lowest", -0.4, semis.min(), 0.08)
-        // About 6 Hz: some 5 wobbles in the ~0.95 s measured, two sign changes each.
-        val signChanges = (1 until semis.size).count { (semis[it] >= 0) != (semis[it - 1] >= 0) }
-        assertTrue("vibrato rate off: $signChanges sign changes", signChanges in 9..13)
+        assertEquals("highest", 0.4, semis.max(), 0.1)
+        assertEquals("lowest", -0.4, semis.min(), 0.1)
     }
 
     // MARK: Glide
@@ -129,12 +236,29 @@ class ChipCoreEffectTest {
         val samples = render(twoNotes(NoteEffect.GLIDE), 4.0)
         val from = NoteName.frequency(60)
         val to = NoteName.frequency(67)
-        val cycles = PitchMeter.cycles(samples, at, at + step / 2).map { it.second }
+        // Four-cycle spans: the pitch now holds still within each 60 Hz frame,
+        // where a single pulse cycle's whole-sample edges jitter by ~0.5%.
+        val cycles = PitchMeter.cycles(samples, at, at + step / 2, span = 4).map { it.second }
         assertTrue("glide started away from the sounding pitch: ${cycles.first()}", abs(cycles.first() / from - 1) < 0.05)
         for (i in 1 until cycles.size) {
             assertTrue("glide went back down at cycle $i: $cycles", cycles[i] >= cycles[i - 1] * 0.997)
         }
-        assertRatio("landed", 1.0, f(samples, at + step / 2 + 100, at + step) / to, 0.005)
+        // Stepped on 60 Hz ticks: it lands on the first tick at or past half a step.
+        val landed = at + ceil(step / 2.0 / TICK).toInt() * TICK
+        assertRatio("landed", 1.0, f(samples, landed + 50, at + step) / to, 0.005)
+    }
+
+    @Test fun glideFollowsTheSpecFormulaOnTicks() {
+        val at = 2 * step
+        val freqs = trace(twoNotes(NoteEffect.GLIDE), at + step)
+        val from = 12.0 * log2(NoteName.frequency(60) / NoteName.frequency(67))
+        for (frame in 0 until 6) {
+            val expected = from * maxOf(0.0, 1.0 - frame * TICK.toDouble() / (step * 0.5))
+            for (i in at + tick(frame) until at + tick(frame + 1)) {
+                assertEquals("frame $frame sample $i", expected,
+                    PitchMeter.semitones(freqs[i] / NoteName.frequency(67)), 1e-9)
+            }
+        }
     }
 
     /** A held core voice playing [note] from an audition, rendered [frames] in. */
@@ -159,25 +283,37 @@ class ChipCoreEffectTest {
         assertRatio("on 67 at once", 1.0, f(samples, 300, 1300) / NoteName.frequency(67), 0.01)
     }
 
-    @Test fun glideStartsFromTheSoundingArpeggioPitchAndResetsTheArpeggio() {
+    @Test fun glideOnAnArpeggioStartsFromTheOldBasePitchNotTheChordTone() {
         // 48 with an octave arpeggio, past its first wrap: 60's pitch is sounding.
         val core = auditioned(48, 882 + 200, arpeggio = listOf(0, 12))
+        assertEquals("precondition: the +12 tone sounds", NoteName.frequency(60), core.voiceFrequency(0), 1e-9)
         core.audition(0, 60, NoteEffect.GLIDE)
-        val samples = RenderHarness.renderMono(core, 800)
-        assertRatio("glide started away from the sounding 60", 1.0,
-            f(samples, 20, 800) / NoteName.frequency(60), 0.01)
+        val buf = FloatArray(1)
+        core.render(1, buf)
+        assertEquals("glide started from 48", NoteName.frequency(48), core.voiceFrequency(0), 1e-9)
+        val samples = RenderHarness.renderMono(core, 700)
+        assertRatio("sounding 48 in the first frame", 1.0,
+            f(samples, 20, 700) / NoteName.frequency(48), 0.01)
     }
 
+    @Test fun glideStartsFromTheOldNotesEffectPitch() {
+        // 60 sliding up, then a glide to 67: it starts where the slide had got to.
+        val song = TestSongs.singleNote(ChannelKind.PULSE1, 60, tempo = tempo, sustain = true)
+            .withPattern(0) { it.withEffect(0, 0, NoteEffect.SLIDE_UP).withNote(0, 1, 67).withEffect(0, 1, NoteEffect.GLIDE) }
+        val freqs = trace(song, step + 1)
+        assertEquals("glide began at the slid pitch", freqs[step - 1], freqs[step], 1e-6)
+    }
+
+    /** Vibrato's one-step delay is measured in the step length its note
+     * started with, even if the tempo changes under it. */
     @Test fun anEffectsStepLengthIsTakenWhenItsNoteStarts() {
-        val core = ChipCore(sampleRate)
-        core.load(fxSong(60, NoteEffect.SLIDE_UP).normalized())
-        core.start()
-        val head = RenderHarness.renderMono(core, 100)
-        core.tempo = tempo / 2 // longer steps from here on; the slide keeps its own
-        val rest = RenderHarness.renderMono(core, step + 400)
-        val samples = head + rest
-        assertRatio("slid an octave in the step it started with", 2.0,
-            f(samples, step - 300, step + 300) / NoteName.frequency(60), 0.02)
+        val core = started(fxSong(69, NoteEffect.VIBRATO))
+        val head = trace(core, 100)
+        core.tempo = tempo / 2 // longer steps from here on; the note keeps its own
+        val freqs = head + trace(core, 2 * step)
+        val firstMove = freqs.indexOfFirst { it != NoteName.frequency(69) }
+        // The first tick at or past one 120 BPM step, not two.
+        assertEquals(ceil(step.toDouble() / TICK).toInt() * TICK, firstMove)
     }
 
     @Test fun glideOnASilentVoiceIsAPlainNote() {
@@ -188,19 +324,25 @@ class ChipCoreEffectTest {
 
     // MARK: Bend in
 
-    @Test fun bendInStartsTwoSemitonesFlatAndReachesPitchInAQuarterStep() {
+    @Test fun bendInReachesPitchAfterThreeFramesAtAnyTempo() {
         val base = NoteName.frequency(69)
-        val samples = render(fxSong(69, NoteEffect.BEND_IN), 2.0)
-        val quarter = step / 4.0
-        val early = PitchMeter.cycles(samples, 100, (quarter - 50).toInt())
-        assertTrue(early.size > 5)
-        for ((center, freq) in early) {
-            val expected = -2.0 * (1.0 - center / quarter)
-            assertEquals("at sample $center", expected, PitchMeter.semitones(freq / base), 0.15)
+        for (bpm in listOf(80.0, 180.0)) {
+            val song = TestSongs.singleNote(ChannelKind.PULSE1, 69, tempo = bpm, sustain = true, duty = 2)
+                .withPattern(0) { it.withEffect(0, 0, NoteEffect.BEND_IN) }
+            val freqs = trace(song, tick(6))
+            val expected = listOf(-2.0, -4.0 / 3.0, -2.0 / 3.0, 0.0, 0.0, 0.0)
+            for (frame in 0 until 6) {
+                for (i in tick(frame) until tick(frame + 1)) {
+                    assertEquals("$bpm BPM frame $frame", expected[frame],
+                        PitchMeter.semitones(freqs[i] / base), 1e-9)
+                }
+            }
+            assertEquals("$bpm BPM on pitch exactly", base, freqs[tick(3)], 0.0)
         }
-        assertTrue("first cycle is not near 2 semitones flat",
-            PitchMeter.semitones(early.first().second / base) < -1.7)
-        assertRatio("on pitch after a quarter step", 1.0, f(samples, (quarter + 200).toInt(), step) / base, 0.003)
+        val samples = render(fxSong(69, NoteEffect.BEND_IN), 2.0)
+        assertRatio("sounds two semitones flat first", Math.pow(2.0, -2.0 / 12.0),
+            f(samples, 30, TICK - 30) / base, 0.01)
+        assertRatio("on pitch after three frames", 1.0, f(samples, tick(3) + 50, step) / base, 0.003)
     }
 
     // MARK: Plain notes and arpeggios
@@ -226,13 +368,20 @@ class ChipCoreEffectTest {
 
     @Test fun theEffectStacksOnEveryArpeggioNote() {
         val base = NoteName.frequency(48)
-        val samples = render(fxSong(48, NoteEffect.SLIDE_UP, arpeggio = listOf(0, 12)), 4.0)
-        val freqs = PitchMeter.cycles(samples, 3 * step, 4 * step).map { it.second / base }
-        val low = freqs.count { abs(it / 4.0 - 1) < 0.03 }
-        val high = freqs.count { abs(it / 8.0 - 1) < 0.03 }
-        assertTrue("arp root not slid up two octaves ($low of ${freqs.size})", low > freqs.size / 5)
-        assertTrue("arp +12 not slid up two octaves ($high of ${freqs.size})", high > freqs.size / 5)
-        assertTrue("cycles off both arp notes", low + high > freqs.size * 0.8)
+        val freqs = trace(fxSong(48, NoteEffect.SLIDE_DOWN, arpeggio = listOf(0, 12)), 4 * step)
+        var low = 0
+        var high = 0
+        for ((i, f) in freqs.withIndex()) {
+            val slide = slideSemis(48, ChannelKind.PULSE1, false, i / TICK)
+            val semis = PitchMeter.semitones(f / base)
+            when {
+                abs(semis - slide) < 1e-9 -> low += 1
+                abs(semis - (slide + 12.0)) < 1e-9 -> high += 1
+                else -> throw AssertionError("sample $i: $semis is neither $slide nor ${slide + 12}")
+            }
+        }
+        assertTrue("arp root never sounded slid ($low)", low > freqs.size / 5)
+        assertTrue("arp +12 never sounded slid ($high)", high > freqs.size / 5)
     }
 
     // MARK: Main-thread API
@@ -260,7 +409,16 @@ class ChipCoreEffectTest {
         core.load(fxSong(60, NoteEffect.NONE).normalized())
         core.tempo = tempo
         core.audition(0, 60, NoteEffect.SLIDE_UP)
-        val samples = RenderHarness.renderMono(core, 2 * step)
-        assertRatio("audition slid", 2.0, f(samples, step - 300, step + 300) / NoteName.frequency(60), 0.04)
+        val freqs = trace(core, tick(10) + 1)
+        assertEquals("audition slid", slideSemis(60, ChannelKind.PULSE1, true, 10),
+            PitchMeter.semitones(freqs[tick(10)] / NoteName.frequency(60)), 1e-9)
+    }
+
+    private companion object {
+        const val CPU = 1789773.0
+        /** Samples in one 60 Hz frame at 44.1 kHz. */
+        const val TICK = 735
+        val NOISE_PERIODS = listOf(4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068)
+            .map { it.toDouble() }
     }
 }

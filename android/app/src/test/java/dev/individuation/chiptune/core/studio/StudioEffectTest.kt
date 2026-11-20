@@ -246,6 +246,7 @@ class StudioEffectTest {
         val samples = RenderHarness.renderMono(studio.core, step * 2)
         val start = PitchMeter.frequency(samples, 200, 1400)
         val later = PitchMeter.frequency(samples, step + 200, step + 1400)
-        assertTrue("a slide-up preview did not rise ($start -> $later)", later / start > 1.6)
+        // A period slide (16 units a 60 Hz frame) has C4 ~6 semitones up a step in.
+        assertTrue("a slide-up preview did not rise ($start -> $later)", later / start > 1.25)
     }
 }

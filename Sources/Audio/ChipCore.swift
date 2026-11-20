@@ -94,8 +94,14 @@ final class ChipCore {
         var fx: Int8 = 0
         /// Samples since the effect started — the effect's clock.
         var fxSamples: Int32 = 0
-        /// Samples in one step when the note started. Slides, glides and
-        /// bends are measured in steps, so they follow the tempo.
+        /// The 60 Hz tick `fxOffset` was computed for, or -1 before the first.
+        var fxFrame: Int32 = -1
+        /// The effect's pitch offset in semitones, held between ticks the
+        /// way a tracker only moves pitch once a frame.
+        var fxOffset: Double = 0
+        /// Samples in one step when the effect started. A glide's length
+        /// and vibrato's delay are measured in steps, so they follow the
+        /// tempo; slides and bends run on ticks and don't.
         var fxStep: Double = 1
         /// Where a glide starts, in semitones from the new note.
         var glideFrom: Double = 0
@@ -205,17 +211,34 @@ final class ChipCore {
     // Named so they can be retuned by ear in one place. Android's core keeps
     // the same numbers; change both.
 
-    /// Slide up/down: semitones of travel per step, and where it stops.
-    static let slideSemitonesPerStep = 12.0
-    static let slideMaxSemitones = 24.0
+    /// Effects move the pitch once per tick, like a tracker on an NTSC NES.
+    /// Arpeggio keeps its own 50 Hz clock.
+    static let tickHertz = 60.0
+    /// Slides move the NES timer period, so they run in period units per
+    /// tick: an even step in period is a slide that speeds up as it climbs,
+    /// the way a FamiTracker 1xx/2xx does. The period is
+    /// `nesCPUHertz / (k * frequency)`, k = 32 on triangle, 16 elsewhere.
+    static let nesCPUHertz = 1789773.0
+    static let slideUpUnitsPerFrame = 16.0
+    static let slideDownUnitsPerFrame = 64.0
+    /// The 11-bit timer's usable range; a slide holds at the limit.
+    static let periodMin = 8.0
+    static let periodMax = 2047.0
     /// Vibrato depth either side of the note, in semitones, and its rate.
     static let vibratoSemitones = 0.4
     static let vibratoHertz = 6.0
-    /// Glide: steps to travel from the sounding pitch to the new note.
+    /// Vibrato waits this many steps, then fades in over this many ticks.
+    static let vibratoDelaySteps = 1.0
+    static let vibratoRampFrames = 3.0
+    /// Glide: steps to travel from the old note's pitch to the new note.
     static let glideSteps = 0.5
-    /// Bend in: how far below the note it starts, and steps to reach it.
+    /// Bend in: how far below the note it starts, and ticks to reach it.
     static let bendInSemitones = 2.0
-    static let bendInSteps = 0.25
+    static let bendInFrames = 3.0
+    /// NTSC noise timer periods. A noise note with an effect clocks its
+    /// shift register at the nearest of these, as the hardware could.
+    private static let noisePeriods: [Double] = [4, 8, 16, 32, 64, 96, 128, 160, 202, 254,
+                                                 380, 508, 762, 1016, 2034, 4068]
     /// An effect can't push the pitch outside the note range: past MIDI 127
     /// it would alias, and far below MIDI 0 it stalls toward 0 Hz.
     private static let lowestFrequency = NoteName.frequency(0)
@@ -227,12 +250,31 @@ final class ChipCore {
     /// neither edge is a step.
     private let declickSamples: Int32
     private let attackSamples: Int32
+    /// Samples in one effect tick.
+    private let tickSamples: Double
+    /// `nesCPUHertz / noisePeriods`, copied out of the array at init so the
+    /// audio thread reads plain memory.
+    private let noiseClocks: UnsafeMutablePointer<Double>
+    private let noiseClockCount: Int
+    /// Geometric midpoints between neighbouring `noiseClocks`: entry i
+    /// splits clock i (faster) from clock i + 1.
+    private let noiseSplits: UnsafeMutablePointer<Double>
 
     init(sampleRate: Double = 44100) {
         self.sampleRate = sampleRate
         releaseCoeff = pow(0.001, 1.0 / (0.015 * sampleRate))
         declickSamples = max(Int32(sampleRate * 0.0025), 8)
         attackSamples = max(Int32(sampleRate * 0.0012), 8)
+        tickSamples = sampleRate / ChipCore.tickHertz
+        noiseClockCount = ChipCore.noisePeriods.count
+        noiseClocks = .allocate(capacity: noiseClockCount)
+        for (i, period) in ChipCore.noisePeriods.enumerated() {
+            (noiseClocks + i).initialize(to: ChipCore.nesCPUHertz / period)
+        }
+        noiseSplits = .allocate(capacity: noiseClockCount - 1)
+        for i in 0..<(noiseClockCount - 1) {
+            (noiseSplits + i).initialize(to: (noiseClocks[i] * noiseClocks[i + 1]).squareRoot())
+        }
 
         let cells = Chip.maxPatterns * Chip.maxTracks * Chip.maxSteps
         pattern = .allocate(capacity: cells)
@@ -262,6 +304,8 @@ final class ChipCore {
         voices.deallocate()
         transport.deallocate()
         chainCursor.deallocate()
+        noiseClocks.deallocate()
+        noiseSplits.deallocate()
     }
 
     private func cell(_ pat: Int, _ track: Int, _ step: Int) -> Int {
@@ -301,6 +345,13 @@ final class ChipCore {
         let raw = voice.declick > 0 && voice.pendingNote >= 0 ? voice.pendingEffect : voice.fx
         guard voice.active else { return .none }
         return NoteEffect(rawValue: raw) ?? .none
+    }
+
+    /// The frequency a track's oscillator is running at, in Hz: the pitch
+    /// the last rendered sample used. Racy like `ringingSource`; for tests.
+    func soundingFrequency(track: Int) -> Double {
+        guard track >= 0, track < Chip.maxTracks else { return 0 }
+        return voices[track].inc * sampleRate
     }
 
     /// Cuts a voice the sequencer has no way to stop. A sustaining note is
@@ -573,12 +624,14 @@ final class ChipCore {
         v.inc = v.baseFreq / sampleRate
         v.fx = effect == NoteEffect.glide.rawValue ? NoteEffect.none.rawValue : effect
         v.fxSamples = 0
+        v.fxFrame = -1
+        v.fxOffset = 0
         v.glideFrom = 0
         v.arpSemis = 0
         v.pendingEffect = NoteEffect.none.rawValue
         if v.fx != NoteEffect.none.rawValue {
             v.fxStep = Double(max(samplesPerStep(), 1))
-            applyPitch(&v)
+            advanceEffect(&v, kind: kind)
         }
         v.env = 0
         v.attack = attackSamples
@@ -601,14 +654,17 @@ final class ChipCore {
         let ringing = v.active && v.env > 0.002
         if effect == .glide, ringing, v.declick == 0, !v.releasing {
             // Legato: the voice keeps its phase and its envelope, so there's
-            // no fade and no new attack, and the pitch slides from wherever
-            // it is sounding now — arpeggio and effect included — to the new
-            // note. `glideFrom` is that distance in semitones, run down to 0.
-            let sounding = v.inc * sampleRate
+            // no fade and no new attack, and the pitch slides from the old
+            // note's own pitch — its base plus whatever its effect has done,
+            // but not the arpeggio's chord tone — to the new note.
+            // `glideFrom` is that distance in semitones, run down to 0.
+            let oldBase = v.baseFreq
+            let oldOffset = v.fx != NoteEffect.none.rawValue ? v.fxOffset : 0
             v.baseFreq = NoteName.frequency(note)
-            v.glideFrom = sounding > 0 ? 12 * log2(sounding / v.baseFreq) : 0
+            v.glideFrom = oldBase > 0 ? 12 * log2(oldBase / v.baseFreq) + oldOffset : 0
             v.fx = NoteEffect.glide.rawValue
             v.fxSamples = 0
+            v.fxFrame = -1
             v.fxStep = Double(max(samplesPerStep(), 1))
             v.arpSemis = 0
             v.arpIndex = 0
@@ -617,7 +673,7 @@ final class ChipCore {
             v.pendingPreview = 0
             v.pendingEffect = NoteEffect.none.rawValue
             v.previewSamples = 0
-            applyPitch(&v)
+            advanceEffect(&v, kind: params[track].kind)
         } else if ringing {
             // Still ringing — fade it out first and start the new note from the
             // far side of the fade.
@@ -635,32 +691,72 @@ final class ChipCore {
         voices[track] = v
     }
 
-    /// The effect's pitch offset in semitones at the voice's effect clock.
-    private func effectSemitones(_ v: VoiceState) -> Double {
-        let t = Double(v.fxSamples)
+    /// The effect's pitch offset in semitones at tick `v.fxFrame`.
+    private func effectSemitones(_ v: VoiceState, kind: Int32) -> Double {
+        let frame = Double(v.fxFrame)
         switch NoteEffect(rawValue: v.fx) ?? .none {
         case .none:
             return 0
         case .slideUp:
-            return min(ChipCore.slideSemitonesPerStep * t / v.fxStep, ChipCore.slideMaxSemitones)
+            // A note already past a limit (only the very top of the
+            // triangle) holds where it is rather than jumping to it.
+            let p0 = period(v.baseFreq, kind: kind)
+            let p = max(p0 - ChipCore.slideUpUnitsPerFrame * frame, min(ChipCore.periodMin, p0))
+            return 12 * log2(p0 / p)
         case .slideDown:
-            return -min(ChipCore.slideSemitonesPerStep * t / v.fxStep, ChipCore.slideMaxSemitones)
+            let p0 = period(v.baseFreq, kind: kind)
+            let p = min(p0 + ChipCore.slideDownUnitsPerFrame * frame, max(ChipCore.periodMax, p0))
+            return 12 * log2(p0 / p)
         case .vibrato:
-            return ChipCore.vibratoSemitones * sin(2 * .pi * ChipCore.vibratoHertz * t / sampleRate)
+            let after = frame * tickSamples - v.fxStep * ChipCore.vibratoDelaySteps
+            guard after > 0 else { return 0 }
+            let ramp = min(1, after / (ChipCore.vibratoRampFrames * tickSamples))
+            return ChipCore.vibratoSemitones * ramp
+                * sin(2 * .pi * ChipCore.vibratoHertz * after / sampleRate)
         case .glide:
-            return v.glideFrom * max(0, 1 - t / (v.fxStep * ChipCore.glideSteps))
+            return v.glideFrom * max(0, 1 - frame * tickSamples / (v.fxStep * ChipCore.glideSteps))
         case .bendIn:
-            return -ChipCore.bendInSemitones * max(0, 1 - t / (v.fxStep * ChipCore.bendInSteps))
+            return -ChipCore.bendInSemitones * max(0, 1 - frame / ChipCore.bendInFrames)
         }
     }
 
-    /// Rebuilds `inc` from the base pitch, the arpeggio offset and the
-    /// effect's, clamped to the note range. Only voices with an effect come
-    /// here; a plain note keeps the original arithmetic, bit for bit.
-    private func applyPitch(_ v: inout VoiceState) {
-        let semis = v.arpSemis + effectSemitones(v)
-        let freq = (v.baseFreq * pow(2.0, semis / 12.0))
+    /// The NES timer period for `freq` on a channel of `kind`.
+    private func period(_ freq: Double, kind: Int32) -> Double {
+        let k = kind == Int32(ChannelKind.triangle.rawValue) ? 32.0 : 16.0
+        return ChipCore.nesCPUHertz / (k * freq)
+    }
+
+    /// Recomputes the effect's offset when the effect clock crosses into a
+    /// new tick, and holds it otherwise.
+    private func advanceEffect(_ v: inout VoiceState, kind: Int32) {
+        let frame = Int32(Double(v.fxSamples) / tickSamples)
+        guard frame != v.fxFrame else { return }
+        v.fxFrame = frame
+        v.fxOffset = effectSemitones(v, kind: kind)
+        applyPitch(&v, kind: kind)
+    }
+
+    /// Rebuilds `inc` from the base pitch, the arpeggio offset and the held
+    /// effect offset, clamped to the note range, and on noise snapped to an
+    /// NES noise rate. Only voices with an effect come here; a plain note
+    /// keeps the original arithmetic, bit for bit.
+    private func applyPitch(_ v: inout VoiceState, kind: Int32) {
+        let semis = v.arpSemis + v.fxOffset
+        var freq = (v.baseFreq * pow(2.0, semis / 12.0))
             .clamped(to: ChipCore.lowestFrequency...ChipCore.highestFrequency)
+        if kind == Int32(ChannelKind.noise.rawValue) {
+            // The shift register clocks at 8 × freq; pick the nearest
+            // hardware rate in log pitch. The clocks run fastest first, so
+            // the first split the clock reaches names its rate, and a clock
+            // exactly on a split takes the faster one. Not clamped again.
+            let clock = 8 * freq
+            var best = noiseClocks[noiseClockCount - 1]
+            for i in 0..<(noiseClockCount - 1) where clock >= noiseSplits[i] {
+                best = noiseClocks[i]
+                break
+            }
+            freq = best / 8
+        }
         v.inc = freq / sampleRate
     }
 
@@ -705,13 +801,16 @@ final class ChipCore {
                 v.arpSemis = semis
                 if v.fx == NoteEffect.none.rawValue {
                     v.inc = (v.baseFreq * pow(2.0, semis / 12.0)) / sampleRate
+                } else {
+                    // The new arp note takes the effect offset this tick holds.
+                    applyPitch(&v, kind: p.kind)
                 }
             }
         }
 
-        // An effect moves the pitch every sample, on top of the arpeggio.
+        // An effect moves the pitch once per tick, on top of the arpeggio.
         if v.fx != NoteEffect.none.rawValue {
-            applyPitch(&v)
+            advanceEffect(&v, kind: p.kind)
             if v.fxSamples < Int32.max { v.fxSamples += 1 }
         }
 
