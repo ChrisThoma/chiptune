@@ -16,6 +16,7 @@ SO
 • Un canal de triangle ideal per a línies de baix
 • Soroll ajustable per a la bateria, des d'un hi-hat fins a un retruny greu
 • Controls de volum, decaïment i arpegi per canal, perquè un sol canal pugui imitar un acord
+• Mantén premuda una nota per fer-la lliscar amunt o avall, afegir-hi vibrato, fer un glide des de la nota anterior o entrar-hi amb un bend des de sota
 • Els sons inclouen uns quants presets bàsics
 
 ARRANJAMENT

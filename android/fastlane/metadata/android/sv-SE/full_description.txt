@@ -16,6 +16,7 @@ LJUD
 • En triangelkanal som passar bra för baslinjer
 • Stämbart brus för trummor som en hi-hat eller ett lågt muller
 • Volym, decay och arpeggio per kanal, så att en kanal kan låtsas spela ett ackord
+• Håll ned en ton för slide upp eller ned, vibrato, glide från tonen före eller bend underifrån in i tonen
 • Ljuden har några enkla förinställningar
 
 ARRANGERA

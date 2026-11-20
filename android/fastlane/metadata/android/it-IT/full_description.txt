@@ -16,6 +16,7 @@ SUONO
 • Un canale triangolare ideale per le linee di basso
 • Rumore accordabile per percussioni come un charleston o un rombo basso
 • Controlli di volume, decadimento e arpeggio per ogni canale, così un solo canale può simulare un accordo
+• Tieni premuta una nota per farla scivolare in su o in giù, aggiungere vibrato, fare un glide dalla nota precedente o entrarci con un bend dal basso
 • I suoni includono alcuni preset di base
 
 ARRANGIA

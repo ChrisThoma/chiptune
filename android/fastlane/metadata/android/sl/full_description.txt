@@ -16,6 +16,7 @@ ZVOK
 • Trikotni kanal, kot nalašč za basovske linije
 • Nastavljiv šum za bobne, od hi-hata do globokega bobnenja
 • Glasnost, upad in arpeggio za vsak kanal, da lahko en kanal posnema akord
+• Pridržite noto za slide navzgor ali navzdol, vibrato, glide s prejšnje note ali bend od spodaj v noto
 • Zvoki imajo nekaj osnovnih prednastavitev
 
 ARANŽMA

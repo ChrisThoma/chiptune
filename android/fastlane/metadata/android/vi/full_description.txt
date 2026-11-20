@@ -16,6 +16,7 @@ VIẾT NHẠC
 • Kênh triangle rất hợp cho bassline
 • Noise chỉnh được cao độ cho tiếng trống như hi-hat hay tiếng rền trầm
 • Chỉnh âm lượng, decay và arpeggio cho từng kênh, để một kênh có thể giả lập hợp âm
+• Nhấn giữ một nốt để slide lên hoặc xuống, thêm vibrato, glide từ nốt trước hoặc bend từ dưới lên vào nốt
 • Âm thanh có sẵn các preset cơ bản
 
 SẮP XẾP

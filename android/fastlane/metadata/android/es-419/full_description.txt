@@ -16,6 +16,7 @@ SONIDO
 • Un canal triangular ideal para líneas de bajo
 • Ruido afinable para percusiones, como un hi-hat o un retumbo grave
 • Controles de volumen, decay y arpegio por canal, para que un canal simule un acorde
+• Mantén presionada una nota para deslizarla hacia arriba o hacia abajo, agregar vibrato, hacer un glide desde la nota anterior o entrar en ella con un bend desde abajo
 • Los sonidos incluyen presets básicos
 
 ORGANIZAR

@@ -16,6 +16,7 @@ SUARA
 • Kanal triangle yang pas untuk bassline
 • Noise yang nadanya bisa diatur untuk drum seperti hi-hat atau gemuruh rendah
 • Kontrol volume, decay, dan arpeggio per kanal, sehingga satu kanal bisa terdengar seperti akor
+• Tahan not untuk slide naik atau turun, menambah vibrato, glide dari not sebelumnya, atau bend naik ke not itu dari bawah
 • Suara dilengkapi preset dasar
 
 ARANSEMEN

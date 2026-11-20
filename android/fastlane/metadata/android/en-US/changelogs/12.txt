@@ -1,0 +1,1 @@
+Hold a note to give it an effect: slide up, slide down, vibrato, glide or bend in. A slide down on the triangle makes a kick drum, the way NES trackers do it.

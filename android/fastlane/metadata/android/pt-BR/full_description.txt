@@ -16,6 +16,7 @@ SOM
 • Um canal triangular ideal para linhas de baixo
 • Ruído afinável para percussão, como um chimbal ou um ronco grave
 • Controles de volume, decay e arpejo por canal, para um só canal imitar um acorde
+• Segure uma nota para deslizá-la para cima ou para baixo, adicionar vibrato, fazer um glide a partir da nota anterior ou entrar nela com um bend vindo de baixo
 • Os sons vêm com presets básicos
 
 ARRANJAR

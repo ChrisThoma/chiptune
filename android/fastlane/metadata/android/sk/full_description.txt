@@ -16,6 +16,7 @@ ZVUK
 • Trojuholníkový kanál, ideálny na basové linky
 • Laditeľný šum na bicie, napríklad hi-hat alebo hlboké dunenie
 • Hlasitosť, doznievanie a arpeggio pre každý kanál, takže jeden kanál môže napodobniť akord
+• Podržaním noty pridáte slide nahor alebo nadol, vibrato, glide z predchádzajúcej noty alebo bend zdola do noty
 • Zvuky majú niekoľko základných predvolieb
 
 ARANŽMÁN

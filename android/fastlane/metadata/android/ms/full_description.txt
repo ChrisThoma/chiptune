@@ -16,6 +16,7 @@ BUNYI
 • Saluran triangle yang sesuai untuk garis bass
 • Noise yang nadanya boleh dilaraskan untuk dram seperti hi-hat atau dentuman rendah
 • Kawalan kelantangan, decay dan arpeggio bagi setiap saluran, supaya satu saluran boleh berbunyi seperti kord
+• Tahan nota untuk slide naik atau turun, menambah vibrato, glide dari nota sebelumnya atau bend masuk ke nota dari bawah
 • Bunyi disertakan dengan pratetap asas
 
 SUSUNAN

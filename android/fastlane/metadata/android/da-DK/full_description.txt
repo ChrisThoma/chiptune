@@ -16,6 +16,7 @@ LYD
 • En trekantkanal, der passer godt til baslinjer
 • Støj, der kan stemmes, til trommer som en hi-hat eller en dyb rumlen
 • Volumen, decay og arpeggio pr. kanal, så én kanal kan efterligne en akkord
+• Hold en node nede for at slide den op eller ned, tilføje vibrato, glide fra den forrige node eller bende op i den nedefra
 • Lydene har nogle enkle forudindstillinger
 
 ARRANGER

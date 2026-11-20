@@ -16,6 +16,7 @@ LYD
 • En trekantkanal som passer godt til basslinjer
 • Stembar støy for trommer som en hi-hat eller en dyp rumling
 • Volum, decay og arpeggio per kanal, så én kanal kan etterligne en akkord
+• Hold en note nede for slide opp eller ned, vibrato, glide fra forrige note eller bend nedenfra inn i noten
 • Lydene har noen enkle forhåndsinnstillinger
 
 ARRANGER

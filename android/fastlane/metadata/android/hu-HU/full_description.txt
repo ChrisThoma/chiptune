@@ -16,6 +16,7 @@ HANG
 • Háromszögcsatorna, ami ideális basszusvonalakhoz
 • Hangolható zaj dobokhoz, például hi-hathez vagy mély dübörgéshez
 • Hangerő, lecsengés és arpeggio csatornánként, így egy csatorna akkordot is utánozhat
+• Nyomj hosszan egy hangra, hogy felfelé vagy lefelé csúsztasd, vibratót adj hozzá, az előző hangról átcsússz rá (glide), vagy alulról hajlíts bele (bend)
 • A hangokhoz néhány alap előbeállítás tartozik
 
 ELRENDEZÉS

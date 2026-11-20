@@ -16,6 +16,7 @@ SON
 • Un canal triangle idéal pour les lignes de basse
 • Un bruit réglable pour les percussions, comme un hi-hat ou un grondement grave
 • Volume, decay et arpège sur chaque canal, pour qu'un seul canal imite un accord
+• Maintenez une note pour un slide vers le haut ou le bas, du vibrato, un glide depuis la note précédente ou un bend qui monte vers la note par en dessous
 • Les sons ont des préréglages de base
 
 ARRANGER

@@ -16,6 +16,7 @@ ZVUK
 • Triangle kanal, idealan za bas linije
 • Podesivi šum za bubnjeve, od hi-hata do dubokog tutnjanja
 • Glasnoća, decay i arpeggio za svaki kanal, tako da jedan kanal može oponašati akord
+• Zadržite notu za slide gore ili dolje, vibrato, glide s prethodne note ili bend odozdo u notu
 • Zvukovi dolaze s osnovnim presetima
 
 ARANŽMAN

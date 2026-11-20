@@ -16,6 +16,7 @@ SOM
 • Um canal triangular ideal para linhas de baixo
 • Ruído afinável para percussão, como um hi-hat ou um ronco grave
 • Controlos de volume, decay e arpejo por canal, para um só canal imitar um acorde
+• Mantenha uma nota premida para a deslizar para cima ou para baixo, adicionar vibrato, fazer um glide a partir da nota anterior ou entrar nela com um bend vindo de baixo
 • Os sons vêm com presets básicos
 
 ARRANJAR

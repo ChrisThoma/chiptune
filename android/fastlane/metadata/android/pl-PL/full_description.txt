@@ -16,6 +16,7 @@ DŹWIĘK
 • Kanał trójkątny, idealny do linii basu
 • Strojony szum do perkusji, na przykład hi-hatu albo niskiego dudnienia
 • Głośność, wybrzmiewanie (decay) i arpeggio dla każdego kanału, więc jeden kanał może udawać akord
+• Przytrzymaj nutę, by dodać slide w górę lub w dół, vibrato, glide z poprzedniej nuty lub bend od dołu do nuty
 • Dźwięki mają kilka podstawowych presetów
 
 ARANŻACJA

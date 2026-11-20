@@ -16,6 +16,7 @@ GELUID
 • Een triangle-kanaal, ideaal voor baslijnen
 • Stembare noise voor drums zoals een hi-hat of een laag gerommel
 • Volume, decay en arpeggio per kanaal, zodat één kanaal een akkoord kan nabootsen
+• Houd een noot vast voor een slide omhoog of omlaag, vibrato, een glide vanaf de vorige noot of een bend van onderaf de noot in
 • Geluiden hebben een paar basispresets
 
 ARRANGEREN

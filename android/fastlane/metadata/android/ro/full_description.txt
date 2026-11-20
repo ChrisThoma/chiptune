@@ -16,6 +16,7 @@ SUNET
 • Un canal triunghi, ideal pentru linii de bas
 • Zgomot reglabil pentru tobe, de la un hi-hat la un vuiet grav
 • Volum, decay și arpegiu pe fiecare canal, ca un singur canal să poată imita un acord
+• Ții apăsat pe o notă pentru slide în sus sau în jos, vibrato, glide de la nota anterioară sau bend de jos în notă
 • Sunetele vin cu câteva presetări de bază
 
 ARANJAMENT

@@ -16,6 +16,7 @@ SES
 • Bas partileri için ideal bir triangle kanalı
 • Hi-hat ya da alçak bir gümbürtü gibi davul sesleri için ayarlanabilir noise
 • Her kanal için ses düzeyi, decay ve arpej ayarları, böylece tek bir kanal akor taklidi yapabilir
+• Bir notayı basılı tutarak yukarı ya da aşağı slide, vibrato, önceki notadan glide ya da alttan bend ekleyin
 • Seslerle birlikte temel hazır ayarlar gelir
 
 ARANJMAN

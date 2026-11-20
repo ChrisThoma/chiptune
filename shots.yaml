@@ -91,6 +91,22 @@ slides:
       th: สร้างจากรูปคลื่นแบบเดียวกับที่ NES ใช้
       uk: З тих самих форм хвилі, які використовувала NES
     accent: "#4CD9FF"
+  - id: 3-effects
+    headline:
+      en-US: Bend, slide and wobble notes
+      de-DE: Bendings, Slides und Vibrato
+      ja: 音符を|ベンド、スライド、ビブラート
+      ru: Глиссандо, вибрато и бенды
+      th: เบนด์ สไลด์ และ|สั่นโน้ต
+      uk: Глісандо, вібрато й бенди
+    subline:
+      en-US: Hold a note to give it an effect
+      de-DE: Halte eine Note, um ihr einen Effekt zu geben
+      ja: 音符を長押しでエフェクトを追加
+      ru: Удерживайте ноту, чтобы добавить эффект
+      th: กดโน้ตค้างไว้เพื่อใส่เอฟเฟกต์
+      uk: Утримуйте ноту, щоб додати ефект
+    accent: "#FF5973"
   - id: 3-editor
     headline:
       en-US: Shape every sound

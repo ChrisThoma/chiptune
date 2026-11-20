@@ -16,6 +16,7 @@ KLANG
 • Ein Dreieck-Kanal, ideal für Basslines
 • Stimmbares Rauschen für Drums wie eine Hi-Hat oder ein tiefes Grollen
 • Lautstärke, Decay und Arpeggio pro Kanal, damit ein einzelner Kanal einen Akkord vortäuschen kann
+• Halte eine Note gedrückt für Slide nach oben oder unten, Vibrato, Glide von der vorherigen Note oder Bend von unten in die Note
 • Sounds mit einfachen Presets
 
 ARRANGIEREN

@@ -16,6 +16,7 @@ SOUND
 • A triangle channel ideal for basslines
 • Tunable noise for drums like a hi-hat or a low rumble
 • Volume, decay, and arpeggio controls per channel, so one channel can fake a chord
+• Hold a note to slide it up or down, add vibrato, glide from the note before or bend into it
 • Sounds come with basic presets
 
 ARRANGE
