@@ -19,7 +19,9 @@ import dev.individuation.chiptune.R
 import dev.individuation.chiptune.core.audio.ExportOptions
 import dev.individuation.chiptune.core.audio.WavExport
 import dev.individuation.chiptune.core.model.Chip
-import dev.individuation.chiptune.core.model.NoteName
+import dev.individuation.chiptune.core.model.EffectMark
+import dev.individuation.chiptune.core.model.GridCellText
+import dev.individuation.chiptune.core.model.NoteEffect
 import dev.individuation.chiptune.core.model.Pattern
 import dev.individuation.chiptune.core.model.Song
 import dev.individuation.chiptune.core.video.ChannelPulse
@@ -70,6 +72,13 @@ class VideoFrameDrawer(
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
+    /** An effect's mark after a note: round-ended pen strokes. */
+    private val markPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+    private val markPath = Path()
     private val rect = RectF()
 
     /** Everything in a Cartridge frame that never changes (the background,
@@ -179,15 +188,18 @@ class VideoFrameDrawer(
             val filled = note != Chip.EMPTY_NOTE
             val cellFill: Rgba
             val label: String
+            var mark: NoteEffect? = null
             val labelColor: Rgba
             if (filled) {
                 val base = if (note == Chip.NOTE_OFF) DIM else channel(index)
                 cellFill = if (track.muted) base.withAlpha(0.35).flattened(bg) else base
-                label = NoteName.label(note)
+                // The effect's mark after the note, as the grid shows it.
+                label = GridCellText.title(pattern, index, step)
+                mark = GridCellText.mark(pattern, index, step)
                 labelColor = (if (track.muted) TEXT else ON_LIGHT).withAlpha(0.85).flattened(cellFill)
             } else {
                 cellFill = if (step % 4 == 0) PANEL_HIGH else PANEL
-                label = "·"
+                label = GridCellText.title(Chip.EMPTY_NOTE, NoteEffect.NONE)
                 labelColor = DIM.withAlpha(0.6).flattened(cellFill)
             }
             fill.color = cellFill.blended(bg, light).argb
@@ -204,7 +216,41 @@ class VideoFrameDrawer(
                 filled -> layout.cellFontSize
                 else -> layout.cellFontSize * 1.3
             }
-            text(label, size, semibold, labelColor.blended(bg, light), cell, Paint.Align.CENTER)
+            cellLabel(label, mark, size, labelColor.blended(bg, light), cell)
+        }
+    }
+
+    /** A cell's note name and its effect's mark, centred together, shrunk
+     * to fit the cell rather than cut off: the grid's cell, drawn here. */
+    private fun cellLabel(string: String, mark: NoteEffect?, size: Double, color: Rgba, cell: FrameRect) {
+        val effect = mark ?: NoteEffect.NONE
+        textPaint.typeface = semibold
+        textPaint.textSize = size.toFloat()
+        val fitted = EffectMark.fittedSize(size, textPaint.measureText(string).toDouble(), effect, cell.width - 2 * CELL_TEXT_INSET)
+        textPaint.textSize = fitted.toFloat()
+        textPaint.color = color.argb
+        textPaint.textAlign = Paint.Align.LEFT
+        val textWidth = textPaint.measureText(string).toDouble()
+        val total = textWidth + EffectMark.advance(fitted, effect)
+        val metrics = textPaint.fontMetrics
+        val baseline = cell.midY - (metrics.ascent + metrics.descent) / 2
+        val start = cell.midX - total / 2
+        canvas.drawText(string, start.toFloat(), baseline.toFloat(), textPaint)
+        if (mark == null) return
+        // The box sits on the baseline, after the gap.
+        val side = EffectMark.SIZE_EM * fitted
+        val left = start + textWidth + EffectMark.GAP_EM * fitted
+        val top = baseline - side
+        markPaint.color = color.argb
+        markPaint.strokeWidth = (EffectMark.STROKE_WIDTH * side).toFloat()
+        for (line in EffectMark.strokes(mark)) {
+            markPath.reset()
+            line.forEachIndexed { i, p ->
+                val x = (left + p.x * side).toFloat()
+                val y = (top + p.y * side).toFloat()
+                if (i == 0) markPath.moveTo(x, y) else markPath.lineTo(x, y)
+            }
+            canvas.drawPath(markPath, markPaint)
         }
     }
 
@@ -452,6 +498,8 @@ class VideoFrameDrawer(
         val PLASTIC_RECESS_DARK = rgb(0x7C, 0x79, 0x73)
         /** How far the lit and shaded edges reach in from the outline. */
         const val EDGE = 7.0
+        /** Room kept either side of a cell's label, in frame pixels. */
+        const val CELL_TEXT_INSET = 6.0
 
         fun rgb(r: Int, g: Int, b: Int) = Rgba(r / 255.0, g / 255.0, b / 255.0)
 

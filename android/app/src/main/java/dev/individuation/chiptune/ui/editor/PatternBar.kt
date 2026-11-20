@@ -293,7 +293,7 @@ private fun PatternChip(
                 )
             }
         }
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = ChipColors.panelHigh) {
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = ChipColors.panelHigh, shape = RoundedCornerShape(ChipRadii.panel)) {
             ChipMenuRow("Rename", Icons.Filled.Edit) { menu = false; rename() }
             ChipMenuRow("Duplicate", Icons.Filled.LibraryAdd, enabled = PatternChipActions.canDuplicate(canAddPattern)) {
                 menu = false

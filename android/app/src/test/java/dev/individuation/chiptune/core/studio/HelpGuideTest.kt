@@ -126,4 +126,13 @@ class HelpGuideTest {
         assertTrue(text("Tap", HelpGuide.SectionId.TRACKS).startsWith("Tap a track's name"))
         assertTrue(text("Hold a track", HelpGuide.SectionId.TRACKS).contains("hold a name"))
     }
+
+    /** Same words as iOS: hold a note for the menu; MIDI plays effects plain. */
+    @Test fun effectsAreExplainedNextToHoldAStep() {
+        val terms = terms(HelpGuide.SectionId.NOTES)
+        assertEquals(terms.indexOf("Hold a step") + 1, terms.indexOf("Effects"))
+        assertEquals("Opens a menu where you can play its note or pick an effect.", text("Hold a step", HelpGuide.SectionId.NOTES))
+        val effects = text("Effects", HelpGuide.SectionId.NOTES)
+        for (word in listOf("slide", "vibrato", "glide", "bend", "Hold a note", "MIDI")) assertTrue(word, word in effects)
+    }
 }

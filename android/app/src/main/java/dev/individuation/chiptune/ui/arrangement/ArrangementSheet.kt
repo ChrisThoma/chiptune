@@ -98,6 +98,7 @@ import dev.individuation.chiptune.ui.theme.ChipColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.isActive
+import dev.individuation.chiptune.ui.theme.ChipRadii
 
 /**
  * The play order (iOS `ArrangementView`), opened by ARR in the transport.
@@ -501,7 +502,7 @@ private fun PatternMenu(
             )
             Icon(Icons.Filled.UnfoldMore, contentDescription = null, tint = FormColors.tint, modifier = Modifier.size(13.dp))
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = ChipColors.panelHigh) {
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = ChipColors.panelHigh, shape = RoundedCornerShape(ChipRadii.panel)) {
             song.patterns.forEach { candidate ->
                 DropdownMenuItem(
                     text = { Text(candidate.name, color = ChipColors.text, style = MaterialTheme.typography.bodyLarge) },
@@ -538,7 +539,7 @@ private fun AddSectionRow(studio: Studio, song: Song) {
             Icon(Icons.Filled.Add, contentDescription = null, tint = FormColors.tint, modifier = Modifier.size(22.dp))
             Text("Add section", color = FormColors.tint, fontSize = 17.sp)
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = ChipColors.panelHigh) {
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = ChipColors.panelHigh, shape = RoundedCornerShape(ChipRadii.panel)) {
             song.patterns.forEach { pattern ->
                 DropdownMenuItem(
                     text = { Text("Pattern ${pattern.name}", color = ChipColors.text, style = MaterialTheme.typography.bodyLarge) },

@@ -1,6 +1,38 @@
 package dev.individuation.chiptune.ui.editor
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.Surface
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
+import dev.individuation.chiptune.core.model.EffectMark
+import dev.individuation.chiptune.ui.layout.CellMenuPlacement
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -12,6 +44,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -32,6 +66,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -44,14 +79,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -99,11 +139,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import dev.individuation.chiptune.core.studio.ControlLabel
 import dev.individuation.chiptune.core.model.ChannelKind
 import dev.individuation.chiptune.core.model.Chip
-import dev.individuation.chiptune.core.model.NoteName
+import dev.individuation.chiptune.core.model.GridCellText
+import dev.individuation.chiptune.core.model.NoteEffect
 import dev.individuation.chiptune.core.model.Pattern
 import dev.individuation.chiptune.core.model.Track
 import dev.individuation.chiptune.core.model.TrackReorder
@@ -665,7 +707,7 @@ private fun AddTrackButton(editor: Editor, enabled: Boolean) {
         ) {
             SymbolIcon(Icons.Filled.Add, 15f, ChipColors.text)
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = ChipColors.panelHigh) {
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = ChipColors.panelHigh, shape = RoundedCornerShape(ChipRadii.panel)) {
             for (kind in ChannelKind.entries) {
                 DropdownMenuItem(
                     text = { Text(kind.fullName, style = MaterialTheme.typography.bodyLarge, color = ChipColors.text) },
@@ -706,6 +748,15 @@ private fun StepRows(
         }
     }
     val onPreview = remember(studio) { { track: Int, step: Int -> studio.previewCell(track, step); Unit } }
+    val onMenu = remember(haptics) { { haptics.cellMenu() } }
+    // The choice is heard: the note plays with its new effect.
+    val onEffect = remember(studio) {
+        { track: Int, step: Int, effect: NoteEffect ->
+            studio.setEffect(track, step, effect)
+            studio.previewCell(track, step)
+            Unit
+        }
+    }
     val base = LocalViewConfiguration.current
     val cellConfiguration = remember(base) { LongPressConfiguration(base, CELL_LONG_PRESS_MS) }
     CompositionLocalProvider(LocalViewConfiguration provides cellConfiguration) {
@@ -730,6 +781,8 @@ private fun StepRows(
                     liftedId = liftedId,
                     onTap = onTap,
                     onPreview = onPreview,
+                    onMenu = onMenu,
+                    onEffect = onEffect,
                 )
             }
         }
@@ -751,6 +804,8 @@ private fun StepRow(
     liftedId: UUID?,
     onTap: (Int, Int) -> Unit,
     onPreview: (Int, Int) -> Unit,
+    onMenu: () -> Unit,
+    onEffect: (Int, Int, NoteEffect) -> Unit,
 ) {
     val layout = LocalChipLayout.current
     val gutter = layout.gridGutterWidth
@@ -797,6 +852,7 @@ private fun StepRow(
             key(track.id) {
                 GridCell(
                     note = pattern.rows.getOrNull(index)?.getOrNull(step) ?: Chip.EMPTY_NOTE,
+                    effect = pattern.effect(index, step),
                     kind = track.kind,
                     muted = track.muted,
                     step = step,
@@ -805,6 +861,8 @@ private fun StepRow(
                     label = labels.getOrElse(index) { "" },
                     onTap = onTap,
                     onPreview = onPreview,
+                    onMenu = onMenu,
+                    onEffect = onEffect,
                     modifier = Modifier
                         .zIndex(if (liftedId == track.id) 1f else 0f)
                         .width(columnWidth)
@@ -819,12 +877,14 @@ private fun StepRow(
 }
 
 /**
- * One step on one track. A tap writes (or clears, or replaces); a long press
- * previews what's there instead, and cancels the tap.
+ * One step on one track. A tap writes (or clears, or replaces). A long press
+ * on a note opens its effect menu; on a REST or an empty step it previews
+ * what's there. Either way the tap is cancelled.
  */
 @Composable
 private fun GridCell(
     note: Int,
+    effect: NoteEffect,
     kind: ChannelKind,
     muted: Boolean,
     step: Int,
@@ -833,15 +893,15 @@ private fun GridCell(
     label: String,
     onTap: (Int, Int) -> Unit,
     onPreview: (Int, Int) -> Unit,
+    onMenu: () -> Unit,
+    onEffect: (Int, Int, NoteEffect) -> Unit,
     modifier: Modifier,
 ) {
     val filled = note != Chip.EMPTY_NOTE
     val isOff = note == Chip.NOTE_OFF
-    val title = when {
-        isOff -> "REST"
-        filled -> NoteName.label(note)
-        else -> "\u00b7"
-    }
+    val title = GridCellText.title(note, effect)
+    val mark = GridCellText.mark(note, effect)
+    val hasMenu = GridCellText.offersEffects(note)
     // Muting fades the fill to 35% over near-black, so dark note text flips light.
     val titleColor = when {
         !filled -> ChipColors.dim.copy(alpha = 0.6f)
@@ -854,14 +914,23 @@ private fun GridCell(
     }
     val shape = RoundedCornerShape(ChipRadii.cell)
     var pressed by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
     val tap by rememberUpdatedState(onTap)
     val preview by rememberUpdatedState(onPreview)
+    val openMenu by rememberUpdatedState(onMenu)
+    val setEffect by rememberUpdatedState(onEffect)
+    val offersMenu by rememberUpdatedState(hasMenu)
+    // Where the cell sits in the window, for sizing its menu. Not state: only
+    // read when the menu opens.
+    val bounds = remember { arrayOfNulls<Rect>(1) }
     Box(
         modifier
+            .onGloballyPositioned { bounds[0] = it.boundsInWindow() }
             .drawWithContent {
                 drawContent()
                 // White, not the accent: the ring must show on a filled cell.
-                if (atCursor) {
+                // It also marks the note whose effect menu is open.
+                if (atCursor || menu) {
                     drawRoundRect(
                         ChipColors.text,
                         cornerRadius = CornerRadius(ChipRadii.cell.toPx()),
@@ -880,20 +949,223 @@ private fun GridCell(
                         tryAwaitRelease()
                         pressed = false
                     },
-                    onLongPress = { preview(track, step) },
+                    onLongPress = {
+                        if (offersMenu) {
+                            openMenu()
+                            menu = true
+                        } else {
+                            preview(track, step)
+                        }
+                    },
                     onTap = { tap(track, step) },
                 )
             }
             .clearAndSetSemantics {
                 contentDescription = CellAccessibility.label(label, step)
-                stateDescription = CellAccessibility.value(note)
+                stateDescription = CellAccessibility.value(note, effect)
                 role = Role.Button
                 onClick { tap(track, step); true }
-                customActions = listOf(CustomAccessibilityAction(CellAccessibility.PREVIEW_ACTION) { preview(track, step); true })
+                customActions = buildList {
+                    add(CustomAccessibilityAction(CellAccessibility.PREVIEW_ACTION) { preview(track, step); true })
+                    if (hasMenu) {
+                        for (choice in GridCellText.menuEffects) {
+                            add(CustomAccessibilityAction(GridCellText.actionName(choice)) { setEffect(track, step, choice); true })
+                        }
+                    }
+                }
             },
         contentAlignment = Alignment.Center,
     ) {
-        Text(title, style = chipFont(if (filled) 12f else 14f), color = titleColor, maxLines = 1, softWrap = false)
+        // A marked note shrinks to fit the narrowest column rather than
+        // losing its mark to an ellipsis.
+        val size = if (filled) 12f else 14f
+        val text = remember(title, mark) {
+            buildAnnotatedString {
+                append(title)
+                if (mark != null) appendInlineContent(MARK_ID, mark.displayName)
+            }
+        }
+        BasicText(
+            text,
+            style = chipFont(size).copy(color = titleColor),
+            maxLines = 1,
+            softWrap = false,
+            // In em, so the mark scales with the text when it shrinks.
+            inlineContent = if (mark == null) emptyMap() else mapOf(MARK_ID to markContent(mark, titleColor)),
+            autoSize = TextAutoSize.StepBased(minFontSize = (size * 0.6f).sp, maxFontSize = size.sp, stepSize = 0.5.sp),
+            modifier = Modifier.padding(horizontal = 3.dp),
+        )
+        if (hasMenu) {
+            EffectMenu(
+                expanded = menu,
+                current = effect,
+                anchor = { bounds[0] },
+                onDismiss = { menu = false },
+                onPick = { choice -> menu = false; setEffect(track, step, choice) },
+                onPlay = { menu = false; preview(track, step) },
+            )
+        }
+    }
+}
+
+private const val MARK_ID = "effectMark"
+
+/** The effect's mark as a slot in the cell's text: a box [EffectMark.SIZE_EM]
+ * tall sat on the baseline, after a small gap. */
+private fun markContent(effect: NoteEffect, color: Color) = InlineTextContent(
+    Placeholder(
+        width = (EffectMark.GAP_EM + EffectMark.SIZE_EM).em,
+        height = EffectMark.SIZE_EM.em,
+        placeholderVerticalAlign = PlaceholderVerticalAlign.AboveBaseline,
+    ),
+) {
+    Canvas(Modifier.fillMaxSize()) {
+        val side = size.height
+        drawEffectMark(effect, Offset(size.width - side, 0f), side, color)
+    }
+}
+
+/** Draws [effect]'s [EffectMark] strokes in a [side]-square box at [topLeft]. */
+private fun DrawScope.drawEffectMark(effect: NoteEffect, topLeft: Offset, side: Float, color: Color) {
+    val stroke = Stroke(width = (EffectMark.STROKE_WIDTH * side).toFloat(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+    for (line in EffectMark.strokes(effect)) {
+        val path = Path()
+        line.forEachIndexed { i, p ->
+            val x = topLeft.x + (p.x * side).toFloat()
+            val y = topLeft.y + (p.y * side).toFloat()
+            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        drawPath(path, color, style = stroke)
+    }
+}
+
+/** The mark on its own, as a menu icon in the current content colour. */
+@Composable
+private fun EffectMarkIcon(effect: NoteEffect, size: Dp) {
+    val color = LocalContentColor.current
+    Canvas(Modifier.size(size).semantics { hideFromAccessibility() }) {
+        drawEffectMark(effect, Offset.Zero, this.size.minDimension, color)
+    }
+}
+
+/** Material3's `MotionScheme.standard()` fast spatial and fast effects
+ * springs, which DropdownMenu animates with. */
+private val MENU_SCALE_SPEC = spring<Float>(dampingRatio = 0.9f, stiffness = 1400f)
+private val MENU_ALPHA_SPEC = spring<Float>(dampingRatio = 1f, stiffness = 3800f)
+
+/** Space between a cell and its menu. */
+private val MENU_GAP = 4.dp
+
+/** Kept clear between the menu and the screen's edges. */
+private val MENU_MARGIN = 8.dp
+
+/**
+ * A note's long-press menu: no effect, each effect with its mark (the
+ * current one ticked), then Play. Hangs below the cell, or above it when only
+ * that fits, and never over it (see [CellMenuPlacement]); a popup of its own
+ * because `DropdownMenu` covers its anchor when neither side holds it.
+ */
+@Composable
+private fun EffectMenu(
+    expanded: Boolean,
+    current: NoteEffect,
+    anchor: () -> Rect?,
+    onDismiss: () -> Unit,
+    onPick: (NoteEffect) -> Unit,
+    onPlay: () -> Unit,
+) {
+    // Stays composed until the closing animation has run, as DropdownMenu does.
+    val expandedState = remember { MutableTransitionState(false) }
+    expandedState.targetState = expanded
+    if (!expandedState.currentState && !expandedState.targetState) return
+    val transformOrigin = remember { mutableStateOf(TransformOrigin.Center) }
+    val density = LocalDensity.current
+    val view = LocalView.current
+    val visible = remember(expanded) { android.graphics.Rect().also { view.getWindowVisibleDisplayFrame(it) } }
+    val gap = with(density) { MENU_GAP.toPx().toDouble() }
+    val margin = with(density) { MENU_MARGIN.toPx().toDouble() }
+    val top = visible.top + margin
+    // The popup measures against the visible frame's height; its y runs from
+    // the window's top.
+    val bottom = visible.height() - margin
+    // Rows are 48 dp; the height only decides the side and the cap, and the
+    // popup places itself with its real height below.
+    val estimate = with(density) { ((GridCellText.menuEffects.size + 1) * 48 + 17).dp.toPx().toDouble() }
+    val cell = anchor()
+    val maxHeight = if (cell == null) bottom - top else
+        CellMenuPlacement.place(cell.top.toDouble(), cell.bottom.toDouble(), top, bottom, estimate, gap).maxHeight
+    val position = remember(top, bottom, gap, margin) {
+        object : PopupPositionProvider {
+            override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
+                val place = CellMenuPlacement.place(
+                    anchorBounds.top.toDouble(), anchorBounds.bottom.toDouble(),
+                    top, windowSize.height - margin, popupContentSize.height.toDouble(), gap,
+                )
+                val x = CellMenuPlacement.x(anchorBounds.left.toDouble(), popupContentSize.width.toDouble(), windowSize.width.toDouble(), margin)
+                val origin = CellMenuPlacement.transformOrigin(
+                    anchorBounds.left.toDouble(), anchorBounds.top.toDouble(), anchorBounds.right.toDouble(), anchorBounds.bottom.toDouble(),
+                    x, place.y, x + popupContentSize.width, place.y + popupContentSize.height,
+                )
+                transformOrigin.value = TransformOrigin(origin.first.toFloat(), origin.second.toFloat())
+                return IntOffset(x.toInt(), place.y.toInt())
+            }
+        }
+    }
+    Popup(popupPositionProvider = position, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
+        // DropdownMenuContent (Material3 1.4.0): scale from 0.8 and fade, on
+        // the standard motion scheme's fast springs.
+        val transition = rememberTransition(expandedState, "EffectMenu")
+        val scale by transition.animateFloat(transitionSpec = { MENU_SCALE_SPEC }) { if (it) 1f else 0.8f }
+        val alpha by transition.animateFloat(transitionSpec = { MENU_ALPHA_SPEC }) { if (it) 1f else 0f }
+        Surface(
+            modifier = Modifier.graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                this.alpha = alpha
+                this.transformOrigin = transformOrigin.value
+            },
+            shape = RoundedCornerShape(ChipRadii.panel),
+            color = ChipColors.panelHigh,
+            tonalElevation = MenuDefaults.TonalElevation,
+            shadowElevation = MenuDefaults.ShadowElevation,
+        ) {
+            Column(
+                Modifier
+                    .heightIn(max = with(density) { maxHeight.toFloat().toDp() })
+                    // DropdownMenuVerticalPadding, outside the scroll as there.
+                    .padding(vertical = 8.dp)
+                    .width(IntrinsicSize.Max)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                val colors = MenuDefaults.itemColors(textColor = ChipColors.text, leadingIconColor = ChipColors.text, trailingIconColor = ChipColors.text)
+                for (choice in GridCellText.menuEffects) {
+                    val chosen = choice == current
+                    DropdownMenuItem(
+                        text = { Text(choice.displayName, style = MaterialTheme.typography.bodyLarge) },
+                        leadingIcon = {
+                            // Space held for the tick so the names line up.
+                            Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) {
+                                if (chosen) Icon(Icons.Filled.Check, contentDescription = null)
+                            }
+                        },
+                        trailingIcon = if (choice == NoteEffect.NONE) null else {
+                            { EffectMarkIcon(choice, 15.dp) }
+                        },
+                        onClick = { onPick(choice) },
+                        colors = colors,
+                        modifier = Modifier.semantics { selected = chosen },
+                    )
+                }
+                HorizontalDivider(color = ChipColors.grid)
+                DropdownMenuItem(
+                    text = { Text("Play", style = MaterialTheme.typography.bodyLarge) },
+                    leadingIcon = { Box(Modifier.size(20.dp)) },
+                    trailingIcon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
+                    onClick = onPlay,
+                    colors = colors,
+                )
+            }
+        }
     }
 }
 

@@ -40,7 +40,8 @@ enum HelpGuide {
             Entry(term: "Keys", text: "Tap a key to hear that note and pick it. It stays picked until you choose another."),
             Entry(term: "‹ ›", text: "Move the keys down or up an octave."),
             Entry(term: "Steps", text: "Each row of the grid is one step. Tap a step to place the picked note there. Tap it with the same note picked to clear it, or with another note to change it."),
-            Entry(term: "Hold a step", text: "Plays its note without changing anything."),
+            Entry(term: "Hold a step", text: "Opens a menu where you can play its note or pick an effect."),
+            Entry(term: "Effects", text: "A slide, vibrato, glide or bend changes how a note's pitch moves. Hold a note to pick one. A MIDI file plays them as plain notes."),
             Entry(term: "REST", text: "Tap REST, then tap a step, and the sound stops there. Tap REST again to go back to your note."),
         ]),
         Section(id: .playing, title: "Playing", entries: [

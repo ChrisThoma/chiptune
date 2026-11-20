@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// The step grid: one column per track, one row per step.
 ///
@@ -521,7 +522,7 @@ struct GridView: View {
                 .zIndex(2)
 
             ForEach(Array(studio.song.tracks.enumerated()), id: \.element.id) { index, track in
-                GridCell(studio: studio, track: index, step: step)
+                GridCell(studio: studio, track: index, step: step, width: columnWidth)
                     .frame(width: columnWidth)
                     // The notes travel with the header, so it's plain the
                     // whole part is moving and not just its name.
@@ -545,20 +546,29 @@ struct GridView: View {
 
 /// One step on one track.
 ///
-/// Not a `Button`, which it was until a beta tester pointed out that the only
-/// way to hear what was in a cell was to tap it — and tapping it wrote over it.
-/// A long press previews instead, and a `Button` can't carry one: the two fire
-/// together, so telling them apart needs a did-long-press flag checked and
-/// cleared in the button's own action. A shape with both gestures on it
-/// arbitrates properly — the long press cancels the tap rather than racing it —
-/// at the cost of putting back the press feedback and the button trait that
-/// `.buttonStyle(.plain)` was giving away for free.
+/// Not a `Button` on an empty or REST step, which it was until a beta tester
+/// pointed out that the only way to hear what was in a cell was to tap it,
+/// and tapping it wrote over it. A long press previews instead, and a `Button`
+/// can't carry one: the two fire together, so telling them apart needs a
+/// did-long-press flag checked and cleared in the button's own action. A shape
+/// with both gestures on it arbitrates properly (the long press cancels the
+/// tap rather than racing it) at the cost of putting back the press feedback
+/// and the button trait that `.buttonStyle(.plain)` was giving away for free.
+///
+/// A note is a `Button` with a context menu instead: holding it opens the
+/// native menu of pitch effects and Play. The system arbitrates a button and
+/// its context menu itself, so the tap never fires when the menu opens, and
+/// the button's own press state gives the touch-down feedback.
 private struct GridCell: View {
     @Bindable var studio: Studio
     let track: Int
     let step: Int
+    /// The column's width, which a marked note shrinks to fit.
+    let width: CGFloat
 
     @State private var pressed = false
+    /// `chipFont(12)`'s size, for laying out a name and its mark by hand.
+    @ScaledMetric(relativeTo: .body) private var noteSize: CGFloat = 12
 
     var body: some View {
         // `track` is an index captured when this cell's `ForEach` last ran.
@@ -570,6 +580,7 @@ private struct GridCell: View {
             return AnyView(Color.clear)
         }
         let note = studio.note(track: track, step: step)
+        let effect = studio.effect(track: track, step: step)
         let filled = note != Chip.emptyNote
         let isOff = note == Chip.noteOff
         let muted = trackModel.muted
@@ -583,7 +594,7 @@ private struct GridCell: View {
         // Every ternary lands in an explicitly typed `let`: as one chained
         // expression this body blows Xcode 16.4's type-check budget (CI's
         // compiler), which 26.5 only happens to tolerate.
-        let title: String = isOff ? "REST" : (filled ? NoteName.label(note) : "·")
+        let title: String = GridCellText.title(note: note, effect: effect)
         // Muting fades the fill to 35% over near-black, so the dark
         // note text has to flip light or it scores under 2.6:1.
         let titleColor: Color = filled
@@ -597,9 +608,8 @@ private struct GridCell: View {
         // stand out against a cell already filled with that accent.
         let cursorRing: Color = atCursor ? Theme.text : Color.clear
 
-        return AnyView(Text(title)
-            .chipFont(filled ? 12 : 14)
-            .foregroundStyle(titleColor)
+        let face = cellText(title: title, mark: GridCellText.mark(note: note, effect: effect),
+                            size: filled ? 12 : 14, color: titleColor)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: Theme.cellRadius)
@@ -613,25 +623,43 @@ private struct GridCell: View {
                 RoundedRectangle(cornerRadius: Theme.cellRadius)
                     .stroke(cursorRing, lineWidth: GridPinning.cursorRingWidth)
             )
+            .contentShape(Rectangle())
+
+        let label = "\(studio.song.fullLabel(for: track)) step \(step + 1)"
+        let value = GridCellText.accessibilityValue(note: note, effect: effect)
+
+        if GridCellText.offersEffects(note: note) {
+            return AnyView(Button(action: tap) { face }
+                .buttonStyle(GridCellPressStyle())
+                .hoverEffect(.highlight)
+                .contextMenu { effectMenu(current: effect) }
+                .accessibilityLabel(label)
+                .accessibilityValue(value)
+                // The menu is out of VoiceOver's reach as a gesture, so each
+                // effect is an action of its own, next to Preview.
+                .accessibilityActions {
+                    Button("Preview") { studio.previewCell(track: track, step: step) }
+                    ForEach(NoteEffect.allCases, id: \.self) { option in
+                        Button(GridCellText.actionName(option)) { choose(option) }
+                    }
+                })
+        }
+
+        return AnyView(face
             // What `.buttonStyle(.plain)` used to do. Without it a tap has no
             // touch-down feedback at all and the grid reads as a picture.
             .opacity(pressed ? 0.6 : 1)
-            .contentShape(Rectangle())
             .hoverEffect(.highlight)
             // Tap first, long press second. In this order the long press
             // cancels the tap rather than both firing on release.
-            .onTapGesture {
-                Haptics.gridCell()
-                studio.placeCursor(track: track, step: step)
-                studio.toggleCell(track: track, step: step)
-            }
+            .onTapGesture(perform: tap)
             .onLongPressGesture {
                 studio.previewCell(track: track, step: step)
             } onPressingChanged: { pressing in
                 pressed = pressing
             }
-            .accessibilityLabel("\(studio.song.fullLabel(for: track)) step \(step + 1)")
-            .accessibilityValue(filled ? NoteName.label(note) : "Empty")
+            .accessibilityLabel(label)
+            .accessibilityValue(value)
             // A shape with gestures on it exposes as plain text, and there is
             // no reaching a long press with VoiceOver — so the trait and the
             // preview both have to be spelled out.
@@ -639,6 +667,87 @@ private struct GridCell: View {
             .accessibilityAction(named: "Preview") {
                 studio.previewCell(track: track, step: step)
             })
+    }
+
+    /// The name, and after it the effect's mark: a square as tall as the
+    /// capitals, sitting on the baseline. A marked note fits the narrowest
+    /// phone column; at the largest text sizes name and mark shrink together
+    /// rather than losing the mark to an ellipsis. The geometry is
+    /// `EffectMark`'s, shared with the video.
+    @ViewBuilder
+    private func cellText(title: String, mark: NoteEffect?, size: CGFloat, color: Color) -> some View {
+        if let mark {
+            let scale = EffectMark.fitScale(name: title, effect: mark, fontSize: noteSize,
+                                            available: width - EffectMark.cellPadding)
+            let fontSize = noteSize * scale
+            let side = EffectMark.side(fontSize: fontSize)
+            HStack(alignment: .firstTextBaseline, spacing: EffectMark.gap(fontSize: fontSize)) {
+                Text(title)
+                    .font(.system(size: fontSize, weight: .semibold, design: .monospaced))
+                    .lineLimit(1)
+                    .fixedSize()
+                EffectMarkShape(effect: mark)
+                    .stroke(color, style: StrokeStyle(lineWidth: side * EffectMark.lineWidthRatio,
+                                                      lineCap: .round, lineJoin: .round))
+                    .frame(width: side, height: side)
+                    .alignmentGuide(.firstTextBaseline) { $0[.bottom] }
+            }
+            .foregroundStyle(color)
+        } else {
+            Text(title)
+                .chipFont(size)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .foregroundStyle(color)
+                .padding(.horizontal, 2)
+        }
+    }
+
+    private func tap() {
+        Haptics.gridCell()
+        studio.placeCursor(track: track, step: step)
+        studio.toggleCell(track: track, step: step)
+    }
+
+    /// Sets the effect and plays the note with it, so the choice is heard.
+    private func choose(_ effect: NoteEffect) {
+        studio.setEffect(track: track, step: step, effect: effect)
+        studio.previewCell(track: track, step: step)
+    }
+
+    /// No effect, each effect with its mark, then Play. The current choice
+    /// carries the menu's checkmark.
+    @ViewBuilder
+    private func effectMenu(current: NoteEffect) -> some View {
+        Picker("Effect", selection: Binding(get: { current }, set: { choose($0) })) {
+            ForEach(NoteEffect.allCases, id: \.self) { option in
+                if option == .none {
+                    Text(option.name).tag(option)
+                } else {
+                    Label {
+                        Text(option.name)
+                    } icon: {
+                        EffectMark.image(option)
+                    }
+                    .tag(option)
+                }
+            }
+        }
+        .pickerStyle(.inline)
+        Divider()
+        Button {
+            studio.previewCell(track: track, step: step)
+        } label: {
+            Label("Play", systemImage: "play.fill")
+        }
+    }
+}
+
+/// The press feedback the shape-with-gestures cells draw by hand, for the
+/// note cells that are real buttons.
+private struct GridCellPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.opacity(configuration.isPressed ? 0.6 : 1)
     }
 }
 

@@ -139,16 +139,14 @@ final class VideoFrameRenderer {
             let shape = UIBezierPath(roundedRect: rect, cornerRadius: layout.cellRadius)
             let filled = note != Chip.emptyNote
             let fill: RGBA
-            let label: String
+            let label = Self.cellLabel(pattern: pattern, track: index, step: step)
             let labelColor: RGBA
             if filled {
                 let base = note == Chip.noteOff ? Palette.dim : Palette.channel(track.kind)
                 fill = track.muted ? base.withAlpha(0.35).flattened(over: bg) : base
-                label = NoteName.label(note)
                 labelColor = (track.muted ? Palette.text : Palette.onLight).withAlpha(0.85).flattened(over: fill)
             } else {
                 fill = step % 4 == 0 ? Palette.panelHigh : Palette.panel
-                label = "·"
                 labelColor = Palette.dim.withAlpha(0.6).flattened(over: fill)
             }
             fill.blended(over: bg, light).uiColor.setFill()
@@ -159,8 +157,21 @@ final class VideoFrameRenderer {
                 shape.stroke()
             }
             let size = note == Chip.noteOff ? layout.cellFontSize * 0.8 : (filled ? layout.cellFontSize : layout.cellFontSize * 1.3)
-            Self.text(label, size: size, weight: .semibold, color: labelColor.blended(over: bg, light),
-                      in: rect, alignment: .center)
+            let drawn = labelColor.blended(over: bg, light)
+            if let mark = Self.cellMark(pattern: pattern, track: index, step: step) {
+                // Name and mark centered and shrunk as one, as GridCell does.
+                let placed = EffectMark.layout(name: label, effect: mark, fontSize: size,
+                                               in: rect.insetBy(dx: EffectMark.cellPadding / 2, dy: 0))
+                Self.text(label, size: placed.fontSize, weight: .semibold, color: drawn,
+                          // A little slack so the measured width never truncates.
+                          in: placed.nameRect.inset(by: UIEdgeInsets(top: 0, left: 0, bottom: 0, right: -2)),
+                          alignment: .left)
+                if let context = UIGraphicsGetCurrentContext() {
+                    EffectMark.stroke(mark, in: placed.markRect, color: drawn.uiColor.cgColor, context: context)
+                }
+            } else {
+                Self.text(label, size: size, weight: .semibold, color: drawn, in: rect, alignment: .center)
+            }
         }
     }
 
@@ -408,6 +419,19 @@ final class VideoFrameRenderer {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
             .joined(separator: " ")
+    }
+
+    /// A cell's text in the Grid video, the same as the app's grid cell:
+    /// the note's name, REST, or a dot for an empty step.
+    static func cellLabel(pattern: Pattern, track: Int, step: Int) -> String {
+        let note = pattern.rows[safe: track]?[safe: step] ?? Chip.emptyNote
+        return GridCellText.title(note: note, effect: pattern.effect(track: track, step: step))
+    }
+
+    /// The effect mark drawn after a cell's name, as in the app's grid.
+    static func cellMark(pattern: Pattern, track: Int, step: Int) -> NoteEffect? {
+        let note = pattern.rows[safe: track]?[safe: step] ?? Chip.emptyNote
+        return GridCellText.mark(note: note, effect: pattern.effect(track: track, step: step))
     }
 
     /// SF Mono, vertically centred in `rect` for a single line, truncated

@@ -1,7 +1,9 @@
 package dev.individuation.chiptune.ui.layout
 
 import dev.individuation.chiptune.core.audio.ExportOptions
+import dev.individuation.chiptune.core.model.GridCellText
 import dev.individuation.chiptune.core.model.NameCap
+import dev.individuation.chiptune.core.model.NoteEffect
 import dev.individuation.chiptune.core.model.NoteName
 import dev.individuation.chiptune.core.model.PatternNameCheck
 import dev.individuation.chiptune.core.text.Graphemes
@@ -166,7 +168,15 @@ object CellAccessibility {
 
     fun value(note: Int): String = if (note == -1) "Empty" else NoteName.label(note)
 
+    /** The value with the note's effect: "E5, Vibrato". */
+    fun value(note: Int, effect: NoteEffect): String = GridCellText.accessibilityValue(note, effect)
+
     const val PREVIEW_ACTION = "Preview"
+
+    /** The cell's custom actions in order: Preview, then on a pitch "No effect"
+     * and one "Effect: …" per effect. */
+    fun actions(note: Int): List<String> =
+        listOf(PREVIEW_ACTION) + if (GridCellText.offersEffects(note)) GridCellText.menuEffects.map(GridCellText::actionName) else emptyList()
 }
 
 /** The rename sheet's live state: the cap as you type, the footer, and
@@ -236,4 +246,43 @@ class BuildStamp(commit: String?, val builtAt: Instant?, version: String?) {
             null
         }
     }
+}
+
+/** Where a note's effect menu hangs (all values in the same units, y
+ * downward): below the cell if it fits, above if only that fits, otherwise on
+ * the roomier side, scrolling. Never over the cell, so you can see which note
+ * you're changing. */
+object CellMenuPlacement {
+    data class Placement(val below: Boolean, val y: Double, val maxHeight: Double)
+
+    fun place(anchorTop: Double, anchorBottom: Double, windowTop: Double, windowBottom: Double, contentHeight: Double, gap: Double): Placement {
+        val spaceBelow = maxOf(windowBottom - (anchorBottom + gap), 0.0)
+        val spaceAbove = maxOf(anchorTop - gap - windowTop, 0.0)
+        val below = contentHeight <= spaceBelow || (contentHeight > spaceAbove && spaceBelow >= spaceAbove)
+        return if (below) {
+            Placement(true, anchorBottom + gap, spaceBelow)
+        } else {
+            Placement(false, anchorTop - gap - minOf(contentHeight, spaceAbove), spaceAbove)
+        }
+    }
+
+    /** Where the menu grows from, as fractions of its width and height
+     * (Material3's `calculateTransformOrigin`, so it opens like every other
+     * menu): the edge nearest the cell, centred on the overlap. */
+    fun transformOrigin(
+        anchorLeft: Double, anchorTop: Double, anchorRight: Double, anchorBottom: Double,
+        menuLeft: Double, menuTop: Double, menuRight: Double, menuBottom: Double,
+    ): Pair<Double, Double> {
+        fun pivot(aStart: Double, aEnd: Double, mStart: Double, mEnd: Double): Double = when {
+            mStart >= aEnd -> 0.0
+            mEnd <= aStart -> 1.0
+            mEnd - mStart == 0.0 -> 0.0
+            else -> ((maxOf(aStart, mStart) + minOf(aEnd, mEnd)) / 2 - mStart) / (mEnd - mStart)
+        }
+        return pivot(anchorLeft, anchorRight, menuLeft, menuRight) to pivot(anchorTop, anchorBottom, menuTop, menuBottom)
+    }
+
+    /** Lined up with the cell's leading edge, nudged in to stay on screen. */
+    fun x(anchorLeft: Double, contentWidth: Double, windowWidth: Double, margin: Double): Double =
+        maxOf(margin, minOf(anchorLeft, windowWidth - margin - contentWidth))
 }

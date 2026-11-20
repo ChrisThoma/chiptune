@@ -66,6 +66,8 @@ import dev.individuation.chiptune.platform.KeyboardConnection
 import dev.individuation.chiptune.ui.layout.BuildStamp
 import dev.individuation.chiptune.ui.theme.ChipColors
 import dev.individuation.chiptune.ui.theme.chipFont
+import androidx.compose.foundation.shape.RoundedCornerShape
+import dev.individuation.chiptune.ui.theme.ChipRadii
 
 /** Fixed for the life of the process. */
 private val buildStamp = BuildStamp(
@@ -210,6 +212,7 @@ private fun SongMenu(editor: Editor) {
             expanded = open,
             onDismissRequest = { open = false },
             containerColor = ChipColors.panelHigh,
+            shape = RoundedCornerShape(ChipRadii.panel),
             modifier = Modifier.widthIn(min = 250.dp),
         ) {
             fun pick(action: () -> Unit) {

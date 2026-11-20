@@ -77,6 +77,8 @@ import dev.individuation.chiptune.ui.layout.text
 import dev.individuation.chiptune.ui.theme.ChipColors
 import dev.individuation.chiptune.ui.theme.chipFont
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import dev.individuation.chiptune.ui.theme.ChipRadii
 
 /**
  * WAV, MIDI or video export (iOS `ExportSheet`), opened by "Export\u2026" in the song menu.
@@ -371,7 +373,7 @@ private fun <T> MenuChoice(
             Text(label(selected), color = ChipColors.dim, fontSize = 17.sp)
             Icon(Icons.Filled.UnfoldMore, contentDescription = null, tint = ChipColors.dim, modifier = Modifier.size(16.dp))
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = ChipColors.panelHigh) {
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = ChipColors.panelHigh, shape = RoundedCornerShape(ChipRadii.panel)) {
             options.forEach { option ->
                 DropdownMenuItem(
                     text = { Text(label(option), color = ChipColors.text, style = MaterialTheme.typography.bodyLarge) },

@@ -246,6 +246,20 @@ class AccessibilityRulesTest {
         assertEquals("Empty", CellAccessibility.value(-1))
     }
 
+    @Test fun cellsSpeakTheirEffect() {
+        assertEquals("E5, Vibrato", CellAccessibility.value(76, dev.individuation.chiptune.core.model.NoteEffect.VIBRATO))
+        assertEquals("REST", CellAccessibility.value(-2, dev.individuation.chiptune.core.model.NoteEffect.NONE))
+    }
+
+    @Test fun pitchCellsOfferEveryEffectAsAnAction() {
+        assertEquals(
+            listOf("Preview", "No effect", "Effect: Slide up", "Effect: Slide down", "Effect: Vibrato", "Effect: Glide", "Effect: Bend in"),
+            CellAccessibility.actions(76),
+        )
+        assertEquals(listOf("Preview"), CellAccessibility.actions(-2))
+        assertEquals(listOf("Preview"), CellAccessibility.actions(-1))
+    }
+
     /** Chip menu entries and the matching TalkBack actions share one rule. */
     @Test fun patternChipActionsFollowTheMenuRules() {
         assertEquals(listOf("Rename", "Duplicate", "Clear", "Delete"), PatternChipActions.available(canAddPattern = true, patternCount = 2))

@@ -23,6 +23,10 @@ class Haptics(private val view: View) {
     /** A long press picked the tracks up for reordering. */
     fun reorderBegan() = perform(HapticFeedbackConstants.LONG_PRESS)
 
+    /** A long press on a note opens its effect menu: the same thump as the
+     * pattern chip's menu. */
+    fun cellMenu() = perform(HapticFeedbackConstants.LONG_PRESS)
+
     /** A dragged track crossed into another column; iOS's selection tick. */
     fun reorderStep() = perform(if (Build.VERSION.SDK_INT >= 34) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.CLOCK_TICK)
 

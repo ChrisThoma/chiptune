@@ -80,6 +80,7 @@ import dev.individuation.chiptune.ui.editor.songDropTarget
 import dev.individuation.chiptune.ui.layout.SongListCopy
 import dev.individuation.chiptune.ui.theme.ChipColors
 import dev.individuation.chiptune.ui.theme.chipFont
+import dev.individuation.chiptune.ui.theme.ChipRadii
 
 /**
  * The song library (iOS `SongListView`), opened by the Songs button. Opening
@@ -232,7 +233,7 @@ private fun AddMenu(onNew: () -> Unit, onImport: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         BarIconPill(Icons.Filled.Add, "Add", onClick = { open = true })
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = ChipColors.panelHigh) {
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = ChipColors.panelHigh, shape = RoundedCornerShape(ChipRadii.panel)) {
             MenuItem("New song", Icons.AutoMirrored.Filled.NoteAdd) { open = false; onNew() }
             MenuItem("Import song\u2026", Icons.Filled.FileDownload) { open = false; onImport() }
         }
@@ -322,7 +323,7 @@ private fun SongRow(
                 }
                 // The same actions again for a long press, and so rename is
                 // discoverable without swiping.
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = ChipColors.panelHigh) {
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = ChipColors.panelHigh, shape = RoundedCornerShape(ChipRadii.panel)) {
                     MenuItem("Rename", Icons.Filled.Edit) { menu = false; onRename() }
                     MenuItem("Duplicate", Icons.Filled.LibraryAdd) { menu = false; onDuplicate() }
                     MenuItem("Share song file", Icons.Filled.IosShare) { menu = false; onShare() }
