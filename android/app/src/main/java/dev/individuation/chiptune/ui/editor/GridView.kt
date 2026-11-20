@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalView
@@ -920,12 +921,12 @@ private fun GridCell(
     val openMenu by rememberUpdatedState(onMenu)
     val setEffect by rememberUpdatedState(onEffect)
     val offersMenu by rememberUpdatedState(hasMenu)
-    // Where the cell sits in the window, for sizing its menu. Not state: only
-    // read when the menu opens.
-    val bounds = remember { arrayOfNulls<Rect>(1) }
+    // The cell's layout, for sizing its menu. Not state, and the window bounds
+    // are only worked out when the menu opens, not on every scroll frame.
+    val placed = remember { arrayOfNulls<LayoutCoordinates>(1) }
     Box(
         modifier
-            .onGloballyPositioned { bounds[0] = it.boundsInWindow() }
+            .onGloballyPositioned { placed[0] = it }
             .drawWithContent {
                 drawContent()
                 // White, not the accent: the ring must show on a filled cell.
@@ -999,7 +1000,7 @@ private fun GridCell(
             EffectMenu(
                 expanded = menu,
                 current = effect,
-                anchor = { bounds[0] },
+                anchor = { placed[0]?.takeIf { it.isAttached }?.boundsInWindow() },
                 onDismiss = { menu = false },
                 onPick = { choice -> menu = false; setEffect(track, step, choice) },
                 onPlay = { menu = false; preview(track, step) },
