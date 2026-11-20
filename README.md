@@ -21,6 +21,8 @@ You work at two levels. A **pattern** is a grid of steps and notes: pick a note
 on the keyboard, tap a cell to place it, tap a filled cell to clear it. A
 pattern is 4 to 64 steps long, and patterns can differ in length.
 
+Hold a note to give it an effect: slide up, slide down, vibrato, glide or bend in. The cell shows a small mark for it. Effects move the pitch in steps sixty times a second, the way NES trackers do, so a slide down on the triangle makes a kick drum.
+
 An **arrangement** chains patterns into a full song. Each section names a
 pattern and a repeat count, and the sections play in order, so a piece can have
 an intro, a verse and a chorus rather than a single loop. `PATT` auditions the
@@ -41,7 +43,7 @@ the Play listing on Android.
 Any song exports to a WAV of the entire arrangement, played 1 to 16 times over,
 or to a MIDI file for a DAW: the arrangement once, one track per chip track. A
 MIDI file holds the notes, not the chip sounds; the app that opens it plays
-them with its own instruments. Noise becomes General MIDI drums: a noise track
+them with its own instruments. Notes with effects come out as plain notes. Noise becomes General MIDI drums: a noise track
 that plays one pitch gets its preset's drum, and one that plays several is
 spread over kick, snare and closed hat from its lowest notes to its highest.
 
