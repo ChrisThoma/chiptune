@@ -552,7 +552,32 @@ final class Studio {
         pinToSelectedPattern()
         song.patterns[selectedPattern].rows[track][step] = note
         engine.core.setNote(pattern: selectedPattern, track: track, step: step, note: note)
+        // An effect belongs to a note. Typing a new pitch over one keeps it;
+        // a rest or an OFF has nothing for it to act on.
+        if note < 0, song.patterns[selectedPattern].effect(track: track, step: step) != .none {
+            song.patterns[selectedPattern].setEffect(.none, track: track, step: step)
+            engine.core.setEffect(pattern: selectedPattern, track: track, step: step, effect: .none)
+        }
         reconcileRingingVoices()
+    }
+
+    func effect(track: Int, step: Int) -> NoteEffect {
+        pattern.effect(track: track, step: step)
+    }
+
+    /// Puts a pitch effect on a note in the pattern being edited, as one undo
+    /// step of its own. Refused on a rest or an OFF, and a no-op when the note
+    /// already has that effect.
+    func setEffect(track: Int, step: Int, effect: NoteEffect) {
+        guard selectedPattern < song.patterns.count,
+              track >= 0, track < song.tracks.count,
+              step >= 0, step < Chip.maxSteps,
+              note(track: track, step: step) >= 0,
+              self.effect(track: track, step: step) != effect else { return }
+        checkpoint()
+        pinToSelectedPattern()
+        song.patterns[selectedPattern].setEffect(effect, track: track, step: step)
+        engine.core.setEffect(pattern: selectedPattern, track: track, step: step, effect: effect)
     }
 
     /// Cuts any voice whose originating cell no longer holds a note.
@@ -740,18 +765,20 @@ final class Studio {
         // An OFF has no sound of its own, and releasing the track's voice to
         // demonstrate it would be an audible change from a read-only gesture.
         guard note != Chip.emptyNote, note != Chip.noteOff else { return false }
-        audition(note, on: track)
+        audition(note, on: track, effect: effect(track: track, step: step))
         return true
     }
 
     /// Previews a note on a track — the selected one unless told otherwise.
-    func audition(_ note: Int8, on track: Int? = nil) {
+    /// With an effect, the preview plays it (a glide, having nothing ringing
+    /// to slide from, plays plain unless the track is still sounding).
+    func audition(_ note: Int8, on track: Int? = nil, effect: NoteEffect = .none) {
         guard engine.startIfNeeded() else {
             audioError = audioFailureMessage()
             return
         }
         audioError = nil
-        engine.core.audition(track: track ?? selectedTrack, note: note)
+        engine.core.audition(track: track ?? selectedTrack, note: note, effect: effect)
     }
 
     private func audioFailureMessage() -> String {
@@ -771,7 +798,8 @@ final class Studio {
         guard track < song.tracks.count, pattern < song.patterns.count else { return }
         // Already empty: not an edit, so no Undo step and Redo survives. The
         // rest still runs so the grid pins as before.
-        if song.patterns[pattern].rows[track].contains(where: { $0 != Chip.emptyNote }) {
+        if song.patterns[pattern].rows[track].contains(where: { $0 != Chip.emptyNote })
+            || song.patterns[pattern].effects[safe: track]?.contains(where: { $0 != NoteEffect.none.rawValue }) == true {
             checkpoint()
         }
         erase(track, in: pattern)
@@ -787,8 +815,10 @@ final class Studio {
         if pattern == selectedPattern { pinToSelectedPattern() }
         for step in 0..<Chip.maxSteps {
             song.patterns[pattern].rows[track][step] = Chip.emptyNote
+            song.patterns[pattern].setEffect(.none, track: track, step: step)
             engine.core.setNote(pattern: pattern, track: track, step: step,
                                 note: Chip.emptyNote)
+            engine.core.setEffect(pattern: pattern, track: track, step: step, effect: .none)
         }
         reconcileRingingVoices()
     }
@@ -807,7 +837,8 @@ final class Studio {
         // One checkpoint for the lot — a per-track checkpoint would make
         // undoing a cleared pattern take one press per track. Skipped when
         // the pattern is already empty: not an edit, so Redo survives.
-        if song.patterns[index].rows.contains(where: { $0.contains { $0 != Chip.emptyNote } }) {
+        if song.patterns[index].rows.contains(where: { $0.contains { $0 != Chip.emptyNote } })
+            || song.patterns[index].hasEffects {
             checkpoint()
         }
         // Only when it's the pattern on screen. Clearing B from its chip menu
@@ -816,7 +847,9 @@ final class Studio {
         for track in 0..<song.tracks.count {
             for step in 0..<Chip.maxSteps {
                 song.patterns[index].rows[track][step] = Chip.emptyNote
+                song.patterns[index].setEffect(.none, track: track, step: step)
                 engine.core.setNote(pattern: index, track: track, step: step, note: Chip.emptyNote)
+                engine.core.setEffect(pattern: index, track: track, step: step, effect: .none)
             }
         }
         reconcileRingingVoices()
@@ -1192,7 +1225,11 @@ final class Studio {
         guard song.canAddTrack else { return }
         checkpoint()
         song.tracks.append(Track(kind: kind))
-        for i in song.patterns.indices { song.patterns[i].rows.append(Pattern.emptyRow) }
+        for i in song.patterns.indices {
+            song.patterns[i].normalize(trackCount: song.tracks.count - 1)
+            song.patterns[i].rows.append(Pattern.emptyRow)
+            song.patterns[i].effects.append(Pattern.plainRow)
+        }
         pushAll()
         selectedTrack = song.tracks.count - 1
     }
@@ -1206,8 +1243,13 @@ final class Studio {
         copy.id = UUID()
         song.tracks.insert(copy, at: index + 1)
         for i in song.patterns.indices {
+            // Squared up first so the effects rows sit at the same indices as
+            // the note rows they belong to.
+            song.patterns[i].normalize(trackCount: song.tracks.count - 1)
             let row = song.patterns[i].rows[safe: index] ?? Pattern.emptyRow
+            let effects = song.patterns[i].effects[safe: index] ?? Pattern.plainRow
             song.patterns[i].rows.insert(row, at: min(index + 1, song.patterns[i].rows.count))
+            song.patterns[i].effects.insert(effects, at: min(index + 1, song.patterns[i].effects.count))
         }
         pushAll()
         selectedTrack = index + 1
@@ -1218,7 +1260,9 @@ final class Studio {
         checkpoint()
         song.tracks.remove(at: index)
         for i in song.patterns.indices where index < song.patterns[i].rows.count {
+            song.patterns[i].normalize(trackCount: song.tracks.count + 1)
             song.patterns[i].rows.remove(at: index)
+            song.patterns[i].effects.remove(at: index)
         }
         pushAll()
         // After `pushAll` — `load` acks any outstanding release, so one issued
@@ -1242,8 +1286,11 @@ final class Studio {
         let selectedID = song.tracks[safe: selectedTrack]?.id
         song.tracks.insert(song.tracks.remove(at: source), at: destination)
         for i in song.patterns.indices where source < song.patterns[i].rows.count {
+            song.patterns[i].normalize(trackCount: song.tracks.count)
             let row = song.patterns[i].rows.remove(at: source)
             song.patterns[i].rows.insert(row, at: min(destination, song.patterns[i].rows.count))
+            let effects = song.patterns[i].effects.remove(at: source)
+            song.patterns[i].effects.insert(effects, at: min(destination, song.patterns[i].effects.count))
         }
         pushAll()
         // After `pushAll`, for the reason `removeTrack` gives. Voices are

@@ -267,19 +267,31 @@ struct Pattern: Codable, Equatable, Identifiable {
     var length: Int = 16
     /// One row per track, each `Chip.maxSteps` long; `Chip.emptyNote` for a rest.
     var rows: [[Int8]] = []
+    /// `NoteEffect` raw values, the same shape as `rows`: one per cell, and
+    /// `NoteEffect.none` everywhere a pattern has no effects. Kept parallel
+    /// rather than folded into the note byte so a cell's pitch and its effect
+    /// change independently, and so a file without effects is unchanged.
+    /// Only meaningful on a note cell; `normalize` clears it everywhere else.
+    var effects: [[Int8]] = []
 
     init(name: String, length: Int = 16, trackCount: Int) {
         self.name = name
         self.length = length
         self.rows = Array(repeating: Pattern.emptyRow, count: max(trackCount, 1))
+        self.effects = Array(repeating: Pattern.plainRow, count: max(trackCount, 1))
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, length, rows }
+    private enum CodingKeys: String, CodingKey { case id, name, length, rows, effects }
 
     /// Written by hand, like `Track`'s, so `rows` decodes each cell as `Int`
     /// and folds an out-of-range value (past `Int8`'s own range, like a
     /// corrupt `200`) into `Chip.emptyNote` instead of failing the whole
     /// pattern's — and song's — decode.
+    ///
+    /// `effects` is optional: files from before effects existed, and every
+    /// file whose song has none, leave it out. Values this build doesn't know
+    /// (a newer build's effect, or corruption) decode as no effect, so the
+    /// note still plays.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
@@ -287,6 +299,13 @@ struct Pattern: Codable, Equatable, Identifiable {
         length = try c.decodeIfPresent(Int.self, forKey: .length) ?? 16
         let rawRows = try c.decodeIfPresent([[Int]].self, forKey: .rows) ?? []
         rows = rawRows.map { $0.map(Chip.clampNote) }
+        let rawEffects = try c.decodeIfPresent([[Int]].self, forKey: .effects) ?? []
+        effects = rows.indices.map { track in
+            let saved = rawEffects[safe: track] ?? []
+            return (0..<max(rows[track].count, Chip.maxSteps)).map { step in
+                NoteEffect.decode(saved[safe: step] ?? 0).rawValue
+            }
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -295,6 +314,52 @@ struct Pattern: Codable, Equatable, Identifiable {
         try c.encode(name, forKey: .name)
         try c.encode(length, forKey: .length)
         try c.encode(rows, forKey: .rows)
+        // Only when there's something to say: a song without effects saves
+        // byte-identical to before they existed.
+        if hasEffects { try c.encode(effects, forKey: .effects) }
+    }
+
+    /// Compares effects by meaning rather than by array shape, so a pattern
+    /// whose effects rows were never padded equals the same pattern after
+    /// `normalize`.
+    static func == (lhs: Pattern, rhs: Pattern) -> Bool {
+        guard lhs.id == rhs.id, lhs.name == rhs.name, lhs.length == rhs.length,
+              lhs.rows == rhs.rows else { return false }
+        if lhs.effects == rhs.effects { return true }
+        let tracks = max(lhs.effects.count, rhs.effects.count, lhs.rows.count)
+        for track in 0..<tracks {
+            for step in 0..<Chip.maxSteps
+            where lhs.effect(track: track, step: step) != rhs.effect(track: track, step: step) {
+                return false
+            }
+        }
+        return true
+    }
+
+    static var plainRow: [Int8] { Array(repeating: NoteEffect.none.rawValue, count: Chip.maxSteps) }
+
+    /// Any cell with an effect.
+    var hasEffects: Bool {
+        effects.contains { $0.contains { $0 != NoteEffect.none.rawValue } }
+    }
+
+    /// The effect on a cell; none for anything outside the grid.
+    func effect(track: Int, step: Int) -> NoteEffect {
+        guard let raw = effects[safe: track]?[safe: step] else { return .none }
+        return NoteEffect(rawValue: raw) ?? .none
+    }
+
+    /// Sets a cell's effect, growing `effects` if a caller built `rows` by hand
+    /// without it. Whether the cell holds a note is the caller's business —
+    /// `normalize` clears an effect left on a rest.
+    mutating func setEffect(_ effect: NoteEffect, track: Int, step: Int) {
+        guard track >= 0, track < Chip.maxTracks, step >= 0, step < Chip.maxSteps else { return }
+        while effects.count <= track { effects.append(Pattern.plainRow) }
+        if effects[track].count < Chip.maxSteps {
+            effects[track].append(contentsOf: Array(repeating: NoteEffect.none.rawValue,
+                                                    count: Chip.maxSteps - effects[track].count))
+        }
+        effects[track][step] = effect.rawValue
     }
 
     static var emptyRow: [Int8] { Array(repeating: Chip.emptyNote, count: Chip.maxSteps) }
@@ -337,6 +402,28 @@ struct Pattern: Codable, Equatable, Identifiable {
                 let n = rows[i][s]
                 if n != Chip.emptyNote, n != Chip.noteOff, !(0...127).contains(n) {
                     rows[i][s] = Chip.emptyNote
+                }
+            }
+        }
+        // Effects follow the rows' shape exactly, and mean something only on
+        // a note: one left on a rest or an OFF would be invisible in the grid
+        // and still written to the file.
+        if effects.count < rows.count {
+            effects.append(contentsOf: Array(repeating: Pattern.plainRow, count: rows.count - effects.count))
+        } else if effects.count > rows.count {
+            effects = Array(effects.prefix(rows.count))
+        }
+        for i in effects.indices {
+            if effects[i].count < Chip.maxSteps {
+                effects[i].append(contentsOf: Array(repeating: NoteEffect.none.rawValue,
+                                                    count: Chip.maxSteps - effects[i].count))
+            } else if effects[i].count > Chip.maxSteps {
+                effects[i] = Array(effects[i].prefix(Chip.maxSteps))
+            }
+            for s in effects[i].indices where effects[i][s] != NoteEffect.none.rawValue {
+                let n = rows[i][s]
+                if NoteEffect(rawValue: effects[i][s]) == nil || n < 0 {
+                    effects[i][s] = NoteEffect.none.rawValue
                 }
             }
         }
@@ -686,6 +773,56 @@ extension Array {
     }
 }
 
+// MARK: - Note effects
+
+/// A pitch effect on one note. The raw values are the file format, shared
+/// with Android: never renumber them.
+enum NoteEffect: Int8, CaseIterable {
+    case none = 0
+    /// After the attack the pitch rises an octave per step, up to two.
+    case slideUp = 1
+    /// The same, falling.
+    case slideDown = 2
+    /// A ±0.4 semitone wobble at 6 Hz.
+    case vibrato = 3
+    /// Slides from whatever the track is sounding into this note instead of
+    /// restarting it. On a silent track it's a plain note.
+    case glide = 4
+    /// Scoops up into the note from two semitones below.
+    case bendIn = 5
+
+    /// The mark drawn after the note name in a cell: "E5↗".
+    var symbol: String {
+        switch self {
+        case .none: return ""
+        case .slideUp: return "↗"
+        case .slideDown: return "↘"
+        case .vibrato: return "~"
+        case .glide: return "⌒"
+        case .bendIn: return "⤴"
+        }
+    }
+
+    /// The menu and VoiceOver name.
+    var name: String {
+        switch self {
+        case .none: return "No effect"
+        case .slideUp: return "Slide up"
+        case .slideDown: return "Slide down"
+        case .vibrato: return "Vibrato"
+        case .glide: return "Glide"
+        case .bendIn: return "Bend in"
+        }
+    }
+
+    /// A raw file value as an effect; anything unknown, including values
+    /// that don't fit in `Int8`, is none.
+    static func decode(_ raw: Int) -> NoteEffect {
+        guard let small = Int8(exactly: raw) else { return .none }
+        return NoteEffect(rawValue: small) ?? .none
+    }
+}
+
 // MARK: - Note naming
 
 enum NoteName {
@@ -699,6 +836,13 @@ enum NoteName {
         guard midi >= 0 else { return "" }
         let n = Int(midi)
         return "\(names[n % 12])\(n / 12 - 1)"
+    }
+
+    /// A cell's label with its effect mark: "E5↗". Rests and OFFs never
+    /// carry a mark — an effect there means nothing.
+    static func label(_ midi: Int8, effect: NoteEffect) -> String {
+        guard midi >= 0 else { return label(midi) }
+        return label(midi) + effect.symbol
     }
 
     static func frequency(_ midi: Int8) -> Double {

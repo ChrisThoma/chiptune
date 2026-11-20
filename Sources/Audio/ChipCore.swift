@@ -88,12 +88,29 @@ final class ChipCore {
         /// thread ask "is the note I just erased the one I can hear?".
         var sourcePattern: Int32 = -1
         var sourceStep: Int32 = -1
+        /// `NoteEffect` raw value of the note now sounding. 0 (none) keeps
+        /// the voice on the original pitch path, untouched by any of the
+        /// fields below.
+        var fx: Int8 = 0
+        /// Samples since the effect started — the effect's clock.
+        var fxSamples: Int32 = 0
+        /// Samples in one step when the note started. Slides, glides and
+        /// bends are measured in steps, so they follow the tempo.
+        var fxStep: Double = 1
+        /// Where a glide starts, in semitones from the new note.
+        var glideFrom: Double = 0
+        /// The arpeggio offset `inc` is currently built on, in semitones.
+        var arpSemis: Double = 0
+        /// Effect to apply once `pendingNote` starts.
+        var pendingEffect: Int8 = 0
     }
 
     // MARK: Storage
 
     /// `maxPatterns * maxTracks * maxSteps` note bytes, pattern-major then track-major.
     private let pattern: UnsafeMutablePointer<Int8>
+    /// `NoteEffect` raw values, indexed exactly like `pattern`.
+    private let effects: UnsafeMutablePointer<Int8>
     private let patternLengths: UnsafeMutablePointer<Int32>
     /// Pattern slots to play in order, already expanded by section repeats.
     private let chain: UnsafeMutablePointer<Int32>
@@ -182,6 +199,27 @@ final class ChipCore {
 
     /// How long a sustaining instrument rings when auditioned from the keyboard.
     private static let previewSeconds = 0.9
+
+    // MARK: Effect tuning
+    //
+    // Named so they can be retuned by ear in one place. Android's core keeps
+    // the same numbers; change both.
+
+    /// Slide up/down: semitones of travel per step, and where it stops.
+    static let slideSemitonesPerStep = 12.0
+    static let slideMaxSemitones = 24.0
+    /// Vibrato depth either side of the note, in semitones, and its rate.
+    static let vibratoSemitones = 0.4
+    static let vibratoHertz = 6.0
+    /// Glide: steps to travel from the sounding pitch to the new note.
+    static let glideSteps = 0.5
+    /// Bend in: how far below the note it starts, and steps to reach it.
+    static let bendInSemitones = 2.0
+    static let bendInSteps = 0.25
+    /// An effect can't push the pitch outside the note range: past MIDI 127
+    /// it would alias, and far below MIDI 0 it stalls toward 0 Hz.
+    private static let lowestFrequency = NoteName.frequency(0)
+    private static let highestFrequency = NoteName.frequency(127)
     /// Per-sample multiplier that takes a released preview to silence in ~15 ms.
     private let releaseCoeff: Double
     /// ~2.5 ms of fade before a retrigger, then ~1.2 ms ramping the new note up.
@@ -199,6 +237,8 @@ final class ChipCore {
         let cells = Chip.maxPatterns * Chip.maxTracks * Chip.maxSteps
         pattern = .allocate(capacity: cells)
         pattern.initialize(repeating: Chip.emptyNote, count: cells)
+        effects = .allocate(capacity: cells)
+        effects.initialize(repeating: NoteEffect.none.rawValue, count: cells)
         patternLengths = .allocate(capacity: Chip.maxPatterns)
         patternLengths.initialize(repeating: 16, count: Chip.maxPatterns)
         chain = .allocate(capacity: Chip.maxChain)
@@ -215,6 +255,7 @@ final class ChipCore {
 
     deinit {
         pattern.deallocate()
+        effects.deallocate()
         patternLengths.deallocate()
         chain.deallocate()
         params.deallocate()
@@ -234,6 +275,32 @@ final class ChipCore {
               track >= 0, track < Chip.maxTracks,
               step >= 0, step < Chip.maxSteps else { return }
         pattern[cell(pat, track, step)] = note
+    }
+
+    /// Mirrors one cell's effect, the way `setNote` mirrors its note.
+    func setEffect(pattern pat: Int, track: Int, step: Int, effect: NoteEffect) {
+        guard pat >= 0, pat < Chip.maxPatterns,
+              track >= 0, track < Chip.maxTracks,
+              step >= 0, step < Chip.maxSteps else { return }
+        effects[cell(pat, track, step)] = effect.rawValue
+    }
+
+    /// The effect the core holds for a cell; none outside the buffer.
+    func effect(pattern pat: Int, track: Int, step: Int) -> NoteEffect {
+        guard pat >= 0, pat < Chip.maxPatterns,
+              track >= 0, track < Chip.maxTracks,
+              step >= 0, step < Chip.maxSteps else { return .none }
+        return NoteEffect(rawValue: effects[cell(pat, track, step)]) ?? .none
+    }
+
+    /// The effect on the note a track is sounding, or about to sound once a
+    /// retrigger's fade ends. Racy like `ringingSource`; for tests and checks.
+    func soundingEffect(track: Int) -> NoteEffect {
+        guard track >= 0, track < Chip.maxTracks else { return .none }
+        let voice = voices[track]
+        let raw = voice.declick > 0 && voice.pendingNote >= 0 ? voice.pendingEffect : voice.fx
+        guard voice.active else { return .none }
+        return NoteEffect(rawValue: raw) ?? .none
     }
 
     /// Cuts a voice the sequencer has no way to stop. A sustaining note is
@@ -286,6 +353,9 @@ final class ChipCore {
                 let row = track < count ? pat.rows[safe: track] : nil
                 for step in 0..<Chip.maxSteps {
                     pattern[cell(p, track, step)] = row?[safe: step] ?? Chip.emptyNote
+                    effects[cell(p, track, step)] = track < count
+                        ? pat.effect(track: track, step: step).rawValue
+                        : NoteEffect.none.rawValue
                 }
             }
         }
@@ -474,9 +544,9 @@ final class ChipCore {
     /// A sustaining instrument (the triangle ships that way) has no pattern step
     /// to cut it here, so the preview gets its own fixed lifetime. Decaying
     /// instruments are left alone and preview exactly as they'll sound.
-    func audition(track: Int, note: Int8) {
+    func audition(track: Int, note: Int8, effect: NoteEffect = .none) {
         guard track >= 0, track < Chip.maxTracks, note >= 0 else { return }
-        trigger(track: track, note: note)
+        trigger(track: track, note: note, effect: effect)
         voices[track].sourcePattern = -1
         voices[track].sourceStep = -1
         let preview = params[track].sustain == 1 ? Int32(sampleRate * ChipCore.previewSeconds) : 0
@@ -496,9 +566,20 @@ final class ChipCore {
     }
 
     /// Starts a note on a voice that is already at silence.
-    private func begin(_ v: inout VoiceState, kind: Int32, note: Int8) {
+    ///
+    /// A glide here has nothing ringing to slide from, so it starts plain.
+    private func begin(_ v: inout VoiceState, kind: Int32, note: Int8, effect: Int8) {
         v.baseFreq = NoteName.frequency(note)
         v.inc = v.baseFreq / sampleRate
+        v.fx = effect == NoteEffect.glide.rawValue ? NoteEffect.none.rawValue : effect
+        v.fxSamples = 0
+        v.glideFrom = 0
+        v.arpSemis = 0
+        v.pendingEffect = NoteEffect.none.rawValue
+        if v.fx != NoteEffect.none.rawValue {
+            v.fxStep = Double(max(samplesPerStep(), 1))
+            applyPitch(&v)
+        }
         v.env = 0
         v.attack = attackSamples
         v.attackInc = 1.0 / Double(attackSamples)
@@ -515,12 +596,33 @@ final class ChipCore {
         if v.lfsr == 0 { v.lfsr = 1 }
     }
 
-    private func trigger(track: Int, note: Int8) {
+    private func trigger(track: Int, note: Int8, effect: NoteEffect = .none) {
         var v = voices[track]
-        if v.active && v.env > 0.002 {
+        let ringing = v.active && v.env > 0.002
+        if effect == .glide, ringing, v.declick == 0, !v.releasing {
+            // Legato: the voice keeps its phase and its envelope, so there's
+            // no fade and no new attack, and the pitch slides from wherever
+            // it is sounding now — arpeggio and effect included — to the new
+            // note. `glideFrom` is that distance in semitones, run down to 0.
+            let sounding = v.inc * sampleRate
+            v.baseFreq = NoteName.frequency(note)
+            v.glideFrom = sounding > 0 ? 12 * log2(sounding / v.baseFreq) : 0
+            v.fx = NoteEffect.glide.rawValue
+            v.fxSamples = 0
+            v.fxStep = Double(max(samplesPerStep(), 1))
+            v.arpSemis = 0
+            v.arpIndex = 0
+            v.arpCounter = 0
+            v.pendingNote = Chip.emptyNote
+            v.pendingPreview = 0
+            v.pendingEffect = NoteEffect.none.rawValue
+            v.previewSamples = 0
+            applyPitch(&v)
+        } else if ringing {
             // Still ringing — fade it out first and start the new note from the
             // far side of the fade.
             v.pendingNote = note
+            v.pendingEffect = effect.rawValue
             v.pendingPreview = 0
             v.declick = declickSamples
             v.declickDec = v.env / Double(declickSamples)
@@ -528,9 +630,38 @@ final class ChipCore {
             v.releasing = false
         } else {
             v.pendingPreview = 0
-            begin(&v, kind: params[track].kind, note: note)
+            begin(&v, kind: params[track].kind, note: note, effect: effect.rawValue)
         }
         voices[track] = v
+    }
+
+    /// The effect's pitch offset in semitones at the voice's effect clock.
+    private func effectSemitones(_ v: VoiceState) -> Double {
+        let t = Double(v.fxSamples)
+        switch NoteEffect(rawValue: v.fx) ?? .none {
+        case .none:
+            return 0
+        case .slideUp:
+            return min(ChipCore.slideSemitonesPerStep * t / v.fxStep, ChipCore.slideMaxSemitones)
+        case .slideDown:
+            return -min(ChipCore.slideSemitonesPerStep * t / v.fxStep, ChipCore.slideMaxSemitones)
+        case .vibrato:
+            return ChipCore.vibratoSemitones * sin(2 * .pi * ChipCore.vibratoHertz * t / sampleRate)
+        case .glide:
+            return v.glideFrom * max(0, 1 - t / (v.fxStep * ChipCore.glideSteps))
+        case .bendIn:
+            return -ChipCore.bendInSemitones * max(0, 1 - t / (v.fxStep * ChipCore.bendInSteps))
+        }
+    }
+
+    /// Rebuilds `inc` from the base pitch, the arpeggio offset and the
+    /// effect's, clamped to the note range. Only voices with an effect come
+    /// here; a plain note keeps the original arithmetic, bit for bit.
+    private func applyPitch(_ v: inout VoiceState) {
+        let semis = v.arpSemis + effectSemitones(v)
+        let freq = (v.baseFreq * pow(2.0, semis / 12.0))
+            .clamped(to: ChipCore.lowestFrequency...ChipCore.highestFrequency)
+        v.inc = freq / sampleRate
     }
 
     private func triggerStep(_ pat: Int32, _ step: Int32, tracks: Int) {
@@ -543,7 +674,8 @@ final class ChipCore {
                 voices[c].declick = 0
                 voices[c].pendingNote = Chip.emptyNote
             } else if note >= 0 {
-                trigger(track: c, note: note)
+                trigger(track: c, note: note,
+                        effect: NoteEffect(rawValue: effects[cell(p, c, s)]) ?? .none)
                 // Recorded here rather than in `begin`, because a retrigger
                 // defers the note past its de-click fade — the cell it came
                 // from is known now, not when it eventually starts.
@@ -570,8 +702,17 @@ final class ChipCore {
                 v.arpCounter = 0
                 v.arpIndex = (v.arpIndex + 1) % p.arpCount
                 let semis = Double(p.arp(Int(v.arpIndex)))
-                v.inc = (v.baseFreq * pow(2.0, semis / 12.0)) / sampleRate
+                v.arpSemis = semis
+                if v.fx == NoteEffect.none.rawValue {
+                    v.inc = (v.baseFreq * pow(2.0, semis / 12.0)) / sampleRate
+                }
             }
+        }
+
+        // An effect moves the pitch every sample, on top of the arpeggio.
+        if v.fx != NoteEffect.none.rawValue {
+            applyPitch(&v)
+            if v.fxSamples < Int32.max { v.fxSamples += 1 }
         }
 
         var out: Double
@@ -614,7 +755,7 @@ final class ChipCore {
             if v.declick == 0 {
                 let note = v.pendingNote
                 if note >= 0 {
-                    begin(&v, kind: p.kind, note: note)
+                    begin(&v, kind: p.kind, note: note, effect: v.pendingEffect)
                 } else {
                     v.env = 0
                     v.active = false
