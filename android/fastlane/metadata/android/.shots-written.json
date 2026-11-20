@@ -1,0 +1,21 @@
+{
+  "note": "files `shots play` wrote, with the sha256 of what it wrote; it deletes or replaces only these, unchanged",
+  "files": [
+    "en-US/images/phoneScreenshots/1.png",
+    "en-US/images/phoneScreenshots/2.png",
+    "en-US/images/phoneScreenshots/3.png",
+    "en-US/images/phoneScreenshots/4.png",
+    "en-US/images/phoneScreenshots/5.png",
+    "en-US/images/phoneScreenshots/6.png",
+    "en-US/images/phoneScreenshots/7.png"
+  ],
+  "hashes": {
+    "en-US/images/phoneScreenshots/1.png": "a1d79d12e864a55ae5731a803fc60445999f37275131129b344e9dfd0115f8c2",
+    "en-US/images/phoneScreenshots/2.png": "3704df431832c750cfe6cc176a4d95500aae42d28e9d4a66efaf7a1d3298abe8",
+    "en-US/images/phoneScreenshots/3.png": "c40cf8b060151dc16cf8c85082d5c80a86cb1a9da70892536876fd9407d09262",
+    "en-US/images/phoneScreenshots/4.png": "8b93b431a365c55ce769a2d455b443c18c6707aeda59d3bb216bda7d0d2dabc0",
+    "en-US/images/phoneScreenshots/5.png": "3917ce37212bd323ddf24f3699a7e5995ea26c40cd304ecef04063d4fc42d9b2",
+    "en-US/images/phoneScreenshots/6.png": "bdd58fb9e2518cf3ede65ec43dd7f6a817996b2737ed36916c517b89f39632b6",
+    "en-US/images/phoneScreenshots/7.png": "6e023d933cafb1a7ab5a51f1bf16d6cc42b6c6e669e7405a7d5004859542b12d"
+  }
+}
