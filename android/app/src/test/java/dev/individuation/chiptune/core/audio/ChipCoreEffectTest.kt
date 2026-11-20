@@ -20,7 +20,6 @@ class ChipCoreEffectTest {
     private val tempo = 120.0
     /** Samples in one step at [tempo]. */
     private val step = Chip.samplesPerStep(tempo, sampleRate)
-    private val attack = maxOf((sampleRate * 0.0012).toInt(), 8)
 
     /** A held 50% pulse with [note] on step 0 carrying [effect]. */
     private fun fxSong(
@@ -50,13 +49,14 @@ class ChipCoreEffectTest {
         for (k in 1 until windows.size) assertTrue("slide up fell at window $k: $windows", windows[k] > windows[k - 1])
     }
 
+    /** The effect clock starts with the note, attack included, as in Swift. */
     @Test fun slideUpFollowsTwelveSemitonesPerStep() {
         val base = NoteName.frequency(60)
         val samples = render(fxSong(60, NoteEffect.SLIDE_UP), 1.5)
         for (center in listOf(1000, 2000, 3000, 4000, 5000, 7000)) {
-            val semis = 12.0 * (center - attack).toDouble() / step.toDouble()
+            val semis = 12.0 * center.toDouble() / step.toDouble()
             val expected = Math.pow(2.0, semis / 12.0)
-            assertRatio("at sample $center", expected, f(samples, center - 250, center + 250) / base, 0.02)
+            assertRatio("at sample $center", expected, f(samples, center - 250, center + 250) / base, 0.006)
         }
     }
 
@@ -135,6 +135,49 @@ class ChipCoreEffectTest {
             assertTrue("glide went back down at cycle $i: $cycles", cycles[i] >= cycles[i - 1] * 0.997)
         }
         assertRatio("landed", 1.0, f(samples, at + step / 2 + 100, at + step) / to, 0.005)
+    }
+
+    /** A held core voice playing [note] from an audition, rendered [frames] in. */
+    private fun auditioned(note: Int, frames: Int, arpeggio: List<Int> = emptyList()): ChipCore {
+        val core = ChipCore(sampleRate)
+        core.load(fxSong(note, NoteEffect.NONE, arpeggio = arpeggio).normalized())
+        core.tempo = tempo
+        core.audition(0, note)
+        RenderHarness.renderMono(core, frames)
+        return core
+    }
+
+    @Test fun glideOntoAReleasingVoicePlaysPlain() {
+        val core = auditioned(60, 4000)
+        core.release(0)
+        RenderHarness.renderMono(core, 32) // the release lands; the voice still rings
+        core.audition(0, 67, NoteEffect.GLIDE)
+        val samples = RenderHarness.renderMono(core, step)
+        // Swift: no glide out of a release; the plain declick and attack, then 67.
+        assertTrue("a glide out of a release kept the voice level (no declick)",
+            minWindowLevel(samples, 0, 256) < RenderHarness.rms(samples, 1000, 2000) * 0.6)
+        assertRatio("on 67 at once", 1.0, f(samples, 300, 1300) / NoteName.frequency(67), 0.01)
+    }
+
+    @Test fun glideStartsFromTheSoundingArpeggioPitchAndResetsTheArpeggio() {
+        // 48 with an octave arpeggio, past its first wrap: 60's pitch is sounding.
+        val core = auditioned(48, 882 + 200, arpeggio = listOf(0, 12))
+        core.audition(0, 60, NoteEffect.GLIDE)
+        val samples = RenderHarness.renderMono(core, 800)
+        assertRatio("glide started away from the sounding 60", 1.0,
+            f(samples, 20, 800) / NoteName.frequency(60), 0.01)
+    }
+
+    @Test fun anEffectsStepLengthIsTakenWhenItsNoteStarts() {
+        val core = ChipCore(sampleRate)
+        core.load(fxSong(60, NoteEffect.SLIDE_UP).normalized())
+        core.start()
+        val head = RenderHarness.renderMono(core, 100)
+        core.tempo = tempo / 2 // longer steps from here on; the slide keeps its own
+        val rest = RenderHarness.renderMono(core, step + 400)
+        val samples = head + rest
+        assertRatio("slid an octave in the step it started with", 2.0,
+            f(samples, step - 300, step + 300) / NoteName.frequency(60), 0.02)
     }
 
     @Test fun glideOnASilentVoiceIsAPlainNote() {

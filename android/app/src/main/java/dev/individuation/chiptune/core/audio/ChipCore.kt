@@ -89,13 +89,14 @@ class ChipCore(val sampleRate: Double = 44100.0) {
 
         // Pitch effects. [effect] is a [NoteEffect] code; NONE leaves [inc]
         // to the plain path, so a note without one renders as it always has.
-        /** The MIDI note sounding, for a glide to start from. */
+        /** The MIDI note sounding. */
         @JvmField var note = 0
         @JvmField var effect = FX_NONE
-        /** Samples since the effect's note began. */
+        /** Samples since the effect started: the effect's clock. */
         @JvmField var effectTimer = 0
-        /** The effect's current pitch offset in semitones. */
-        @JvmField var fxSemis = 0.0
+        /** Samples in one step when the effect started; slides, glides and
+         * bends keep this timing even if the tempo changes under them. */
+        @JvmField var fxStep = 1.0
         /** Where a glide starts, in semitones from its target. */
         @JvmField var glideFrom = 0.0
         /** The arpeggio offset in force, so an effect can stack on it. */
@@ -174,9 +175,6 @@ class ChipCore(val sampleRate: Double = 44100.0) {
 
     // Render-thread-only state.
     private var sampleCounter = 0
-    /** Samples per step as of the last buffer: what effect timings scale by.
-     * Starts at the default tempo's so an audition before any render is sane. */
-    private var stepSamples = Chip.samplesPerStep(120.0, sampleRate)
     /** One-pole lowpass state, just enough to take the fizz off the aliasing. */
     private var lpState = 0.0
     /** DC blocker state (about 10 Hz high-pass on the master). */
@@ -432,9 +430,13 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         // A glide with nothing ringing to glide from is a plain note.
         v.effect = if (effect == FX_GLIDE) FX_NONE else effect
         v.effectTimer = 0
-        v.fxSemis = 0.0
+        v.glideFrom = 0.0
         v.arpSemis = 0
         v.pendingEffect = FX_NONE
+        if (v.effect != FX_NONE) {
+            v.fxStep = currentStepSamples()
+            applyPitch(v)
+        }
         v.env = 0.0
         v.attack = attackSamples
         v.attackInc = 1.0 / attackSamples.toDouble()
@@ -453,9 +455,10 @@ class ChipCore(val sampleRate: Double = 44100.0) {
 
     private fun trigger(track: Int, note: Int, effect: Int) {
         val v = voices[track]
-        if (effect == FX_GLIDE && v.active && v.env > 0.002 && v.declick == 0) {
+        val ringing = v.active && v.env > 0.002
+        if (effect == FX_GLIDE && ringing && v.declick == 0 && !v.releasing) {
             glide(v, note)
-        } else if (v.active && v.env > 0.002) {
+        } else if (ringing) {
             // Still ringing: fade it out first and start the new note from the
             // far side of the fade.
             v.pendingNote = note
@@ -472,19 +475,24 @@ class ChipCore(val sampleRate: Double = 44100.0) {
     }
 
     /** Moves a ringing voice to [note] without a fade, a phase reset or a new
-     * attack: the pitch slides there from wherever it sounds now. */
+     * attack: the pitch slides there from the frequency sounding now,
+     * arpeggio and effect included, and the arpeggio starts over. */
     private fun glide(v: VoiceState, note: Int) {
-        v.glideFrom = (v.note.toDouble() + v.fxSemis) - note.toDouble()
+        val sounding = v.inc * sampleRate
         v.baseFreq = noteFrequency[note]
         v.note = note
+        v.glideFrom = if (sounding > 0.0) 12.0 * (Math.log(sounding / v.baseFreq) / LN2) else 0.0
         v.effect = FX_GLIDE
         v.effectTimer = 0
-        v.fxSemis = v.glideFrom
-        v.releasing = false
+        v.fxStep = currentStepSamples()
+        v.arpSemis = 0
+        v.arpIndex = 0
+        v.arpCounter = 0
         v.pendingNote = Chip.EMPTY_NOTE
+        v.pendingPreview = 0
         v.pendingEffect = FX_NONE
         v.previewSamples = 0
-        v.pendingPreview = 0
+        applyPitch(v)
     }
 
     private fun triggerStep(pat: Int, step: Int, tracks: Int) {
@@ -548,7 +556,10 @@ class ChipCore(val sampleRate: Double = 44100.0) {
 
         // Only a note with an effect recomputes its increment here, so a
         // plain note keeps the exact arithmetic above.
-        if (v.effect != FX_NONE) applyEffect(v)
+        if (v.effect != FX_NONE) {
+            applyPitch(v)
+            if (v.effectTimer < Int.MAX_VALUE) v.effectTimer += 1
+        }
 
         var out: Double
         when (kind) {
@@ -613,71 +624,40 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         return out
     }
 
-    /** Advances a voice's pitch effect one sample and sets its increment:
-     * `baseFreq * 2^((arp + fx) / 12)`, clamped to the note range. Runs on the
-     * render thread; `Math.pow`/`Math.sin` are intrinsics and allocate nothing. */
-    private fun applyEffect(v: VoiceState) {
-        val t = v.effectTimer
-        if (t < Int.MAX_VALUE) v.effectTimer = t + 1
-        val stepLength = maxOf(stepSamples, 1).toDouble()
-        var finished = false
-        val fx: Double = when (v.effect) {
-            FX_SLIDE_UP, FX_SLIDE_DOWN -> {
-                // Moves once the attack is done, then holds at the cap.
-                val moving = (t - attackSamples).toDouble()
-                val semis = if (moving <= 0.0) 0.0 else minOf(SLIDE_SEMITONES_PER_STEP * moving / stepLength, SLIDE_MAX_SEMITONES)
-                if (v.effect == FX_SLIDE_UP) semis else -semis
-            }
-            FX_VIBRATO -> VIBRATO_DEPTH_SEMITONES * Math.sin(2.0 * Math.PI * VIBRATO_RATE_HZ * t.toDouble() / sampleRate)
-            FX_GLIDE -> {
-                val span = stepLength * GLIDE_STEPS
-                if (t >= span) {
-                    finished = true
-                    0.0
-                } else {
-                    v.glideFrom * (1.0 - t.toDouble() / span)
-                }
-            }
-            FX_BEND_IN -> {
-                val span = stepLength * BEND_IN_STEPS
-                if (t >= span) {
-                    finished = true
-                    0.0
-                } else {
-                    -BEND_IN_SEMITONES * (1.0 - t.toDouble() / span)
-                }
-            }
-            else -> {
-                finished = true
-                0.0
-            }
+    /** The effect's pitch offset in semitones at the voice's effect clock
+     * (Swift's `effectSemitones`). Glide and bend in hold at 0 once done. */
+    private fun effectSemitones(v: VoiceState): Double {
+        val t = v.effectTimer.toDouble()
+        return when (v.effect) {
+            FX_SLIDE_UP -> minOf(SLIDE_SEMITONES_PER_STEP * t / v.fxStep, SLIDE_MAX_SEMITONES)
+            FX_SLIDE_DOWN -> -minOf(SLIDE_SEMITONES_PER_STEP * t / v.fxStep, SLIDE_MAX_SEMITONES)
+            FX_VIBRATO -> VIBRATO_DEPTH_SEMITONES * Math.sin(2.0 * Math.PI * VIBRATO_RATE_HZ * t / sampleRate)
+            FX_GLIDE -> v.glideFrom * maxOf(0.0, 1.0 - t / (v.fxStep * GLIDE_STEPS))
+            FX_BEND_IN -> -BEND_IN_SEMITONES * maxOf(0.0, 1.0 - t / (v.fxStep * BEND_IN_STEPS))
+            else -> 0.0
         }
-        if (finished) {
-            // Back on the plain path, with the plain path's increment.
-            v.effect = FX_NONE
-            v.fxSemis = 0.0
-            val semis = v.arpSemis
-            v.inc = if (semis == 0) {
-                v.baseFreq / sampleRate
-            } else if (semis >= -Instrument.MAX_ARPEGGIO_SEMITONES && semis <= Instrument.MAX_ARPEGGIO_SEMITONES) {
-                (v.baseFreq * arpRatio[semis + Instrument.MAX_ARPEGGIO_SEMITONES]) / sampleRate
-            } else {
-                (v.baseFreq * Math.pow(2.0, semis.toDouble() / 12.0)) / sampleRate
-            }
-            return
-        }
-        v.fxSemis = fx
-        var freq = v.baseFreq * Math.pow(2.0, (v.arpSemis.toDouble() + fx) / 12.0)
+    }
+
+    /** Rebuilds [VoiceState.inc] from the base pitch, the arpeggio offset and
+     * the effect's: `baseFreq * 2^((arp + fx) / 12)`, clamped to the note
+     * range. Only voices with an effect come here; a plain note keeps the
+     * original arithmetic, bit for bit. `Math.pow`/`Math.sin` are intrinsics
+     * and allocate nothing on the render thread. */
+    private fun applyPitch(v: VoiceState) {
+        var freq = v.baseFreq * Math.pow(2.0, (v.arpSemis.toDouble() + effectSemitones(v)) / 12.0)
         if (freq < minFrequency) freq = minFrequency
         if (freq > maxFrequency) freq = maxFrequency
         v.inc = freq / sampleRate
     }
 
+    /** Samples in one step at the current tempo: an effect takes its timing
+     * from this when its note starts and keeps it (Swift's `fxStep`). */
+    private fun currentStepSamples(): Double = maxOf(Chip.samplesPerStep(tempo, sampleRate), 1).toDouble()
+
     /** Renders [frames] mono samples into [out] starting at [offset]. Used by
      * both the live write loop and the offline WAV exporter. Allocates nothing. */
     fun render(frames: Int, out: FloatArray, offset: Int = 0) {
         val sps = Chip.samplesPerStep(tempo, sampleRate)
-        stepSamples = sps
         val patterns = minOf(maxOf(patternCount, 1), Chip.MAX_PATTERNS)
         val links = minOf(maxOf(chainCount, 1), Chip.MAX_CHAIN)
         val tracks = minOf(maxOf(trackCount, 1), Chip.MAX_TRACKS)
@@ -800,6 +780,7 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         const val BEND_IN_SEMITONES = 2.0
         /** ...and reaches it in this many steps. */
         const val BEND_IN_STEPS = 0.25
+        val LN2: Double = Math.log(2.0)
         val TRIANGLE = ChannelKind.TRIANGLE.rawValue
 
         /** A note value as a grid cell: rest, note-off or MIDI 0..127; anything

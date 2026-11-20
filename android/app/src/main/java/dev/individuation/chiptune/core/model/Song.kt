@@ -207,9 +207,14 @@ data class Pattern(
             }
             fitted.map { n -> if (n != Chip.EMPTY_NOTE && n != Chip.NOTE_OFF && n !in 0..127) Chip.EMPTY_NOTE else n }
         }
-        // Effects take the rows' shape once any cell has one; with none they
-        // stay empty, so a plain pattern normalizes to what it was.
-        val fx = canonical((0 until want).map { effectRow(it) })
+        // Effects take the rows' shape once any cell has one, and mean
+        // something only on a pitch: a rest or OFF loses its effect, as in
+        // Swift's normalize. With none left they stay empty, so a plain
+        // pattern normalizes to what it was.
+        val fx = canonical((0 until want).map { r ->
+            val notes = cleaned[r]
+            effectRow(r).mapIndexed { s, e -> if (notes[s] in 0..127) e else NoteEffect.NONE }
+        })
         return copy(length = swiftClamp(length, Chip.patternLengthRange.first, Chip.patternLengthRange.last),
             rows = cleaned, effects = fx)
     }

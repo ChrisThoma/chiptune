@@ -89,10 +89,22 @@ class NoteEffectTest {
         assertTrue(short.effects.all { it.size == Chip.MAX_STEPS })
         assertEquals(NoteEffect.VIBRATO, short.effect(0, 1))
 
-        val long = Pattern(name = "A", rows = List(5) { Pattern.EMPTY_ROW },
+        val long = Pattern(name = "A", rows = List(5) { List(Chip.MAX_STEPS) { 60 } },
             effects = List(6) { List(Chip.MAX_STEPS + 10) { NoteEffect.GLIDE } }).normalized(2)
         assertEquals(2, long.effects.size)
         assertTrue(long.effects.all { it.size == Chip.MAX_STEPS })
+    }
+
+    @Test fun normalizeClearsEffectsOnRestsAndOffs() {
+        val p = Pattern(name = "A", rows = listOf(listOf(60, Chip.EMPTY_NOTE, Chip.NOTE_OFF) + List(Chip.MAX_STEPS - 3) { 62 }),
+            effects = listOf(listOf(NoteEffect.VIBRATO, NoteEffect.GLIDE, NoteEffect.SLIDE_UP))).normalized(1)
+        assertEquals(NoteEffect.VIBRATO, p.effect(0, 0))
+        assertEquals(NoteEffect.NONE, p.effect(0, 1))
+        assertEquals(NoteEffect.NONE, p.effect(0, 2))
+        val onlyRests = Pattern(name = "A", rows = listOf(Pattern.EMPTY_ROW),
+            effects = listOf(listOf(NoteEffect.GLIDE))).normalized(1)
+        assertFalse("effects left only on rests still wrote a grid", onlyRests.hasEffects)
+        assertTrue(onlyRests.effects.isEmpty())
     }
 
     @Test fun normalizeLeavesAPatternWithoutEffectsWithoutEffects() {
@@ -188,12 +200,12 @@ class NoteEffectTest {
     }
 
     @Test fun unknownEffectValuesDecodeAsNone() {
-        val song = SongCodec.decode(swiftShapedSong(",\n \"effects\" : [[9, 1, -4, 300]]"))
-        val p = song.patterns[0]
-        assertEquals(NoteEffect.NONE, p.effect(0, 0))
-        assertEquals(NoteEffect.SLIDE_UP, p.effect(0, 1))
-        assertEquals(NoteEffect.NONE, p.effect(0, 2))
-        assertEquals(NoteEffect.NONE, p.effect(0, 3))
+        // Notes sit on steps 0 and 4.
+        for (bad in listOf(9, -4, 300)) {
+            val p = SongCodec.decode(swiftShapedSong(",\n \"effects\" : [[$bad, 0, 0, 0, 1]]")).patterns[0]
+            assertEquals("value $bad", NoteEffect.NONE, p.effect(0, 0))
+            assertEquals(NoteEffect.SLIDE_UP, p.effect(0, 4))
+        }
     }
 
     @Test fun nullEffectsAreMissingEffects() {
@@ -211,9 +223,9 @@ class NoteEffectTest {
     }
 
     @Test fun shortEffectRowsArePaddedOnDecode() {
-        val p = SongCodec.decode(swiftShapedSong(",\n \"effects\" : [[0, 2]]")).patterns[0]
+        val p = SongCodec.decode(swiftShapedSong(",\n \"effects\" : [[2]]")).patterns[0]
         assertEquals(1, p.effects.size)
         assertEquals(Chip.MAX_STEPS, p.effects[0].size)
-        assertEquals(NoteEffect.SLIDE_DOWN, p.effect(0, 1))
+        assertEquals(NoteEffect.SLIDE_DOWN, p.effect(0, 0))
     }
 }
