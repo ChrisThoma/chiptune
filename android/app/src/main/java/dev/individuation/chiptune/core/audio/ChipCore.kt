@@ -245,6 +245,12 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         return voices[track].inc * sampleRate
     }
 
+    /** [track]'s envelope level after the last sample rendered, for tests. */
+    internal fun voiceEnvelope(track: Int): Double {
+        if (track < 0 || track >= Chip.MAX_TRACKS) return 0.0
+        return voices[track].env
+    }
+
     /** Cuts a voice the sequencer has no way to stop (an erased sustaining note). */
     fun release(track: Int) {
         if (track < 0 || track >= Chip.MAX_TRACKS) return
@@ -501,7 +507,8 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         val oldBase = v.baseFreq
         v.baseFreq = noteFrequency[note]
         v.note = note
-        v.glideFrom = 12.0 * (Math.log(oldBase / v.baseFreq) / LN2) + v.fxOffset
+        v.glideFrom = swiftClamp(12.0 * (Math.log(oldBase / v.baseFreq) / LN2) + v.fxOffset,
+            -GLIDE_MAX_SEMITONES, GLIDE_MAX_SEMITONES)
         v.effect = FX_GLIDE
         v.effectTimer = 0
         v.fxFrame = -1
@@ -656,6 +663,12 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         if (frame == v.fxFrame) return false
         v.fxFrame = frame
         v.fxOffset = effectSemitones(v, kind, frame)
+        // A 2A03 pulse goes silent below period 8, so a slide up that gets
+        // there releases the note. One that starts under 8 never moves.
+        if (v.effect == FX_SLIDE_UP) {
+            val p0 = periodOf(v.baseFreq, kind)
+            if (p0 > PERIOD_MIN && p0 - SLIDE_UP_UNITS_PER_FRAME * frame.toDouble() <= PERIOD_MIN) v.releasing = true
+        }
         applyPitch(v, kind)
         return true
     }
@@ -712,7 +725,16 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         var freq = v.baseFreq * Math.pow(2.0, (v.arpSemis.toDouble() + v.fxOffset) / 12.0)
         if (freq < minFrequency) freq = minFrequency
         if (freq > maxFrequency) freq = maxFrequency
-        if (kind == NOISE) freq = quantizedNoiseClock(freq * 8.0) / 8.0
+        if (kind == NOISE) {
+            // Relative steps: start on the plain note's clock and move by the
+            // ratio between the NES rates nearest the effect and the plain pitch.
+            var plain = v.baseFreq * Math.pow(2.0, v.arpSemis.toDouble() / 12.0)
+            if (plain < minFrequency) plain = minFrequency
+            if (plain > maxFrequency) plain = maxFrequency
+            val c0 = 8.0 * plain
+            val c = 8.0 * freq
+            freq = c0 * (quantizedNoiseClock(c) / quantizedNoiseClock(c0)) / 8.0
+        }
         v.inc = freq / sampleRate
     }
 
@@ -860,8 +882,10 @@ class ChipCore(val sampleRate: Double = 44100.0) {
          * depth over this many frames. */
         const val VIBRATO_DELAY_STEPS = 1.0
         const val VIBRATO_RAMP_FRAMES = 3.0
-        /** A glide reaches its note in this many steps. */
+        /** A glide reaches its note in this many steps... */
         const val GLIDE_STEPS = 0.5
+        /** ...from at most this far away. */
+        const val GLIDE_MAX_SEMITONES = 24.0
         /** A bend in starts this far below its note... */
         const val BEND_IN_SEMITONES = 2.0
         /** ...and reaches it in this many frames. */

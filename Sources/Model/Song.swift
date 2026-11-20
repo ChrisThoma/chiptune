@@ -779,16 +779,18 @@ extension Array {
 /// with Android: never renumber them.
 enum NoteEffect: Int8, CaseIterable {
     case none = 0
-    /// After the attack the pitch rises an octave per step, up to two.
+    /// Tracker-style slide: the NES period drops a fixed amount every 60 Hz
+    /// frame, so it speeds up as it rises; the voice goes silent at period 8.
+    /// See ChipCore's effect tuning.
     case slideUp = 1
-    /// The same, falling.
+    /// The period grows every frame, fast at first: a kick drop on the triangle.
     case slideDown = 2
-    /// A ±0.4 semitone wobble at 6 Hz.
+    /// A ±0.4 semitone wobble at 6 Hz, after a one-step delay.
     case vibrato = 3
-    /// Slides from whatever the track is sounding into this note instead of
+    /// Slides from the previous note's pitch into this one instead of
     /// restarting it. On a silent track it's a plain note.
     case glide = 4
-    /// Scoops up into the note from two semitones below.
+    /// Scoops up into the note from two semitones below over three frames.
     case bendIn = 5
 
     /// The mark drawn after the note name in a cell: "E5↗".

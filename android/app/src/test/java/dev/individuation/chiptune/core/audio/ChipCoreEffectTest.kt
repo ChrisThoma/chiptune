@@ -125,11 +125,48 @@ class ChipCoreEffectTest {
         for (frame in listOf(30, 50, 80)) {
             assertEquals("held at period 2047, frame $frame", CPU / (32.0 * 2047.0), down[tick(frame)], 1e-6)
         }
-        // Triangle 60 (P0 ~214) reaches 8 after ~13 frames of -16.
-        val up = trace(tri(60, NoteEffect.SLIDE_UP), tick(60) + 1)
-        for (frame in listOf(20, 40, 60)) {
-            assertEquals("held at period 8, frame $frame", CPU / (32.0 * 8.0), up[tick(frame)], 1e-6)
+        // Triangle 60 (P0 ~214) reaches 8 on frame 14 (214 - 16*14 <= 8),
+        // where it sits while the voice releases.
+        val up = trace(tri(60, NoteEffect.SLIDE_UP), tick(15) + 1)
+        assertEquals("at period 8, frame 14", CPU / (32.0 * 8.0), up[tick(14)], 1e-6)
+    }
+
+    /** Envelope of track 0 after each of the next [frames] samples. */
+    private fun envelopes(core: ChipCore, frames: Int): DoubleArray {
+        val buf = FloatArray(1)
+        return DoubleArray(frames) {
+            core.render(1, buf)
+            core.voiceEnvelope(0)
         }
+    }
+
+    @Test fun slideUpReachingPeriodEightReleasesTheVoice() {
+        // Pulse 60: P0 ~427.6, so 427.6 - 16n <= 8 first at n = 27.
+        val p0 = CPU / (16.0 * NoteName.frequency(60))
+        val muteFrame = ceil((p0 - 8.0) / 16.0).toInt()
+        assertEquals(27, muteFrame)
+        val core = started(fxSong(60, NoteEffect.SLIDE_UP))
+        val env = envelopes(core, tick(muteFrame) + 1323 + 1)
+        assertEquals("sustained up to the tick", 1.0, env[tick(muteFrame) - 1], 1e-9)
+        assertTrue("released at the tick", env[tick(muteFrame)] < 1.0)
+        assertTrue("not silent 30 ms later: ${env.last()}", env.last() < 0.001)
+        val after = RenderHarness.renderMono(core, 2000)
+        assertTrue("still sounding after the mute", RenderHarness.peak(after) < 0.01)
+    }
+
+    @Test fun slideUpOnANoteAlreadyBelowPeriodEightDoesNotMute() {
+        // Triangle 120: P0 ~4.3, already under 8.
+        val song = TestSongs.singleNote(ChannelKind.TRIANGLE, 120, tempo = tempo, sustain = true)
+            .withPattern(0) { it.withEffect(0, 0, NoteEffect.SLIDE_UP) }
+        val core = started(song)
+        val env = envelopes(core, 2 * step)
+        assertEquals("muted a note that started under period 8", 1.0, env.last(), 1e-9)
+        assertEquals("moved", NoteName.frequency(120), core.voiceFrequency(0), 1e-9)
+    }
+
+    @Test fun slideDownNeverMutes() {
+        val core = started(fxSong(72, NoteEffect.SLIDE_DOWN))
+        assertEquals(1.0, envelopes(core, tick(80)).last(), 1e-9)
     }
 
     /** No 24-semitone cap any more: a long slide down keeps going to 2047. */
@@ -148,11 +185,12 @@ class ChipCoreEffectTest {
         for (i in freqs.indices) assertEquals("moved at $i", NoteName.frequency(20), freqs[i], 1e-9)
     }
 
-    @Test fun aSlideIsClampedToTheNoteRange() {
+    /** Pulse 127 (P0 ~8.9) slides past period 8 on its first tick and
+     * releases; nothing goes non-finite on the way. */
+    @Test fun aSlideUpOffTheTopIsFiniteAndReleases() {
         val samples = render(fxSong(127, NoteEffect.SLIDE_UP), 3.5)
         assertTrue(samples.all { it.isFinite() })
-        assertRatio("clamped at MIDI 127", NoteName.frequency(127) / 1.0,
-            f(samples, 2 * step, 2 * step + 4000), 0.02)
+        assertTrue(RenderHarness.peak(samples, 2 * step, 3 * step) < 0.01)
     }
 
     @Test fun slideDownOnNoiseStillSounds() {
@@ -165,19 +203,37 @@ class ChipCoreEffectTest {
 
     // MARK: Noise
 
-    @Test fun noiseWithAnEffectClocksOnlyAtNesNoiseRates() {
-        val rates = NOISE_PERIODS.map { CPU / it }
+    /** Every ratio q(c)/q(c0) two table rates can make. */
+    private val rateRatios: List<Double> = NOISE_PERIODS.flatMap { a -> NOISE_PERIODS.map { b -> b / a } }
+
+    private fun isRateRatio(r: Double) = rateRatios.any { abs(r / it - 1.0) < 1e-9 }
+
+    @Test fun noiseEffectsStartOnThePlainPitchAndMoveInRateRatios() {
+        val base = NoteName.frequency(60)
         for (fx in listOf(NoteEffect.SLIDE_DOWN, NoteEffect.SLIDE_UP, NoteEffect.VIBRATO, NoteEffect.BEND_IN)) {
             val freqs = trace(fxSong(60, fx, kind = ChannelKind.NOISE), 3 * step)
+            // Offset 0 sounds exactly as the plain note: frame 0 of a slide or
+            // vibrato, and a bend in once it lands on frame 3.
+            val plainFrom = if (fx == NoteEffect.BEND_IN) tick(3) else 0
+            for (i in plainFrom until plainFrom + TICK) assertEquals("$fx plain at sample $i", base, freqs[i], 0.0)
             val seen = HashSet<Double>()
             for ((i, f) in freqs.withIndex()) {
-                val clock = 8.0 * f
-                assertTrue("$fx sample $i: clock $clock is not an NES noise rate",
-                    rates.any { abs(clock / it - 1.0) < 1e-9 })
-                seen.add(clock)
+                assertTrue("$fx sample $i: ratio ${f / base} is not q(c)/q(c0)", isRateRatio(f / base))
+                seen.add(f)
             }
-            if (fx == NoteEffect.SLIDE_DOWN) assertTrue("slide down never changed rate: $seen", seen.size >= 3)
+            if (fx == NoteEffect.SLIDE_DOWN) assertTrue("slide down never moved: $seen", seen.size >= 3)
         }
+    }
+
+    @Test fun noiseEffectOnAnArpeggioIsRelativeToTheSoundingArpTone() {
+        val base = NoteName.frequency(60)
+        val freqs = trace(fxSong(60, NoteEffect.SLIDE_DOWN, kind = ChannelKind.NOISE, arpeggio = listOf(0, 12)), 3 * step)
+        for ((i, f) in freqs.withIndex()) {
+            assertTrue("sample $i: $f is no rate ratio off either arp tone",
+                isRateRatio(f / base) || isRateRatio(f / (base * 2.0)))
+        }
+        // The +12 tone shows up, so the arp still moves the noise.
+        assertTrue(freqs.any { it > base * 1.2 })
     }
 
     @Test fun plainNoiseKeepsItsUnquantizedClock() {
@@ -281,6 +337,15 @@ class ChipCoreEffectTest {
         assertTrue("a glide out of a release kept the voice level (no declick)",
             minWindowLevel(samples, 0, 256) < RenderHarness.rms(samples, 1000, 2000) * 0.6)
         assertRatio("on 67 at once", 1.0, f(samples, 300, 1300) / NoteName.frequency(67), 0.01)
+    }
+
+    @Test fun aGlideStartsNoMoreThanTwoOctavesAway() {
+        for ((from, expected) in listOf(20 to -24.0, 100 to 24.0)) {
+            val song = TestSongs.singleNote(ChannelKind.PULSE1, from, tempo = tempo, sustain = true)
+                .withPattern(0) { it.withNote(0, 1, 60).withEffect(0, 1, NoteEffect.GLIDE) }
+            val freqs = trace(song, step + 1)
+            assertEquals("glide from $from", expected, PitchMeter.semitones(freqs[step] / NoteName.frequency(60)), 1e-9)
+        }
     }
 
     @Test fun glideOnAnArpeggioStartsFromTheOldBasePitchNotTheChordTone() {

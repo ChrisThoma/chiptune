@@ -230,8 +230,10 @@ final class ChipCore {
     /// Vibrato waits this many steps, then fades in over this many ticks.
     static let vibratoDelaySteps = 1.0
     static let vibratoRampFrames = 3.0
-    /// Glide: steps to travel from the old note's pitch to the new note.
+    /// Glide: steps to travel from the old note's pitch to the new note,
+    /// and the farthest away (in semitones) a glide may start.
     static let glideSteps = 0.5
+    static let glideMaxSemitones = 24.0
     /// Bend in: how far below the note it starts, and ticks to reach it.
     static let bendInSemitones = 2.0
     static let bendInFrames = 3.0
@@ -661,7 +663,10 @@ final class ChipCore {
             let oldBase = v.baseFreq
             let oldOffset = v.fx != NoteEffect.none.rawValue ? v.fxOffset : 0
             v.baseFreq = NoteName.frequency(note)
-            v.glideFrom = oldBase > 0 ? 12 * log2(oldBase / v.baseFreq) + oldOffset : 0
+            v.glideFrom = oldBase > 0
+                ? (12 * log2(oldBase / v.baseFreq) + oldOffset)
+                    .clamped(to: -ChipCore.glideMaxSemitones...ChipCore.glideMaxSemitones)
+                : 0
             v.fx = NoteEffect.glide.rawValue
             v.fxSamples = 0
             v.fxFrame = -1
@@ -734,30 +739,45 @@ final class ChipCore {
         v.fxFrame = frame
         v.fxOffset = effectSemitones(v, kind: kind)
         applyPitch(&v, kind: kind)
+        // A 2A03 channel goes silent below period 8, so a slide up that
+        // gets there releases the note. One that started there holds.
+        if v.fx == NoteEffect.slideUp.rawValue {
+            let p0 = period(v.baseFreq, kind: kind)
+            if p0 > ChipCore.periodMin,
+               p0 - ChipCore.slideUpUnitsPerFrame * Double(frame) <= ChipCore.periodMin {
+                v.releasing = true
+            }
+        }
     }
 
     /// Rebuilds `inc` from the base pitch, the arpeggio offset and the held
-    /// effect offset, clamped to the note range, and on noise snapped to an
-    /// NES noise rate. Only voices with an effect come here; a plain note
-    /// keeps the original arithmetic, bit for bit.
+    /// effect offset, clamped to the note range. On noise the effect moves
+    /// the pitch in hardware-rate-sized jumps from the plain note. Only
+    /// voices with an effect come here; a plain note keeps the original
+    /// arithmetic, bit for bit.
     private func applyPitch(_ v: inout VoiceState, kind: Int32) {
-        let semis = v.arpSemis + v.fxOffset
-        var freq = (v.baseFreq * pow(2.0, semis / 12.0))
-            .clamped(to: ChipCore.lowestFrequency...ChipCore.highestFrequency)
+        let range = ChipCore.lowestFrequency...ChipCore.highestFrequency
+        var freq = (v.baseFreq * pow(2.0, (v.arpSemis + v.fxOffset) / 12.0)).clamped(to: range)
         if kind == Int32(ChannelKind.noise.rawValue) {
-            // The shift register clocks at 8 × freq; pick the nearest
-            // hardware rate in log pitch. The clocks run fastest first, so
-            // the first split the clock reaches names its rate, and a clock
-            // exactly on a split takes the faster one. Not clamped again.
-            let clock = 8 * freq
-            var best = noiseClocks[noiseClockCount - 1]
-            for i in 0..<(noiseClockCount - 1) where clock >= noiseSplits[i] {
-                best = noiseClocks[i]
-                break
-            }
-            freq = best / 8
+            // The shift register clocks at 8 × freq. Start from the plain
+            // pitch (arp, no effect) and scale it by how far the effect has
+            // moved in NES noise rates, so offset 0 is exactly the plain
+            // note. Not clamped again.
+            let plain = (v.baseFreq * pow(2.0, v.arpSemis / 12.0)).clamped(to: range)
+            let c0 = 8 * plain
+            freq = c0 * (noiseRate(8 * freq) / noiseRate(c0)) / 8
         }
         v.inc = freq / sampleRate
+    }
+
+    /// The NES noise rate nearest `clock` in log pitch. The clocks run
+    /// fastest first, so the first split the clock reaches names its rate;
+    /// a clock exactly on a split takes the faster one.
+    private func noiseRate(_ clock: Double) -> Double {
+        for i in 0..<(noiseClockCount - 1) where clock >= noiseSplits[i] {
+            return noiseClocks[i]
+        }
+        return noiseClocks[noiseClockCount - 1]
     }
 
     private func triggerStep(_ pat: Int32, _ step: Int32, tracks: Int) {

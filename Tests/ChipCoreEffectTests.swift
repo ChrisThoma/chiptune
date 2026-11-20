@@ -166,27 +166,93 @@ final class ChipCoreEffectTests: XCTestCase {
                     "three frames into a slide up")
     }
 
-    // MARK: Noise
-
-    func testNoiseWithAnEffectClocksAtTheNESNoiseRates() {
-        let rates = noisePeriods.map { cpu / $0 }
-        for effect: NoteEffect in [.slideDown, .slideUp, .vibrato, .bendIn] {
-            let trace = pitchTrace(song(note: 60, effect: effect, kind: .noise), frames: Int(tick * 40))
-            for (i, f) in trace.enumerated() {
-                let clock = 8 * f
-                guard rates.contains(where: { abs($0 / clock - 1) < 1e-9 }) else {
-                    XCTFail("\(effect): LFSR clock \(clock) Hz at sample \(i) is not an NES noise rate")
-                    break
-                }
-            }
-        }
+    /// Renders `frames` samples of `song` and says whether track 0 still rings.
+    private func rings(_ song: Song, after frames: Int) -> Bool {
+        var song = song
+        song.normalize()
+        let core = ChipCore(sampleRate: sampleRate)
+        core.load(song: song)
+        core.setSongMode(false)
+        core.start()
+        _ = RenderHarness.renderMono(core, frames: frames)
+        return core.ringingSource(track: 0) != nil
     }
 
-    func testNoiseQuantizesToTheNearestRateInLogDistance() {
-        // C4 noise clocks at 8 × 261.6 = 2093 Hz: nearest is CPU/1016 (1762)
-        // or CPU/762 (2349) — 2093/1762 = 1.188, 2349/2093 = 1.122.
-        let trace = pitchTrace(song(note: 60, effect: .bendIn, kind: .noise), frames: Int(tick * 5))
-        assertRatio(8 * trace[mid(4)], cpu / 762, within: 1e-9, "landed bend in on C4 noise")
+    func testSlideUpReachingPeriodEightReleasesTheVoice() {
+        // Pulse A4: P0 ≈ 254, so P0 − 16n <= 8 first at n = 16.
+        let slide = song(note: 69, effect: .slideUp, kind: .pulse1)
+        let p0 = period(NoteName.frequency(69), k: 16)
+        let muteFrame = Int(((p0 - 8) / 16).rounded(.up))
+        XCTAssertEqual(muteFrame, 16)
+        let muteSample = Int((Double(muteFrame) * tick).rounded(.up))
+        XCTAssertTrue(rings(slide, after: muteSample - 10), "still sounding before period 8")
+        XCTAssertFalse(rings(slide, after: muteSample + Int(sampleRate * 0.03)),
+                       "silent within 30 ms of reaching period 8")
+
+        let out = RenderHarness.render(song: slide, seconds: 0.5)
+        XCTAssertGreaterThan(RenderHarness.rms(out[(muteSample - 600)..<(muteSample - 100)]), 0.05)
+        XCTAssertLessThan(RenderHarness.peak(out[(muteSample + 2000)..<(muteSample + 4000)]), 0.02,
+                          "the output goes quiet")
+    }
+
+    func testSlideUpStartingBelowPeriodEightDoesNotMute() {
+        // Triangle C8 (MIDI 120): P0 ≈ 6.7, already under 8.
+        XCTAssertLessThan(period(NoteName.frequency(120), k: 32), 8)
+        let slide = song(note: 120, effect: .slideUp, kind: .triangle)
+        XCTAssertTrue(rings(slide, after: Int(sampleRate * 0.5)), "holds and keeps sounding")
+        let trace = pitchTrace(slide, frames: mid(20) + 1)
+        XCTAssertEqual(trace[mid(20)], NoteName.frequency(120), accuracy: 1e-9, "at offset 0")
+    }
+
+    func testSlideDownNeverMutes() {
+        XCTAssertTrue(rings(song(note: 48, effect: .slideDown, kind: .triangle), after: Int(sampleRate)),
+                      "a slide down holds at period 2047 and keeps sounding")
+    }
+
+    // MARK: Noise
+
+    /// Nearest table rate in log pitch: geometric splits, a tie goes faster.
+    private func quantized(_ clock: Double) -> Double {
+        let rates = noisePeriods.map { cpu / $0 }
+        for i in 0..<(rates.count - 1) where clock >= (rates[i] * rates[i + 1]).squareRoot() {
+            return rates[i]
+        }
+        return rates[rates.count - 1]
+    }
+
+    func testNoiseWithAnEffectStartsOnThePlainPitch() {
+        let plain = pitchTrace(song(note: 60, effect: .none, kind: .noise), frames: 10)
+        for effect: NoteEffect in [.slideDown, .slideUp, .vibrato, .glide] {
+            let trace = pitchTrace(song(note: 60, effect: effect, kind: .noise), frames: 10)
+            XCTAssertEqual(trace[0], plain[0], "\(effect) on noise starts on the plain pitch")
+        }
+        // Bend in starts 2 st flat, so check it once it has landed.
+        let bend = pitchTrace(song(note: 60, effect: .bendIn, kind: .noise), frames: mid(4) + 1)
+        XCTAssertEqual(bend[mid(4)], plain[0], "a landed bend in on noise is the plain pitch")
+    }
+
+    func testNoiseSlideMovesInHardwareRateSteps() {
+        let rates = noisePeriods.map { cpu / $0 }
+        let plain = NoteName.frequency(60)
+        let trace = pitchTrace(song(note: 60, effect: .slideDown, kind: .noise), frames: Int(tick * 30))
+        var distinct = Set<Double>()
+        for (i, f) in trace.enumerated() {
+            let ratio = f / plain
+            let isRateRatio = rates.contains { a in rates.contains { b in abs(a / b / ratio - 1) < 1e-9 } }
+            guard isRateRatio else {
+                XCTFail("ratio \(ratio) at sample \(i) is not a ratio of two noise rates")
+                break
+            }
+            distinct.insert(f)
+        }
+        XCTAssertGreaterThan(distinct.count, 2, "the slide should move through several rates")
+
+        // Exactly c0 * q(c) / q(c0) at frame 10.
+        let p0 = period(plain, k: 16)
+        let c0 = 8 * plain
+        let c = 8 * plain * p0 / (p0 + 640)
+        XCTAssertEqual(trace[mid(10)], c0 * (quantized(c) / quantized(c0)) / 8, accuracy: 1e-9,
+                       "relative step at frame 10")
     }
 
     func testPlainNoiseIsUnquantized() {
@@ -384,6 +450,16 @@ final class ChipCoreEffectTests: XCTestCase {
         XCTAssertEqual(glide[glide.count - 1], to, accuracy: 1e-9, "on the new pitch")
     }
 
+    func testGlideStartIsClampedToTwoOctaves() {
+        var song = TestSongs.singleNote(kind: .pulse1, note: 29, sustain: true)
+        song.normalize()
+        song.patterns[0].rows[0][1] = 69
+        song.patterns[0].setEffect(.glide, track: 0, step: 1)
+        let trace = pitchTrace(song, frames: step + 10)
+        XCTAssertEqual(semitones(trace[step], from: NoteName.frequency(69)), -24, accuracy: 1e-9,
+                       "a glide from 40 st below starts 24 st below")
+    }
+
     func testGlideOnASilentVoiceIsAPlainNote() {
         let glide = RenderHarness.render(song: song(effect: .glide), seconds: 0.3)
         let plain = RenderHarness.render(song: song(effect: .none), seconds: 0.3)
@@ -423,12 +499,12 @@ final class ChipCoreEffectTests: XCTestCase {
             let out = RenderHarness.render(song: song(note: note, effect: effect), seconds: 1)
             XCTAssertTrue(out.allSatisfy(\.isFinite), "MIDI \(note) with \(effect) went non-finite")
         }
-        // Clamped to MIDI 127: a slide from 120 can't go past ~12.5 kHz.
-        let out = RenderHarness.render(song: song(note: 115, effect: .slideUp), seconds: 1)
+        // Clamped to MIDI 127: vibrato on the top note can't go above it.
+        // (A pulse slide up now releases at period 8 before it gets there.)
         let top = NoteName.frequency(127)
-        let measured = try frequency(out, at: 4 * step, width: 4000)
-        XCTAssertLessThan(measured, top * 1.05, "pitch must be clamped to the note range")
-        XCTAssertGreaterThan(measured, top * 0.9, "and sit at the top of it")
+        let trace = pitchTrace(song(note: 127, effect: .vibrato), frames: step + Int(tick * 20))
+        let highest = try XCTUnwrap(trace.max())
+        XCTAssertEqual(highest, top, accuracy: 1e-6, "pitch must be clamped to the note range")
     }
 
     // MARK: Storage
