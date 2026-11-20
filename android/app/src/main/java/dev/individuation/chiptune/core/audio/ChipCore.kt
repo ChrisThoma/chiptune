@@ -3,6 +3,7 @@ package dev.individuation.chiptune.core.audio
 import dev.individuation.chiptune.core.model.ChannelKind
 import dev.individuation.chiptune.core.model.Chip
 import dev.individuation.chiptune.core.model.Instrument
+import dev.individuation.chiptune.core.model.NoteEffect
 import dev.individuation.chiptune.core.model.NoteName
 import dev.individuation.chiptune.core.model.Song
 import dev.individuation.chiptune.core.model.swiftClamp
@@ -85,12 +86,30 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         /** The cell that started the sounding note, or -1 for a keyboard preview. */
         @JvmField var sourcePattern = -1
         @JvmField var sourceStep = -1
+
+        // Pitch effects. [effect] is a [NoteEffect] code; NONE leaves [inc]
+        // to the plain path, so a note without one renders as it always has.
+        /** The MIDI note sounding, for a glide to start from. */
+        @JvmField var note = 0
+        @JvmField var effect = FX_NONE
+        /** Samples since the effect's note began. */
+        @JvmField var effectTimer = 0
+        /** The effect's current pitch offset in semitones. */
+        @JvmField var fxSemis = 0.0
+        /** Where a glide starts, in semitones from its target. */
+        @JvmField var glideFrom = 0.0
+        /** The arpeggio offset in force, so an effect can stack on it. */
+        @JvmField var arpSemis = 0
+        /** Effect to apply once [pendingNote] starts. */
+        @JvmField var pendingEffect = FX_NONE
     }
 
     // MARK: Storage
 
     /** `MAX_PATTERNS * MAX_TRACKS * MAX_STEPS` note bytes, pattern-major then track-major. */
     private val pattern = ByteArray(Chip.MAX_PATTERNS * Chip.MAX_TRACKS * Chip.MAX_STEPS) { Chip.EMPTY_NOTE.toByte() }
+    /** [NoteEffect] codes, indexed exactly like [pattern]. */
+    private val effects = ByteArray(Chip.MAX_PATTERNS * Chip.MAX_TRACKS * Chip.MAX_STEPS)
     private val patternLengths = IntArray(Chip.MAX_PATTERNS) { 16 }
     /** Pattern slots to play in order, already expanded by section repeats. */
     private val chain = IntArray(Chip.MAX_CHAIN)
@@ -155,6 +174,9 @@ class ChipCore(val sampleRate: Double = 44100.0) {
 
     // Render-thread-only state.
     private var sampleCounter = 0
+    /** Samples per step as of the last buffer: what effect timings scale by.
+     * Starts at the default tempo's so an audition before any render is sane. */
+    private var stepSamples = Chip.samplesPerStep(120.0, sampleRate)
     /** One-pole lowpass state, just enough to take the fizz off the aliasing. */
     private var lpState = 0.0
     /** DC blocker state (about 10 Hz high-pass on the master). */
@@ -176,6 +198,10 @@ class ChipCore(val sampleRate: Double = 44100.0) {
      * (`FdLibm.Pow`) that allocates scratch arrays per call, which only C2's
      * escape analysis removes. */
     private val noteFrequency = DoubleArray(128) { NoteName.frequency(it) }
+    /** The note range an effect's pitch is held inside, so a long slide can't
+     * alias past Nyquist or stall at 0 Hz. */
+    private val minFrequency = noteFrequency[0]
+    private val maxFrequency = noteFrequency[127]
     private val arpRatio = DoubleArray(2 * Instrument.MAX_ARPEGGIO_SEMITONES + 1) {
         StrictMath.pow(2.0, (it - Instrument.MAX_ARPEGGIO_SEMITONES).toDouble() / 12.0)
     }
@@ -188,6 +214,19 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         if (pattern < 0 || pattern >= Chip.MAX_PATTERNS || track < 0 || track >= Chip.MAX_TRACKS ||
             step < 0 || step >= Chip.MAX_STEPS) return
         this.pattern[cell(pattern, track, step)] = toCell(note)
+    }
+
+    fun setEffect(pattern: Int, track: Int, step: Int, effect: NoteEffect) {
+        if (pattern < 0 || pattern >= Chip.MAX_PATTERNS || track < 0 || track >= Chip.MAX_TRACKS ||
+            step < 0 || step >= Chip.MAX_STEPS) return
+        effects[cell(pattern, track, step)] = effect.code.toByte()
+    }
+
+    /** The effect stored for a cell, for tests; a racy read like the playhead. */
+    internal fun effect(pattern: Int, track: Int, step: Int): NoteEffect {
+        if (pattern < 0 || pattern >= Chip.MAX_PATTERNS || track < 0 || track >= Chip.MAX_TRACKS ||
+            step < 0 || step >= Chip.MAX_STEPS) return NoteEffect.NONE
+        return NoteEffect.fromCode(effects[cell(pattern, track, step)].toInt())
     }
 
     /** Cuts a voice the sequencer has no way to stop (an erased sustaining note). */
@@ -226,8 +265,10 @@ class ChipCore(val sampleRate: Double = 44100.0) {
             patternLengths[p] = minOf(maxOf(pat.length, 1), Chip.MAX_STEPS)
             for (track in 0 until Chip.MAX_TRACKS) {
                 val row = if (track < count) pat.rows.getOrNull(track) else null
+                val fxRow = if (track < count) pat.effects.getOrNull(track) else null
                 for (step in 0 until Chip.MAX_STEPS) {
                     pattern[cell(p, track, step)] = toCell(row?.getOrNull(step) ?: Chip.EMPTY_NOTE)
+                    effects[cell(p, track, step)] = (fxRow?.getOrNull(step) ?: NoteEffect.NONE).code.toByte()
                 }
             }
         }
@@ -369,9 +410,9 @@ class ChipCore(val sampleRate: Double = 44100.0) {
 
     /** Plays a single note immediately, for keyboard previews. A sustaining
      * instrument gets its own fixed lifetime; decaying ones preview as they'll sound. */
-    fun audition(track: Int, note: Int) {
+    fun audition(track: Int, note: Int, effect: NoteEffect = NoteEffect.NONE) {
         if (track < 0 || track >= Chip.MAX_TRACKS || note < 0 || note > 127) return
-        trigger(track, note)
+        trigger(track, note, effect.code)
         val v = voices[track]
         v.sourcePattern = -1
         v.sourceStep = -1
@@ -384,9 +425,16 @@ class ChipCore(val sampleRate: Double = 44100.0) {
     // MARK: Render thread
 
     /** Starts a note on a voice that is already at silence. */
-    private fun begin(v: VoiceState, kind: Int, note: Int) {
+    private fun begin(v: VoiceState, kind: Int, note: Int, effect: Int) {
         v.baseFreq = noteFrequency[note] // NoteName.frequency(note); note is 0..127
         v.inc = v.baseFreq / sampleRate
+        v.note = note
+        // A glide with nothing ringing to glide from is a plain note.
+        v.effect = if (effect == FX_GLIDE) FX_NONE else effect
+        v.effectTimer = 0
+        v.fxSemis = 0.0
+        v.arpSemis = 0
+        v.pendingEffect = FX_NONE
         v.env = 0.0
         v.attack = attackSamples
         v.attackInc = 1.0 / attackSamples.toDouble()
@@ -403,12 +451,15 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         if (v.lfsr == 0) v.lfsr = 1
     }
 
-    private fun trigger(track: Int, note: Int) {
+    private fun trigger(track: Int, note: Int, effect: Int) {
         val v = voices[track]
-        if (v.active && v.env > 0.002) {
+        if (effect == FX_GLIDE && v.active && v.env > 0.002 && v.declick == 0) {
+            glide(v, note)
+        } else if (v.active && v.env > 0.002) {
             // Still ringing: fade it out first and start the new note from the
             // far side of the fade.
             v.pendingNote = note
+            v.pendingEffect = effect
             v.pendingPreview = 0
             v.declick = declickSamples
             v.declickDec = v.env / declickSamples.toDouble()
@@ -416,8 +467,24 @@ class ChipCore(val sampleRate: Double = 44100.0) {
             v.releasing = false
         } else {
             v.pendingPreview = 0
-            begin(v, paramKind[track], note)
+            begin(v, paramKind[track], note, effect)
         }
+    }
+
+    /** Moves a ringing voice to [note] without a fade, a phase reset or a new
+     * attack: the pitch slides there from wherever it sounds now. */
+    private fun glide(v: VoiceState, note: Int) {
+        v.glideFrom = (v.note.toDouble() + v.fxSemis) - note.toDouble()
+        v.baseFreq = noteFrequency[note]
+        v.note = note
+        v.effect = FX_GLIDE
+        v.effectTimer = 0
+        v.fxSemis = v.glideFrom
+        v.releasing = false
+        v.pendingNote = Chip.EMPTY_NOTE
+        v.pendingEffect = FX_NONE
+        v.previewSamples = 0
+        v.pendingPreview = 0
     }
 
     private fun triggerStep(pat: Int, step: Int, tracks: Int) {
@@ -429,7 +496,7 @@ class ChipCore(val sampleRate: Double = 44100.0) {
                 v.declick = 0
                 v.pendingNote = Chip.EMPTY_NOTE
             } else if (note >= 0) {
-                trigger(c, note)
+                trigger(c, note, effects[cell(pat, c, step)].toInt())
                 // Recorded here rather than in `begin`: a retrigger defers the
                 // note past its fade, and the cell is known now.
                 voices[c].sourcePattern = pat
@@ -475,8 +542,13 @@ class ChipCore(val sampleRate: Double = 44100.0) {
                     StrictMath.pow(2.0, semis.toDouble() / 12.0)
                 }
                 v.inc = (v.baseFreq * ratio) / sampleRate
+                v.arpSemis = semis
             }
         }
+
+        // Only a note with an effect recomputes its increment here, so a
+        // plain note keeps the exact arithmetic above.
+        if (v.effect != FX_NONE) applyEffect(v)
 
         var out: Double
         when (kind) {
@@ -521,7 +593,7 @@ class ChipCore(val sampleRate: Double = 44100.0) {
             if (v.declick == 0) {
                 val note = v.pendingNote
                 if (note >= 0) {
-                    begin(v, kind, note)
+                    begin(v, kind, note, v.pendingEffect)
                 } else {
                     v.env = 0.0
                     v.active = false
@@ -541,10 +613,71 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         return out
     }
 
+    /** Advances a voice's pitch effect one sample and sets its increment:
+     * `baseFreq * 2^((arp + fx) / 12)`, clamped to the note range. Runs on the
+     * render thread; `Math.pow`/`Math.sin` are intrinsics and allocate nothing. */
+    private fun applyEffect(v: VoiceState) {
+        val t = v.effectTimer
+        if (t < Int.MAX_VALUE) v.effectTimer = t + 1
+        val stepLength = maxOf(stepSamples, 1).toDouble()
+        var finished = false
+        val fx: Double = when (v.effect) {
+            FX_SLIDE_UP, FX_SLIDE_DOWN -> {
+                // Moves once the attack is done, then holds at the cap.
+                val moving = (t - attackSamples).toDouble()
+                val semis = if (moving <= 0.0) 0.0 else minOf(SLIDE_SEMITONES_PER_STEP * moving / stepLength, SLIDE_MAX_SEMITONES)
+                if (v.effect == FX_SLIDE_UP) semis else -semis
+            }
+            FX_VIBRATO -> VIBRATO_DEPTH_SEMITONES * Math.sin(2.0 * Math.PI * VIBRATO_RATE_HZ * t.toDouble() / sampleRate)
+            FX_GLIDE -> {
+                val span = stepLength * GLIDE_STEPS
+                if (t >= span) {
+                    finished = true
+                    0.0
+                } else {
+                    v.glideFrom * (1.0 - t.toDouble() / span)
+                }
+            }
+            FX_BEND_IN -> {
+                val span = stepLength * BEND_IN_STEPS
+                if (t >= span) {
+                    finished = true
+                    0.0
+                } else {
+                    -BEND_IN_SEMITONES * (1.0 - t.toDouble() / span)
+                }
+            }
+            else -> {
+                finished = true
+                0.0
+            }
+        }
+        if (finished) {
+            // Back on the plain path, with the plain path's increment.
+            v.effect = FX_NONE
+            v.fxSemis = 0.0
+            val semis = v.arpSemis
+            v.inc = if (semis == 0) {
+                v.baseFreq / sampleRate
+            } else if (semis >= -Instrument.MAX_ARPEGGIO_SEMITONES && semis <= Instrument.MAX_ARPEGGIO_SEMITONES) {
+                (v.baseFreq * arpRatio[semis + Instrument.MAX_ARPEGGIO_SEMITONES]) / sampleRate
+            } else {
+                (v.baseFreq * Math.pow(2.0, semis.toDouble() / 12.0)) / sampleRate
+            }
+            return
+        }
+        v.fxSemis = fx
+        var freq = v.baseFreq * Math.pow(2.0, (v.arpSemis.toDouble() + fx) / 12.0)
+        if (freq < minFrequency) freq = minFrequency
+        if (freq > maxFrequency) freq = maxFrequency
+        v.inc = freq / sampleRate
+    }
+
     /** Renders [frames] mono samples into [out] starting at [offset]. Used by
      * both the live write loop and the offline WAV exporter. Allocates nothing. */
     fun render(frames: Int, out: FloatArray, offset: Int = 0) {
         val sps = Chip.samplesPerStep(tempo, sampleRate)
+        stepSamples = sps
         val patterns = minOf(maxOf(patternCount, 1), Chip.MAX_PATTERNS)
         val links = minOf(maxOf(chainCount, 1), Chip.MAX_CHAIN)
         val tracks = minOf(maxOf(trackCount, 1), Chip.MAX_TRACKS)
@@ -644,6 +777,29 @@ class ChipCore(val sampleRate: Double = 44100.0) {
         /** How long a sustaining instrument rings when auditioned from the keyboard. */
         const val PREVIEW_SECONDS = 0.9
         val NOISE = ChannelKind.NOISE.rawValue
+
+        // NoteEffect codes, as the effect buffer stores them.
+        val FX_NONE = NoteEffect.NONE.code
+        val FX_SLIDE_UP = NoteEffect.SLIDE_UP.code
+        val FX_SLIDE_DOWN = NoteEffect.SLIDE_DOWN.code
+        val FX_VIBRATO = NoteEffect.VIBRATO.code
+        val FX_GLIDE = NoteEffect.GLIDE.code
+        val FX_BEND_IN = NoteEffect.BEND_IN.code
+
+        /** Slides move this far each step after the attack... */
+        const val SLIDE_SEMITONES_PER_STEP = 12.0
+        /** ...and stop this far from the written note. */
+        const val SLIDE_MAX_SEMITONES = 24.0
+        /** Vibrato swings this far either side of the note... */
+        const val VIBRATO_DEPTH_SEMITONES = 0.4
+        /** ...this many times a second. */
+        const val VIBRATO_RATE_HZ = 6.0
+        /** A glide reaches its note in this many steps. */
+        const val GLIDE_STEPS = 0.5
+        /** A bend in starts this far below its note... */
+        const val BEND_IN_SEMITONES = 2.0
+        /** ...and reaches it in this many steps. */
+        const val BEND_IN_STEPS = 0.25
         val TRIANGLE = ChannelKind.TRIANGLE.rawValue
 
         /** A note value as a grid cell: rest, note-off or MIDI 0..127; anything

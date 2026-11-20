@@ -9,6 +9,7 @@ import dev.individuation.chiptune.core.model.ChannelKind
 import dev.individuation.chiptune.core.model.Chip
 import dev.individuation.chiptune.core.model.Instrument
 import dev.individuation.chiptune.core.model.InstrumentPreset
+import dev.individuation.chiptune.core.model.NoteEffect
 import dev.individuation.chiptune.core.model.Pattern
 import dev.individuation.chiptune.core.model.PatternNameCheck
 import dev.individuation.chiptune.core.model.Song
@@ -510,6 +511,22 @@ class Studio(
     fun note(track: Int, step: Int): Int =
         pattern.rows.getOrNull(track)?.getOrNull(step) ?: Chip.EMPTY_NOTE
 
+    /** The pitch effect on a cell of the pattern being edited. */
+    fun effect(track: Int, step: Int): NoteEffect = pattern.effect(track, step)
+
+    /** Puts a pitch effect on a note, as one undo step. Only a pitch takes
+     * one; a rest, an OFF or an unchanged effect is not an edit. */
+    fun setEffect(track: Int, step: Int, effect: NoteEffect) {
+        if (selectedPattern !in song.patterns.indices || track !in song.tracks.indices ||
+            step !in 0 until Chip.MAX_STEPS
+        ) return
+        if (note(track, step) !in 0..127 || effect(track, step) == effect) return
+        checkpoint()
+        pinToSelectedPattern()
+        song = song.withEffect(selectedPattern, track, step, effect)
+        core.setEffect(selectedPattern, track, step, effect)
+    }
+
     /** Writes a note into the grid and mirrors it into the live pattern so it
      * is heard on the next pass. */
     fun setNote(track: Int, step: Int, note: Int) {
@@ -519,6 +536,8 @@ class Studio(
         pinToSelectedPattern()
         song = song.withNote(selectedPattern, track, step, note)
         core.setNote(selectedPattern, track, step, note)
+        // A rest or OFF clears the cell's effect; a new pitch keeps it.
+        core.setEffect(selectedPattern, track, step, song.patterns[selectedPattern].effect(track, step))
         reconcileRingingVoices()
     }
 
@@ -640,18 +659,19 @@ class Studio(
     fun previewCell(track: Int, step: Int): Boolean {
         val note = note(track, step)
         if (note == Chip.EMPTY_NOTE || note == Chip.NOTE_OFF) return false
-        audition(note, track)
+        audition(note, track, effect(track, step))
         return true
     }
 
-    /** Previews a note on a track, the selected one unless told otherwise. */
-    fun audition(note: Int, track: Int? = null) {
+    /** Previews a note on a track, the selected one unless told otherwise,
+     * with a pitch effect when it's a cell's preview. */
+    fun audition(note: Int, track: Int? = null, effect: NoteEffect = NoteEffect.NONE) {
         if (!audio.startIfNeeded()) {
             audioError = AudioFailureMessage.start(audio.lastError)
             return
         }
         audioError = null
-        core.audition(track ?: selectedTrack, note)
+        core.audition(track ?: selectedTrack, note, effect)
     }
 
     /** Clears one track in the pattern being edited. */
@@ -662,7 +682,10 @@ class Studio(
     fun clearTrack(track: Int, pattern: Int) {
         if (track !in song.tracks.indices || pattern !in song.patterns.indices) return
         // Already empty: not an edit, so Redo survives.
-        if (song.patterns[pattern].rows.getOrNull(track)?.any { it != Chip.EMPTY_NOTE } == true) checkpoint()
+        val p = song.patterns[pattern]
+        if (p.rows.getOrNull(track)?.any { it != Chip.EMPTY_NOTE } == true ||
+            p.effectRow(track).any { it != NoteEffect.NONE }
+        ) checkpoint()
         erase(track, pattern)
     }
 
@@ -670,9 +693,12 @@ class Studio(
         if (pattern !in song.patterns.indices || track !in song.tracks.indices) return
         if (pattern == selectedPattern) pinToSelectedPattern()
         song = song.copy(patterns = song.patterns.replacing(pattern) { p ->
-            p.copy(rows = p.rows.replacing(track) { Pattern.EMPTY_ROW })
+            p.clearingRows(listOf(track))
         })
-        for (step in 0 until Chip.MAX_STEPS) core.setNote(pattern, track, step, Chip.EMPTY_NOTE)
+        for (step in 0 until Chip.MAX_STEPS) {
+            core.setNote(pattern, track, step, Chip.EMPTY_NOTE)
+            core.setEffect(pattern, track, step, NoteEffect.NONE)
+        }
         reconcileRingingVoices()
     }
 
@@ -682,14 +708,19 @@ class Studio(
     /** Clears every track in one pattern without moving the editor to it. */
     fun clearPattern(index: Int) {
         if (index !in song.patterns.indices) return
-        if (song.patterns[index].rows.any { row -> row.any { it != Chip.EMPTY_NOTE } }) checkpoint()
+        if (song.patterns[index].rows.any { row -> row.any { it != Chip.EMPTY_NOTE } } ||
+            song.patterns[index].hasEffects
+        ) checkpoint()
         if (index == selectedPattern) pinToSelectedPattern()
         val trackCount = song.tracks.size
         song = song.copy(patterns = song.patterns.replacing(index) { p ->
-            p.copy(rows = p.rows.mapIndexed { t, row -> if (t < trackCount) Pattern.EMPTY_ROW else row })
+            p.clearingRows((0 until trackCount).toSet())
         })
         for (track in 0 until trackCount) {
-            for (step in 0 until Chip.MAX_STEPS) core.setNote(index, track, step, Chip.EMPTY_NOTE)
+            for (step in 0 until Chip.MAX_STEPS) {
+                core.setNote(index, track, step, Chip.EMPTY_NOTE)
+                core.setEffect(index, track, step, NoteEffect.NONE)
+            }
         }
         reconcileRingingVoices()
     }
@@ -987,7 +1018,7 @@ class Studio(
         checkpoint()
         song = song.copy(
             tracks = song.tracks + Track(kind = kind),
-            patterns = song.patterns.map { it.copy(rows = it.rows + listOf(Pattern.EMPTY_ROW)) },
+            patterns = song.patterns.map { it.insertingRow(it.rows.size) },
         )
         pushAll()
         selectedTrack = song.tracks.size - 1
@@ -1001,8 +1032,7 @@ class Studio(
         song = song.copy(
             tracks = song.tracks.toMutableList().apply { add(index + 1, copy) },
             patterns = song.patterns.map { p ->
-                val row = p.rows.getOrNull(index) ?: Pattern.EMPTY_ROW
-                p.copy(rows = p.rows.toMutableList().apply { add(minOf(index + 1, size), row) })
+                p.insertingRow(index + 1, p.rows.getOrNull(index) ?: Pattern.EMPTY_ROW, p.effectRow(index))
             },
         )
         pushAll()
@@ -1015,7 +1045,7 @@ class Studio(
         song = song.copy(
             tracks = song.tracks.filterIndexed { i, _ -> i != index },
             patterns = song.patterns.map { p ->
-                if (index < p.rows.size) p.copy(rows = p.rows.filterIndexed { i, _ -> i != index }) else p
+                p.removingRow(index)
             },
         )
         pushAll()
@@ -1033,16 +1063,7 @@ class Studio(
         val selectedID = song.tracks.getOrNull(selectedTrack)?.id
         song = song.copy(
             tracks = song.tracks.toMutableList().apply { add(to, removeAt(from)) },
-            patterns = song.patterns.map { p ->
-                if (from >= p.rows.size) {
-                    p
-                } else {
-                    p.copy(rows = p.rows.toMutableList().apply {
-                        val row = removeAt(from)
-                        add(minOf(to, size), row)
-                    })
-                }
-            },
+            patterns = song.patterns.map { it.movingRow(from, to) },
         )
         pushAll()
         // Voices are indexed by track; a held note would carry on under

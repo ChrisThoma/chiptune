@@ -10,6 +10,8 @@ import java.util.UUID
  * Decoding mirrors each hand-written Swift `init(from:)`: a key that is
  * absent or `null` takes the decoder's fallback; a key that is present with
  * the wrong type rejects the whole song, as Swift's `decodeIfPresent` throws.
+ * `Pattern.effects` is optional and its unknown values decode as no
+ * effect, but a wrong type there rejects the song like any other key.
  * `SongSection` uses Swift's synthesized decoder, so all three of its keys
  * are required, and `Song.tracks` is required too. The result is always
  * normalized.
@@ -148,7 +150,12 @@ object SongCodec {
         val name = c.string("name") ?: "A"
         val length = c.int("length") ?: 16
         val rows = c.array("rows")?.map { row -> longs(asArray(row, "rows"), "rows").map(Chip::clampNote) } ?: emptyList()
-        return Pattern(id = id, name = name, length = length, rows = rows)
+        // Parallel to rows, and only written when some cell has one: absent
+        // means no effects. A value this version doesn't know plays plain.
+        val effects = c.array("effects")?.map { row ->
+            longs(asArray(row, "effects"), "effects").map { NoteEffect.fromCode(it) }
+        } ?: emptyList()
+        return Pattern(id = id, name = name, length = length, rows = rows, effects = effects)
     }
 
     /** Synthesized `Codable` in Swift: every key is required. */
@@ -199,6 +206,11 @@ object SongCodec {
                         field("name") { string(p.name) }
                         field("length") { raw(p.length.toString()) }
                         field("rows") { array(p.rows) { row -> inlineInts(row) } }
+                        // Only when used, so a song without effects saves
+                        // byte-identical to before and older versions ignore it.
+                        if (p.hasEffects) {
+                            field("effects") { array(p.effectRows()) { row -> inlineInts(row.map { it.code }) } }
+                        }
                     }
                 }
             }

@@ -84,6 +84,25 @@ data class Track(
     }
 }
 
+/** A per-note pitch effect. One per cell, stored in [Pattern.effects] beside
+ * the note; the code is what the file holds (Swift's `NoteEffect: Int8`). */
+enum class NoteEffect(val code: Int, val symbol: String, val displayName: String) {
+    NONE(0, "", "No effect"),
+    SLIDE_UP(1, "↗", "Slide up"),
+    SLIDE_DOWN(2, "↘", "Slide down"),
+    VIBRATO(3, "~", "Vibrato"),
+    GLIDE(4, "⌒", "Glide"),
+    BEND_IN(5, "⤴", "Bend in"),
+    ;
+
+    companion object {
+        /** A code from a file or the core; anything unknown is [NONE]. */
+        fun fromCode(code: Long): NoteEffect = entries.firstOrNull { it.code.toLong() == code } ?: NONE
+
+        fun fromCode(code: Int): NoteEffect = fromCode(code.toLong())
+    }
+}
+
 /** A block of steps — one row per track. */
 data class Pattern(
     val id: UUID = UUID.randomUUID(),
@@ -93,6 +112,11 @@ data class Pattern(
     val length: Int = 16,
     /** One row per track, each [Chip.MAX_STEPS] long; [Chip.EMPTY_NOTE] for a rest. */
     val rows: List<List<Int>> = emptyList(),
+    /** Parallel to [rows]: each cell's pitch effect. Empty when no cell has
+     * one (the canonical form, so a pattern that never had an effect and one
+     * whose last effect was cleared are equal); a missing row or step is
+     * [NoteEffect.NONE]. Normalized alongside [rows] once any cell has one. */
+    val effects: List<List<NoteEffect>> = emptyList(),
 ) {
     constructor(name: String, length: Int = 16, trackCount: Int) :
         this(UUID.randomUUID(), name, length, List(maxOf(trackCount, 1)) { EMPTY_ROW })
@@ -104,11 +128,68 @@ data class Pattern(
 
     fun rowHasNotes(row: List<Int>): Boolean = row.take(maxOf(length, 0)).any { it in 0..127 }
 
-    /** This pattern with one cell changed. */
-    fun withNote(row: Int, step: Int, note: Int): Pattern =
-        copy(rows = rows.mapIndexed { r, cells ->
+    /** Some cell carries an effect, so the file gets an `effects` key. */
+    val hasEffects: Boolean get() = effects.any { row -> row.any { it != NoteEffect.NONE } }
+
+    fun effect(row: Int, step: Int): NoteEffect = effects.getOrNull(row)?.getOrNull(step) ?: NoteEffect.NONE
+
+    /** One track's effects, [Chip.MAX_STEPS] long. */
+    fun effectRow(row: Int): List<NoteEffect> = fitted(effects.getOrNull(row))
+
+    /** [effects] in [rows]'s shape: one full row per note row. */
+    fun effectRows(): List<List<NoteEffect>> = rows.indices.map { effectRow(it) }
+
+    /** This pattern with one cell changed. A rest or note-off takes no effect,
+     * so writing one clears the cell's; a new pitch keeps it. */
+    fun withNote(row: Int, step: Int, note: Int): Pattern {
+        val written = copy(rows = rows.mapIndexed { r, cells ->
             if (r != row) cells else cells.mapIndexed { s, n -> if (s == step) note else n }
         })
+        return if (note !in 0..127 && effect(row, step) != NoteEffect.NONE) written.withEffect(row, step, NoteEffect.NONE) else written
+    }
+
+    /** This pattern with one cell's effect changed. */
+    fun withEffect(row: Int, step: Int, effect: NoteEffect): Pattern {
+        if (row !in rows.indices || step !in 0 until Chip.MAX_STEPS) return this
+        if (effect(row, step) == effect) return this
+        return withRows(rows, effectRows().mapIndexed { r, cells ->
+            if (r != row) cells else cells.mapIndexed { s, e -> if (s == step) effect else e }
+        })
+    }
+
+    /** Replaces notes and effects together, keeping [effects] canonical. Row
+     * edits go through here so a track's effects travel with its notes. */
+    fun withRows(rows: List<List<Int>>, effects: List<List<NoteEffect>>): Pattern =
+        copy(rows = rows, effects = canonical(effects))
+
+    /** A row inserted at [index], notes and effects together. */
+    fun insertingRow(index: Int, notes: List<Int> = EMPTY_ROW, effects: List<NoteEffect> = EMPTY_EFFECT_ROW): Pattern {
+        val at = minOf(maxOf(index, 0), rows.size)
+        return withRows(rows.toMutableList().apply { add(at, notes) },
+            effectRows().toMutableList().apply { add(at, fitted(effects)) })
+    }
+
+    fun removingRow(index: Int): Pattern {
+        if (index !in rows.indices) return this
+        return withRows(rows.filterIndexed { i, _ -> i != index }, effectRows().filterIndexed { i, _ -> i != index })
+    }
+
+    /** Moves row [from] so it ends up at [to] (clamped into the new list). */
+    fun movingRow(from: Int, to: Int): Pattern {
+        if (from !in rows.indices) return this
+        val notes = rows.toMutableList()
+        val fx = effectRows().toMutableList()
+        val row = notes.removeAt(from)
+        val fxRow = fx.removeAt(from)
+        notes.add(minOf(to, notes.size), row)
+        fx.add(minOf(to, fx.size), fxRow)
+        return withRows(notes, fx)
+    }
+
+    /** Empties rows [indices]: no notes, no effects. */
+    fun clearingRows(indices: Collection<Int>): Pattern =
+        withRows(rows.mapIndexed { r, row -> if (r in indices) EMPTY_ROW else row },
+            effectRows().mapIndexed { r, row -> if (r in indices) EMPTY_EFFECT_ROW else row })
 
     /** Pads or trims rows so a corrupt file can't send the audio thread past its buffers. */
     fun normalized(trackCount: Int): Pattern {
@@ -126,11 +207,28 @@ data class Pattern(
             }
             fitted.map { n -> if (n != Chip.EMPTY_NOTE && n != Chip.NOTE_OFF && n !in 0..127) Chip.EMPTY_NOTE else n }
         }
-        return copy(length = swiftClamp(length, Chip.patternLengthRange.first, Chip.patternLengthRange.last), rows = cleaned)
+        // Effects take the rows' shape once any cell has one; with none they
+        // stay empty, so a plain pattern normalizes to what it was.
+        val fx = canonical((0 until want).map { effectRow(it) })
+        return copy(length = swiftClamp(length, Chip.patternLengthRange.first, Chip.patternLengthRange.last),
+            rows = cleaned, effects = fx)
     }
 
     companion object {
         val EMPTY_ROW: List<Int> = List(Chip.MAX_STEPS) { Chip.EMPTY_NOTE }
+        val EMPTY_EFFECT_ROW: List<NoteEffect> = List(Chip.MAX_STEPS) { NoteEffect.NONE }
+
+        private fun fitted(row: List<NoteEffect>?): List<NoteEffect> = when {
+            row == null -> EMPTY_EFFECT_ROW
+            row.size < Chip.MAX_STEPS -> row + List(Chip.MAX_STEPS - row.size) { NoteEffect.NONE }
+            row.size > Chip.MAX_STEPS -> row.take(Chip.MAX_STEPS)
+            else -> row
+        }
+
+        /** No effect anywhere is stored as no effects at all; otherwise every
+         * row is full length. */
+        private fun canonical(effects: List<List<NoteEffect>>): List<List<NoteEffect>> =
+            if (effects.all { row -> row.all { it == NoteEffect.NONE } }) emptyList() else effects.map { fitted(it) }
     }
 }
 
@@ -247,6 +345,10 @@ data class Song(
         }
         return "${patterns.size + 1}"
     }
+
+    /** This song with one cell's effect in one pattern changed. */
+    fun withEffect(pattern: Int, row: Int, step: Int, effect: NoteEffect): Song =
+        copy(patterns = patterns.mapIndexed { i, p -> if (i == pattern) p.withEffect(row, step, effect) else p })
 
     /** This song with one cell of one pattern changed. */
     fun withNote(pattern: Int, row: Int, step: Int, note: Int): Song =
@@ -383,6 +485,13 @@ object NoteName {
         if (midi == Chip.NOTE_OFF) return "REST"
         if (midi < 0) return ""
         return "${NAMES[midi % 12]}${midi / 12 - 1}"
+    }
+
+    /** The label with the effect's symbol after it: "E5↗". A rest or note-off
+     * takes no effect, so it keeps its plain label. */
+    fun label(midi: Int, effect: NoteEffect): String {
+        val plain = label(midi)
+        return if (midi in 0..127) plain + effect.symbol else plain
     }
 
     fun frequency(midi: Int): Double = 440.0 * StrictMath.pow(2.0, (midi.toDouble() - 69.0) / 12.0)
