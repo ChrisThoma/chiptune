@@ -9,6 +9,7 @@ import dev.individuation.chiptune.core.model.ChannelKind
 import dev.individuation.chiptune.core.model.Chip
 import dev.individuation.chiptune.core.model.Instrument
 import dev.individuation.chiptune.core.model.InstrumentPreset
+import dev.individuation.chiptune.core.model.MusicalKey
 import dev.individuation.chiptune.core.model.NoteEffect
 import dev.individuation.chiptune.core.model.Pattern
 import dev.individuation.chiptune.core.model.PatternNameCheck
@@ -504,6 +505,16 @@ class Studio(
         checkpoint(coalescing = true, kind = CheckpointKind.Tempo)
         song = song.copy(tempo = clamped)
         pushTransport()
+    }
+
+    /** Sets or clears the song's key, as one undo step. It only marks the
+     * piano, so nothing is pushed to the core. */
+    fun setKey(key: MusicalKey?) {
+        if (key != null && !key.isValid) return
+        // A write that changes nothing is not an edit (it would wipe Redo).
+        if (key == song.key) return
+        checkpoint()
+        song = song.copy(key = key)
     }
 
     // MARK: Editing

@@ -108,7 +108,18 @@ object SongCodec {
             arrangement = listOf(SongSection(patternID = first.id))
         }
         return Song(id = id, name = name, tempo = tempo, tracks = tracks, patterns = patterns,
-            arrangement = arrangement, modified = modified).normalized()
+            arrangement = arrangement, modified = modified, key = decodeKey(c.present("key"))).normalized()
+    }
+
+    /** Unlike every other key, a `key` this version can't read is dropped
+     * rather than rejecting the song: it only marks the piano, so a newer
+     * scale or a hand-edited root shouldn't cost the user their notes. */
+    private fun decodeKey(value: JsonValue?): MusicalKey? {
+        val obj = value as? JsonValue.Obj ?: return null
+        val root = (obj["root"] as? JsonValue.Num)?.asLongOrNull() ?: return null
+        val scale = (obj["scale"] as? JsonValue.Str)?.let { MusicalKey.Scale.fromRaw(it.value) } ?: return null
+        if (root !in MusicalKey.ROOTS.first.toLong()..MusicalKey.ROOTS.last.toLong()) return null
+        return MusicalKey(root.toInt(), scale)
     }
 
     /** A track and the legacy `notes` it carried, if any. */
@@ -224,6 +235,16 @@ object SongCodec {
                 }
             }
             field("modified") { number(s.modified) }
+            // Last, as iOS writes it. Omitted when null, so a song without a
+            // key saves byte-identical to before and older versions never see it.
+            s.key?.let { key ->
+                field("key") {
+                    obj {
+                        field("root") { raw(key.root.toString()) }
+                        field("scale") { string(key.scale.rawValue) }
+                    }
+                }
+            }
         }
         return w.toString()
     }

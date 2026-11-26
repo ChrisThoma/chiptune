@@ -258,6 +258,8 @@ data class Song(
     val arrangement: List<SongSection>,
     /** Seconds since 2001-01-01 ([SongClock]). */
     val modified: Double = SongClock.now(),
+    /** Marks the in-key notes on the piano; null when none is chosen. */
+    val key: MusicalKey? = null,
 ) {
     companion object {
         /** What a new song, or one whose stored name is blank, is called. */
@@ -304,7 +306,11 @@ data class Song(
         val seenSections = HashSet<UUID>()
         newArrangement = newArrangement.map { if (seenSections.add(it.id)) it else it.copy(id = UUID.randomUUID()) }
 
-        return copy(name = newName, tempo = newTempo, tracks = newTracks, patterns = newPatterns, arrangement = newArrangement)
+        // A root off the twelve has no letter to show; drop it rather than guess.
+        val newKey = key?.takeIf { it.isValid }
+
+        return copy(name = newName, tempo = newTempo, tracks = newTracks, patterns = newPatterns, arrangement = newArrangement,
+            key = newKey)
     }
 
     // MARK: Patterns

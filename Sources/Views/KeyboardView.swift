@@ -110,6 +110,8 @@ struct KeyboardView: View {
                 .accessibilityValue("\(octave - 1)")
             }
 
+            keyMenu
+
             Spacer()
 
             // Which track a tap lands on matters more now that a song can hold
@@ -158,21 +160,90 @@ struct KeyboardView: View {
         }
     }
 
+    /// Picks the song's key, which only marks the piano; see `MusicalKey`.
+    private var keyMenu: some View {
+        let current = studio.song.key
+        return Menu {
+            Button {
+                studio.setKey(nil)
+            } label: {
+                if current == nil { Label("No key", systemImage: "checkmark") } else { Text("No key") }
+            }
+            ForEach(MusicalKey.Scale.allCases, id: \.self) { scale in
+                Menu(scale == .major ? "Major" : "Minor") {
+                    ForEach(0..<12, id: \.self) { root in
+                        let choice = MusicalKey(root: root, scale: scale)
+                        Button {
+                            studio.setKey(choice)
+                        } label: {
+                            if current == choice {
+                                Label(NoteName.names[root], systemImage: "checkmark")
+                            } else {
+                                Text(NoteName.names[root])
+                            }
+                        }
+                    }
+                }
+            }
+        } label: {
+            Text(KeyMark.buttonLabel(current)).chipFont(12)
+                .lineLimit(1)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+        }
+        // The button menu style hands the label to the environment's button
+        // style, so the KEY pad matches REST and the octave chevrons.
+        .menuStyle(.button)
+        .buttonStyle(PadStyle())
+        // The menu opens upward from the bottom of the screen, which iOS
+        // answers by reversing the list: B above C, "No key" at the bottom.
+        .menuOrder(.fixed)
+        .accessibilityLabel("Key")
+        .accessibilityValue(KeyMark.buttonValue(current))
+    }
+
+    /// The scale degree, so a key's notes read at a glance without
+    /// recolouring any key. The root takes the track's colour, except on the
+    /// lit key, where it would vanish into the fill.
+    private func degreeLabel(_ degree: Int, black: Bool, selected: Bool, accent: Color) -> some View {
+        let root = degree == 1
+        return Text("\(degree)")
+            .chipFont(layout.keyLabelSize * (root ? 2.2 : 1.8), weight: .black)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+            .foregroundStyle(selected ? Theme.onLight
+                             : root ? accent
+                             : black ? Theme.text : Theme.onLight)
+            .padding(.horizontal, 2)
+            .allowsHitTesting(false)
+    }
+
     private func key(midi: Int, black: Bool) -> some View {
         let note = Int8(clamping: midi)
         let selected = studio.selectedNote == note
         let accent = Theme.color(for: studio.selectedKind)
+        let songKey = studio.song.key
+        let degree = songKey?.degree(midi)
 
         return RoundedRectangle(cornerRadius: Theme.cellRadius)
             .fill(selected ? accent : (black ? Color(white: 0.13) : Color(white: 0.88)))
             .overlay(alignment: .bottom) {
-                if !black {
-                    Text(NoteName.label(note))
-                        .chipFont(layout.keyLabelSize)
-                        // 0.45 over an 0.88 key cap only reaches 3.2:1 at 9pt.
-                        .foregroundStyle(selected ? Theme.onLight.opacity(0.7) : Theme.onLight.opacity(0.62))
-                        .padding(.bottom, 5)
+                // Stacked with the note label rather than offset from it, so
+                // the two can't collide when Dynamic Type grows the label.
+                VStack(spacing: 1) {
+                    if let degree {
+                        degreeLabel(degree, black: black, selected: selected, accent: accent)
+                    }
+                    if !black {
+                        Text(NoteName.label(note))
+                            .chipFont(layout.keyLabelSize)
+                            // 0.45 over an 0.88 key cap only reaches 3.2:1 at 9pt.
+                            .foregroundStyle(selected ? Theme.onLight.opacity(0.7) : Theme.onLight.opacity(0.62))
+                    }
                 }
+                // Black keys have no label, so their number sits a little
+                // higher off the bottom edge on its own.
+                .padding(.bottom, black ? 6 : 5)
             }
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.cellRadius)
@@ -191,6 +262,7 @@ struct KeyboardView: View {
             // VoiceOver needs the trait to announce the key as tappable, and
             // the lit key as the current one.
             .accessibilityAddTraits(SelectionAccessibility.traits(selected: selected))
+            .accessibilityValue(KeyMark.accessibilityValue(key: songKey, midi: midi) ?? "")
     }
 }
 

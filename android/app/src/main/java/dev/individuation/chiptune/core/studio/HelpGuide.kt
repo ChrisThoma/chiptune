@@ -8,6 +8,7 @@ object ControlLabel {
     const val SONG = "SONG"
     const val ARRANGEMENT = "ARR"
     const val REST = "REST"
+    const val KEY = "KEY"
     const val PRESET_SECTION = "Preset"
     const val VOLUME = "Volume"
     const val HOLD_SWITCH = "Hold"

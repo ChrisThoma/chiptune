@@ -452,6 +452,9 @@ struct Song: Codable, Equatable, Identifiable {
     /// falls back to playing the first pattern once.
     var arrangement: [SongSection]
     var modified: Date = Date()
+    /// Marks scale notes on the piano. Nil (no key) is the default, and is
+    /// left out of the file so older versions read it unchanged.
+    var key: MusicalKey? = nil
 
     init(name: String = Song.defaultName) {
         self.name = name
@@ -465,7 +468,7 @@ struct Song: Codable, Equatable, Identifiable {
     // MARK: Coding
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, tempo, tracks, patterns, arrangement, modified
+        case id, name, tempo, tracks, patterns, arrangement, modified, key
         /// Pre-arrangement files kept a single pattern length on the song.
         case length
     }
@@ -476,6 +479,9 @@ struct Song: Codable, Equatable, Identifiable {
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? Song.defaultName
         tempo = try c.decodeIfPresent(Double.self, forKey: .tempo) ?? 120
         modified = try c.decodeIfPresent(Date.self, forKey: .modified) ?? Date()
+        // A key this version can't read (a new scale, a bad root) costs the
+        // marks on the piano, never the song.
+        key = try? c.decodeIfPresent(MusicalKey.self, forKey: .key)
         tracks = try c.decode([Track].self, forKey: .tracks)
 
         if let saved = try c.decodeIfPresent([Pattern].self, forKey: .patterns), !saved.isEmpty {
@@ -506,6 +512,7 @@ struct Song: Codable, Equatable, Identifiable {
         try c.encode(patterns, forKey: .patterns)
         try c.encode(arrangement, forKey: .arrangement)
         try c.encode(modified, forKey: .modified)
+        try c.encodeIfPresent(key, forKey: .key)
     }
 
     // MARK: Invariants

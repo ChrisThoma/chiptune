@@ -535,6 +535,14 @@ final class Studio {
         pushTransport()
     }
 
+    func setKey(_ key: MusicalKey?) {
+        guard key != song.key else { return }
+        // Not coalesced: each menu pick is a deliberate choice, unlike the
+        // tempo stepper's run of taps.
+        checkpoint()
+        song.key = key
+    }
+
     // MARK: Editing
 
     func note(track: Int, step: Int) -> Int8 {

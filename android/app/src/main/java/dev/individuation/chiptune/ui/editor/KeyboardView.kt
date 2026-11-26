@@ -17,18 +17,26 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -42,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.individuation.chiptune.core.studio.ControlLabel
+import dev.individuation.chiptune.core.model.MusicalKey
 import dev.individuation.chiptune.core.model.NoteName
 import dev.individuation.chiptune.core.studio.Studio
 import dev.individuation.chiptune.ui.layout.ChipLayout
@@ -93,8 +102,9 @@ private fun KeyboardControls(editor: Editor) {
             OctaveButton(Icons.Filled.ChevronLeft, "Octave down", octave, octave > Studio.OCTAVE_RANGE.first) { studio.shiftOctave(-1) }
             OctaveButton(Icons.Filled.ChevronRight, "Octave up", octave, octave < Studio.OCTAVE_RANGE.last) { studio.shiftOctave(1) }
         }
+        KeyButton(editor)
         // Which track a tap lands on; while REST is armed, what REST does.
-        // Centred in the space between the octave pair and REST.
+        // Centred in the space between KEY and REST.
         Column(
             Modifier.weight(1f).semantics(mergeDescendants = true) {},
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -122,6 +132,85 @@ private fun KeyboardControls(editor: Editor) {
         ) { fg ->
             Text(ControlLabel.REST, style = chipFont(12f), color = fg, maxLines = 1)
         }
+    }
+}
+
+/** Picks the song's key, which marks the in-key notes on the piano. One
+ * menu that swaps its page: the scale first, then its twelve roots, since
+ * Material has no submenu and a 25-row list would run off a phone. */
+@Composable
+private fun KeyButton(editor: Editor) {
+    val studio = editor.studio
+    val key by remember { derivedStateOf { editor.ui.value.song.key } }
+    var open by remember { mutableStateOf(false) }
+    // The scale whose roots the menu is showing; null is the first page.
+    var scalePage by remember { mutableStateOf<MusicalKey.Scale?>(null) }
+    fun choose(choice: MusicalKey?) {
+        open = false
+        studio.setKey(choice)
+    }
+    Box {
+        PadButton(
+            onClick = { scalePage = null; open = true },
+            modifier = Modifier.clearAndSetSemantics {
+                contentDescription = "Key"
+                stateDescription = key?.spokenLabel ?: "none"
+                role = Role.Button
+                onClick("Choose a key") { scalePage = null; open = true; true }
+            },
+        ) { fg ->
+            Text(key?.shortLabel ?: ControlLabel.KEY, style = chipFont(12f), color = fg, maxLines = 1, softWrap = false)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = ChipColors.panelHigh, shape = RoundedCornerShape(ChipRadii.panel)) {
+            val page = scalePage
+            if (page == null) {
+                KeyMenuRow("No key", checked = key == null) { choose(null) }
+                for (scale in MusicalKey.Scale.entries) {
+                    // The current key's scale says so, so the first page alone
+                    // answers "what key am I in".
+                    DropdownMenuItem(
+                        text = { Text(scale.fullName.replaceFirstChar { it.uppercase() }, color = ChipColors.text, style = MaterialTheme.typography.bodyLarge) },
+                        leadingIcon = { CheckSlot(key?.scale == scale) },
+                        trailingIcon = { Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = ChipColors.dim) },
+                        onClick = { scalePage = scale },
+                    )
+                }
+            } else {
+                DropdownMenuItem(
+                    text = { Text(page.fullName.replaceFirstChar { it.uppercase() }, color = ChipColors.dim, style = MaterialTheme.typography.bodyLarge) },
+                    leadingIcon = { Icon(Icons.Filled.ChevronLeft, contentDescription = null, tint = ChipColors.dim) },
+                    onClick = { scalePage = null },
+                    modifier = Modifier.semantics { contentDescription = "Back to scales" },
+                )
+                for (root in MusicalKey.ROOTS) {
+                    val choice = MusicalKey(root, page)
+                    KeyMenuRow(NoteName.NAMES[root], checked = key == choice, spoken = choice.spokenLabel) { choose(choice) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun KeyMenuRow(title: String, checked: Boolean, spoken: String? = null, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(title, color = ChipColors.text, style = MaterialTheme.typography.bodyLarge) },
+        leadingIcon = { CheckSlot(checked) },
+        onClick = onClick,
+        modifier = Modifier.semantics {
+            spoken?.let { contentDescription = it }
+            selected = checked
+        },
+    )
+}
+
+/** A check or an empty space the same size, so the rows' text lines up. */
+@Composable
+private fun CheckSlot(checked: Boolean) {
+    if (checked) {
+        Icon(Icons.Filled.Check, contentDescription = null, tint = ChipColors.text)
+    } else {
+        Box(Modifier.width(24.dp))
     }
 }
 
@@ -153,6 +242,7 @@ private fun Keys(editor: Editor, modifier: Modifier) {
     val octave by remember { derivedStateOf { ui.value.octave } }
     val selectedNote by remember { derivedStateOf { ui.value.selectedNote } }
     val kind by remember { derivedStateOf { ui.value.selectedKind } }
+    val songKey by remember { derivedStateOf { ui.value.song.key } }
     val octaves = maxOf(1, layout.keyboardOctaves)
     val whiteOffsets = KeyboardGeometry.whiteOffsets(octaves)
     val blackKeys = KeyboardGeometry.blackKeys(octaves)
@@ -164,7 +254,7 @@ private fun Keys(editor: Editor, modifier: Modifier) {
         Row(Modifier.fillMaxWidth().fillMaxHeight(), horizontalArrangement = Arrangement.spacedBy(ChipLayout.WHITE_KEY_SPACING.dpValue())) {
             for (offset in whiteOffsets) {
                 val midi = base + offset
-                PianoKey(editor, midi, black = false, selected = selectedNote == midi, accent = accent, labelSize = layout.keyLabelSize.toFloat(), modifier = Modifier.weight(1f).fillMaxHeight())
+                PianoKey(editor, midi, black = false, selected = selectedNote == midi, accent = accent, songKey = songKey, labelSize = layout.keyLabelSize.toFloat(), degreeBase = layout.keyLabelSize.toFloat(), modifier = Modifier.weight(1f).fillMaxHeight())
             }
         }
         for ((offset, after) in blackKeys) {
@@ -175,7 +265,9 @@ private fun Keys(editor: Editor, modifier: Modifier) {
                 black = true,
                 selected = selectedNote == midi,
                 accent = accent,
+                songKey = songKey,
                 labelSize = 0f,
+                degreeBase = layout.keyLabelSize.toFloat(),
                 modifier = Modifier
                     .offset(x = geometry.blackKeyOffset(after).dpValue())
                     .width(geometry.blackWidth.dpValue())
@@ -186,11 +278,23 @@ private fun Keys(editor: Editor, modifier: Modifier) {
 }
 
 @Composable
-private fun PianoKey(editor: Editor, midi: Int, black: Boolean, selected: Boolean, accent: Color, labelSize: Float, modifier: Modifier) {
+private fun PianoKey(
+    editor: Editor,
+    midi: Int,
+    black: Boolean,
+    selected: Boolean,
+    accent: Color,
+    songKey: MusicalKey?,
+    labelSize: Float,
+    /** The white keys' label size, which the degree numbers scale from on both colours. */
+    degreeBase: Float,
+    modifier: Modifier,
+) {
     val note = midi.coerceIn(-128, 127)
     val shape = RoundedCornerShape(ChipRadii.cell)
     val label = NoteName.label(note)
-    Box(
+    val degree = songKey?.degree(note)
+    BoxWithConstraints(
         modifier
             .clip(shape)
             .background(if (selected) accent else if (black) ChipColors.blackKey else ChipColors.whiteKey)
@@ -203,6 +307,7 @@ private fun PianoKey(editor: Editor, midi: Int, black: Boolean, selected: Boolea
             }
             .clearAndSetSemantics {
                 contentDescription = "Note $label"
+                degree?.let { stateDescription = if (it == 1) "degree 1, root" else "degree $it" }
                 this.selected = selected
                 role = Role.Button
                 onClick {
@@ -213,15 +318,56 @@ private fun PianoKey(editor: Editor, midi: Int, black: Boolean, selected: Boolea
             },
         contentAlignment = Alignment.BottomCenter,
     ) {
-        if (!black) {
-            Text(
-                label,
-                style = chipFont(labelSize),
-                color = ChipColors.onLight.copy(alpha = if (selected) 0.7f else 0.62f),
-                maxLines = 1,
-                softWrap = false,
-                modifier = Modifier.padding(bottom = 5.dp),
-            )
+        // Plain text under the key's own pointerInput, so taps land on the key.
+        val number: (@Composable () -> Unit)? = degree?.let { d ->
+            {
+                DegreeNumber(d, black = black, selected = selected, accent = accent, base = degreeBase, keyWidth = maxWidth)
+            }
+        }
+        if (black) {
+            if (number != null) Box(Modifier.padding(bottom = 5.dp)) { number() }
+        } else {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                number?.invoke()
+                Text(
+                    label,
+                    style = chipFont(labelSize),
+                    color = ChipColors.onLight.copy(alpha = if (selected) 0.7f else 0.62f),
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.padding(bottom = 5.dp),
+                )
+            }
         }
     }
 }
+
+/** A scale degree on an in-key piano key: big and heavy so the scale reads
+ * at a glance, the root's 1 a size up and in the track colour. */
+@Composable
+private fun DegreeNumber(degree: Int, black: Boolean, selected: Boolean, accent: Color, base: Float, keyWidth: androidx.compose.ui.unit.Dp) {
+    val root = degree == 1
+    val wanted = base * if (root) DEGREE_ROOT_SCALE else DEGREE_SCALE
+    // A mono digit is 0.6 em wide; keep it inside the key (a narrow black key
+    // first) with 2dp each side, at whatever font scale is in force.
+    val fontScale = LocalDensity.current.fontScale
+    val fits = ((keyWidth.value - 4f) / (0.6f * fontScale)).coerceAtLeast(1f)
+    val color = when {
+        // The selected key is filled with the accent, root or not.
+        selected -> ChipColors.onLight
+        root -> accent
+        black -> ChipColors.text
+        else -> ChipColors.onLight
+    }
+    Text(
+        degree.toString(),
+        // Black isn't bundled; Compose draws the bundled Bold, the heaviest cut.
+        style = chipFont(minOf(wanted, fits), FontWeight.Black),
+        color = color,
+        maxLines = 1,
+        softWrap = false,
+    )
+}
+
+private const val DEGREE_SCALE = 1.8f
+private const val DEGREE_ROOT_SCALE = 2.2f
