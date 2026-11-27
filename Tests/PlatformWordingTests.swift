@@ -31,6 +31,22 @@ final class PlatformWordingTests: XCTestCase {
                        "to hold a section for longer")
     }
 
+    /// The Mac window always has the sound controls docked beside the grid,
+    /// so the iPad's "held sideways" aside describes a screen it doesn't have.
+    func testTheSidewaysScreenAsideReadsForTheMac() {
+        let text = "Tap a track's name to pick it. Tap it again to open its sound controls. On a large screen held sideways, they may already be open beside the grid."
+        XCTAssertEqual(PlatformWording.forPointer(text),
+                       "Click a track's name to pick it. Its sound controls are beside the grid.")
+    }
+
+    func testNoHelpEntryMentionsHoldingTheScreenSidewaysOnTheMac() {
+        for section in HelpGuide.sections {
+            for entry in section.entries {
+                XCTAssertFalse(PlatformWording.forPointer(entry.text).contains("sideways"), entry.text)
+            }
+        }
+    }
+
     func testEveryHelpEntryReadsForAPointer() {
         for section in HelpGuide.sections {
             for entry in section.entries {

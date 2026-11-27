@@ -26,6 +26,10 @@ enum PlatformWording {
     }
 
     private static let replacements: [(String, String)] = [
+        // The Mac window always docks the sound controls beside the grid, so
+        // the iPad's opening tap and its "held sideways" aside don't apply.
+        (#"Tap it again to open its sound controls\. On a large screen held sideways, they may already be open beside the grid\."#,
+         "Its sound controls are beside the grid."),
         (#"\bHold (a note|one)\b"#, "Right-click $1"),
         (#"\bhold (a note|one)\b"#, "right-click $1"),
         (#"\bTap\b"#, "Click"),
