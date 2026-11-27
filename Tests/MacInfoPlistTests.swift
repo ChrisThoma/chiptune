@@ -13,7 +13,7 @@ final class MacInfoPlistTests: XCTestCase {
 
     func testTheAboutBoxHasACopyrightLine() {
         let copyright = info["NSHumanReadableCopyright"] as? String ?? ""
-        XCTAssertTrue(copyright.hasPrefix("Copyright ©"), copyright)
+        XCTAssertEqual(copyright, "Copyright © 2026 Individuation Labs")
     }
 
     func testTheMinimumSystemVersionIsSet() {

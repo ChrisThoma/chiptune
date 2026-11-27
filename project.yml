@@ -301,7 +301,7 @@ targets:
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
         # The line the store listing already uses (AppStore/METADATA.md);
         # the About box shows it.
-        NSHumanReadableCopyright: Copyright © 2026 Chris Thoma
+        NSHumanReadableCopyright: Copyright © 2026 Individuation Labs
         ITSAppUsesNonExemptEncryption: false
         UTExportedTypeDeclarations:
           - UTTypeIdentifier: dev.individuation.chiptune.song
