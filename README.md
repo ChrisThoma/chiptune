@@ -98,6 +98,34 @@ With a hardware keyboard attached, the grid works like a tracker:
 - Delete clears a step. `\` arms a rest, like the REST key on screen, and
   Return writes whatever the on-screen keyboard has selected.
 
+## Mac
+
+`ChiptuneMac` is a native Mac app (macOS 14+) built from the same model,
+synth and SwiftUI views, with AppKit in place of the UIKit pieces
+(`Sources/Platform/`). It opens in the landscape iPad layout: grid on the
+left, keys and sound controls on the right. The menu bar carries every
+command, the keyboard works as it does on an iPad, a right-click does what a
+long press does on iOS, and exports go through a save panel or the share
+menu. `.chipsong` files open from Finder or by dropping them on the window.
+
+```sh
+xcodegen generate
+xcodebuild -project Chiptune.xcodeproj -scheme ChiptuneMac \
+  -destination 'platform=macOS,arch=arm64' -derivedDataPath build/mac build
+open build/mac/Build/Products/Debug/Chiptune.app
+```
+
+Its tests are the shared suite less the few that exercise UIKit or
+AVAudioSession (the list is in `project.yml`), plus the Mac's own:
+
+```sh
+xcodebuild test -project Chiptune.xcodeproj -scheme ChiptuneMac \
+  -destination 'platform=macOS,arch=arm64' -derivedDataPath build/mac
+```
+
+The app is sandboxed, so its songs live in
+`~/Library/Containers/dev.individuation.chiptune`, not in `~/Documents`.
+
 ## Android
 
 The Android app is on [Google Play](https://play.google.com/store/apps/details?id=dev.individuation.chiptune&referrer=utm_source%3Dgithub),

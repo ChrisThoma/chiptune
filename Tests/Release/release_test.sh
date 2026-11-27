@@ -187,6 +187,126 @@ odd="$(fixture_project 2.5 "1.0b")"
 assert_fails "refuses to bump a non-numeric build" "whole number" bump_build "$odd"
 
 echo
+echo "release.sh: the Mac build has paths and a ledger of its own"
+
+mac_yml="$(fixture_project 2.5 17)"
+assert_eq "mac archive path carries the version" \
+    "$ROOT/build/ChiptuneMac-2.5-17.xcarchive" "$(mac_archive_path "$mac_yml")"
+assert_eq "mac export dir carries the version" \
+    "$ROOT/build/export-mac-2.5-17" "$(mac_export_dir "$mac_yml")"
+assert_eq "pkg path carries the version" \
+    "$ROOT/build/export-mac-2.5-17/Chiptune.pkg" "$(pkg_path "$mac_yml")"
+
+# The Mac app shares the iOS bundle ID and build numbers (universal
+# purchase), so "1.3.7 (26) went up" means nothing without the platform.
+# One ledger for both would refuse the Mac upload of a build iOS already sent.
+if [ -n "${MAC_LEDGER:-}" ] && [ "$MAC_LEDGER" != "$LEDGER" ]; then ok "the mac ledger is not the ios one"; else bad "the mac ledger is not the ios one" "MAC_LEDGER is '${MAC_LEDGER:-}', LEDGER is $LEDGER"; fi
+ios_ledger="$work/ios-uploaded.txt"; mac_ledger="$work/mac-uploaded.txt"
+record_upload 2.5 17 "$ios_ledger"
+assert_ok "an ios upload doesn't block the mac one" \
+    assert_not_yet_uploaded 2.5 17 "$mac_ledger"
+
+echo
+echo "release.sh: the iOS and Mac targets ship the same numbers"
+
+# Read from the first target only, so a Mac target left behind by a hand edit
+# would archive under numbers nobody checked.
+apart="$work/project-apart.yml"
+cat > "$apart" <<YML
+targets:
+  Chiptune:
+    settings:
+      base:
+        MARKETING_VERSION: "2.5"
+        CURRENT_PROJECT_VERSION: "17"
+  ChiptuneMac:
+    settings:
+      base:
+        MARKETING_VERSION: "2.5"
+        CURRENT_PROJECT_VERSION: "16"
+YML
+assert_fails "refuses targets whose build numbers differ" "CURRENT_PROJECT_VERSION" \
+    versions_in_step "$apart"
+assert_ok "the real project.yml keeps them in step" versions_in_step "$ROOT/project.yml"
+
+echo
+echo "release.sh: the Mac export options"
+
+options="$work/ExportOptions-mac.plist"
+mac_export_options ABCDE12345 > "$options"
+assert_ok "the export options are a valid plist" plutil -lint "$options"
+assert_eq "exports for the app store" "app-store-connect" "$(plutil -extract method raw -o - "$options")"
+assert_eq "signs under the given team" "ABCDE12345" "$(plutil -extract teamID raw -o - "$options")"
+assert_eq "exports rather than uploads" "export" "$(plutil -extract destination raw -o - "$options")"
+
+echo
+echo "release.sh: the mac upload is altool --type macos"
+
+upload_line="$(mac_upload_command "$work/x.pkg" KEY ISSUER | tr '\n' ' ')"
+case "$upload_line" in
+    *"--type macos"*"--file $work/x.pkg"*) ok "uploads the pkg as macos" ;;
+    *) bad "uploads the pkg as macos" "got: $upload_line" ;;
+esac
+
+echo
+echo "release.sh: a pkg is verified against project.yml before it can be uploaded"
+
+# A real (ad hoc signed, unsigned-installer) pkg: an app bundle whose
+# executable is /usr/bin/true, signed with the entitlements under test and
+# wrapped by productbuild the way an App Store export is.
+fixture_pkg () {  # fixture_pkg <name> <marketing> <build> <bundle id> <entitlements xml body>
+    local dir="$work/pkg-$1" app
+    app="$dir/root/Chiptune.app"
+    mkdir -p "$app/Contents/MacOS"
+    cp /usr/bin/true "$app/Contents/MacOS/Chiptune"
+    cat > "$app/Contents/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleExecutable</key><string>Chiptune</string>
+  <key>CFBundleIdentifier</key><string>$4</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>$2</string>
+  <key>CFBundleVersion</key><string>$3</string>
+</dict></plist>
+PLIST
+    cat > "$dir/entitlements.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>$5</dict></plist>
+PLIST
+    codesign -s - -f --entitlements "$dir/entitlements.plist" "$app" 2>/dev/null
+    productbuild --component "$app" /Applications "$dir/Chiptune.pkg" >/dev/null 2>&1
+    printf '%s' "$dir/Chiptune.pkg"
+}
+
+sandboxed='<key>com.apple.security.app-sandbox</key><true/><key>com.apple.security.files.user-selected.read-write</key><true/>'
+bundle_id="dev.individuation.chiptune"
+
+good_pkg="$(fixture_pkg good "$real_marketing" "$real_build" "$bundle_id" "$sandboxed")"
+assert_ok "accepts the pkg the project asked for" verify_pkg "$good_pkg" "$ROOT/project.yml"
+
+assert_fails "rejects a stale mac build" "build 2" \
+    verify_pkg "$(fixture_pkg stale "$real_marketing" 2 "$bundle_id" "$sandboxed")" "$ROOT/project.yml"
+assert_fails "rejects the wrong mac marketing version" "1.1" \
+    verify_pkg "$(fixture_pkg train 1.1 "$real_build" "$bundle_id" "$sandboxed")" "$ROOT/project.yml"
+assert_fails "rejects another app's bundle id" "dev.individuation.other" \
+    verify_pkg "$(fixture_pkg other "$real_marketing" "$real_build" dev.individuation.other "$sandboxed")" "$ROOT/project.yml"
+# The Mac App Store refuses an app outside the sandbox.
+assert_fails "rejects an app without the sandbox" "sandbox" \
+    verify_pkg "$(fixture_pkg open "$real_marketing" "$real_build" "$bundle_id" '<key>com.apple.security.files.user-selected.read-write</key><true/>')" "$ROOT/project.yml"
+# Xcode adds get-task-allow to anything it signs for debugging; an ad hoc
+# Release build carried it until phase 3, and the store refuses it.
+assert_fails "rejects an app that can be debugged" "get-task-allow" \
+    verify_pkg "$(fixture_pkg debuggable "$real_marketing" "$real_build" "$bundle_id" "$sandboxed<key>com.apple.security.get-task-allow</key><true/>")" "$ROOT/project.yml"
+
+missing_pkg_out=$(verify_pkg "$work/not-here.pkg" "$ROOT/project.yml" 2>&1)
+assert_eq "a missing pkg reports exactly one error" "1" "$(printf '%s\n' "$missing_pkg_out" | grep -c .)"
+assert_fails "a missing pkg says so" "no such pkg" verify_pkg "$work/not-here.pkg" "$ROOT/project.yml"
+printf 'not a pkg' > "$work/bogus.pkg"
+assert_fails "a file that isn't a pkg says so" "is it a pkg" verify_pkg "$work/bogus.pkg" "$ROOT/project.yml"
+
+echo
 echo "docs: nothing names a fixed ipa path any more"
 
 # The doc rot itself is the defect, so it gets a test. A path with no version
