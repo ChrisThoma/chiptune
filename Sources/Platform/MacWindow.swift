@@ -27,4 +27,31 @@ enum MacWindow {
         ChipLayout.resolve(size: size, horizontalSizeClass: sizeClass)
     }
 }
+
+/// Puts the window back where it was and at the size it was. SwiftUI's own
+/// window restoration is part of macOS state restoration, which the default
+/// "Close windows when quitting an application" setting turns off, so the
+/// window opened at `defaultSize` in the corner after every quit. An AppKit
+/// frame autosave doesn't depend on that setting.
+struct WindowFrameKeeper: NSViewRepresentable {
+    static let autosaveName = "ChiptuneEditorWindow"
+
+    func makeNSView(context: Context) -> NSView { KeeperView() }
+    func updateNSView(_ view: NSView, context: Context) {}
+
+    private final class KeeperView: NSView {
+        private var attached = false
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window, !attached else { return }
+            attached = true
+            // After SwiftUI has applied its default size, or it would win.
+            DispatchQueue.main.async {
+                window.setFrameUsingName(WindowFrameKeeper.autosaveName)
+                window.setFrameAutosaveName(WindowFrameKeeper.autosaveName)
+            }
+        }
+    }
+}
 #endif

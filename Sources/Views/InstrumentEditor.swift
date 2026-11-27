@@ -219,11 +219,19 @@ struct InstrumentEditor: View {
                     .accessibilityElement(children: .contain)
                     .accessibilityLabel("Sound preset")
 
+                    #if os(macOS)
+                    Text(PlatformWording.adapt(currentPreset == nil
+                         ? "Custom sound. Tap a preset to hear it and start over from it."
+                         : "Ready-made sounds to start from. Tap one to hear it."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    #else
                     Text(currentPreset == nil
                          ? "Custom sound. Tap a preset to hear it and start over from it."
                          : "Ready-made sounds to start from. Tap one to hear it.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    #endif
                 }
 
                 Section {

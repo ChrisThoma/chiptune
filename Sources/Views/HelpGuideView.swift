@@ -61,13 +61,17 @@ struct HelpGuideView: View {
             : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
         layout {
             term(entry)
-            Text(entry.text)
+            Text(PlatformWording.adapt(entry.text))
                 .font(.subheadline)
                 .foregroundStyle(Theme.text)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .ignore)
+        #if os(macOS)
+        .accessibilityLabel(PlatformWording.adapt("\(entry.term). \(entry.text)"))
+        #else
         .accessibilityLabel("\(entry.term). \(entry.text)")
+        #endif
     }
 
     private func term(_ entry: HelpGuide.Entry) -> some View {
@@ -75,7 +79,7 @@ struct HelpGuideView: View {
             if let symbol = entry.symbol {
                 Image(systemName: symbol).symbolFont(13)
             } else {
-                Text(entry.term)
+                Text(PlatformWording.adapt(entry.term))
                     .chipFont(11, weight: .bold)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)

@@ -394,6 +394,12 @@ struct ContentView: View {
                 }
             }
             .environment(\.chipLayout, layout)
+            #if os(macOS)
+            // The rest of what the Mac's menu bar reads (`MacCommands`).
+            // Here rather than beside `\.editor` below, whose modifier chain
+            // is already at the type checker's limit.
+            .focusedSceneValue(\.macEditor, macEditorActions)
+            #endif
             // Dropping a song file on the editor opens it, the same as
             // picking it in the importer, and a file that isn't a song gets
             // the same "Import failed" alert. Deferred one runloop tick, the
@@ -654,6 +660,29 @@ struct ContentView: View {
             showingSongs = true
         }
     }
+
+    #if os(macOS)
+    private var macEditorActions: MacEditorActions {
+        MacEditorActions(
+            state: MacMenuState(
+                hasEditor: true,
+                canChangeSong: EditorPresentation.canChangeSong(songBoundPresented: songBoundPresented),
+                anyPresented: anyPresented || showingGuide,
+                canUndo: studio.canUndo,
+                canRedo: studio.canRedo,
+                textEditing: MacTextEditing.shared.isEditing),
+            isPlaying: studio.isPlaying,
+            songMode: studio.songMode,
+            openGuide: { openGuide() })
+    }
+
+    /// Help > Chiptune Help, behind the same guard as the other screens.
+    private func openGuide() {
+        guard EditorPresentation.canOpen(anyPresented: anyPresented || showingGuide) else { return }
+        endRenaming()
+        showingGuide = true
+    }
+    #endif
 
     private func openArrangement() {
         guard EditorPresentation.canOpen(anyPresented: anyPresented) else { return }

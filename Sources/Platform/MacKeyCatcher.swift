@@ -46,6 +46,7 @@ struct KeyCatcher: NSViewRepresentable {
             monitor = nil
             guard let window else { return }
             window.initialFirstResponder = self
+            MacTextEditing.shared.watch(window)
             DispatchQueue.main.async { [weak self] in
                 guard let self, let window = self.window,
                       !(window.firstResponder is NSText) else { return }
@@ -54,7 +55,9 @@ struct KeyCatcher: NSViewRepresentable {
             monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown]) { [weak self] event in
                 guard let self else { return event }
                 switch event.type {
-                case .keyDown: return self.handleKey(event) ? nil : event
+                case .keyDown:
+                    if Self.typeSpaceIntoField(event) { return nil }
+                    return self.handleKey(event) ? nil : event
                 case .leftMouseDown:
                     self.endTextEditingIfClickedAway(event)
                     return event
@@ -65,6 +68,18 @@ struct KeyCatcher: NSViewRepresentable {
 
         deinit {
             if let monitor { NSEvent.removeMonitor(monitor) }
+        }
+
+        /// Playback > Play/Stop shows Space as its key, and a menu's key
+        /// equivalent is matched before the key reaches the field being
+        /// typed into, so a space in a song name would start playback
+        /// instead. Handing the press to the field directly keeps it typing.
+        private static func typeSpaceIntoField(_ event: NSEvent) -> Bool {
+            guard event.keyCode == 49,
+                  MacKeys.modifiers(from: event.modifierFlags).isDisjoint(with: [.command, .control, .alternate]),
+                  let field = event.window?.firstResponder as? NSText else { return false }
+            field.keyDown(with: event)
+            return true
         }
 
         /// True when the press was the editor's.
@@ -96,8 +111,9 @@ struct KeyCatcher: NSViewRepresentable {
         }
 
         /// A click anywhere but a text field ends typing into one, as it does
-        /// in any Mac app, and gives first responder back to this view. SwiftUI's fields otherwise keep the keyboard after
-        /// a click on the grid, and the next note typed lands in the name.
+        /// in any Mac app, and gives first responder back to this view.
+        /// SwiftUI's fields otherwise keep the keyboard after a click on the
+        /// grid, and the next note typed lands in the name.
         private func endTextEditingIfClickedAway(_ event: NSEvent) {
             guard let window, event.window === window,
                   window.firstResponder is NSText,
