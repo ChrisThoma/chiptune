@@ -70,6 +70,10 @@ struct KeyboardView: View {
                 }
             }
             .frame(height: layout.keyboardHeight)
+            #if os(macOS)
+            // The keys only; the control row above keeps the full width.
+            .frame(maxWidth: layout.keysMaxWidth)
+            #endif
         }
         // On an iPad the keys stop widening partway across the window and
         // center; eight white keys spread over the full width are wider than a

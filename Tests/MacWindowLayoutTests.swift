@@ -73,6 +73,75 @@ final class MacWindowLayoutTests: XCTestCase {
         XCTAssertEqual(narrow.keyboardHeight, MacWindow.keyHeight)
     }
 
+    /// In the one-octave band the eight white keys keep the width they have
+    /// at the two-octave threshold instead of stretching across the window,
+    /// and sit centred under the full-width control row.
+    func testOneOctaveIsCappedAtTheThresholdKeyWidthAndCentred() {
+        for width in [MacWindow.minimumSize.width, 1000, MacWindow.twoOctaveMinimumWidth - 1] {
+            let size = CGSize(width: width, height: 900)
+            let keys = MacWindow.keysFrame(in: size)
+            let geometry = ChipLayout.KeyboardGeometry(insetWidth: keys.width, whiteKeys: 8)
+            XCTAssertEqual(geometry.whiteWidth, MacWindow.minimumWhiteKeyWidth, accuracy: 0.001, "\(width)")
+            XCTAssertEqual(keys.midX, width / 2, accuracy: 0.001, "\(width)")
+            XCTAssertEqual(keys.height, MacWindow.keyHeight, "\(width)")
+            XCTAssertEqual(keys.maxY, MacWindow.keyboardFrame(in: size).maxY - 10, "\(width)")
+        }
+    }
+
+    /// Two octaves run the full width, less the keyboard's inset.
+    func testTwoOctavesRunTheFullWidth() {
+        for width in [MacWindow.twoOctaveMinimumWidth, MacWindow.defaultSize.width, wide.width] {
+            let keys = MacWindow.keysFrame(in: CGSize(width: width, height: 900))
+            XCTAssertEqual(keys.minX, ChipLayout.keyboardHorizontalPadding, "\(width)")
+            XCTAssertEqual(keys.width, width - 2 * ChipLayout.keyboardHorizontalPadding, "\(width)")
+        }
+    }
+
+    // MARK: Track columns
+
+    /// A track column is one width at every window size and track count:
+    /// a wider window adds empty background after the + column, not wider
+    /// tracks.
+    func testTrackColumnsKeepOneWidthWhateverTheWindow() {
+        for width in [MacWindow.minimumSize.width, 1000, MacWindow.defaultSize.width, 1800, 2400] {
+            let size = CGSize(width: width, height: 900)
+            let layout = MacWindow.layout(for: size)
+            let available = width - MacWindow.soundColumnWidth - layout.sideGapWidth
+            for tracks in [1, 4, 8] {
+                XCTAssertEqual(layout.gridColumnWidth(available: available, tracks: tracks,
+                                                      canAddTrack: tracks < 8),
+                               MacWindow.trackColumnWidth, "\(width)pt, \(tracks) tracks")
+            }
+        }
+    }
+
+    func testTheGridDoesNotGrowWithTheWindow() {
+        func rowWidth(_ width: CGFloat) -> CGFloat {
+            let layout = MacWindow.layout(for: CGSize(width: width, height: 900))
+            let column = layout.gridColumnWidth(available: width - MacWindow.soundColumnWidth - 1,
+                                                tracks: 4, canAddTrack: true)
+            return layout.gridRowWidth(columnWidth: column, tracks: 4, canAddTrack: true)
+        }
+        XCTAssertEqual(rowWidth(MacWindow.defaultSize.width), rowWidth(1800))
+        XCTAssertEqual(rowWidth(1800), rowWidth(2400))
+    }
+
+    /// The starter song's four tracks fit beside the sound column at the
+    /// minimum width, so the smallest window doesn't open scrolled sideways.
+    func testFourTracksFitAtTheMinimumWidth() {
+        let layout = MacWindow.layout(for: MacWindow.minimumSize)
+        let row = layout.gridRowWidth(columnWidth: MacWindow.trackColumnWidth, tracks: 4, canAddTrack: true)
+        XCTAssertLessThanOrEqual(row, MacWindow.minimumSize.width - MacWindow.soundColumnWidth - layout.sideGapWidth)
+    }
+
+    /// The widest cell label, a sharp in the top octave with an effect mark,
+    /// fits at full size.
+    func testAMarkedNoteFitsUnshrunk() {
+        let available = MacWindow.trackColumnWidth - EffectMark.cellPadding
+        XCTAssertEqual(EffectMark.fitScale(name: "C#5", effect: .bendIn, fontSize: 12, available: available), 1)
+        XCTAssertGreaterThanOrEqual(MacWindow.trackColumnWidth, 70, "never narrower than the phone's floor")
+    }
+
     // MARK: Grid room
 
     /// Dragged as small as it goes, the window still shows six grid rows

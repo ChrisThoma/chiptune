@@ -114,6 +114,13 @@ struct ChipLayout: Equatable {
     /// window under the grid and the docked sound controls, rather than in
     /// the side column (see `MacWindow`).
     var keysAlongBottom = false
+    /// Cap on the keys alone (not their control row): one octave stops at
+    /// `MacWindow.oneOctaveKeysWidth` and centres.
+    var keysMaxWidth: CGFloat = .infinity
+    /// Track columns at one width whatever the window (`MacWindow`), rather
+    /// than sharing out the grid's width. Past the window's edge they scroll
+    /// sideways as before.
+    var fixedColumnWidth: CGFloat?
     #endif
     /// The selected track's sound controls live permanently in the side
     /// column instead of arriving over the grid as a sheet. Only the side
@@ -416,6 +423,9 @@ struct ChipLayout: Equatable {
     /// take `gridMinColumnWidth` and the row overflows into the horizontal
     /// scroll.
     func gridColumnWidth(available width: CGFloat, tracks: Int, canAddTrack: Bool) -> CGFloat {
+        #if os(macOS)
+        if let fixedColumnWidth { return fixedColumnWidth }
+        #endif
         let each = (width - gridRowReserved(tracks: tracks, canAddTrack: canAddTrack))
             / CGFloat(max(tracks, 1))
         return max(gridMinColumnWidth, each)

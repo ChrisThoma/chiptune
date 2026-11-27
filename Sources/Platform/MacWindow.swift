@@ -40,6 +40,14 @@ enum MacWindow {
     /// column width, which the controls were laid out for.
     static let soundColumnWidth: CGFloat = ChipLayout.sideKeyboardWidth
 
+    /// Every track column's width, at any window size. The iPad's column
+    /// floor (`ChipLayout.pad.gridMinColumnWidth`): the width an iPad grid
+    /// already draws at once its tracks overflow, and half again the
+    /// phone's 70, so the widest label (a sharp with an effect mark) fits at
+    /// full size with room to spare. A wider window leaves background after
+    /// the + column rather than stretching a part across it.
+    static let trackColumnWidth: CGFloat = ChipLayout.pad.gridMinColumnWidth
+
     /// Everything the bottom keyboard takes: the rule above it (1), the gap
     /// (10), the control row (44), the gap to the keys (8), the keys, and
     /// the space under them (6 inside KeyboardView, 4 outside). Measured
@@ -63,6 +71,9 @@ enum MacWindow {
         layout.keyboardMaxWidth = .infinity
         layout.keyboardHeight = keyHeight
         layout.keyboardOctaves = size.width >= twoOctaveMinimumWidth ? 2 : 1
+        layout.keysMaxWidth = layout.keyboardOctaves >= 2 ? .infinity : oneOctaveKeysWidth
+        layout.gridMinColumnWidth = trackColumnWidth
+        layout.fixedColumnWidth = trackColumnWidth
         return layout
     }
 
@@ -70,6 +81,24 @@ enum MacWindow {
     /// flush with the bottom.
     static func keyboardFrame(in size: CGSize) -> CGRect {
         CGRect(x: 0, y: size.height - bottomKeysHeight, width: size.width, height: bottomKeysHeight)
+    }
+
+    /// One octave's keys (eight white) at `minimumWhiteKeyWidth`: 526pt.
+    /// Below the two-octave threshold the keys stop here and centre, rather
+    /// than stretching eight white keys to nearly twice the width they had
+    /// a few points wider, where the second octave appears.
+    static var oneOctaveKeysWidth: CGFloat {
+        8 * minimumWhiteKeyWidth + 7 * ChipLayout.whiteKeySpacing
+    }
+
+    /// The keys themselves within the window: the keyboard's inset width
+    /// with two octaves, `oneOctaveKeysWidth` centred with one, and 10pt
+    /// above the window's bottom edge (6 inside KeyboardView, 4 outside).
+    static func keysFrame(in size: CGSize) -> CGRect {
+        let inset = size.width - 2 * ChipLayout.keyboardHorizontalPadding
+        let width = layout(for: size).keyboardOctaves >= 2 ? inset : min(inset, oneOctaveKeysWidth)
+        return CGRect(x: (size.width - width) / 2, y: size.height - 10 - keyHeight,
+                      width: width, height: keyHeight)
     }
 
     /// Grid rows that fit above the keyboard: what's left after the chrome,
