@@ -105,7 +105,11 @@ extension WriteFailureMessage {
     }
 
     static func wasInterrupted(_ ns: NSError) -> Bool {
+        // The interruption is iOS's taking VideoToolbox from an app in the
+        // background; AppKit has no such code.
+        #if os(iOS)
         if ns.domain == AVFoundationErrorDomain, ns.code == AVError.operationInterrupted.rawValue { return true }
+        #endif
         return (ns.userInfo[NSUnderlyingErrorKey] as? NSError).map(wasInterrupted) ?? false
     }
 }

@@ -1,5 +1,5 @@
 import XCTest
-import UIKit
+import CoreGraphics
 @testable import Chiptune
 
 /// A song name with a line break in it. Typing can't make one, but an

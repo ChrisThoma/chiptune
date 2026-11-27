@@ -1,5 +1,9 @@
 import SwiftUI
+#if os(iOS)
 import UIKit
+#else
+import AppKit
+#endif
 
 /// Draws one frame of an exported video with Core Graphics, in the app's own
 /// colours and SF Mono. Sizes are fixed pixels from `VideoLayout`, not
@@ -43,8 +47,8 @@ final class VideoFrameRenderer {
     /// Draws `frame` into `context`, which must be `VideoLayout.size` and
     /// flipped so y runs down from the top, as UIKit's are.
     func draw(frame: Int, in context: CGContext) {
-        UIGraphicsPushContext(context)
-        defer { UIGraphicsPopContext() }
+        PlatformGraphics.push(context)
+        defer { PlatformGraphics.pop() }
         switch style {
         case .grid:
             drawBackground(in: context)
@@ -76,8 +80,8 @@ final class VideoFrameRenderer {
 
         context.saveGState()
         context.clip(to: layout.gridRect)
-        let band = UIBezierPath(roundedRect: grid.band, cornerRadius: layout.cellRadius + 4)
-        Palette.text.withAlpha(0.10 * CGFloat(grid.bandLight)).uiColor.setFill()
+        let band = PlatformBezierPath(roundedRect: grid.band, cornerRadius: layout.cellRadius + 4)
+        Palette.text.withAlpha(0.10 * CGFloat(grid.bandLight)).platformColor.setFill()
         band.fill()
 
         for row in grid.rows {
@@ -136,7 +140,7 @@ final class VideoFrameRenderer {
             let track = song.tracks[index]
             let note = pattern.rows[safe: index]?[safe: step] ?? Chip.emptyNote
             let rect = layout.cellRect(track: index, centerY: centerY)
-            let shape = UIBezierPath(roundedRect: rect, cornerRadius: layout.cellRadius)
+            let shape = PlatformBezierPath(roundedRect: rect, cornerRadius: layout.cellRadius)
             let filled = note != Chip.emptyNote
             let fill: RGBA
             let label = Self.cellLabel(pattern: pattern, track: index, step: step)
@@ -149,10 +153,10 @@ final class VideoFrameRenderer {
                 fill = step % 4 == 0 ? Palette.panelHigh : Palette.panel
                 labelColor = Palette.dim.withAlpha(0.6).flattened(over: fill)
             }
-            fill.blended(over: bg, light).uiColor.setFill()
+            fill.blended(over: bg, light).platformColor.setFill()
             shape.fill()
             if !filled {
-                Palette.grid.withAlpha(0.6).flattened(over: fill).blended(over: bg, light).uiColor.setStroke()
+                Palette.grid.withAlpha(0.6).flattened(over: fill).blended(over: bg, light).platformColor.setStroke()
                 shape.lineWidth = 2
                 shape.stroke()
             }
@@ -164,10 +168,11 @@ final class VideoFrameRenderer {
                                                in: rect.insetBy(dx: EffectMark.cellPadding / 2, dy: 0))
                 Self.text(label, size: placed.fontSize, weight: .semibold, color: drawn,
                           // A little slack so the measured width never truncates.
-                          in: placed.nameRect.inset(by: UIEdgeInsets(top: 0, left: 0, bottom: 0, right: -2)),
+                          in: CGRect(x: placed.nameRect.minX, y: placed.nameRect.minY,
+                                     width: placed.nameRect.width + 2, height: placed.nameRect.height),
                           alignment: .left)
-                if let context = UIGraphicsGetCurrentContext() {
-                    EffectMark.stroke(mark, in: placed.markRect, color: drawn.uiColor.cgColor, context: context)
+                if let context = PlatformGraphics.currentContext {
+                    EffectMark.stroke(mark, in: placed.markRect, color: drawn.platformColor.cgColor, context: context)
                 }
             } else {
                 Self.text(label, size: size, weight: .semibold, color: drawn, in: rect, alignment: .center)
@@ -199,30 +204,30 @@ final class VideoFrameRenderer {
         // A soft shadow under the whole body.
         context.saveGState()
         context.setShadow(offset: CGSize(width: 0, height: 26), blur: 60,
-                          color: UIColor.black.withAlphaComponent(0.7).cgColor)
-        Plastic.shade.uiColor.setFill()
+                          color: PlatformColor.black.withAlphaComponent(0.7).cgColor)
+        Plastic.shade.platformColor.setFill()
         body.fill()
         context.restoreGState()
 
         // Edges: lit top and left, shaded bottom and right, then the face.
         context.saveGState()
         body.addClip()
-        Plastic.highlight.uiColor.setFill()
+        Plastic.highlight.platformColor.setFill()
         body.fill()
-        Plastic.shade.uiColor.setFill()
+        Plastic.shade.platformColor.setFill()
         Self.cartridgePath(cart.offsetBy(dx: Self.edge, dy: Self.edge), notch: layout.cartridgeNotch,
                            radius: layout.cartridgeCornerRadius).fill()
-        Plastic.body.uiColor.setFill()
+        Plastic.body.platformColor.setFill()
         Self.cartridgePath(cart.insetBy(dx: Self.edge, dy: Self.edge), notch: layout.cartridgeNotch - 3,
                            radius: layout.cartridgeCornerRadius - Self.edge).fill()
         context.restoreGState()
 
         // Grip ridges: a groove with a lit lip under it.
         for ridge in layout.gripRidgeRects {
-            Plastic.groove.uiColor.setFill()
-            UIBezierPath(roundedRect: ridge, cornerRadius: ridge.height / 2).fill()
-            Plastic.highlight.uiColor.setFill()
-            UIBezierPath(roundedRect: CGRect(x: ridge.minX, y: ridge.maxY, width: ridge.width, height: 3),
+            Plastic.groove.platformColor.setFill()
+            PlatformBezierPath(roundedRect: ridge, cornerRadius: ridge.height / 2).fill()
+            Plastic.highlight.platformColor.setFill()
+            PlatformBezierPath(roundedRect: CGRect(x: ridge.minX, y: ridge.maxY, width: ridge.width, height: 3),
                          cornerRadius: 1.5).fill()
         }
 
@@ -230,34 +235,34 @@ final class VideoFrameRenderer {
         // lit on its bottom and right.
         let recess = layout.labelRecessRect
         let recessRadius: CGFloat = 22
-        let recessPath = UIBezierPath(roundedRect: recess, cornerRadius: recessRadius)
+        let recessPath = PlatformBezierPath(roundedRect: recess, cornerRadius: recessRadius)
         context.saveGState()
         recessPath.addClip()
-        Plastic.highlight.uiColor.setFill()
+        Plastic.highlight.platformColor.setFill()
         recessPath.fill()
-        Plastic.recessDark.uiColor.setFill()
-        UIBezierPath(roundedRect: recess.offsetBy(dx: -5, dy: -5), cornerRadius: recessRadius).fill()
-        Plastic.bevel.uiColor.setFill()
-        UIBezierPath(roundedRect: recess.insetBy(dx: 5, dy: 5), cornerRadius: recessRadius - 5).fill()
+        Plastic.recessDark.platformColor.setFill()
+        PlatformBezierPath(roundedRect: recess.offsetBy(dx: -5, dy: -5), cornerRadius: recessRadius).fill()
+        Plastic.bevel.platformColor.setFill()
+        PlatformBezierPath(roundedRect: recess.insetBy(dx: 5, dy: 5), cornerRadius: recessRadius - 5).fill()
         context.restoreGState()
 
         // The label itself, on the app's own background.
-        Palette.background.uiColor.setFill()
-        UIBezierPath(roundedRect: layout.labelRect, cornerRadius: 12).fill()
+        Palette.background.platformColor.setFill()
+        PlatformBezierPath(roundedRect: layout.labelRect, cornerRadius: 12).fill()
 
         // The arrow moulded under the label: a slightly sunken triangle with
         // a lit lower edge.
         let tri = layout.triangleRect
-        Plastic.highlight.uiColor.setFill()
+        Plastic.highlight.platformColor.setFill()
         Self.triangle(tri.offsetBy(dx: 0, dy: 3)).fill()
-        Plastic.groove.uiColor.setFill()
+        Plastic.groove.platformColor.setFill()
         Self.triangle(tri).fill()
     }
 
     /// A cartridge outline in `rect`: the top-right corner cut by a diagonal
     /// `notch` long on each leg, the other three rounded by `radius`.
-    private static func cartridgePath(_ rect: CGRect, notch: CGFloat, radius: CGFloat) -> UIBezierPath {
-        let path = UIBezierPath()
+    private static func cartridgePath(_ rect: CGRect, notch: CGFloat, radius: CGFloat) -> PlatformBezierPath {
+        let path = PlatformBezierPath()
         path.move(to: CGPoint(x: rect.minX, y: rect.minY + radius))
         path.addArc(withCenter: CGPoint(x: rect.minX + radius, y: rect.minY + radius), radius: radius,
                     startAngle: .pi, endAngle: .pi * 1.5, clockwise: true)
@@ -274,8 +279,8 @@ final class VideoFrameRenderer {
     }
 
     /// An upward-pointing triangle filling `rect`.
-    private static func triangle(_ rect: CGRect) -> UIBezierPath {
-        let path = UIBezierPath()
+    private static func triangle(_ rect: CGRect) -> PlatformBezierPath {
+        let path = PlatformBezierPath()
         path.move(to: CGPoint(x: rect.midX, y: rect.minY))
         path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
         path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
@@ -314,9 +319,9 @@ final class VideoFrameRenderer {
         ) else { return nil }
         context.translateBy(x: 0, y: CGFloat(height))
         context.scaleBy(x: 1, y: -1)
-        UIGraphicsPushContext(context)
+        PlatformGraphics.push(context)
         drawStillCover(in: context)
-        UIGraphicsPopContext()
+        PlatformGraphics.pop()
         return context.makeImage()
     }
 
@@ -333,7 +338,7 @@ final class VideoFrameRenderer {
         // doesn't leave a gap where a second line would go. Measuring the
         // unbroken width is only right because `drawnName` leaves no line
         // breaks to start a second line on their own.
-        let titleFont = UIFont.monospacedSystemFont(ofSize: layout.coverTitleFontSize, weight: .bold)
+        let titleFont = PlatformFont.monospacedSystemFont(ofSize: layout.coverTitleFontSize, weight: .bold)
         let titleWidth = (title as NSString).size(withAttributes: [.font: titleFont]).width
         let titleLines: CGFloat = titleWidth > titleRect.width ? 2 : 1
         var meta = layout.coverMetaRect
@@ -354,8 +359,8 @@ final class VideoFrameRenderer {
             for (row, segment) in segments.enumerated() {
                 let color = row < lit ? Self.segmentColor(Palette.channel(track.kind), row: row, of: segments.count)
                                       : Palette.panelHigh
-                color.uiColor.setFill()
-                UIBezierPath(roundedRect: segment, cornerRadius: Self.segmentRadius).fill()
+                color.platformColor.setFill()
+                PlatformBezierPath(roundedRect: segment, cornerRadius: Self.segmentRadius).fill()
             }
             let silent = Self.dimsName(of: track, in: .cover)
             let labelRect = layout.coverBarLabelRect(track: index)
@@ -364,14 +369,14 @@ final class VideoFrameRenderer {
         }
 
         let track = layout.coverProgressRect
-        Palette.panelHigh.uiColor.setFill()
-        UIBezierPath(roundedRect: track, cornerRadius: track.height / 2).fill()
+        Palette.panelHigh.platformColor.setFill()
+        PlatformBezierPath(roundedRect: track, cornerRadius: track.height / 2).fill()
         let done = min(1, Double(timeline.sample(frame: frame)) / Double(max(timeline.totalSamples, 1)))
         if done > 0 {
             let fill = CGRect(x: track.minX, y: track.minY,
                               width: max(track.width * CGFloat(done), track.height), height: track.height)
-            Palette.text.uiColor.setFill()
-            UIBezierPath(roundedRect: fill, cornerRadius: track.height / 2).fill()
+            Palette.text.platformColor.setFill()
+            PlatformBezierPath(roundedRect: fill, cornerRadius: track.height / 2).fill()
         }
         let times = layout.coverTimeRect
         let elapsed = min(Double(timeline.sample(frame: frame)) / WavExport.sampleRate, timeline.seconds)
@@ -436,14 +441,14 @@ final class VideoFrameRenderer {
 
     /// SF Mono, vertically centred in `rect` for a single line, truncated
     /// rather than spilling out of it.
-    private static func text(_ string: String, size: CGFloat, weight: UIFont.Weight, color: RGBA,
+    private static func text(_ string: String, size: CGFloat, weight: PlatformFont.Weight, color: RGBA,
                              in rect: CGRect, alignment: NSTextAlignment = .left, lines: Int = 1) {
-        let font = UIFont.monospacedSystemFont(ofSize: size, weight: weight)
+        let font = PlatformFont.monospacedSystemFont(ofSize: size, weight: weight)
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = alignment
         paragraph.lineBreakMode = lines == 1 ? .byTruncatingTail : .byWordWrapping
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: font, .foregroundColor: color.uiColor, .paragraphStyle: paragraph,
+            .font: font, .foregroundColor: color.platformColor, .paragraphStyle: paragraph,
         ]
         let text = NSAttributedString(string: string, attributes: attributes)
         if lines == 1 {
@@ -468,7 +473,13 @@ struct RGBA: Equatable {
 
     init(_ color: Color) {
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        #if os(iOS)
         UIColor(color).getRed(&r, green: &g, blue: &b, alpha: &a)
+        #else
+        // AppKit refuses getRed on a colour not in an RGB space; Theme's are
+        // plain sRGB, so this reads the same numbers UIKit does.
+        NSColor(color).usingColorSpace(.sRGB)?.getRed(&r, green: &g, blue: &b, alpha: &a)
+        #endif
         self.init(r: r, g: g, b: b, a: a)
     }
 
@@ -488,8 +499,8 @@ struct RGBA: Equatable {
         base.mixed(toward: self, by: CGFloat(light))
     }
 
-    var uiColor: UIColor { UIColor(red: r, green: g, blue: b, alpha: a) }
-    var cg: CGColor { CGColor(colorSpace: Palette.colorSpace, components: [r, g, b, a]) ?? uiColor.cgColor }
+    var platformColor: PlatformColor { PlatformColor(red: r, green: g, blue: b, alpha: a) }
+    var cg: CGColor { CGColor(colorSpace: Palette.colorSpace, components: [r, g, b, a]) ?? platformColor.cgColor }
 }
 
 /// `Theme`, read once.

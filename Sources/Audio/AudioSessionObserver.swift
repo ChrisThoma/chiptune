@@ -36,6 +36,7 @@ final class AudioSessionObserver {
     init(center: NotificationCenter = .default) {
         self.center = center
 
+        #if os(iOS)
         tokens.append(center.addObserver(forName: AVAudioSession.interruptionNotification,
                                          object: nil, queue: nil) { [weak self] note in
             Self.onMain { self?.handleInterruption(note) }
@@ -48,6 +49,16 @@ final class AudioSessionObserver {
                                          object: nil, queue: nil) { [weak self] _ in
             Self.onMain { self?.onMediaServicesReset?() }
         })
+        #else
+        // A Mac has no session. What silences the engine there is the output
+        // device changing: AVAudioEngine stops itself and posts this, and
+        // only a rebuilt graph plays again. That is the media-reset path, so
+        // it is reported as one.
+        tokens.append(center.addObserver(forName: .AVAudioEngineConfigurationChange,
+                                         object: nil, queue: nil) { [weak self] _ in
+            Self.onMain { self?.onMediaServicesReset?() }
+        })
+        #endif
     }
 
     private static func onMain(_ work: @escaping () -> Void) {
@@ -62,6 +73,7 @@ final class AudioSessionObserver {
         for token in tokens { center.removeObserver(token) }
     }
 
+    #if os(iOS)
     private func handleInterruption(_ note: Notification) {
         guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
               let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
@@ -86,4 +98,5 @@ final class AudioSessionObserver {
             onOutputDeviceLost?()
         }
     }
+    #endif
 }

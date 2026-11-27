@@ -428,7 +428,7 @@ final class VideoLayoutTests: XCTestCase {
 
     /// Width of `text` as the renderer draws it: SF Mono, bold.
     private func width(_ text: String, size: CGFloat) -> CGFloat {
-        (text as NSString).size(withAttributes: [.font: UIFont.monospacedSystemFont(ofSize: size, weight: .bold)]).width
+        (text as NSString).size(withAttributes: [.font: PlatformFont.monospacedSystemFont(ofSize: size, weight: .bold)]).width
     }
 
     /// Track names side by side: each within its own slot, none touching the

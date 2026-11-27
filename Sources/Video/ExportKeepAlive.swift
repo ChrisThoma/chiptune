@@ -1,4 +1,7 @@
+import Foundation
+#if os(iOS)
 import UIKit
+#endif
 
 /// Keeps a video render going while it runs: begun when the render starts,
 /// ended once however it finishes. Both are called on the main thread.
@@ -9,6 +12,7 @@ protocol ExportKeepAlive: AnyObject, Sendable {
     @discardableResult func end() -> Bool
 }
 
+#if os(iOS)
 /// The real thing. A video's frames are encoded by VideoToolbox, which iOS
 /// takes away from an app in the background, so a long render died if the
 /// phone auto-locked or the user switched apps. This keeps the screen from
@@ -59,3 +63,28 @@ final class SystemExportKeepAlive: ExportKeepAlive, @unchecked Sendable {
         task = .invalid
     }
 }
+#else
+
+/// The Mac's version. A Mac app keeps VideoToolbox in the background, so
+/// there is no background time to ask for and leaving the foreground never
+/// explains a failure. What can still end a long render is the Mac going to
+/// sleep, which the activity holds off until the render is done.
+final class SystemExportKeepAlive: ExportKeepAlive, @unchecked Sendable {
+    private var activity: NSObjectProtocol?
+
+    func begin() {
+        MainActor.assumeIsolated {
+            activity = ProcessInfo.processInfo.beginActivity(
+                options: [.userInitiated, .idleSystemSleepDisabled], reason: "Video export")
+        }
+    }
+
+    func end() -> Bool {
+        MainActor.assumeIsolated {
+            if let activity { ProcessInfo.processInfo.endActivity(activity) }
+            activity = nil
+        }
+        return false
+    }
+}
+#endif

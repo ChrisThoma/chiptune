@@ -111,9 +111,13 @@ final class AudioEngine {
         // anyway would "succeed" into silence, wiping the error it recorded.
         guard sourceNode != nil else { return false }
         do {
+            // A Mac has no audio session; the engine plays to the current
+            // output device as is.
+            #if os(iOS)
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playback, mode: .default)
             try session.setActive(true)
+            #endif
             engine.prepare()
             try engine.start()
             running = true

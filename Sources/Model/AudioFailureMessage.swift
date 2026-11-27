@@ -15,8 +15,13 @@ enum AudioFailureMessage {
     /// A phone or FaceTime call holds the audio session, and `.playback`
     /// isn't mixable, so activating it is refused with one of these two.
     static func isSessionBusy(_ ns: NSError) -> Bool {
+        #if os(iOS)
         guard ns.domain == NSOSStatusErrorDomain else { return false }
         return ns.code == AVAudioSession.ErrorCode.insufficientPriority.rawValue
             || ns.code == AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue
+        #else
+        // No session on a Mac, so nothing holds it.
+        return false
+        #endif
     }
 }

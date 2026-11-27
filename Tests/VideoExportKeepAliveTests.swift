@@ -7,8 +7,12 @@ import AVFoundation
 /// is what fixes it.
 final class InterruptedExportMessageTests: XCTestCase {
     private let generic = NSError(domain: AVFoundationErrorDomain, code: AVError.unknown.rawValue)
-    private let interrupted = NSError(domain: AVFoundationErrorDomain, code: AVError.operationInterrupted.rawValue)
     private let keepOpen = "Couldn't export “Clip”. Keep Chiptune open while the video renders."
+
+    // The interruption code is iOS's; a Mac app keeps its encoder in the
+    // background.
+    #if os(iOS)
+    private let interrupted = NSError(domain: AVFoundationErrorDomain, code: AVError.operationInterrupted.rawValue)
 
     func testAnInterruptedWriterSaysToKeepTheAppOpen() {
         XCTAssertEqual(WriteFailureMessage.export(name: "Clip", error: interrupted, format: .video,
@@ -22,6 +26,7 @@ final class InterruptedExportMessageTests: XCTestCase {
         XCTAssertEqual(WriteFailureMessage.export(name: "Clip", error: wrapped, format: .video,
                                                   leftForeground: false), keepOpen)
     }
+    #endif
 
     /// The encoder gives up in the background with whatever error it likes.
     func testAnyFailureAfterLeavingTheAppSaysToKeepItOpen() {

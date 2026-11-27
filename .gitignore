@@ -7,6 +7,7 @@ Chiptune.xcodeproj/
 # rule above silently swallows the fixture and the test skips on a fresh clone.
 !Tests/Fixtures/*.wav
 Sources/Info.plist
+Sources/Mac/Info.plist
 
 # Result bundles xcodebuild writes to the repo root when run with CI's flags.
 *.xcresult

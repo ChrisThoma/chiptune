@@ -209,18 +209,16 @@ final class VideoExportTests: XCTestCase {
         return (Int(bytes[0]), Int(bytes[1]), Int(bytes[2]))
     }
 
-    private func assertColor(_ got: (r: Int, g: Int, b: Int), _ want: UIColor,
+    private func assertColor(_ got: (r: Int, g: Int, b: Int), _ want: RGBA,
                              _ message: String, file: StaticString = #filePath, line: UInt = #line) {
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        want.getRed(&r, green: &g, blue: &b, alpha: &a)
+        let (r, g, b) = (want.r, want.g, want.b)
         let expected = (Int(r * 255), Int(g * 255), Int(b * 255))
         let close = abs(got.r - expected.0) <= 24 && abs(got.g - expected.1) <= 24 && abs(got.b - expected.2) <= 24
         XCTAssertTrue(close, "\(message): got \(got), want \(expected)", file: file, line: line)
     }
 
-    private func isFar(_ got: (r: Int, g: Int, b: Int), _ from: UIColor) -> Bool {
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        from.getRed(&r, green: &g, blue: &b, alpha: &a)
+    private func isFar(_ got: (r: Int, g: Int, b: Int), _ from: RGBA) -> Bool {
+        let (r, g, b) = (from.r, from.g, from.b)
         return abs(got.r - Int(r * 255)) + abs(got.g - Int(g * 255)) + abs(got.b - Int(b * 255)) > 120
     }
 
@@ -275,12 +273,12 @@ final class VideoExportTests: XCTestCase {
         let image = try await firstFrame(try await exported(song, videoOptions(style: .grid)))
         XCTAssertEqual(image.width, 1080)
         let layout = VideoLayout(trackCount: song.tracks.count)
-        let red = UIColor(Theme.color(for: .pulse1))
+        let red = RGBA(Theme.color(for: .pulse1))
         let lit = layout.cellRect(track: 0, centerY: layout.playheadY)
         assertColor(pixel(image, CGPoint(x: lit.minX + 16, y: lit.midY)), red, "pulse 1 at step 0")
         let empty = layout.cellRect(track: 1, centerY: layout.playheadY)
         XCTAssertTrue(isFar(pixel(image, CGPoint(x: empty.minX + 16, y: empty.midY)),
-                            UIColor(Theme.color(for: .pulse2))), "pulse 2 has no note at step 0")
+                            RGBA(Theme.color(for: .pulse2))), "pulse 2 has no note at step 0")
     }
 
     /// The Cover style's bar for a track with a note on step 0 is lit in its
@@ -291,10 +289,10 @@ final class VideoExportTests: XCTestCase {
         let layout = VideoLayout(trackCount: song.tracks.count)
         let bar = layout.coverBarRect(track: 0)
         assertColor(pixel(image, CGPoint(x: bar.midX, y: bar.maxY - 20)),
-                    UIColor(Theme.color(for: .pulse1)), "pulse 1's bar")
+                    RGBA(Theme.color(for: .pulse1)), "pulse 1's bar")
         let quiet = layout.coverBarRect(track: 1)
         XCTAssertTrue(isFar(pixel(image, CGPoint(x: quiet.midX, y: quiet.maxY - 20)),
-                            UIColor(Theme.color(for: .pulse2))), "pulse 2 never plays")
+                            RGBA(Theme.color(for: .pulse2))), "pulse 2 never plays")
     }
 
     // MARK: Sync

@@ -3,6 +3,7 @@ options:
   bundleIdPrefix: dev.individuation
   deploymentTarget:
     iOS: "17.0"
+    macOS: "14.0"
   createIntermediateGroups: true
 
 schemes:
@@ -25,6 +26,12 @@ schemes:
         - variable: CHIPTUNE_REGEN_GOLDEN
           value: "1"
           isEnabled: false
+        # The same for the video frame PNGs VideoFrameParityTests compares
+        # against. They are written on iOS only; the Mac run checks its frames
+        # against the phone's.
+        - variable: CHIPTUNE_REGEN_FRAMES
+          value: "1"
+          isEnabled: false
         # Thread Sanitizer kills the process on its first report. ChipCore is
         # deliberately lock-free and every one of its parameter writes is a
         # report, so the default behavior meant the concurrency suite died on
@@ -45,6 +52,27 @@ schemes:
         - variable: TSAN_OPTIONS
           value: "halt_on_error=0:abort_on_error=0"
           isEnabled: true
+    archive:
+      config: Release
+
+  # The native Mac app. Phase 1 of the port: the shared core (model, audio,
+  # video) builds and is tested on macOS; the window is a placeholder until
+  # the editor views come over.
+  ChiptuneMac:
+    build:
+      targets:
+        ChiptuneMac: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - ChiptuneMacTests
+      environmentVariables:
+        # Same switch as the iOS scheme's. Off; the golden is written on iOS.
+        - variable: CHIPTUNE_REGEN_GOLDEN
+          value: "1"
+          isEnabled: false
     archive:
       config: Release
 
@@ -71,7 +99,10 @@ targets:
     type: application
     platform: iOS
     sources:
-      - Sources
+      - path: Sources
+        excludes:
+          # The Mac app's entry point and its generated plist and entitlements.
+          - Mac
     info:
       path: Sources/Info.plist
       properties:
@@ -204,4 +235,155 @@ targets:
         # iPhone and iPad. The iPad build is a native layout rather than the
         # scaled-up phone window it used to run in; see `ChipLayout`.
         TARGETED_DEVICE_FAMILY: "1,2"
+        ENABLE_PREVIEWS: YES
+
+  # The Mac test bundle runs the same test files as the iOS one, less those
+  # that exercise iOS-only views or APIs (listed below with the reason). The
+  # app module is named Chiptune on both platforms, so `@testable import
+  # Chiptune` needs no #if.
+  ChiptuneMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+        excludes:
+          - Release
+          # UIKit views and the editor's SwiftUI views come over in Phase 2.
+          - ArrangementEditToggleTests.swift
+          - ArrangementPopoverAnchorTests.swift
+          - ArrangementSheetRetentionTests.swift
+          - ConfirmationCopyTests.swift
+          - DockedKeyboardAvoidanceTests.swift
+          - EditorPresentationTests.swift
+          - EditorShortcutTests.swift
+          - ExportAccessibilityTests.swift
+          - ExportControlsTests.swift
+          - ExportFlowTests.swift
+          - ExportFooterTests.swift
+          - ExportSheetRetentionTests.swift
+          - ExportVideoRepeatsTests.swift
+          - FlowLayoutTests.swift
+          - GridFollowTests.swift
+          - GridPinningTests.swift
+          - GridRevealTests.swift
+          - HardwareKeyTests.swift
+          - KeyCatcherSoftwareKeyboardTests.swift
+          - KeyboardShortcutsMenuVisibilityTests.swift
+          - LayoutTests.swift
+          - NoteEffectCellTests.swift
+          - PatternChipAccessibilityTests.swift
+          - PhotosRetryWatchTests.swift
+          - PlainStepperTests.swift
+          - PopoverSizingTests.swift
+          - ScenePhasePolicyTests.swift
+          - ScreenshotModeTests.swift
+          - SelectionAccessibilityTests.swift
+          - SongRenameTests.swift
+          - StudioEditingTests.swift
+          - StudioImportTests.swift
+          - TempoEntryTests.swift
+          - TempoFieldAccessibilityTests.swift
+          - TransportPlayShapeTests.swift
+          - Support/SheetRetention.swift
+          # AVAudioSession is iOS only; the Mac has no session to observe.
+          - AudioSessionTests.swift
+          - AudioFailureMessageTests.swift
+          # The Photos usage string is for the iOS share sheet's Save Video.
+          - PhotoLibraryUsageTests.swift
+    dependencies:
+      - target: ChiptuneMac
+    settings:
+      base:
+        # XcodeGen derives the host from the target name; the product is
+        # Chiptune.app (see PRODUCT_NAME on ChiptuneMac).
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Chiptune.app/Contents/MacOS/Chiptune
+        BUNDLE_LOADER: $(TEST_HOST)
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"
+
+  ChiptuneMac:
+    type: application
+    platform: macOS
+    sources:
+      - Sources/Model
+      - Sources/Audio
+      - Sources/Video
+      - Sources/Platform
+      - Sources/Mac
+      - Sources/BuildStamp.swift
+      - Sources/Haptics.swift
+      # The few view files the core draws with; the rest are Phase 2.
+      - Sources/Views/Theme.swift
+      - Sources/Views/EffectMark.swift
+      - Sources/Views/Formatting.swift
+      - Sources/Resources/Samples
+      - Sources/Resources/PrivacyInfo.xcprivacy
+    info:
+      # Generated by XcodeGen and gitignored, as Sources/Info.plist is.
+      path: Sources/Mac/Info.plist
+      properties:
+        CFBundleDisplayName: Chiptune
+        # Read from the build settings for the reason given on the iOS target.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.music
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        ITSAppUsesNonExemptEncryption: false
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: dev.individuation.chiptune.song
+            UTTypeDescription: Chiptune Song
+            UTTypeConformsTo: [public.json]
+            UTTypeTagSpecification:
+              public.filename-extension: [chipsong]
+              public.mime-type: [application/json]
+          - UTTypeIdentifier: dev.individuation.chiptune.arrangement-section
+            UTTypeDescription: Chiptune Arrangement Section
+            UTTypeConformsTo: [public.data]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Chiptune Song
+            LSItemContentTypes: [dev.individuation.chiptune.song]
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+    entitlements:
+      path: Sources/Mac/Chiptune.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-write: true
+    postBuildScripts:
+      # The iOS target's stamp, unchanged: INFOPLIST_PATH already points at
+      # Contents/Info.plist in a Mac bundle.
+      - name: Stamp the commit and build date into the built Info.plist
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
+        script: |
+          plist="${TARGET_BUILD_DIR}/${INFOPLIST_PATH}"
+
+          stamp () {  # stamp <key> <value>
+            /usr/libexec/PlistBuddy -c "Add :$1 string $2" "$plist" 2>/dev/null \
+              || /usr/libexec/PlistBuddy -c "Set :$1 $2" "$plist"
+          }
+
+          commit=$(git -C "${SRCROOT}" rev-parse --short HEAD 2>/dev/null)
+          if [ -n "$commit" ]; then
+            stamp ChiptuneGitCommit "$commit"
+          fi
+
+          stamp ChiptuneBuildDate "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    settings:
+      base:
+        # Named Chiptune so the module matches the iOS app's and the shared
+        # tests' `@testable import Chiptune` works on both.
+        PRODUCT_NAME: Chiptune
+        # The same as iOS for now; whether the Mac app ships as its own
+        # record or a universal purchase is decided later.
+        PRODUCT_BUNDLE_IDENTIFIER: dev.individuation.chiptune
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ${CHIPTUNE_TEAM_ID}
+        # Kept in step with the iOS target's.
+        MARKETING_VERSION: "1.3.7"
+        CURRENT_PROJECT_VERSION: "26"
+        GENERATE_INFOPLIST_FILE: NO
+        SWIFT_VERSION: "5.0"
+        ENABLE_HARDENED_RUNTIME: YES
         ENABLE_PREVIEWS: YES

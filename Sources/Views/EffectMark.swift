@@ -1,5 +1,9 @@
 import SwiftUI
+#if os(iOS)
 import UIKit
+#else
+import AppKit
+#endif
 
 /// The pitch-effect marks, drawn as strokes rather than font characters, and
 /// where they sit next to a note name. The one place this geometry lives: the
@@ -89,8 +93,8 @@ enum EffectMark {
 
     // MARK: Metrics
 
-    static func font(size: CGFloat) -> UIFont {
-        UIFont.monospacedSystemFont(ofSize: size, weight: .semibold)
+    static func font(size: CGFloat) -> PlatformFont {
+        PlatformFont.monospacedSystemFont(ofSize: size, weight: .semibold)
     }
 
     /// The side of the mark's square box: the font's cap height.
@@ -149,6 +153,8 @@ enum EffectMark {
 
     // MARK: Menu icons
 
+    // iOS only for now: the Mac's menus come with the editor.
+    #if os(iOS)
     @MainActor private static var images: [NoteEffect: UIImage] = [:]
 
     /// The mark as a template image for a menu's icon slot, which takes only
@@ -164,6 +170,7 @@ enum EffectMark {
         images[effect] = image
         return Image(uiImage: image)
     }
+    #endif
 }
 
 /// The mark as a SwiftUI shape, for the grid cell. Stroke it with

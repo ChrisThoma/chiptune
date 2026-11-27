@@ -1,3 +1,4 @@
+#if os(iOS)
 import UIKit
 
 /// Small, intentional tactile cues for the instrument's primary actions.
@@ -26,3 +27,15 @@ enum Haptics {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 }
+#else
+
+/// A Mac has no taptic cue for these; the calls stay so shared code needn't
+/// ask which platform it's on.
+enum Haptics {
+    static func gridCell() {}
+    static func transport() {}
+    static func reorderBegan() {}
+    static func reorderStep() {}
+    static func exportSucceeded() {}
+}
+#endif

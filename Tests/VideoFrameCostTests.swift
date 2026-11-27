@@ -1,5 +1,5 @@
 import XCTest
-import UIKit
+import CoreGraphics
 @testable import Chiptune
 
 /// What one 1080×1920 frame costs to draw, per style. A ten-minute video is
