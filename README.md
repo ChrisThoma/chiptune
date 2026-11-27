@@ -102,8 +102,9 @@ With a hardware keyboard attached, the grid works like a tracker:
 
 `ChiptuneMac` is a native Mac app (macOS 14+) built from the same model,
 synth and SwiftUI views, with AppKit in place of the UIKit pieces
-(`Sources/Platform/`). It opens in the landscape iPad layout: grid on the
-left, keys and sound controls on the right. The menu bar carries every
+(`Sources/Platform/`). The grid sits top left with the selected track's
+sound controls beside it, and a full-width piano runs along the bottom, two
+octaves when the window is wide enough. The menu bar carries every
 command, the keyboard works as it does on an iPad, a right-click does what a
 long press does on iOS, and exports go through a save panel or the share
 menu. `.chipsong` files open from Finder or by dropping them on the window.

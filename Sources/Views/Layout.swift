@@ -109,6 +109,12 @@ struct ChipLayout: Equatable {
     /// its own. Always stacked: a scrolling side column would have nothing to
     /// scroll against.
     var scrollsEditor = false
+    #if os(macOS)
+    /// The Mac's arrangement: the piano across the whole bottom of the
+    /// window under the grid and the docked sound controls, rather than in
+    /// the side column (see `MacWindow`).
+    var keysAlongBottom = false
+    #endif
     /// The selected track's sound controls live permanently in the side
     /// column instead of arriving over the grid as a sheet. Only the side
     /// arrangement has anywhere to put them.

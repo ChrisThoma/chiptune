@@ -384,6 +384,11 @@ struct ContentView: View {
             let layout = MacWindow.layout(for: geo.size)
             #endif
             Group {
+                #if os(macOS)
+                // The window's minimum size keeps the Mac out of the
+                // scrolling editor, and its keys never change sides.
+                bottomKeysEditor(layout)
+                #else
                 // Kept apart from `editor`, so crossing into or out of it
                 // still rebuilds the editor. Both are rare mid-task: a text
                 // size change, or a Stage Manager window dragged short.
@@ -392,6 +397,7 @@ struct ContentView: View {
                 } else {
                     editor(layout)
                 }
+                #endif
             }
             .environment(\.chipLayout, layout)
             #if os(macOS)
@@ -843,6 +849,38 @@ struct ContentView: View {
         .padding(.bottom, side ? 8 : 0)
         .modifier(EditorColumn(layout: layout))
     }
+
+    #if os(macOS)
+    /// The Mac's arrangement (`MacWindow`): the grid and its chrome top
+    /// left, the selected track's sound controls in a column to the right,
+    /// and the piano across the full width underneath both. A Mac never
+    /// switches arrangement mid-session, so this is its own tree rather than
+    /// another axis of `editor`'s.
+    private func bottomKeysEditor(_ layout: ChipLayout) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    chrome(layout)
+                    editorGrid
+                }
+                Rectangle()
+                    .fill(Theme.grid.opacity(0.5))
+                    .frame(width: 1)
+                    .padding(.vertical, 12)
+                    .frame(width: layout.sideGapWidth)
+                InstrumentEditor(studio: studio, index: studio.selectedTrack, docked: true,
+                                 onNameFocusChange: { dockedNameEditing = $0 },
+                                 keyboardInset: 0)
+                    .padding(.top, 4)
+                    .frame(width: layout.sideColumnWidth)
+            }
+            columnHairline
+            editorKeyboard
+                .padding(.top, 10)
+                .padding(.bottom, 4)
+        }
+    }
+    #endif
 
     /// The keys, and in the side column the selected track's sound under
     /// them.
