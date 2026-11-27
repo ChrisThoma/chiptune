@@ -23,6 +23,9 @@ final class TempoEntryTests: XCTestCase {
     }
 }
 
+#if os(iOS)
+import UIKit
+
 /// `configure` runs again on every redraw of the transport while the tempo
 /// alert is up. It must leave one edit handler on the field, not one more
 /// each time.
@@ -55,3 +58,4 @@ final class TempoEntryConfigureTests: XCTestCase {
         XCTAssertEqual(second, ["140"])
     }
 }
+#endif

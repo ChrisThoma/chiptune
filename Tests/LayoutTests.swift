@@ -574,6 +574,7 @@ final class LayoutTests: XCTestCase {
                        "already at the near end, decrement should not wrap")
     }
 
+    #if os(iOS)
     /// The UIKit node itself: a real accessibility element with the adjustable
     /// trait, whose increment/decrement calls forward to the closure it was
     /// configured with.
@@ -590,6 +591,7 @@ final class LayoutTests: XCTestCase {
 
         XCTAssertEqual(seen, [.increment, .decrement])
     }
+    #endif
 
     // MARK: Keyboard geometry
 

@@ -1,4 +1,5 @@
 import SwiftUI
+#if os(iOS)
 import UIKit
 
 /// The spoken name for the tempo alert's field. It opens holding the current
@@ -12,6 +13,7 @@ enum TempoFieldAccessibility {
         field.accessibilityLabel = label
     }
 }
+#endif
 
 /// What the tempo alert's field may commit. Set used to clamp whatever was
 /// typed, so 1280 quietly became 300; now only a tempo in range counts, and
@@ -22,7 +24,10 @@ enum TempoEntry {
               Chip.tempoRange.contains(bpm) else { return nil }
         return bpm
     }
+}
 
+#if os(iOS)
+extension TempoEntry {
     /// Opens the field with the keyboard up, and reports each edit: SwiftUI's
     /// alert doesn't write the field back to its binding until the alert
     /// closes, and Set has to follow what's typed.
@@ -43,6 +48,7 @@ enum TempoEntry {
 
     static let editingChangedAction = UIAction.Identifier("TempoEntry.editingChanged")
 }
+#endif
 
 /// Where the arrangement popover points. ARR is drawn in whichever of the
 /// transport's forms fits, so the popover can't live on the button itself:
@@ -140,10 +146,12 @@ struct TransportBar: View {
             if !showing { studio.setEditingArrangement(false) }
         }
         .reportsPresentation(.tempoAlert, isPresented: editingTempo, studio: studio)
+        #if os(iOS)
         .background {
             AlertTextFieldBridge(isPresented: editingTempo,
                                  configure: { TempoEntry.configure($0) { tempoText = $0 } })
         }
+        #endif
         .alert("Tempo", isPresented: $editingTempo) {
             TextField("BPM", text: $tempoText)
                 .keyboardType(.numberPad)

@@ -1,5 +1,7 @@
 import SwiftUI
+#if os(iOS)
 import UIKit
+#endif
 
 /// One track's voice: waveform, level, pulse width and arpeggio.
 ///
@@ -389,6 +391,7 @@ struct InstrumentEditor: View {
             }
             // Without these the Form keeps its translucent system background
             // and the grid shows through the sheet. SongListView does the same.
+            .chipFormStyle()
             .scrollContentBackground(.hidden)
             .background(Theme.background.ignoresSafeArea())
             .reportsPresentation(.trackClear, isPresented: pendingClear != nil, studio: studio)

@@ -1,6 +1,10 @@
 import SwiftUI
 import StoreKit
+#if os(iOS)
 import UIKit
+#else
+import AppKit
+#endif
 import GameController
 
 /// Which screen `AppStore/shoot.sh` asked the app to open on launch.
@@ -372,9 +376,13 @@ struct ContentView: View {
         // the actual size rather than the device: an iPad in a Split View
         // slice gets the phone layout, and a rotation swaps arrangements.
         GeometryReader { geo in
+            #if os(iOS)
             let layout = ChipLayout.resolve(size: geo.size,
                                             horizontalSizeClass: horizontalSizeClass,
                                             fold: Self.fold(in: geo))
+            #else
+            let layout = MacWindow.layout(for: geo.size)
+            #endif
             Group {
                 // Kept apart from `editor`, so crossing into or out of it
                 // still rebuilds the editor. Both are rare mid-task: a text
@@ -542,9 +550,17 @@ struct ContentView: View {
                presenting: photosDenied) { retry in
             Button(PhotosDeniedAlert.openSettings) {
                 photosRetryWatch.settingsOpened(for: retry)
+                #if os(iOS)
                 if let settings = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(settings)
                 }
+                #else
+                // Never raised on the Mac, whose export saves rather than
+                // going through Photos; kept so the alert compiles unchanged.
+                if let settings = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Photos") {
+                    NSWorkspace.shared.open(settings)
+                }
+                #endif
             }
             Button("OK", role: .cancel) {
                 if ExportFlow.endsFlowAfterPhotosAlert(openedSettings: false) { studio.endExportFlow() }
@@ -1028,6 +1044,11 @@ struct ContentView: View {
                 .truncationMode(.tail)
                 .layoutPriority(-1)
                 .accessibilityLabel(SongNameFieldAccessibility.label)
+                #if os(macOS)
+                // The title reads as the title, as on iOS, rather than as a
+                // bordered Mac text box.
+                .textFieldStyle(.plain)
+                #endif
                 .textInputAutocapitalization(.words)
                 // A song title is a name: autocorrect turned "Zq" into "Zach"
                 // as the keyboard went away.
@@ -1146,7 +1167,12 @@ struct ContentView: View {
                     // the release and commit, since the reason to look is
                     // almost always a bug report.
                     Button {
+                        #if os(iOS)
                         UIPasteboard.general.string = build.copyText
+                        #else
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(build.copyText, forType: .string)
+                        #endif
                     } label: {
                         // A menu row takes a title and a subtitle, so the
                         // first line leads and the rest stack underneath it.
@@ -1164,6 +1190,7 @@ struct ContentView: View {
                     .contentShape(Rectangle())
                     .hoverEffect(.highlight)
             }
+            .chipMenuStyle()
             .accessibilityLabel("Song menu")
             // Anchored to the menu it was chosen from, so the list appears
             // where the finger already is; a phone gets it as a sheet.

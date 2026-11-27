@@ -356,6 +356,7 @@ private struct PatternRenameSheet: View {
                     Text(footerText)
                 }
             }
+            .chipFormStyle()
             .scrollContentBackground(.hidden)
             .background(Theme.background.ignoresSafeArea())
             .navigationTitle("Rename pattern")
@@ -373,6 +374,7 @@ private struct PatternRenameSheet: View {
             }
         }
         .compactSheetDetents(true)
+        .macSheetSize(width: 420, height: 300)
         .preferredColorScheme(.dark)
         .onAppear { focused = true }
     }

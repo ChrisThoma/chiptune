@@ -530,6 +530,7 @@ struct ExportSheet: View {
                     }
                 }
             }
+            .chipFormStyle()
             .scrollContentBackground(.hidden)
             .background(Theme.background.ignoresSafeArea())
             // Carries the Ending picker's VoiceOver adjustable. Deliberately

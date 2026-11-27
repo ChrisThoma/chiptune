@@ -1,5 +1,4 @@
 import XCTest
-import UIKit
 @testable import Chiptune
 
 /// Typing notes instead of tapping them out, and the cursor that says where
@@ -60,9 +59,9 @@ final class HardwareKeyTests: XCTestCase {
 
     // MARK: What a press means
 
-    private func action(_ usage: UIKeyboardHIDUsage = .keyboardErrorUndefined,
+    private func action(_ usage: KeyUsage = .keyboardErrorUndefined,
                         characters: String = "",
-                        modifiers: UIKeyModifierFlags = [],
+                        modifiers: KeyModifiers = [],
                         octave: Int = 5) -> KeyAction? {
         KeyAction.forKey(usage: usage, characters: characters,
                          modifiers: modifiers, octave: octave)
@@ -120,8 +119,8 @@ final class HardwareKeyTests: XCTestCase {
     /// `.keyboardShortcut(.cancelAction)` — in a sheet's toolbar or in the
     /// app's commands — is never consulted for them. The catcher is the only
     /// thing on that chain while a sheet is up, so it has to answer them.
-    private func presented(_ usage: UIKeyboardHIDUsage,
-                           modifiers: UIKeyModifierFlags = []) -> KeyAction? {
+    private func presented(_ usage: KeyUsage,
+                           modifiers: KeyModifiers = []) -> KeyAction? {
         KeyAction.forPresentedKey(usage: usage, modifiers: modifiers)
     }
 
@@ -148,9 +147,9 @@ final class HardwareKeyTests: XCTestCase {
     /// the "U" at the front is the note row's U (A sharp), so Escape wrote a
     /// note and moved the cursor.
     func testNamedSpecialKeysAreNotReadAsLetters() {
-        XCTAssertNil(action(.keyboardEscape, characters: UIKeyCommand.inputEscape))
-        XCTAssertNil(action(.keyboardHome, characters: UIKeyCommand.inputHome))
-        XCTAssertNil(action(.keyboardPageUp, characters: UIKeyCommand.inputPageUp))
+        XCTAssertNil(action(.keyboardEscape, characters: "UIKeyInputEscape"))
+        XCTAssertNil(action(.keyboardHome, characters: "UIKeyInputHome"))
+        XCTAssertNil(action(.keyboardPageUp, characters: "UIKeyInputPageUp"))
         XCTAssertNil(action(.keyboardF1, characters: "UIKeyInputF1"))
         XCTAssertEqual(action(.keyboardReturnOrEnter, characters: "\r"), .typeSelected)
         XCTAssertNil(action(.keyboardTab, characters: "\t"))

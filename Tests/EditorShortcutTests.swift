@@ -1,6 +1,5 @@
 import XCTest
 import SwiftUI
-import UIKit
 @testable import Chiptune
 
 /// The Command-key chords, checked against the two things that can silently
@@ -17,8 +16,8 @@ final class EditorShortcutTests: XCTestCase {
 
     /// How the same press looks to the responder chain, which is where the
     /// letter row reads it.
-    private func uiModifiers(_ modifiers: EventModifiers) -> UIKeyModifierFlags {
-        var flags: UIKeyModifierFlags = []
+    private func uiModifiers(_ modifiers: EventModifiers) -> KeyModifiers {
+        var flags: KeyModifiers = []
         if modifiers.contains(.command) { flags.insert(.command) }
         if modifiers.contains(.shift) { flags.insert(.shift) }
         if modifiers.contains(.option) { flags.insert(.alternate) }

@@ -1,4 +1,5 @@
 import SwiftUI
+#if os(iOS)
 import UIKit
 
 /// The rename alert's text field is native UIKit, not SwiftUI, and its
@@ -64,6 +65,18 @@ extension SongNameFieldAccessibility {
     static func apply(to textField: UITextField) {
         textField.accessibilityLabel = label
     }
+}
+#endif
+
+extension SongListView {
+    #if os(iOS)
+    static let closePlacement = ToolbarItemPlacement.topBarLeading
+    static let addPlacement = ToolbarItemPlacement.topBarTrailing
+    #else
+    // The Mac has no top bar; a sheet's toolbar puts these at its foot.
+    static let closePlacement = ToolbarItemPlacement.cancellationAction
+    static let addPlacement = ToolbarItemPlacement.primaryAction
+    #endif
 }
 
 /// Browse, open, duplicate and delete saved songs. Everything is autosaved, so
@@ -156,7 +169,7 @@ struct SongListView: View {
             // UIBarButtonItems that drop the accessibility metadata attached
             // here; the topBar placements stay SwiftUI-native and keep it.
             .toolbar {
-                ToolbarItem(id: "SongListView.CloseButton", placement: .topBarLeading) {
+                ToolbarItem(id: "SongListView.CloseButton", placement: SongListView.closePlacement) {
                     Button {
                         dismiss()
                     } label: {
@@ -166,7 +179,7 @@ struct SongListView: View {
                     .accessibilityLabel("Close")
                     .accessibilityIdentifier("SongListView.CloseButton")
                 }
-                ToolbarItem(id: "SongListView.AddMenu", placement: .topBarTrailing) {
+                ToolbarItem(id: "SongListView.AddMenu", placement: SongListView.addPlacement) {
                     Menu {
                         Button {
                             studio.newSong()
@@ -185,10 +198,16 @@ struct SongListView: View {
                     }
                     .accessibilityLabel("Add")
                     .accessibilityIdentifier("SongListView.AddMenu")
+                    #if os(macOS)
+                    // A toolbar "+" that opens a menu; the chevron is iOS's
+                    // pull-down look and doubles the button's width here.
+                    .menuIndicator(.hidden)
+                    #endif
                 }
             }
             .tint(Theme.text)
         }
+        .macSheetSize(width: 560, height: 620)
         .preferredColorScheme(.dark)
         .onAppear { reload() }
         // On iOS 26 iPhone and on every iPad this presents as a popover, and
@@ -221,12 +240,14 @@ struct SongListView: View {
         .songShareSheet(for: studio, onFailure: { message in
             DispatchQueue.main.async { shareFailure = message }
         })
+        #if os(iOS)
         .background {
             AlertTextFieldBridge(isPresented: renaming != nil) { field in
                 SongNameFieldAccessibility.apply(to: field)
                 SongRenameAlertStyle.apply(to: field)
             }
         }
+        #endif
         .alert("Rename song", isPresented: Binding(isPresenting: $renaming)) {
             TextField("Name", text: $renameText)
             Button("Cancel", role: .cancel) { renaming = nil }

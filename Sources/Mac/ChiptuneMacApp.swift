@@ -1,33 +1,27 @@
 import SwiftUI
 
-/// The Mac app's entry point. A placeholder window for now: the shared core
-/// builds and is tested on macOS, and the editor views come over next. It
-/// shows the build stamp so a build can be told apart from the last one.
+/// The Mac app's entry point. The same root view as the iPhone and iPad
+/// (`AppRoot`) in a single window: one studio is one song being edited, so a
+/// second window would only be a second view of the same document.
 @main
 struct ChiptuneMacApp: App {
-    var body: some Scene {
-        WindowGroup {
-            PlaceholderView()
-        }
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var studio: Studio?
+    @State private var pendingImport: URL?
+
+    init() {
+        guard !AppRoot.isTestHost else { return }
+        DispatchQueue.global(qos: .utility).async { ExportFiles.sweep() }
     }
-}
 
-private struct PlaceholderView: View {
-    private let build = BuildStamp()
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Text("Chiptune")
-                .font(.system(size: 32, weight: .bold, design: .monospaced))
-                .foregroundStyle(Theme.text)
-            ForEach(build.lines, id: \.self) { line in
-                Text(line)
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundStyle(Theme.dim)
-            }
+    var body: some Scene {
+        Window("Chiptune", id: "editor") {
+            AppRoot(studio: $studio, pendingImport: $pendingImport, scenePhase: scenePhase)
+                .frame(minWidth: MacWindow.minimumSize.width,
+                       minHeight: MacWindow.minimumSize.height)
         }
-        .frame(minWidth: 480, minHeight: 320)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.background)
+        .defaultSize(MacWindow.defaultSize)
+        .windowResizability(.contentMinSize)
+        .commands { EditorCommands() }
     }
 }

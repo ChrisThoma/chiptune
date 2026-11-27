@@ -1,6 +1,8 @@
 import XCTest
 import SwiftUI
+#if os(iOS)
 import UIKit
+#endif
 @testable import Chiptune
 
 /// Renaming from the library. The App Store copy promises it, so it has to
@@ -102,6 +104,8 @@ final class SongRenameTests: XCTestCase {
         XCTAssertEqual(song.name, "Padded")
     }
 
+    // The rename alert's field is a UIKit one; the Mac uses SwiftUI's.
+    #if os(iOS)
     func testRenameFieldInkIsDarkOverAWhiteField() {
         let foreground = SongRenameAlertStyle.textColor(over: .white)
         XCTAssertGreaterThan(SongRenameAlertStyle.contrastRatio(foreground, .white), 4.5)
@@ -164,6 +168,7 @@ final class SongRenameTests: XCTestCase {
 
         XCTAssertEqual(field.accessibilityLabel, "Song title")
     }
+    #endif
 
     // MARK: Renaming from the title bar
     //

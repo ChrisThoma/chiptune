@@ -55,9 +55,8 @@ schemes:
     archive:
       config: Release
 
-  # The native Mac app. Phase 1 of the port: the shared core (model, audio,
-  # video) builds and is tested on macOS; the window is a placeholder until
-  # the editor views come over.
+  # The native Mac app: the shared core and the editor's views, with the
+  # UIKit pieces swapped for AppKit ones in Sources/Platform.
   ChiptuneMac:
     build:
       targets:
@@ -248,43 +247,15 @@ targets:
       - path: Tests
         excludes:
           - Release
-          # UIKit views and the editor's SwiftUI views come over in Phase 2.
-          - ArrangementEditToggleTests.swift
-          - ArrangementPopoverAnchorTests.swift
+          # Drive real UIKit presentation (a hosted window, UIStepper, the
+          # first responder and its input view, UITextField alert fields).
+          # The Mac has no counterpart for these to exercise; its own pieces
+          # are tested in the Mac* files.
           - ArrangementSheetRetentionTests.swift
-          - ConfirmationCopyTests.swift
-          - DockedKeyboardAvoidanceTests.swift
-          - EditorPresentationTests.swift
-          - EditorShortcutTests.swift
-          - ExportAccessibilityTests.swift
-          - ExportControlsTests.swift
-          - ExportFlowTests.swift
-          - ExportFooterTests.swift
           - ExportSheetRetentionTests.swift
-          - ExportVideoRepeatsTests.swift
-          - FlowLayoutTests.swift
-          - GridFollowTests.swift
-          - GridPinningTests.swift
-          - GridRevealTests.swift
-          - HardwareKeyTests.swift
-          - KeyCatcherSoftwareKeyboardTests.swift
-          - KeyboardShortcutsMenuVisibilityTests.swift
-          - LayoutTests.swift
-          - NoteEffectCellTests.swift
-          - PatternChipAccessibilityTests.swift
-          - PhotosRetryWatchTests.swift
-          - PlainStepperTests.swift
-          - PopoverSizingTests.swift
-          - ScenePhasePolicyTests.swift
-          - ScreenshotModeTests.swift
-          - SelectionAccessibilityTests.swift
-          - SongRenameTests.swift
-          - StudioEditingTests.swift
-          - StudioImportTests.swift
-          - TempoEntryTests.swift
-          - TempoFieldAccessibilityTests.swift
-          - TransportPlayShapeTests.swift
           - Support/SheetRetention.swift
+          - KeyCatcherSoftwareKeyboardTests.swift
+          - TempoFieldAccessibilityTests.swift
           # AVAudioSession is iOS only; the Mac has no session to observe.
           - AudioSessionTests.swift
           - AudioFailureMessageTests.swift
@@ -310,12 +281,12 @@ targets:
       - Sources/Video
       - Sources/Platform
       - Sources/Mac
+      - Sources/Views
       - Sources/BuildStamp.swift
       - Sources/Haptics.swift
-      # The few view files the core draws with; the rest are Phase 2.
-      - Sources/Views/Theme.swift
-      - Sources/Views/EffectMark.swift
-      - Sources/Views/Formatting.swift
+      # The iOS entry point's shared pieces (splash, scene-phase policy, the
+      # root view); `@main` itself stays iOS-only behind #if.
+      - Sources/ChiptuneApp.swift
       - Sources/Resources/Samples
       - Sources/Resources/PrivacyInfo.xcprivacy
     info:

@@ -1,5 +1,7 @@
 import SwiftUI
+#if os(iOS)
 import UIKit
+#endif
 
 /// The step grid: one column per track, one row per step.
 ///
@@ -140,7 +142,7 @@ private struct HorizontalOffsetReader: ViewModifier {
     @Binding var offset: CGFloat
 
     func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
+        if #available(iOS 18.0, macOS 15.0, *) {
             content.onScrollGeometryChange(for: CGFloat.self) { geometry in
                 geometry.contentOffset.x + geometry.contentInsets.leading
             } action: { _, new in
@@ -158,7 +160,7 @@ private struct VerticalOffsetReader: ViewModifier {
     @Binding var offset: CGFloat?
 
     func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
+        if #available(iOS 18.0, macOS 15.0, *) {
             content.onScrollGeometryChange(for: CGFloat.self) { geometry in
                 geometry.contentOffset.y + geometry.contentInsets.top
             } action: { _, new in
@@ -394,6 +396,7 @@ struct GridView: View {
                         .fill(Theme.panel)
                 )
         }
+        .chipMenuStyle()
         .hoverEffect(.highlight)
         .accessibilityLabel("Add track")
     }

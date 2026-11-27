@@ -35,6 +35,7 @@ struct HelpGuideView: View {
                 }
             }
         }
+        .macSheetSize(width: 620, height: 680)
         .preferredColorScheme(.dark)
     }
 

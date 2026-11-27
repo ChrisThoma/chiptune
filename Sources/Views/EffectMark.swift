@@ -153,7 +153,6 @@ enum EffectMark {
 
     // MARK: Menu icons
 
-    // iOS only for now: the Mac's menus come with the editor.
     #if os(iOS)
     @MainActor private static var images: [NoteEffect: UIImage] = [:]
 
@@ -169,6 +168,25 @@ enum EffectMark {
         }.withRenderingMode(.alwaysTemplate)
         images[effect] = image
         return Image(uiImage: image)
+    }
+    #else
+    @MainActor private static var images: [NoteEffect: NSImage] = [:]
+
+    /// The same mark for an AppKit menu. `isTemplate` is what lets the menu
+    /// tint it for its own light, dark and highlighted rows.
+    @MainActor
+    static func image(_ effect: NoteEffect) -> Image {
+        if let cached = images[effect] { return Image(nsImage: cached) }
+        let side: CGFloat = 18
+        let image = NSImage(size: CGSize(width: side, height: side), flipped: true) { _ in
+            guard let context = NSGraphicsContext.current?.cgContext else { return false }
+            stroke(effect, in: CGRect(x: 2, y: 2, width: side - 4, height: side - 4),
+                   color: NSColor.black.cgColor, context: context)
+            return true
+        }
+        image.isTemplate = true
+        images[effect] = image
+        return Image(nsImage: image)
     }
     #endif
 }

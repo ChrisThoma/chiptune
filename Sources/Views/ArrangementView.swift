@@ -1,5 +1,7 @@
 import SwiftUI
+#if os(iOS)
 import UIKit
+#endif
 import UniformTypeIdentifiers
 
 enum ArrangementCapacityAnnouncement {
@@ -100,6 +102,7 @@ struct ArrangementView: View {
                             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                             .contentShape(Rectangle())
                     }
+                    .chipMenuStyle()
                     .listRowInsets(EdgeInsets())
                 } header: {
                     Text("Play order")
@@ -121,23 +124,30 @@ struct ArrangementView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            #if os(iOS)
             .environment(\.editMode, editModeBinding)
+            #endif
             .onChange(of: studio.song.exceedsChainCapacity) { exceeded, nowExceeds in
                 guard ArrangementCapacityAnnouncement.shouldAnnounce(
                     previouslyExceeded: exceeded,
                     nowExceeds: nowExceeds
                 ) else { return }
+                #if os(iOS)
                 UIAccessibility.post(notification: .announcement,
                                      argument: capacityWarning)
+                #else
+                AccessibilityNotification.Announcement(capacityWarning).post()
+                #endif
             }
             // Without these the List keeps its translucent system background
             // and the grid shows through the sheet. SongListView does the same.
             .scrollContentBackground(.hidden)
             .background(Theme.background.ignoresSafeArea())
+            #if os(iOS)
             .navigationTitle("Arrangement")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) { editPill }
+                ToolbarItem(placement: Self.editPlacement) { editPill }
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 0) {
                         Text("Arrangement").font(.headline).lineLimit(1)
@@ -148,6 +158,25 @@ struct ArrangementView: View {
                     Button("Done") { dismiss() }
                 }
             }
+            #else
+            // A Mac popover draws no navigation toolbar, which took Edit (the
+            // only way to delete a section here) and the guide with it. The
+            // same three items as a header row instead.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                HStack(spacing: 0) {
+                    editPill
+                    Spacer(minLength: 8)
+                    Text("Arrangement").font(.headline).lineLimit(1)
+                    HelpGuideButton { showingGuide = true }
+                    Spacer(minLength: 8)
+                    Button("Done") { dismiss() }
+                        .keyboardShortcut(.defaultAction)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 4)
+                .background(Theme.background)
+            }
+            #endif
             .helpGuide(isPresented: $showingGuide, start: .arrangement, studio: studio)
         }
         .compactSheetDetents(!regularWidth)
@@ -157,6 +186,10 @@ struct ArrangementView: View {
         .popoverSized(regularWidth, idealHeight: 560)
         .preferredColorScheme(.dark)
     }
+
+    #if os(iOS)
+    private static let editPlacement = ToolbarItemPlacement.navigationBarLeading
+    #endif
 
     private var editPill: some View {
         Button {
@@ -190,7 +223,25 @@ struct ArrangementView: View {
         // Spacer and the compact repeat label recover that without touching
         // the Menu's or Stepper's tappable size; the name scales before it
         // would ever truncate.
+        #if os(macOS)
+        let leadingView = HStack(spacing: 6) {
+            // A Mac List has no edit-mode delete circle, so Edit shows this
+            // in its place; the last section can't go, as on iOS.
+            if studio.editingArrangement {
+                Button {
+                    studio.removeSection(at: IndexSet(integer: position))
+                } label: {
+                    Image(systemName: "minus.circle.fill").foregroundStyle(.red)
+                }
+                .buttonStyle(.plain)
+                .disabled(studio.song.arrangement.count <= 1)
+                .accessibilityLabel("Delete section \(position + 1)")
+            }
+            leading(ArrangementRowLeading.content(position: position, playing: playing))
+        }
+        #else
         let leadingView = leading(ArrangementRowLeading.content(position: position, playing: playing))
+        #endif
         // The Spacer shares the Menu's slot so it costs no HStack gap of
         // its own, without widening the Menu's tappable label.
         let menuView = HStack(spacing: 0) {
@@ -267,6 +318,7 @@ struct ArrangementView: View {
             .padding(.vertical, 6)
             .background(RoundedRectangle(cornerRadius: Theme.innerRadius).fill(Color.secondary.opacity(0.18)))
         }
+        .chipMenuStyle()
         .accessibilityLabel("Section \(position + 1), pattern \(pattern?.name ?? "none")")
         .accessibilityValue(PatternChipAccessibility.value(playing: playing, isEmpty: pattern?.isEmpty ?? true) ?? "")
     }

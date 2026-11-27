@@ -1,4 +1,5 @@
 import SwiftUI
+#if os(iOS)
 import UIKit
 
 /// A real UIKit accessibility node for controls that iOS 17 bridges to an
@@ -101,6 +102,24 @@ struct AlertTextFieldBridge: UIViewRepresentable {
         }
     }
 }
+
+#else
+/// The Mac's segmented pickers aren't bridged to empty groups, but the
+/// pickers this sits beside are hidden from accessibility on both platforms,
+/// so the Mac still needs the adjustable element; SwiftUI's own is enough.
+func accessibilitySelector(
+    label: String,
+    value: String,
+    adjust: @escaping (AccessibilityAdjustmentDirection) -> Void
+) -> some View {
+    Color.clear
+        .allowsHitTesting(false)
+        .accessibilityElement()
+        .accessibilityLabel(label)
+        .accessibilityValue(value)
+        .accessibilityAdjustableAction(adjust)
+}
+#endif
 
 /// Confirmation copy that appears at more than one entrance — the ••• menu and
 /// a context menu, say — kept in one place so the entrances can't drift apart.
